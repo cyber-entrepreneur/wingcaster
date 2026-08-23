@@ -1078,4 +1078,31 @@ export const CHECKS = [
          END::bigint AS qty`,
     comparison_query: `SELECT '00000000-0000-4000-8000-000000000099'::uuid AS entity_id, 0::bigint AS qty`,
   },
+  {
+    // Stage 13f commercial schema empty post-deprecation (DL-232).
+    // DRIFT when FIN_ONLY + 90-day quiet period elapsed but commercial.*
+    // tables remain. GREEN before the operator DROP or after tables = 0.
+    check_code: 'R100',
+    severity: 'LOW',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'commercial_schema',
+    source_query: `SELECT '00000000-0000-4000-8000-000000000100'::uuid AS entity_id,
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+               FROM fin.cutover_active_environment e
+              WHERE e.mode = 'FIN_ONLY'
+                AND e.activated_at + interval '90 days' <= :now
+           )
+           AND (
+             SELECT COUNT(*)::bigint
+               FROM pg_tables
+              WHERE schemaname = 'commercial'
+           ) > 0
+           THEN 1
+           ELSE 0
+         END::bigint AS qty`,
+    comparison_query: `SELECT '00000000-0000-4000-8000-000000000100'::uuid AS entity_id, 0::bigint AS qty`,
+  },
 ]

@@ -78,6 +78,9 @@ describe('isAutoMigration', () => {
     // still in OFF mode.
     expect(isAutoMigration('260a_fin_cutover_freeze_commercial.sql')).toBe(false)
     expect(isAutoMigration('260b_fin_cutover_thaw_commercial.sql')).toBe(false)
+    expect(isAutoMigration('290a_fin_cutover_drop_commercial.sql')).toBe(false)
+    expect(isAutoMigration('289_quota_ledger_projection.sql')).toBe(true)
+    expect(isAutoMigration('291_fin_cutover_commercial_tombstone.sql')).toBe(true)
     expect(isAutoMigration('261_fin_cutover_read_views.sql')).toBe(true)
     expect(isAutoMigration('262_fin_cutover_readiness_gate.sql')).toBe(true)
   })

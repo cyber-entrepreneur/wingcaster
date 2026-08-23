@@ -18,7 +18,6 @@ import { dualWrite } from '../fin/cutover/dual-writer.js'
 import { ledgerConsumptionAuthorizeInput } from '../fin/cutover/mapping.js'
 import { resolveFinMirrorContext } from '../fin/cutover/context.js'
 import { authorizeUsage } from '../fin/auth/authorize.js'
-import { watchCommercialWrite } from '../fin/cutover/quiet_period/logger.js'
 
 export const LEDGER_ENTRY_TYPES = ['allowance_grant', 'consumption', 'overage', 'topup', 'adjustment']
 
@@ -55,21 +54,17 @@ export async function writeLedgerEntry({
   }
 
   if (type !== 'consumption') {
-    await insert('ledger_entries', row)
+    await insert('quota_ledger_entries', row)
     return row
   }
 
   // DL-171 / Stage 13a — dual-write to fin.*. Failure logs to
   // fin.cutover_dual_write_errors and does NOT block the legacy write.
-  // DL-217 — permission denied on the commercial INSERT is logged to
-  // quiet_period_events then rethrown (not swallowed).
-  await transaction(async (client) => {
-    await watchCommercialWrite(client, {
-      environment: 'LIVE',
-      sourceFile: 'billing/ledger.js',
-      payload: { type, quota_key: quotaKey, tenant_id: tenantId, entry_id: row.id },
-    }, () => insert('ledger_entries', row))
-    await maybeDualWriteLedgerConsumption(row, { client })
+  // DL-226 — quota projection writes to quota.*; commercial.* is frozen
+  // in FIN_ONLY and dropped in Stage 13f.
+  await transaction(async () => {
+    await insert('quota_ledger_entries', row)
+    await maybeDualWriteLedgerConsumption(row)
   })
   return row
 }
@@ -132,14 +127,12 @@ async function maybeDualWriteLedgerConsumption(row, {
  * Returns integer balance (allowance + top-ups − consumption − overage
  * captured as negative adjustment).
  *
- * DL-221: still reads commercial.ledger_entries. Dual-write consumption
- * lands in fin holds/lots via authorizeUsage, not fin.rated_usage, so
- * fin_public.ledger_entries (261) cannot reconstruct quota_key/type/
- * billing_period. Stage 13f must land a quota projection before DROP.
+ * DL-226: reads quota.ledger_entries (option a). Migrated from
+ * commercial.ledger_entries before Stage 13f DROP.
  */
 export async function quotaBalance({ tenantId, quotaKey, billingPeriod }) {
   const period = billingPeriod || currentBillingPeriod()
-  const rows = await findAll('ledger_entries', (r) =>
+  const rows = await findAll('quota_ledger_entries', (r) =>
     r.tenant_id === tenantId && r.quota_key === quotaKey && r.billing_period === period,
   )
   return rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
@@ -152,7 +145,7 @@ export async function quotaBalance({ tenantId, quotaKey, billingPeriod }) {
  */
 export async function periodSummary({ tenantId, billingPeriod }) {
   const period = billingPeriod || currentBillingPeriod()
-  const rows = await findAll('ledger_entries', (r) => r.tenant_id === tenantId && r.billing_period === period)
+  const rows = await findAll('quota_ledger_entries', (r) => r.tenant_id === tenantId && r.billing_period === period)
   const byQuota = {}
   for (const r of rows) {
     if (!byQuota[r.quota_key]) {
@@ -198,15 +191,11 @@ export async function recordConsumption({
   if (!quotaKey) throw new Error('quotaKey required')
   const period = billingPeriod || currentBillingPeriod()
   const work = async (client) => {
-    const { rows } = await watchCommercialWrite(client, {
-      environment: cutoverEnvironment === 'TEST' ? 'TEST' : 'LIVE',
-      sourceFile: 'billing/ledger.js:recordConsumption',
-      payload: { tenant_id: tenantId, quota_key: quotaKey, source_event_id: sourceEventId },
-    }, () => client.query(
+    const { rows } = await client.query(
       `SELECT within_allowance, overage, entry_ids
-         FROM commercial.record_consumption($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+         FROM quota.record_consumption($1, $2, $3, $4, $5, $6, $7::jsonb)`,
       [tenantId, subscriptionId || null, period, quotaKey, q, sourceEventId || null, JSON.stringify(metadata || {})],
-    ))
+    )
     const result = rows[0]
     const entryIds = result.entry_ids || []
     let entries = []
@@ -214,7 +203,7 @@ export async function recordConsumption({
       const inserted = await client.query(
         `SELECT id, tenant_id, subscription_id, billing_period, type, quota_key,
                 amount, source_event_id, metadata, created_at
-           FROM commercial.ledger_entries
+           FROM quota.ledger_entries
           WHERE id = ANY($1::text[])
           ORDER BY array_position($1::text[], id)`,
         [entryIds],

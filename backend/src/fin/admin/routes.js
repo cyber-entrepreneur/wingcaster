@@ -1,5 +1,5 @@
 /**
- * Stage 12 ops admin surface. Thin HTTP over existing Stage 1–10 commands.
+ * Stage 12 ops admin surface. Thin HTTP over existing Stage 1?10 commands.
  * Guards copy Stage 4 pricing routes (platform_admin + elevated + limiter + If-Match).
  * environment / now never come from req.body (DL-164 / DL-101).
  */
@@ -37,6 +37,7 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { loadCutoverReadiness, loadParityReports } from '../cutover/backfill/readiness.js'
 import { signAttestation } from '../cutover/parity/attestation.js'
 import { activateFinOnly, deactivateFinOnly, freezeCommercialWrites } from '../cutover/activation.js'
+import { computeDeprecationReadiness, deprecateCommercial } from '../cutover/deprecation.js'
 import { listQuietPeriodEvents, logQuietPeriodEvent } from '../cutover/quiet_period/logger.js'
 import { QUIET_PERIOD_KINDS } from '../cutover/quiet_period/status.js'
 
@@ -416,6 +417,31 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       note: pick(body, 'note'),
       actor,
       idempotencyKey: actor.idempotencyKey,
+    })
+    return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/cutover/deprecation-readiness', readGuards, wrap(async (req, res) => {
+    const payload = await computeDeprecationReadiness(getPool(), {
+      environment: sessionEnvironment(req),
+      now: req.fin.now,
+    })
+    return res.status(200).json(payload)
+  }))
+
+  app.post('/api/admin/fin/cutover/deprecate-commercial', writeGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    if (!actor.idempotencyKey) {
+      throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
+    }
+    const body = commandBody(req)
+    const result = await deprecateCommercial({
+      environment: sessionEnvironment(req),
+      snapshotNote: pick(body, 'snapshot_note', 'snapshotNote'),
+      note: pick(body, 'note'),
+      actor,
+      idempotencyKey: actor.idempotencyKey,
+      now: req.fin.now,
     })
     return res.status(200).json(result)
   }))

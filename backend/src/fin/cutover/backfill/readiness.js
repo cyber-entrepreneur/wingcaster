@@ -18,6 +18,10 @@ import {
   r099Display,
   readyForStage13f as computeReadyForStage13f,
 } from '../quiet_period/status.js'
+import {
+  computeDeprecationReadiness,
+  loadDeprecationDropAudit,
+} from '../deprecation.js'
 
 function qtyMap(rows) {
   const map = new Map()
@@ -82,7 +86,7 @@ export async function loadCutoverReadiness(pool, {
   const dualWriteErrorCount24h = errors.rows[0]?.n || 0
 
   const recon = {}
-  for (const code of ['R090', 'R091', 'R092', 'R093', 'R094', 'R095', 'R096', 'R097', 'R098', 'R099']) {
+  for (const code of ['R090', 'R091', 'R092', 'R093', 'R094', 'R095', 'R096', 'R097', 'R098', 'R099', 'R100']) {
     recon[code] = await evalCheck(pool, code, stamped)
   }
 
@@ -195,6 +199,13 @@ export async function loadCutoverReadiness(pool, {
     attestationFresh,
   })
 
+  const deprecationReadiness = await computeDeprecationReadiness(pool, {
+    environment: env,
+    now: stamped,
+  })
+  const dropAudit = await loadDeprecationDropAudit(pool, env)
+  const r100 = recon.R100 === 'DRIFT' ? 'WARN' : 'GREEN'
+
   return {
     dual_write_error_count_24h: dualWriteErrorCount24h,
     R090: recon.R090,
@@ -207,6 +218,7 @@ export async function loadCutoverReadiness(pool, {
     R097: r097,
     R098: r098,
     R099: r099,
+    R100: r100,
     mode,
     backfill_status: progress.rows,
     corrections_total: corrections.rows[0]?.n || 0,
@@ -237,6 +249,19 @@ export async function loadCutoverReadiness(pool, {
     },
     ready_for_cutover: readyForCutover,
     ready_for_stage_13f: readyFor13f,
+    deprecation: {
+      ready_for_drop: deprecationReadiness.ready_for_drop,
+      gates: {
+        mode_fin_only: deprecationReadiness.gates.mode_fin_only,
+        quiet_period_90d: deprecationReadiness.gates.quiet_period_90d,
+        r097_clean_90d: deprecationReadiness.gates.r097_clean_90d,
+        r099_fresh: deprecationReadiness.gates.r099_fresh,
+        commercial_tables_remaining: deprecationReadiness.gates.commercial_tables_remaining,
+        fks_outside_commercial: deprecationReadiness.gates.fks_outside_commercial,
+      },
+      dropped_at: dropAudit.dropped_at,
+      dropped_by_email: dropAudit.dropped_by_email,
+    },
   }
 }
 
