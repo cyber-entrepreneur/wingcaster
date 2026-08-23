@@ -11,6 +11,13 @@ import {
   listDailyParityReports,
 } from '../parity/attestation.js'
 import { readActiveEnvironment } from '../mode.js'
+import {
+  QUIET_PERIOD_DAYS_REQUIRED,
+  quietPeriodDaysElapsed,
+  r098Display,
+  r099Display,
+  readyForStage13f as computeReadyForStage13f,
+} from '../quiet_period/status.js'
 
 function qtyMap(rows) {
   const map = new Map()
@@ -75,7 +82,7 @@ export async function loadCutoverReadiness(pool, {
   const dualWriteErrorCount24h = errors.rows[0]?.n || 0
 
   const recon = {}
-  for (const code of ['R090', 'R091', 'R092', 'R093', 'R094', 'R095', 'R096']) {
+  for (const code of ['R090', 'R091', 'R092', 'R093', 'R094', 'R095', 'R096', 'R097', 'R098', 'R099']) {
     recon[code] = await evalCheck(pool, code, stamped)
   }
 
@@ -136,7 +143,40 @@ export async function loadCutoverReadiness(pool, {
   const r094 = recon.R094
   const r095 = r095Display(recon.R095)
   const r096 = recon.R096
+  const r097 = recon.R097
+  const r098 = r098Display(recon.R098)
+  const r099 = r099Display(recon.R099)
   const active = await readActiveEnvironment(pool, env)
+  const mode = active?.mode || 'OFF'
+  const activatedAt = mode === 'FIN_ONLY' && active?.activated_at
+    ? new Date(active.activated_at).toISOString()
+    : null
+  const daysElapsed = activatedAt ? quietPeriodDaysElapsed(activatedAt, stamped) : null
+
+  const writeAttempts24h = await pool.query(
+    `SELECT COUNT(*)::int AS n
+       FROM fin.cutover_quiet_period_events
+      WHERE environment = $1
+        AND kind = 'COMMERCIAL_WRITE_ATTEMPT'
+        AND occurred_at > $2::timestamptz - interval '24 hours'
+        AND occurred_at <= $2::timestamptz`,
+    [env, stamped],
+  )
+  const writeAttemptsTotal = await pool.query(
+    `SELECT COUNT(*)::int AS n
+       FROM fin.cutover_quiet_period_events
+      WHERE environment = $1
+        AND kind = 'COMMERCIAL_WRITE_ATTEMPT'`,
+    [env],
+  )
+  const lastParityStatus = await pool.query(
+    `SELECT status, generated_at
+       FROM fin.cutover_parity_reports
+      WHERE environment = $1
+      ORDER BY generated_at DESC
+      LIMIT 1`,
+    [env],
+  )
 
   const readyForCutover = recon.R090 === 'GREEN'
     && recon.R091 === 'GREEN'
@@ -147,6 +187,14 @@ export async function loadCutoverReadiness(pool, {
     && dualWriteErrorCount24h < 100
     && attestationFresh
 
+  const readyFor13f = computeReadyForStage13f({
+    mode,
+    r097,
+    r098: recon.R098,
+    r099: recon.R099,
+    attestationFresh,
+  })
+
   return {
     dual_write_error_count_24h: dualWriteErrorCount24h,
     R090: recon.R090,
@@ -156,7 +204,10 @@ export async function loadCutoverReadiness(pool, {
     R094: r094,
     R095: r095,
     R096: r096,
-    mode: active?.mode || 'OFF',
+    R097: r097,
+    R098: r098,
+    R099: r099,
+    mode,
     backfill_status: progress.rows,
     corrections_total: corrections.rows[0]?.n || 0,
     parity: {
@@ -173,7 +224,19 @@ export async function loadCutoverReadiness(pool, {
       signed_by_email: signed?.signed_by_email || null,
       eligible_to_sign: computed.eligible,
     },
+    quiet_period: {
+      activated_at: activatedAt,
+      days_elapsed: daysElapsed,
+      days_required: QUIET_PERIOD_DAYS_REQUIRED,
+      commercial_write_attempts_24h: writeAttempts24h.rows[0]?.n || 0,
+      commercial_write_attempts_total: writeAttemptsTotal.rows[0]?.n || 0,
+      last_parity_report_status: lastParityStatus.rows[0]?.status || null,
+      last_parity_report_at: lastParityStatus.rows[0]?.generated_at
+        ? new Date(lastParityStatus.rows[0].generated_at).toISOString()
+        : null,
+    },
     ready_for_cutover: readyForCutover,
+    ready_for_stage_13f: readyFor13f,
   }
 }
 

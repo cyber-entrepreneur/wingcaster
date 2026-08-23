@@ -78,6 +78,7 @@ finPostgresSuite('e2e/admin-fin-traversal', {}, ({ url, pool }) => {
       '/api/admin/fin/reconciliation/runs',
       '/api/admin/fin/cutover/readiness',
       '/api/admin/fin/cutover/parity',
+      '/api/admin/fin/cutover/quiet-period/events',
       '/api/admin/fin/exceptions',
       '/api/admin/fin/approvals',
       '/api/admin/fin/audit',
@@ -93,7 +94,7 @@ finPostgresSuite('e2e/admin-fin-traversal', {}, ({ url, pool }) => {
     expect(overview.body.keys).toHaveLength(24)
     expect(overview.body.keys).toEqual([...OVERVIEW_KPI_KEYS])
     const exceptions = await request(app).get('/api/admin/fin/exceptions')
-    expect(exceptions.body.types).toHaveLength(18)
+    expect(exceptions.body.types).toHaveLength(19)
     expect(exceptions.body.types.map((row) => row.type)).toEqual(
       EXCEPTION_TYPES.map((row) => row.type),
     )

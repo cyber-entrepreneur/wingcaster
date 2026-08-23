@@ -30,5 +30,13 @@ finPostgresSuite('admin/routes-cutover-readiness', {}, ({ url }) => {
     }))
     expect(res.body.attestation.eligible_to_sign).toBe(false)
     expect(res.body.ready_for_cutover).toBe(false)
+    expect(res.body.quiet_period).toEqual(expect.objectContaining({
+      days_required: 90,
+      commercial_write_attempts_24h: 0,
+    }))
+    expect(res.body.R097).toBe('GREEN')
+    expect(res.body.R098).toBe('GREEN')
+    expect(res.body.R099).toBe('GREEN')
+    expect(res.body.ready_for_stage_13f).toBe(false)
   })
 })

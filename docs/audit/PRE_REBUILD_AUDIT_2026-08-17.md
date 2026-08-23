@@ -1604,3 +1604,29 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
  Fast suite also runs `cutover/activation.test.js`.
 
 **Business gate:** this PR does not flip anything in production on merge. Activation is a coordinated operator action per the runbook and requires a signed attestation within 7 days.
+
+### Stage 13e / 90-day quiet period -- 2026-08-23
+
+**Landed on `feat/stage-13e-quiet-period`:** 90-day burn-in instrumentation after the Stage 13d cutover flip (main @ `a6855da`). `commercial.*` stays read-only as a safety net. Application usage-event reads migrate to `fin_public.usage_events`. Does **not** DROP/ALTER/mutate any `commercial.*` row. Does **not** edit `fin.*` domain command code. Does **not** start the 90-day clock — that begins when an operator activates `FIN_ONLY` (already Stage 13d). Merge does **not** change production write behavior.
+
+**Migrations:**
+- `280_fin_cutover_quiet_period_events.sql` -- APPEND_ONLY anomaly log with five kinds (DL-217). GRANT INSERT to `fin_app_role`; REVOKE UPDATE/DELETE/TRUNCATE; SELECT via platform_admin bypass + recon. Trigger `trg_cutover_quiet_period_events_append_only`. No advisory lock. No 270s views (DL-220): usage reads project the commercial column set from the existing 261 view.
+
+**Services:** `backend/src/fin/cutover/quiet_period/{logger,status}.js`. `watchCommercialWrite` hooked into the DUAL/FIN_ONLY branch of `billing/events.js` and the commercial INSERT/`record_consumption` paths in `billing/ledger.js` — logs `42501` then **rethrows** (does not swallow). `billing/usage-reads.js` is the reversible usage-event read helper.
+
+**Reconciliation:** R097 commercial write-attempt count (CRITICAL, `BLOCK_NEW_ISSUANCE`). R098 quiet-period days elapsed (LOW, `WARN`; GREEN at >= 90 days of `FIN_ONLY`). R099 30-day attestation freshness for Stage 13f (LOW, `WARN`). Empty/OFF worlds stay GREEN (DL-218).
+
+**Admin:** `GET /api/admin/fin/cutover/readiness` gains `quiet_period`, R097–R099, `ready_for_stage_13f` (DL-219). `POST /api/admin/fin/cutover/quiet-period/log` (platform_admin + elevated). `GET /api/admin/fin/cutover/quiet-period/events`. Exceptions list gains `QUIET_PERIOD_EVENTS` (19th type).
+
+**Web:** Overview "Quiet period" tile. Parity table of quiet-period events by kind. Exceptions page tab for quiet-period rows.
+
+**Read-path inventory:** `docs/ops/CUTOVER_13E_READ_PATH_MIGRATION.md`.
+
+**Decision log:** DL-217 .. DL-225.
+
+**CI file list (must appear in the postgres job summary):**
+`quiet_period/events-append-only.test.js`, `quiet_period/readiness-extension.test.js`, `reconciliation/r097-r099.test.js`, `reconciliation/runner-quiet-period-green.test.js`.
+ Fast suite also runs `quiet_period/logger.test.js`, `reconciliation/r097-r099-shape.test.js`, `billing/usage-reads.test.js`. Web jsdom: `web/src/pages/admin/fin/pages.test.tsx`.
+
+**Business gate:** none. This PR is instrumentation + read-path cleanup + docs. The 90-day watch is an ops activity (readiness / Overview daily; re-attest ~every 25 days so R099 stays GREEN). Stage 13f cannot ship until R084 and R096 have been GREEN for the full window AND a fresh Finance re-attestation exists.
+

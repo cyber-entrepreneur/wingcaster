@@ -55,6 +55,27 @@ export function OverviewPage() {
           <p>ready_for_cutover: {String(readiness?.ready_for_cutover ?? '—')}</p>
         </CardContent>
       </Card>
+      <Card className="mb-4">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Quiet period</CardTitle></CardHeader>
+        <CardContent className="text-sm">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {(['R097', 'R098', 'R099'] as const).map((code) => (
+              <span key={code} className="rounded border px-2 py-1">
+                {code} {String(readiness?.[code] ?? '—')}
+              </span>
+            ))}
+          </div>
+          <p>
+            days elapsed: {String((readiness?.quiet_period as { days_elapsed?: number | null } | undefined)?.days_elapsed ?? '—')}
+            {' / '}
+            {String((readiness?.quiet_period as { days_required?: number } | undefined)?.days_required ?? 90)}
+          </p>
+          <p>
+            commercial write attempts (24h): {String((readiness?.quiet_period as { commercial_write_attempts_24h?: number } | undefined)?.commercial_write_attempts_24h ?? '—')}
+          </p>
+          <p>ready_for_stage_13f: {String(readiness?.ready_for_stage_13f ?? '—')}</p>
+        </CardContent>
+      </Card>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {KPI_ORDER.map((key) => (
           <Card key={key}>

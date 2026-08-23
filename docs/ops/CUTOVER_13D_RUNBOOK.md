@@ -110,6 +110,8 @@ Those belong to Stage 13e/13f.
 |---|---|---|
 | GET | `/api/admin/fin/cutover/readiness` | platform_admin |
 | GET | `/api/admin/fin/cutover/parity` | platform_admin |
+| GET | `/api/admin/fin/cutover/quiet-period/events` | platform_admin (Stage 13e) |
+| POST | `/api/admin/fin/cutover/quiet-period/log` | platform_admin + elevated (Stage 13e) |
 | POST | `/api/admin/fin/cutover/attest` | platform_admin + elevated + Idempotency-Key |
 | POST | `/api/admin/fin/cutover/activate` | platform_admin + elevated + Idempotency-Key |
 | POST | `/api/admin/fin/cutover/deactivate` | platform_admin + elevated + Idempotency-Key |

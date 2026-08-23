@@ -22,6 +22,7 @@ import { dualWrite } from '../fin/cutover/dual-writer.js'
 import { usageEventInput } from '../fin/cutover/mapping.js'
 import { resolveFinMirrorContext } from '../fin/cutover/context.js'
 import { ingestUsageEventWithClient } from '../fin/usage/ingest.js'
+import { watchCommercialWrite } from '../fin/cutover/quiet_period/logger.js'
 
 // Sentinel territory_id for events with no market context (webhook
 // receipts, platform-scoped telemetry). commercial.usage_events is
@@ -147,7 +148,11 @@ export async function emitUsageEvent({
     // inserts so non-allowlisted tenants see unchanged behaviour.
     if (mode === 'DUAL' || mode === 'FIN_ONLY') {
       await transaction(async (client) => {
-        await insert('usage_events', event)
+        await watchCommercialWrite(client, {
+          environment,
+          sourceFile: 'billing/events.js',
+          payload: { action_key: actionKey, tenant_id: tenantId, event_id: event.id },
+        }, () => insert('usage_events', event))
 
         // DL-171 / Stage 13a — dual-write to fin.*. Failure logs to
         // fin.cutover_dual_write_errors and does NOT block the legacy write.

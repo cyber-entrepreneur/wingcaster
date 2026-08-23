@@ -9,6 +9,10 @@ export { activateFinOnly, deactivateFinOnly } from './activation.js'
 export { assertCutoverAttestationGate } from './startup-gate.js'
 export { dualWrite } from './dual-writer.js'
 export {
+  logQuietPeriodEvent,
+  logCommercialWriteAttempt,
+} from './quiet_period/logger.js'
+export {
   usageEventInput,
   holdAuthorizeInput,
   captureUsageInput,

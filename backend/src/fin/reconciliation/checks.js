@@ -1008,4 +1008,74 @@ export const CHECKS = [
          END::bigint AS qty`,
     comparison_query: `SELECT '00000000-0000-4000-8000-000000000096'::uuid AS entity_id, 0::bigint AS qty`,
   },
+  {
+    // Stage 13e commercial write-attempt watch (DL-218). DRIFT when any
+    // COMMERCIAL_WRITE_ATTEMPT row landed in the last 24h. Empty tables
+    // are GREEN (zero expected).
+    check_code: 'R097',
+    severity: 'CRITICAL',
+    expected_delta_units: 0,
+    drift_action: 'BLOCK_NEW_ISSUANCE',
+    entity_type: 'cutover_quiet_period_events',
+    source_query: `SELECT '00000000-0000-4000-8000-000000000097'::uuid AS entity_id,
+         CASE
+           WHEN COUNT(*)::bigint > 0 THEN 1
+           ELSE 0
+         END::bigint AS qty
+         FROM fin.cutover_quiet_period_events
+        WHERE kind = 'COMMERCIAL_WRITE_ATTEMPT'
+          AND occurred_at > :now - interval '24 hours'
+          AND occurred_at <= :now`,
+    comparison_query: `SELECT '00000000-0000-4000-8000-000000000097'::uuid AS entity_id, 0::bigint AS qty`,
+  },
+  {
+    // Stage 13e 90-day quiet window (DL-218). DRIFT when FIN_ONLY has
+    // been active for fewer than 90 days. OFF/DUAL/empty are GREEN so
+    // sibling runner-*-green fixtures stay green. Readiness maps DRIFT
+    // to WARN (informational — not a 13e blocker).
+    check_code: 'R098',
+    severity: 'LOW',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'cutover_active_environment',
+    source_query: `SELECT '00000000-0000-4000-8000-000000000098'::uuid AS entity_id,
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+               FROM fin.cutover_active_environment e
+              WHERE e.mode = 'FIN_ONLY'
+                AND e.activated_at + interval '90 days' > :now
+           ) THEN 1
+           ELSE 0
+         END::bigint AS qty`,
+    comparison_query: `SELECT '00000000-0000-4000-8000-000000000098'::uuid AS entity_id, 0::bigint AS qty`,
+  },
+  {
+    // Stage 13e / 13f attestation freshness (DL-218). 30-day window for
+    // Stage 13f readiness (distinct from R096's 7-day FIN_ONLY gate).
+    // DRIFT when FIN_ONLY has no attestation signed within 30 days.
+    // OFF/DUAL/empty are GREEN. Readiness maps DRIFT to WARN.
+    check_code: 'R099',
+    severity: 'LOW',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'cutover_parity_attestations',
+    source_query: `SELECT '00000000-0000-4000-8000-000000000099'::uuid AS entity_id,
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+               FROM fin.cutover_active_environment e
+              WHERE e.mode = 'FIN_ONLY'
+                AND NOT EXISTS (
+                  SELECT 1
+                    FROM fin.cutover_parity_attestations a
+                   WHERE a.environment = e.environment
+                     AND a.signed_at >= :now - interval '30 days'
+                     AND a.signed_at <= :now
+                )
+           ) THEN 1
+           ELSE 0
+         END::bigint AS qty`,
+    comparison_query: `SELECT '00000000-0000-4000-8000-000000000099'::uuid AS entity_id, 0::bigint AS qty`,
+  },
 ]
