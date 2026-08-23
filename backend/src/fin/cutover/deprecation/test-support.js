@@ -1,7 +1,26 @@
 /**
  * Real-Postgres — deprecation test helpers.
+ * Each test gets its own throwaway DB via withTestDb so irreversible DROP
+ * cannot contaminate sibling tests (DL-237).
  */
 import { randomUUID } from 'node:crypto'
+import pg from 'pg'
+import { closeDb, configure } from '../../../db.js'
+import { withTestDb } from '../../../testing/postgres.js'
+
+export async function withDeprecationTestDb(fn) {
+  return withTestDb(async (databaseUrl) => {
+    configure({ databaseUrl, force: true })
+    const pool = new pg.Pool({ connectionString: databaseUrl })
+    pool.on('error', () => {})
+    try {
+      return await fn(pool, databaseUrl)
+    } finally {
+      await pool.end().catch(() => {})
+      await closeDb().catch(() => {})
+    }
+  })
+}
 
 export async function setFinOnlyMode(pool, {
   activatedAt = '2026-05-18T12:00:00.000Z',

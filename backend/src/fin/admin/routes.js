@@ -37,7 +37,7 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { loadCutoverReadiness, loadParityReports } from '../cutover/backfill/readiness.js'
 import { signAttestation } from '../cutover/parity/attestation.js'
 import { activateFinOnly, deactivateFinOnly, freezeCommercialWrites } from '../cutover/activation.js'
-import { computeDeprecationReadiness, deprecateCommercial } from '../cutover/deprecation.js'
+import { computeDeprecationReadiness, deprecateCommercial, validateSnapshotNote } from '../cutover/deprecation.js'
 import { listQuietPeriodEvents, logQuietPeriodEvent } from '../cutover/quiet_period/logger.js'
 import { QUIET_PERIOD_KINDS } from '../cutover/quiet_period/status.js'
 
@@ -435,6 +435,7 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
     }
     const body = commandBody(req)
+    validateSnapshotNote(pick(body, 'snapshot_note', 'snapshotNote'))
     const result = await deprecateCommercial({
       environment: sessionEnvironment(req),
       snapshotNote: pick(body, 'snapshot_note', 'snapshotNote'),

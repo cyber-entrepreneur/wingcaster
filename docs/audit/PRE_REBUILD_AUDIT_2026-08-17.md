@@ -1655,3 +1655,5 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
 
 **Business gate:** Finance sign-off + verified prod snapshot are runbook preconditions. DROP is operator-triggered after deploy; rollback = snapshot restore only.
 
+**Follow-up (PR #23 audit):** DL-236 repoints billing pg tests to `quota.ledger_entries` (6→0 grep hits). DL-237 isolates deprecation DROP tests via per-test `withTestDb`. DL-238 confirms snapshot-note validation returns HTTP 400.
+

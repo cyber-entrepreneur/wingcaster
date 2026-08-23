@@ -244,4 +244,7 @@ Living log. Append only. Date + decision + rationale + who. Never silently rewri
 | 2026-08-24 | DL-233 | Reserved — Stage 13f follow-up. | Stage 13f reserved | Stage 13f |
 | 2026-08-24 | DL-234 | Reserved — Stage 13f follow-up. | Stage 13f reserved | Stage 13f |
 | 2026-08-24 | DL-235 | Reserved — Stage 13f follow-up. | Stage 13f reserved | Stage 13f |
+| 2026-08-24 | DL-236 | Billing pg-suite test sweep: 6 `commercial.ledger_entries` references in test SQL (grep before=6, after=0) repointed to `quota.ledger_entries` in `billing/ledger.test.js`, `billing/products/lifecycle.test.js` (3), `billing/products/migration.test.js` (1). Matches DL-226 quota projection writes. | Test follow-up PR #23 | Stage 13f |
+| 2026-08-24 | DL-237 | Deprecation pg tests switched from `finPostgresSuite` (per-file DB + global `configure()` race under parallel vitest) to `withDeprecationTestDb` (`withTestDb` per test). `usage_events_default does not exist` was test-DB pollution, not over-broad CASCADE: `fin.usage_events_default` survives DROP; happy-drop asserts partition count unchanged. | Test isolation | Stage 13f |
+| 2026-08-24 | DL-238 | `SNAPSHOT_NOTE_REQUIRED` is VALIDATION / HTTP 400; route validates before `deprecateCommercial`. `routes-deprecate-commercial` noKey case must omit `Idempotency-Key` header (not pass empty string through `writeHeaders`, which synthesizes a key). | HTTP status convention | Stage 13f |
 
