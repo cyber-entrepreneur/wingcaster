@@ -14,10 +14,11 @@
  * zone UI). Subscription + topup + payment endpoints land in 7c–7e.
  */
 
-import { findAll, findOne, insert } from '../db.js'
+import { findOne, insert } from '../db.js'
 import { requireElevated } from '../auth.js'
 import { CAST_RATES_V1, CAST_VALUE_MINOR_SEED, RATE_CARD_LATEST_VERSION } from './rate-card.js'
 import { periodSummary, quotaBalance, recordTopup, currentBillingPeriod } from './ledger.js'
+import { listUsageEvents } from './usage-reads.js'
 import { resolveActiveSubscription } from './entitlements.js'
 import {
   effectiveCastValueMinor,
@@ -116,9 +117,11 @@ export function registerBillingRoutes(app, { authMiddleware, requirePlatformAdmi
   app.get('/api/billing/usage', auth, async (req, res) => {
     const period = req.query.period || currentBillingPeriod()
     const limit = Math.min(500, Number(req.query.limit) || 200)
-    const events = (await findAll('usage_events', (e) => e.tenant_id === req.user.id && e.billing_period === period))
-      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-      .slice(0, limit)
+    const events = await listUsageEvents({
+      tenantId: req.user.id,
+      billingPeriod: period,
+      limit,
+    })
     res.json({
       tenant_id: req.user.id,
       billing_period: period,
@@ -131,7 +134,7 @@ export function registerBillingRoutes(app, { authMiddleware, requirePlatformAdmi
     const period = req.query.period || currentBillingPeriod()
     const [ledger, events] = await Promise.all([
       periodSummary({ tenantId: req.user.id, billingPeriod: period }),
-      findAll('usage_events', (e) => e.tenant_id === req.user.id && e.billing_period === period),
+      listUsageEvents({ tenantId: req.user.id, billingPeriod: period, limit: 5000 }),
     ])
     const totalCastsCharged = events.reduce((s, e) => s + (Number(e.casts_charged) || 0), 0)
     const totalPriceMinor = events.reduce((s, e) => s + (Number(e.price_minor) || 0), 0)
@@ -165,9 +168,7 @@ export function registerBillingRoutes(app, { authMiddleware, requirePlatformAdmi
   app.get('/api/admin/billing/usage', auth, adminGuard, async (req, res) => {
     const period = req.query.period || currentBillingPeriod()
     const limit = Math.min(2000, Number(req.query.limit) || 500)
-    const events = (await findAll('usage_events', (e) => e.billing_period === period))
-      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-      .slice(0, limit)
+    const events = await listUsageEvents({ billingPeriod: period, limit })
     res.json({ billing_period: period, event_count: events.length, events })
   })
 
@@ -252,7 +253,7 @@ export function registerBillingRoutes(app, { authMiddleware, requirePlatformAdmi
 
   app.get('/api/admin/billing/telemetry', auth, adminGuard, async (req, res) => {
     const period = req.query.period || currentBillingPeriod()
-    const events = await findAll('usage_events', (e) => e.billing_period === period)
+    const events = await listUsageEvents({ billingPeriod: period, limit: 5000 })
     if (!events.length) return res.json({ billing_period: period, tenants: 0, summary: null })
 
     // Group by tenant then compute per-tenant per-action counts.

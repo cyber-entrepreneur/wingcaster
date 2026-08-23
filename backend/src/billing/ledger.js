@@ -18,6 +18,7 @@ import { dualWrite } from '../fin/cutover/dual-writer.js'
 import { ledgerConsumptionAuthorizeInput } from '../fin/cutover/mapping.js'
 import { resolveFinMirrorContext } from '../fin/cutover/context.js'
 import { authorizeUsage } from '../fin/auth/authorize.js'
+import { watchCommercialWrite } from '../fin/cutover/quiet_period/logger.js'
 
 export const LEDGER_ENTRY_TYPES = ['allowance_grant', 'consumption', 'overage', 'topup', 'adjustment']
 
@@ -60,8 +61,14 @@ export async function writeLedgerEntry({
 
   // DL-171 / Stage 13a — dual-write to fin.*. Failure logs to
   // fin.cutover_dual_write_errors and does NOT block the legacy write.
+  // DL-217 — permission denied on the commercial INSERT is logged to
+  // quiet_period_events then rethrown (not swallowed).
   await transaction(async (client) => {
-    await insert('ledger_entries', row)
+    await watchCommercialWrite(client, {
+      environment: 'LIVE',
+      sourceFile: 'billing/ledger.js',
+      payload: { type, quota_key: quotaKey, tenant_id: tenantId, entry_id: row.id },
+    }, () => insert('ledger_entries', row))
     await maybeDualWriteLedgerConsumption(row, { client })
   })
   return row
@@ -124,6 +131,11 @@ async function maybeDualWriteLedgerConsumption(row, {
  * inserts are the only mutation and every insert is atomic on Postgres.
  * Returns integer balance (allowance + top-ups − consumption − overage
  * captured as negative adjustment).
+ *
+ * DL-221: still reads commercial.ledger_entries. Dual-write consumption
+ * lands in fin holds/lots via authorizeUsage, not fin.rated_usage, so
+ * fin_public.ledger_entries (261) cannot reconstruct quota_key/type/
+ * billing_period. Stage 13f must land a quota projection before DROP.
  */
 export async function quotaBalance({ tenantId, quotaKey, billingPeriod }) {
   const period = billingPeriod || currentBillingPeriod()
@@ -186,11 +198,15 @@ export async function recordConsumption({
   if (!quotaKey) throw new Error('quotaKey required')
   const period = billingPeriod || currentBillingPeriod()
   const work = async (client) => {
-    const { rows } = await client.query(
+    const { rows } = await watchCommercialWrite(client, {
+      environment: cutoverEnvironment === 'TEST' ? 'TEST' : 'LIVE',
+      sourceFile: 'billing/ledger.js:recordConsumption',
+      payload: { tenant_id: tenantId, quota_key: quotaKey, source_event_id: sourceEventId },
+    }, () => client.query(
       `SELECT within_allowance, overage, entry_ids
          FROM commercial.record_consumption($1, $2, $3, $4, $5, $6, $7::jsonb)`,
       [tenantId, subscriptionId || null, period, quotaKey, q, sourceEventId || null, JSON.stringify(metadata || {})],
-    )
+    ))
     const result = rows[0]
     const entryIds = result.entry_ids || []
     let entries = []

@@ -270,6 +270,7 @@ describe('7f/3 — fin/admin/routes (ops writes)', () => {
     ['post', '/api/admin/fin/facilities/f-1/limit'],
     ['post', '/api/admin/fin/reconciliation/run'],
     ['post', '/api/admin/fin/cutover/attest'],
+    ['post', '/api/admin/fin/cutover/quiet-period/log'],
     ['post', '/api/admin/fin/reconciliation/drift/d-1/resolve'],
     ['post', '/api/admin/fin/approvals/a-1/approve'],
     ['post', '/api/admin/fin/approvals/a-1/reject'],
@@ -316,6 +317,7 @@ describe('7f/3 — fin/admin/routes (ops writes)', () => {
     expect(src).toContain("app.post('/api/admin/fin/facilities'")
     expect(src).toContain("app.post('/api/admin/fin/reconciliation/run'")
     expect(src).toContain("app.post('/api/admin/fin/cutover/attest'")
+    expect(src).toContain("app.post('/api/admin/fin/cutover/quiet-period/log'")
     expect(src).toContain("app.post('/api/admin/fin/approvals/:id/approve'")
     expect(src).toContain("app.post('/api/admin/fin/dunning/cases/:id/advance'")
     expect(src).toContain("app.post('/api/admin/fin/billing/periods/:id/close'")

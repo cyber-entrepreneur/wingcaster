@@ -72,6 +72,11 @@ describe('admin/fin pages', () => {
     expect(await screen.findByText('Cutover readiness')).toBeTruthy()
   })
 
+  it('Overview surfaces a Quiet period tile', async () => {
+    wrap(<OverviewPage />)
+    expect(await screen.findByText('Quiet period')).toBeTruthy()
+  })
+
   it('Vendor costs shows Stage 11 empty state', async () => {
     wrap(<VendorCostsPage />)
     expect(await screen.findByText(/Stage 11 not merged/)).toBeTruthy()

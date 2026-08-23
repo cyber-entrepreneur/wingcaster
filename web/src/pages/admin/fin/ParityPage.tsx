@@ -40,6 +40,7 @@ function DriftChart({ reports }: { reports: Array<Record<string, unknown>> }) {
 
 export function ParityPage() {
   const [reports, setReports] = useState<Array<Record<string, unknown>>>([])
+  const [byKind, setByKind] = useState<Array<Record<string, unknown>>>([])
   const [eligible, setEligible] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -48,10 +49,12 @@ export function ParityPage() {
     void Promise.all([
       api.finGet('/cutover/parity'),
       api.finGet('/cutover/readiness'),
-    ]).then(([parity, readiness]) => {
+      api.finGet('/cutover/quiet-period/events'),
+    ]).then(([parity, readiness, quiet]) => {
       setReports((parity.reports || []) as Array<Record<string, unknown>>)
       const attestation = (readiness.attestation || {}) as { eligible_to_sign?: boolean }
       setEligible(Boolean(attestation.eligible_to_sign))
+      setByKind((quiet.by_kind || []) as Array<Record<string, unknown>>)
     }).catch((err: Error) => setError(err.message))
   }
 
@@ -80,6 +83,9 @@ export function ParityPage() {
         />
       </div>
       <DriftChart reports={reports} />
+      <p className="mb-2 text-sm font-medium">Quiet-period events by kind</p>
+      <FinTable columns={['kind', 'count']} rows={byKind} />
+      <div className="mt-4" />
       <FinTable
         columns={[
           'source', 'status', 'drift_rate_bps', 'rows_checked', 'rows_drifted',

@@ -37,6 +37,8 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { loadCutoverReadiness, loadParityReports } from '../cutover/backfill/readiness.js'
 import { signAttestation } from '../cutover/parity/attestation.js'
 import { activateFinOnly, deactivateFinOnly, freezeCommercialWrites } from '../cutover/activation.js'
+import { listQuietPeriodEvents, logQuietPeriodEvent } from '../cutover/quiet_period/logger.js'
+import { QUIET_PERIOD_KINDS } from '../cutover/quiet_period/status.js'
 
 let registerFinVendorAdminRoutes = null
 const vendorRoutesPath = join(dirname(fileURLToPath(import.meta.url)), 'vendors', 'routes.js')
@@ -267,6 +269,13 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json(payload)
   }))
 
+  app.get('/api/admin/fin/cutover/quiet-period/events', readGuards, wrap(async (req, res) => {
+    const payload = await listQuietPeriodEvents(getPool(), {
+      environment: sessionEnvironment(req),
+    })
+    return res.status(200).json(payload)
+  }))
+
   app.get('/api/admin/fin/dunning/cases', readGuards, wrap(async (req, res) => {
     const cases = await listDunningCases({ environment: sessionEnvironment(req) })
     return res.status(200).json({ cases })
@@ -367,6 +376,30 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       now: req.fin.now,
     })
     return res.status(200).json(result)
+  }))
+
+  // DL-217: internal anomaly log. Application code inserts via logger.js
+  // on a standalone connection; this HTTP surface is for service accounts
+  // that already carry a platform_admin token.
+  app.post('/api/admin/fin/cutover/quiet-period/log', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const kind = pick(body, 'kind')
+    const message = pick(body, 'message')
+    if (!QUIET_PERIOD_KINDS.includes(kind)) {
+      throw finError('INVALID_QUIET_PERIOD_KIND', { category: CATEGORY.VALIDATION, httpStatus: 400 })
+    }
+    if (!message) {
+      throw finError('QUIET_PERIOD_MESSAGE_REQUIRED', { category: CATEGORY.VALIDATION, httpStatus: 400 })
+    }
+    await logQuietPeriodEvent(null, {
+      environment: sessionEnvironment(req),
+      kind,
+      sourceFile: pick(body, 'source_file', 'sourceFile') || null,
+      message,
+      payload: pick(body, 'payload') || {},
+      now: req.fin.now,
+    })
+    return res.status(201).json({ ok: true })
   }))
 
   // DL-216: freeze commercial.* writes AFTER /activate has flipped the
