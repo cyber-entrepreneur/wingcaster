@@ -36,6 +36,8 @@ export const FIN_CUTOVER_BACKFILL = 1030
 export const FIN_CUTOVER_PARITY = 1031
 /** Stage 13d cutover activate/deactivate mutex. Session-scoped; key2 = hashtext(environment) (DL-206). */
 export const FIN_CUTOVER_ACTIVATION = 1032
+/** Stage 13f commercial DROP mutex. Session-scoped; key2 = 0 (DL-231). */
+export const FIN_CUTOVER_DEPRECATE = 1033
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -61,4 +63,5 @@ export const LOCK_CLASSES = {
   FIN_CUTOVER_BACKFILL,
   FIN_CUTOVER_PARITY,
   FIN_CUTOVER_ACTIVATION,
+  FIN_CUTOVER_DEPRECATE,
 }

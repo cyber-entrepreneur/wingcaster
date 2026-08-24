@@ -244,7 +244,7 @@ skipIfNoPostgres()('migration — proration + credit notes', () => {
         // the cadence-roll grant.
         const grants = await query(
           `SELECT COUNT(*)::int AS n
-             FROM commercial.ledger_entries
+             FROM quota.ledger_entries
             WHERE tenant_id = $1 AND type = 'allowance_grant' AND quota_key = 'outbound_whatsapp'`,
           [tenantId],
         )

@@ -16,7 +16,7 @@ function tenant(label) {
 async function ledgerRows(tenantId) {
   return query(
     `SELECT id, type, amount
-       FROM commercial.ledger_entries
+       FROM quota.ledger_entries
       WHERE tenant_id = $1 AND quota_key = $2 AND billing_period = $3`,
     [tenantId, quotaKey, period],
   )
@@ -29,7 +29,7 @@ skipIfNoPostgres()('recordConsumption Postgres serialization', () => {
   }, 180_000)
 
   afterAll(async () => {
-    await query('DELETE FROM commercial.ledger_entries WHERE tenant_id LIKE $1', [`${testPrefix}%`])
+    await query('DELETE FROM quota.ledger_entries WHERE tenant_id LIKE $1', [`${testPrefix}%`])
     await closeDb()
   })
 

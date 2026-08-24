@@ -63,12 +63,10 @@ async function querySubscriptions(tenantId) {
 }
 
 async function queryQuotaLedger(tenantId, billingPeriod) {
-  // DL-223: stays on commercial.ledger_entries. Same reconstruction gap
-  // as quotaBalance (DL-221) — fin_public.ledger_entries cannot group
-  // by quota_key/type. Revert this FROM clause alone if needed.
+  // DL-226: quota projection in quota.ledger_entries (option a).
   const rows = await query(
     `SELECT quota_key, type, COALESCE(SUM(amount), 0)::bigint AS total
-       FROM commercial.ledger_entries
+       FROM quota.ledger_entries
       WHERE tenant_id = $1 AND billing_period = $2
       GROUP BY quota_key, type
       ORDER BY quota_key, type`,

@@ -133,7 +133,7 @@ skipIfNoPostgres()('lifecycle — trial + renewal + expiry transitions', () => {
         // post-trial rollover.
         const grants = await query(
           `SELECT COUNT(*)::int AS n
-             FROM commercial.ledger_entries
+             FROM quota.ledger_entries
             WHERE tenant_id = $1 AND type = 'allowance_grant' AND quota_key = 'outbound_whatsapp'`,
           [tenantId],
         )
@@ -237,7 +237,7 @@ skipIfNoPostgres()('lifecycle — cancel / pause / resume', () => {
         // Same period — no extra grant.
         const grants = await query(
           `SELECT COUNT(*)::int AS n
-             FROM commercial.ledger_entries
+             FROM quota.ledger_entries
             WHERE tenant_id = $1 AND type = 'allowance_grant' AND quota_key = 'outbound_whatsapp'`,
           [tenantId],
         )
@@ -267,7 +267,7 @@ skipIfNoPostgres()('lifecycle — cancel / pause / resume', () => {
         expect(resumed.status).toBe('active')
         const grants = await query(
           `SELECT COUNT(*)::int AS n
-             FROM commercial.ledger_entries
+             FROM quota.ledger_entries
             WHERE tenant_id = $1 AND type = 'allowance_grant' AND quota_key = 'outbound_whatsapp'`,
           [tenantId],
         )

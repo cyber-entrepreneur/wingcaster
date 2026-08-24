@@ -158,6 +158,14 @@ const TABLE_MAP = {
       'quota_key', 'amount', 'source_event_id', 'metadata',
     ],
   },
+  quota_ledger_entries: {
+    schema: 'quota',
+    table: 'ledger_entries',
+    columns: [
+      'tenant_id', 'subscription_id', 'billing_period', 'type',
+      'quota_key', 'amount', 'source_event_id', 'metadata',
+    ],
+  },
   billing_products: {
     schema: 'commercial',
     table: 'billing_products',

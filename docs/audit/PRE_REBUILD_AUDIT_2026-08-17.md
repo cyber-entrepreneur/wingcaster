@@ -1630,3 +1630,34 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
 
 **Business gate:** none. This PR is instrumentation + read-path cleanup + docs. The 90-day watch is an ops activity (readiness / Overview daily; re-attest ~every 25 days so R099 stays GREEN). Stage 13f cannot ship until R084 and R096 have been GREEN for the full window AND a fresh Finance re-attestation exists.
 
+### Stage 13f / commercial.* DROP -- 2026-08-24
+
+**Landed on `feat/stage-13f-deprecate`:** final deprecation of `commercial.*` (main @ `4db2abe` / Stage 13e). Operator-triggered DROP via migration 290a. `commercial` schema remains as empty tombstone (291). Quota projection in `quota.*` (289, DL-226 option a) unblocks DROP of `commercial.ledger_entries`. Does **not** edit `fin.*` domain command code. **MERGE = code + migrations 289/291**; the actual DROP is `POST /api/admin/fin/cutover/deprecate-commercial` after all gates pass.
+
+**Migrations:**
+- `289_quota_ledger_projection.sql` -- `quota.ledger_entries` + `quota.record_consumption`; copies historical rows from `commercial.ledger_entries` (DL-226).
+- `290a_fin_cutover_drop_commercial.sql` -- operator-only DO block: verifies `FIN_ONLY`, 90-day quiet (zero `COMMERCIAL_WRITE_ATTEMPT`), pre-flight FK check, then `DROP TABLE commercial.* CASCADE` (DL-227, DL-228). **Irreversible.**
+- `291_fin_cutover_commercial_tombstone.sql` -- `COMMENT ON SCHEMA commercial` + `REVOKE CREATE` (DL-229). Auto-applied; safe before DROP.
+
+**Services:** `backend/src/fin/cutover/deprecation.js` -- `computeDeprecationReadiness`, `deprecateCommercial`. Advisory lock `FIN_CUTOVER_DEPRECATE = 1033` (DL-231). `snapshot_note` ≥ 20 chars on DROP body (DL-230).
+
+**Admin:** `GET /api/admin/fin/cutover/deprecation-readiness`. `POST /api/admin/fin/cutover/deprecate-commercial` (platform_admin + elevated + Idempotency-Key + If-Match). Readiness extended with `deprecation`, `R100` (DL-232).
+
+**Reconciliation:** R100 commercial schema empty post-deprecation (LOW, `WARN` display). DRIFT when `FIN_ONLY` + 90d elapsed but `commercial.*` tables remain.
+
+**Runbook:** `docs/ops/CUTOVER_13F_RUNBOOK.md` -- T-30d/T-7d pre-flight, prod snapshot verification, T-0 DROP, T+48h monitor, snapshot-only rollback.
+
+**Decision log:** DL-226 .. DL-235 (DL-233..235 reserved).
+
+**CI file list (must appear in the postgres job summary):**
+`cutover/deprecation/pre-flight-fk.test.js`, `cutover/deprecation/refuse-without-attestation.test.js`, `cutover/deprecation/refuse-without-90d.test.js`, `cutover/deprecation/happy-drop.test.js`, `cutover/deprecation/audit-and-outbox.test.js`, `reconciliation/r100.test.js`, `admin/routes-deprecate-commercial.test.js`.
+ Fast suite also runs `cutover/deprecation/readiness.test.js`, `cutover/deprecation/snapshot-note-validation.test.js`, `cutover/activation.test.js` (290a/291 `isAutoMigration`).
+
+**Business gate:** Finance sign-off + verified prod snapshot are runbook preconditions. DROP is operator-triggered after deploy; rollback = snapshot restore only.
+
+**Follow-up (PR #23 audit):** DL-236 repoints billing pg tests to `quota.ledger_entries` (6→0 grep hits). DL-237 isolates deprecation DROP tests via per-test `withTestDb`. DL-238 confirms snapshot-note validation returns HTTP 400.
+
+**Follow-up #2 (PR #23 audit):** DL-239 adds `IF EXISTS` to 290a commercial DROP loop (partition CASCADE ordering). DL-240 expects HTTP 401 for missing elevated token on deprecate-commercial route.
+
+**Follow-up #3 (PR #23 audit):** DL-241 — deprecation + freeze audits pass `targetId: null` (not `env`); environment stays on the `environment` column / `after_state`. Fixes 22P02 `invalid input syntax for type uuid: "LIVE"`.
+

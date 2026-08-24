@@ -483,7 +483,7 @@ export async function freezeCommercialWrites({
       actorEmail,
       action: 'FIN_CUTOVER_FROZEN_COMMERCIAL',
       targetType: 'ENVIRONMENT',
-      targetId: env,
+      targetId: null,
       afterState: {
         environment: env,
         migration: FREEZE_MIGRATION_FILENAME,
