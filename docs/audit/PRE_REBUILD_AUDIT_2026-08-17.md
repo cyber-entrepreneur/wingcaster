@@ -1659,3 +1659,5 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
 
 **Follow-up #2 (PR #23 audit):** DL-239 adds `IF EXISTS` to 290a commercial DROP loop (partition CASCADE ordering). DL-240 expects HTTP 401 for missing elevated token on deprecate-commercial route.
 
+**Follow-up #3 (PR #23 audit):** DL-241 — deprecation + freeze audits pass `targetId: null` (not `env`); environment stays on the `environment` column / `after_state`. Fixes 22P02 `invalid input syntax for type uuid: "LIVE"`.
+

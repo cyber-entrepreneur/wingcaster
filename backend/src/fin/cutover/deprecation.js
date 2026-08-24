@@ -281,7 +281,7 @@ export async function deprecateCommercial({
         actorEmail,
         action: 'FIN_CUTOVER_COMMERCIAL_DROPPED',
         targetType: 'ENVIRONMENT',
-        targetId: env,
+        targetId: null,
         afterState: dropMeta,
         reasonCode: 'FIN_CUTOVER_COMMERCIAL_DROPPED',
         now: stamped,
