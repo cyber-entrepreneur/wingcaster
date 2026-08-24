@@ -21,16 +21,21 @@ skipIfNoPostgres()('real-Postgres test harness', () => {
       const schemas = await pool.query(
         `SELECT schema_name FROM information_schema.schemata
          WHERE schema_name = ANY($1::text[]) ORDER BY schema_name`,
-        [['area_intelligence', 'commercial', 'market_pricing', 'public', 'wa_listings']],
+        [['area_intelligence', 'fin', 'market_pricing', 'public', 'quota', 'wa_listings']],
       )
       expect(schemas.rows.map((r) => r.schema_name)).toEqual([
-        'area_intelligence', 'commercial', 'market_pricing', 'public', 'wa_listings',
+        'area_intelligence', 'fin', 'market_pricing', 'public', 'quota', 'wa_listings',
       ])
+
+      const retiredSchema = await pool.query(
+        `SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'commercial'`,
+      )
+      expect(retiredSchema.rows).toEqual([])
 
       // Spot-check a table in a non-public schema, addressed the way the DAL
       // addresses it.
-      const ledger = await pool.query("SELECT to_regclass('commercial.ledger_entries') AS name")
-      expect(ledger.rows[0].name).toBe('commercial.ledger_entries')
+      const ledger = await pool.query("SELECT to_regclass('quota.ledger_entries') AS name")
+      expect(ledger.rows[0].name).toBe('quota.ledger_entries')
     } finally {
       await pool.end()
       await database.teardown()

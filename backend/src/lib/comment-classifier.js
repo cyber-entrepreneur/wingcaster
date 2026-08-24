@@ -38,7 +38,7 @@ export const CATEGORY_META = {
   hot_lead:    { label: 'Hot lead',    emoji: '🔥', description: 'Explicit buy or rent intent.',                                   route: 'ai_auto_response_and_crm_hot'    },
   interest:    { label: 'Interest',    emoji: '💬', description: 'Asks about price, availability, or viewing.',                    route: 'crm_lead_qualification'          },
   investor:    { label: 'Investor',    emoji: '📈', description: 'Investment-focused: yield, ROI, rental income, cap rate.',        route: 'crm_investor_pipeline'           },
-  question:    { label: 'Question',    emoji: '❓', description: 'Neutral question, not obviously commercial.',                    route: 'inquiries_inbox_with_listing'    },
+  question:    { label: 'Question',    emoji: '❓', description: 'Neutral question, not obviously a sales pitch.',                    route: 'inquiries_inbox_with_listing'    },
   objection:   { label: 'Objection',   emoji: '⚠️', description: 'Property-specific negative — recoverable with agent handling.',   route: 'agent_escalation_with_suggestion'},
   complaint:   { label: 'Complaint',   emoji: '🚨', description: 'Negative about service or seller. Priority escalation.',          route: 'priority_escalation_agent_owner' },
   testimonial: { label: 'Testimonial', emoji: '🏆', description: 'Past client positive feedback.',                                  route: 'marketing_social_proof_queue'    },

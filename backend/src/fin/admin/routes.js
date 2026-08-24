@@ -34,12 +34,6 @@ import { approveCreditNote, draftCreditNote, issueCreditNote } from '../billing/
 import { approveDebitNote, draftDebitNote, issueDebitNote } from '../billing/debit-note.js'
 import { applyPayment, recordPayment, reversePayment } from '../billing/payment-allocation.js'
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
-import { loadCutoverReadiness, loadParityReports } from '../cutover/backfill/readiness.js'
-import { signAttestation } from '../cutover/parity/attestation.js'
-import { activateFinOnly, deactivateFinOnly, freezeCommercialWrites } from '../cutover/activation.js'
-import { computeDeprecationReadiness, deprecateCommercial, validateSnapshotNote } from '../cutover/deprecation.js'
-import { listQuietPeriodEvents, logQuietPeriodEvent } from '../cutover/quiet_period/logger.js'
-import { QUIET_PERIOD_KINDS } from '../cutover/quiet_period/status.js'
 
 let registerFinVendorAdminRoutes = null
 const vendorRoutesPath = join(dirname(fileURLToPath(import.meta.url)), 'vendors', 'routes.js')
@@ -254,29 +248,6 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json(payload)
   }))
 
-  app.get('/api/admin/fin/cutover/readiness', readGuards, wrap(async (req, res) => {
-    const payload = await loadCutoverReadiness(getPool(), {
-      environment: sessionEnvironment(req),
-      now: req.fin.now,
-    })
-    return res.status(200).json(payload)
-  }))
-
-  app.get('/api/admin/fin/cutover/parity', readGuards, wrap(async (req, res) => {
-    const payload = await loadParityReports(getPool(), {
-      environment: sessionEnvironment(req),
-      now: req.fin.now,
-    })
-    return res.status(200).json(payload)
-  }))
-
-  app.get('/api/admin/fin/cutover/quiet-period/events', readGuards, wrap(async (req, res) => {
-    const payload = await listQuietPeriodEvents(getPool(), {
-      environment: sessionEnvironment(req),
-    })
-    return res.status(200).json(payload)
-  }))
-
   app.get('/api/admin/fin/dunning/cases', readGuards, wrap(async (req, res) => {
     const cases = await listDunningCases({ environment: sessionEnvironment(req) })
     return res.status(200).json({ cases })
@@ -328,120 +299,6 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     const result = await runReconciliation(getPool(), {
       environment: sessionEnvironment(req),
       scheduleKind: 'ON_DEMAND',
-      now: req.fin.now,
-    })
-    return res.status(200).json(result)
-  }))
-
-  app.post('/api/admin/fin/cutover/attest', writeGuards, wrap(async (req, res) => {
-    const actor = actorFrom(req)
-    const result = await signAttestation({
-      environment: sessionEnvironment(req),
-      actor: {
-        actorType: 'USER',
-        actorId: actor.actorId,
-        actorEmail: actor.actorEmail,
-      },
-      now: req.fin.now,
-    })
-    return res.status(200).json(result)
-  }))
-
-  app.post('/api/admin/fin/cutover/activate', writeGuards, wrap(async (req, res) => {
-    const actor = actorFrom(req)
-    if (!actor.idempotencyKey) {
-      throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
-    }
-    const body = commandBody(req)
-    const result = await activateFinOnly({
-      environment: pick(body, 'environment') || sessionEnvironment(req),
-      attestationId: pick(body, 'attestation_id', 'attestationId'),
-      note: pick(body, 'note') || null,
-      actor,
-      now: req.fin.now,
-    })
-    return res.status(200).json(result)
-  }))
-
-  app.post('/api/admin/fin/cutover/deactivate', writeGuards, wrap(async (req, res) => {
-    const actor = actorFrom(req)
-    if (!actor.idempotencyKey) {
-      throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
-    }
-    const body = commandBody(req)
-    const result = await deactivateFinOnly({
-      environment: pick(body, 'environment') || sessionEnvironment(req),
-      reasonCode: pick(body, 'reason_code', 'reasonCode'),
-      note: pick(body, 'note'),
-      actor,
-      now: req.fin.now,
-    })
-    return res.status(200).json(result)
-  }))
-
-  // DL-217: internal anomaly log. Application code inserts via logger.js
-  // on a standalone connection; this HTTP surface is for service accounts
-  // that already carry a platform_admin token.
-  app.post('/api/admin/fin/cutover/quiet-period/log', writeGuards, wrap(async (req, res) => {
-    const body = commandBody(req)
-    const kind = pick(body, 'kind')
-    const message = pick(body, 'message')
-    if (!QUIET_PERIOD_KINDS.includes(kind)) {
-      throw finError('INVALID_QUIET_PERIOD_KIND', { category: CATEGORY.VALIDATION, httpStatus: 400 })
-    }
-    if (!message) {
-      throw finError('QUIET_PERIOD_MESSAGE_REQUIRED', { category: CATEGORY.VALIDATION, httpStatus: 400 })
-    }
-    await logQuietPeriodEvent(null, {
-      environment: sessionEnvironment(req),
-      kind,
-      sourceFile: pick(body, 'source_file', 'sourceFile') || null,
-      message,
-      payload: pick(body, 'payload') || {},
-      now: req.fin.now,
-    })
-    return res.status(201).json({ ok: true })
-  }))
-
-  // DL-216: freeze commercial.* writes AFTER /activate has flipped the
-  // singleton to FIN_ONLY. Applies migration 260a manually so Railway's
-  // auto-deploy does not REVOKE legacy writes before the operator says so.
-  app.post('/api/admin/fin/cutover/freeze-commercial', writeGuards, wrap(async (req, res) => {
-    const actor = actorFrom(req)
-    if (!actor.idempotencyKey) {
-      throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
-    }
-    const body = commandBody(req)
-    const result = await freezeCommercialWrites({
-      environment: sessionEnvironment(req),
-      note: pick(body, 'note'),
-      actor,
-      idempotencyKey: actor.idempotencyKey,
-    })
-    return res.status(200).json(result)
-  }))
-
-  app.get('/api/admin/fin/cutover/deprecation-readiness', readGuards, wrap(async (req, res) => {
-    const payload = await computeDeprecationReadiness(getPool(), {
-      environment: sessionEnvironment(req),
-      now: req.fin.now,
-    })
-    return res.status(200).json(payload)
-  }))
-
-  app.post('/api/admin/fin/cutover/deprecate-commercial', writeGuards, wrap(async (req, res) => {
-    const actor = actorFrom(req)
-    if (!actor.idempotencyKey) {
-      throw finError('IDEMPOTENCY_KEY_REQUIRED', { category: CATEGORY.IDEMPOTENCY, httpStatus: 400 })
-    }
-    const body = commandBody(req)
-    validateSnapshotNote(pick(body, 'snapshot_note', 'snapshotNote'))
-    const result = await deprecateCommercial({
-      environment: sessionEnvironment(req),
-      snapshotNote: pick(body, 'snapshot_note', 'snapshotNote'),
-      note: pick(body, 'note'),
-      actor,
-      idempotencyKey: actor.idempotencyKey,
       now: req.fin.now,
     })
     return res.status(200).json(result)

@@ -90,74 +90,10 @@ const TABLE_MAP = {
     ],
   },
 
-  // Listings — public.territories carries listing-disclosure metadata
-  // only. Commercial/billing columns live in commercial.territories,
-  // keyed by the same id. See migration 030.
+  // Listings — public.territories is listing-disclosure metadata only.
   territories: { schema: 'public', table: 'territories', columns: ['code', 'name', 'currency'] },
   territory_disclosure_fields: { schema: 'public', table: 'territory_disclosure_fields', columns: ['territory_id', 'key', 'label', 'field_type', 'required', 'unit', 'sort_order'] },
 
-  // Commercial pricing hierarchy (Phase 7b). All under commercial.*.
-  commercial_territories: {
-    schema: 'commercial',
-    table: 'territories',
-    columns: [
-      'code',
-      'pricing_multiplier', 'launch_status', 'launch_wave',
-      'data_residency_required', 'billing_mode', 'vat_percent',
-      'regulator_id_type', 'default_zone_id',
-      'payment_gateway_primary', 'payment_gateway_secondary',
-      'sort_order', 'active',
-    ],
-  },
-  pricing_zones: {
-    schema: 'commercial',
-    table: 'pricing_zones',
-    columns: [
-      'territory_id', 'code', 'name', 'name_ar',
-      'pricing_multiplier', 'is_default', 'sort_order', 'active',
-    ],
-  },
-  pricing_cities: {
-    schema: 'commercial',
-    table: 'pricing_cities',
-    columns: [
-      'territory_id', 'zone_id', 'name', 'name_ar', 'name_norm',
-      'latitude', 'longitude', 'sort_order', 'active',
-    ],
-  },
-  core_rate_cards: {
-    schema: 'commercial',
-    table: 'core_rate_cards',
-    columns: [
-      'version', 'name', 'description', 'currency', 'cast_value_minor',
-      'rates', 'is_active', 'activated_at', 'deactivated_at', 'created_by',
-    ],
-  },
-  usage_events: {
-    schema: 'commercial',
-    table: 'usage_events',
-    // LIST-partitioned by territory_id. Postgres requires the partition key in
-    // any unique constraint, so the primary key is (id, territory_id) — see
-    // migration 031. The adapter's default `ON CONFLICT (id)` has no matching
-    // constraint here and Postgres rejects the statement outright (42P10),
-    // which meant every usage event insert failed.
-    conflictColumns: ['id', 'territory_id'],
-    columns: [
-      'tenant_id', 'subscription_id', 'action_key', 'quantity', 'channel',
-      'destination_country', 'whatsapp_category', 'listing_id',
-      'conversation_id', 'distribution_id', 'casts_charged', 'price_minor',
-      'cogs_estimate_minor', 'rate_card_version', 'cast_value_minor',
-      'territory_id', 'zone_id', 'metadata', 'billing_period', 'occurred_at',
-    ],
-  },
-  ledger_entries: {
-    schema: 'commercial',
-    table: 'ledger_entries',
-    columns: [
-      'tenant_id', 'subscription_id', 'billing_period', 'type',
-      'quota_key', 'amount', 'source_event_id', 'metadata',
-    ],
-  },
   quota_ledger_entries: {
     schema: 'quota',
     table: 'ledger_entries',
@@ -166,73 +102,15 @@ const TABLE_MAP = {
       'quota_key', 'amount', 'source_event_id', 'metadata',
     ],
   },
-  billing_products: {
-    schema: 'commercial',
-    table: 'billing_products',
-    columns: [
-      'code', 'version', 'name', 'description', 'billing_cadence',
-      'base_price_minor', 'currency', 'entitlements', 'bundle_items',
-      'is_public', 'status',
-      'product_type', 'published_at', 'deprecated_at', 'retired_at', 'created_by',
-    ],
-  },
-  billing_product_tiers: {
-    schema: 'commercial',
-    table: 'billing_product_tiers',
-    columns: [
-      'product_id', 'product_version', 'code', 'name', 'description',
-      'sort_order', 'price_minor', 'currency', 'quotas', 'features',
-      'is_public', 'status', 'metadata',
-    ],
-  },
-  billing_product_territory_pricing: {
-    schema: 'commercial',
-    table: 'billing_product_territory_pricing',
-    columns: [
-      'product_id', 'product_version', 'tier_id', 'territory_id',
-      'price_minor', 'currency', 'active', 'metadata',
-    ],
-  },
-  billing_subscriptions: {
-    schema: 'commercial',
-    table: 'billing_subscriptions',
-    columns: [
-      'tenant_id', 'product_id', 'product_version', 'status',
-      'territory_id', 'zone_id', 'rate_card_version', 'cast_value_minor',
-      'price_locked_minor', 'billing_period_start', 'billing_period_end',
-      'trial_ends_at', 'cancelled_at', 'metadata',
-      'tier_id', 'grandfathered_at', 'eligible_for_migration',
-      'next_renewal_at', 'auto_renew', 'cancellation_reason',
-      'cancel_at_period_end',
-      'resolved_plan_price_minor', 'resolved_plan_currency', 'resolved_plan_source',
-    ],
-  },
-  billing_subscription_history: {
-    schema: 'commercial',
-    table: 'billing_subscription_history',
-    columns: [
-      'subscription_id', 'event', 'from_state', 'to_state',
-      'reason', 'actor_id', 'actor_type', 'metadata',
-    ],
-  },
-  billing_credit_notes: {
-    schema: 'commercial',
-    table: 'billing_credit_notes',
-    columns: [
-      'tenant_id', 'subscription_id', 'type', 'amount_minor',
-      'currency', 'status', 'applied_at', 'applied_to_invoice_id',
-      'expires_at', 'reason', 'actor_id', 'actor_type', 'metadata',
-    ],
-  },
   notification_events: {
-    schema: 'commercial',
+    schema: 'public',
     table: 'notification_events',
     columns: [
       'event_kind', 'tenant_id', 'subscription_id', 'subject', 'context',
     ],
   },
   notification_deliveries: {
-    schema: 'commercial',
+    schema: 'public',
     table: 'notification_deliveries',
     columns: [
       'event_id', 'channel', 'destination', 'status', 'skip_reason',
@@ -241,35 +119,10 @@ const TABLE_MAP = {
     ],
   },
   notification_preferences: {
-    schema: 'commercial',
+    schema: 'public',
     table: 'notification_preferences',
     columns: [
       'tenant_id', 'event_kind', 'channel', 'enabled', 'updated_by', 'metadata',
-    ],
-  },
-  // Aliases used by billing/entitlements.js and billing/ledger.js
-  subscriptions: {
-    schema: 'commercial',
-    table: 'billing_subscriptions',
-    columns: [
-      'tenant_id', 'product_id', 'product_version', 'status',
-      'territory_id', 'zone_id', 'rate_card_version', 'cast_value_minor',
-      'price_locked_minor', 'billing_period_start', 'billing_period_end',
-      'trial_ends_at', 'cancelled_at', 'metadata',
-      'tier_id', 'grandfathered_at', 'eligible_for_migration',
-      'next_renewal_at', 'auto_renew', 'cancellation_reason',
-      'cancel_at_period_end',
-      'resolved_plan_price_minor', 'resolved_plan_currency', 'resolved_plan_source',
-    ],
-  },
-  products: {
-    schema: 'commercial',
-    table: 'billing_products',
-    columns: [
-      'code', 'version', 'name', 'description', 'billing_cadence',
-      'base_price_minor', 'currency', 'entitlements', 'bundle_items',
-      'is_public', 'status',
-      'product_type', 'published_at', 'deprecated_at', 'retired_at', 'created_by',
     ],
   },
   properties: {

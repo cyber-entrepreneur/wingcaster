@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
-  ParityPage, PricingPage, ReconciliationPage, TenantsPage, UsagePage, VendorCostsPage,
+  PricingPage, ReconciliationPage, TenantsPage, UsagePage, VendorCostsPage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -49,7 +49,6 @@ describe('admin/fin pages', () => {
     ['Invoices', () => <InvoicesPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Reconciliation', () => <ReconciliationPage />],
-    ['Parity', () => <ParityPage />],
     ['Exceptions', () => <ExceptionsPage />],
     ['Approvals', () => <ApprovalsPage />],
     ['Audit', () => <AuditPage />],
@@ -65,16 +64,6 @@ describe('admin/fin pages', () => {
     authMock.isAdmin = false
     wrap(<OverviewPage />)
     expect(screen.getByText('Platform admin required')).toBeTruthy()
-  })
-
-  it('Overview surfaces a Cutover readiness tile', async () => {
-    wrap(<OverviewPage />)
-    expect(await screen.findByText('Cutover readiness')).toBeTruthy()
-  })
-
-  it('Overview surfaces a Quiet period tile', async () => {
-    wrap(<OverviewPage />)
-    expect(await screen.findByText('Quiet period')).toBeTruthy()
   })
 
   it('Vendor costs shows Stage 11 empty state', async () => {

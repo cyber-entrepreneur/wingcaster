@@ -36,7 +36,7 @@ import axeCore from 'axe-core'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { TemplateEditPage } from './TemplateEditPage'
 import type { PlatformMessageTemplate } from '@/types/platformTemplates'
-import type { Territory } from '@/types/commercialPricing'
+import type { Territory } from '@/types/territory'
 
 expect.extend(toHaveNoViolations)
 
@@ -65,7 +65,7 @@ vi.mock('react-email-editor', () => {
 
 /* Mock the API client — used by page + children. */
 const apiMock = vi.hoisted(() => ({
-  listAdminTerritories: vi.fn(),
+  listTerritories: vi.fn(),
   getPlatformTemplate: vi.fn(),
   createPlatformTemplate: vi.fn(),
   updatePlatformTemplate: vi.fn(),
@@ -139,11 +139,6 @@ function template(overrides: Partial<PlatformMessageTemplate> = {}): PlatformMes
 function territory(overrides: Partial<Territory> = {}): Territory {
   return {
     id: 't-lb', code: 'LB', name: 'Lebanon', currency: 'USD',
-    pricing_multiplier: 1, launch_status: 'launched', launch_wave: null,
-    data_residency_required: false, billing_mode: 'card', vat_percent: 0,
-    regulator_id_type: null, default_zone_id: null,
-    payment_gateway_primary: null, payment_gateway_secondary: null,
-    sort_order: 0, active: true, created_at: '', updated_at: '',
     ...overrides,
   }
 }
@@ -166,7 +161,7 @@ beforeEach(() => {
   Object.values(apiMock).forEach((fn) => typeof fn.mockReset === 'function' && fn.mockReset())
   stepUpMock.runElevated.mockReset().mockImplementation(async (action) => action())
   toastMock.addToast.mockReset()
-  apiMock.listAdminTerritories.mockResolvedValue({ territories: [territory()] })
+  apiMock.listTerritories.mockResolvedValue([territory()])
 })
 
 describe('load + hydrate', () => {
@@ -310,7 +305,7 @@ describe('publishability gate', () => {
 describe('create mode', () => {
   it('renders a New template header with a Create button', async () => {
     renderEditPage({ initialPath: '/admin/message-templates/new' })
-    await waitFor(() => expect(apiMock.listAdminTerritories).toHaveBeenCalled())
+    await waitFor(() => expect(apiMock.listTerritories).toHaveBeenCalled())
     expect(screen.getByRole('heading', { name: /new template/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^create$/i })).toBeInTheDocument()
     // Versions is hidden in create mode (no template row yet, so no
@@ -322,7 +317,7 @@ describe('create mode', () => {
 
   it('prefills channel from query param', async () => {
     renderEditPage({ initialPath: '/admin/message-templates/new?channel=whatsapp' })
-    await waitFor(() => expect(apiMock.listAdminTerritories).toHaveBeenCalled())
+    await waitFor(() => expect(apiMock.listTerritories).toHaveBeenCalled())
     // Settings tab is the default in create mode → the channel select shows the prefill.
     const channel = screen.getByLabelText(/^channel/i) as HTMLSelectElement
     await waitFor(() => expect(channel.value).toBe('whatsapp'))
@@ -388,7 +383,7 @@ describe('accessibility', () => {
 
   it('passes axe on the create page', async () => {
     const { container } = renderEditPage({ initialPath: '/admin/message-templates/new' })
-    await waitFor(() => expect(apiMock.listAdminTerritories).toHaveBeenCalled())
+    await waitFor(() => expect(apiMock.listTerritories).toHaveBeenCalled())
     expect(await axeContainer(container)).toHaveNoViolations()
   })
 })

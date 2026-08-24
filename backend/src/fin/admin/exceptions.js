@@ -1,9 +1,7 @@
 /**
- * Spec §107 exception types — frozen 18-key list plus Stage 13e's
- * QUIET_PERIOD_EVENTS (DL-217). Each type is a read-side queue.
- * Resolve commands that do not yet exist return 501 from the write
- * surface (DL-165..DL-169). Quiet-period rows are append-only logs
- * with no resolve command.
+ * Spec §107 exception types — frozen 18-key list. Each type is a
+ * read-side queue. Resolve commands that do not yet exist return 501
+ * from the write surface (DL-165..DL-169).
  */
 import { query } from '../../db.js'
 
@@ -26,7 +24,6 @@ export const EXCEPTION_TYPES = Object.freeze([
   { type: 'FACILITY_LIMIT', dl: null, resolve: 'amendFacilityLimit' },
   { type: 'VENDOR_STATEMENT_DRIFT', dl: 'DL-167', resolve: null },
   { type: 'NEGATIVE_MARGIN', dl: 'DL-167', resolve: null },
-  { type: 'QUIET_PERIOD_EVENTS', dl: 'DL-217', resolve: null },
 ])
 
 function n(value) {
@@ -101,7 +98,7 @@ export async function loadExceptions({ environment }) {
     ),
     ENV_ISOLATION: await count(
       `SELECT COUNT(*)::bigint AS qty FROM fin.reconciliation_checks
-        WHERE environment = $1 AND check_code IN ('R016', 'R090') AND result = 'DRIFT'`,
+        WHERE environment = $1 AND check_code = 'R016' AND result = 'DRIFT'`,
       [env],
     ),
     IDEMPOTENCY_IN_FLIGHT: await count(
@@ -126,11 +123,6 @@ export async function loadExceptions({ environment }) {
     ),
     VENDOR_STATEMENT_DRIFT: 0,
     NEGATIVE_MARGIN: 0,
-    QUIET_PERIOD_EVENTS: await count(
-      `SELECT COUNT(*)::bigint AS qty FROM fin.cutover_quiet_period_events
-        WHERE environment = $1`,
-      [env],
-    ),
   }
 
   return {

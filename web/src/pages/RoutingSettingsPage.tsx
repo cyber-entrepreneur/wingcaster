@@ -15,7 +15,7 @@ const CATEGORY_META: Record<string, { label: string; emoji: string; description:
   hot_lead:    { label: 'Hot lead',    emoji: '🔥', description: 'Explicit buy or rent intent.' },
   interest:    { label: 'Interest',    emoji: '💬', description: 'Asks about price, availability, or viewing.' },
   investor:    { label: 'Investor',    emoji: '📈', description: 'Investment-focused: yield, ROI, rental income, cap rate.' },
-  question:    { label: 'Question',    emoji: '❓', description: 'Neutral question, not obviously commercial.' },
+  question:    { label: 'Question',    emoji: '❓', description: 'Neutral question, not obviously a sales pitch.' },
   objection:   { label: 'Objection',   emoji: '⚠️', description: 'Property-specific negative — recoverable with agent handling.' },
   complaint:   { label: 'Complaint',   emoji: '🚨', description: 'Negative about service or seller. Priority escalation.' },
   testimonial: { label: 'Testimonial', emoji: '🏆', description: 'Past client positive feedback.' },

@@ -1661,3 +1661,30 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
 
 **Follow-up #3 (PR #23 audit):** DL-241 — deprecation + freeze audits pass `targetId: null` (not `env`); environment stays on the `environment` column / `after_state`. Fixes 22P02 `invalid input syntax for type uuid: "LIVE"`.
 
+### Legacy strip 2026-08-24: commercial.* and cutover ceremony retired
+
+With no live clients, the commercial.* → fin.* cutover ceremony (Stages 13a–13f) was retired. Deleted 205 tracked files, ~28.7k lines. 21 migrations removed. 12 recon checks removed (R084, R090–R100). All new tenants born on fin.*.
+
+**What was removed**
+- `backend/src/fin/cutover/**` (dual-write, backfill, parity, activation, quiet period, deprecation)
+- Cutover migrations 230–262, 280, 290a, 291 (including `fin_public` views — DL-242)
+- Commercial schema migrations 030, 031, 033, 036, 038, 039
+- Legacy billing catalog: `billing/products`, `billing/pricing`, `billing/reporting`, `billing/rate-card`, `billing/entitlements`, `billing/routes`, commercial-pricing admin UI, tenant plans/subscription/credit-note pages
+- Admin `/api/admin/fin/cutover/**`, Parity page, Overview cutover/quiet-period tiles
+- Advisory locks `FIN_CUTOVER_BACKFILL/PARITY/ACTIVATION/DEPRECATE` (1030–1033)
+
+**What was kept**
+- Everything under `fin.*` — schema, domain commands, tests, admin UI (`/api/admin/fin/**`)
+- `public` auth/tenants/users (untouched)
+- `quota.*` (migration 289 rewritten natively — DL-243 Option A)
+- Subscription notification engine, moved to `backend/src/notifications/subscription/` on `public.notification_*`
+- `DECISION_LOG.md` rows DL-171..DL-241 stay as historical record
+
+**What changed without new fin domain logic**
+- `billing/events.js` is a thin facts-only wrapper: `transaction(fn)` → `ingestUsageEventWithClient`
+- `billing/ledger.js` writes only `quota.ledger_entries` (no dual-write)
+- `emitUsageEvent` no longer prices or decrements quota; rating/lot-draw stay on the fin pipeline
+
+**Decision log:** DL-242 (drop fin_public), DL-243 (keep quota), DL-244 (strip summary).
+
+

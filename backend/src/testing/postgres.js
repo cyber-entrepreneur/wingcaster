@@ -9,26 +9,26 @@
  * ---------------------------------------------------------------------------
  *
  * This harness previously isolated runs in scratch SCHEMAS inside one shared
- * database (`test_abc`, `test_abc_commercial`, …) reached via a `search_path`
+ * database (`test_abc`, `test_abc_quota`, …) reached via a `search_path`
  * connection option, with migration SQL rewritten on the fly to retarget
- * `public.` / `commercial.` prefixes.
+ * `public.` / `quota.` prefixes.
  *
  * That could never work, because the code under test does not go through
  * `search_path`. It names schemas explicitly and always has:
  *
- *   * `table-mapper.js#quotedTable` emits `"public"."x"` / `"commercial"."x"`
+ *   * `table-mapper.js#quotedTable` emits `"public"."x"` / `"quota"."x"`
  *     for every single DAL read and write; and
- *   * roughly ninety raw SQL statements across ~25 modules hardcode
- *     `commercial.`, `wa_listings.`, `market_pricing.` and friends.
+ *   * raw SQL statements across modules hardcode
+ *     `quota.`, `wa_listings.`, `market_pricing.` and friends.
  *
  * So migrations built the tables in the scratch schema and the application
- * then looked in the real `public`/`commercial` schemas, which nothing ever
+ * then looked in the real `public`/`quota` schemas, which nothing ever
  * populated — every DB-touching test failed with 42P01. It went unnoticed for
  * the whole of phase 7c because the CI `postgres` job declares `needs: fast`
  * and the fast suite was red, so the gated suite had never actually run.
  *
  * Giving each run a real database means the schemas inside it are genuinely
- * named `public`, `commercial`, `wa_listings`, … so every hardcoded reference
+ * named `public`, `quota`, `wa_listings`, … so every hardcoded reference
  * resolves correctly with no rewriting, no `search_path` games, and no changes
  * to production code. It also isolates `wa_listings`, which the schema-based
  * approach shared across all concurrent runs.
@@ -160,7 +160,7 @@ export async function createTestDatabase(name) {
     await migrationPool.query('CREATE EXTENSION IF NOT EXISTS postgis')
     await verifyPostGIS(migrationPool)
     // No schemaMap: migrations run verbatim and build real `public`,
-    // `commercial`, `wa_listings`, … schemas inside this database.
+    // `quota`, `wa_listings`, … schemas inside this database.
     // Cluster-global CREATE ROLE in 109 is TOCTOU under parallel per-test-DB
     // creation (23505 on pg_authid). Retry the full run — the failed attempt
     // rolled back, so 100–108 re-apply cleanly and 109's IF NOT EXISTS now hits.

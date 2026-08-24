@@ -1,8 +1,7 @@
 -- Stage 11 — vendors + products + rate cards + rate versions + meter map
 -- (A §11.1–11.3 restated). Catalog-style RLS (no tenant_id). Rate-version
 -- machine: DRAFT → ACTIVE → DEPRECATED (DL-158). Gap-fill of prior ACTIVE
--- effective_to is application-side (Stage 4 / 117 pattern). commercial.*
--- is not touched.
+-- effective_to is application-side (Stage 4 / 117 pattern).
 
 CREATE TABLE fin.vendors (
   id UUID PRIMARY KEY,

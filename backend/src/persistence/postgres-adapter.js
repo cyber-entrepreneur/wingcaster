@@ -182,8 +182,7 @@ export async function insert(collection, item) {
     .filter((c) => !generated.has(c))
     // Only name columns the record actually carries. Naming a column and
     // passing NULL overrides its DEFAULT, so a `NOT NULL DEFAULT false`
-    // column (billing_subscriptions.eligible_for_migration,
-    // notification_preferences.metadata, …) blew up on every insert whose
+    // column (notification_preferences.metadata, …) blew up on every insert whose
     // JS object simply had not set it. `toRow` builds `row` with `pick`, so
     // presence here means the caller genuinely supplied the field — an
     // explicit `null` is still honoured and still writes NULL.

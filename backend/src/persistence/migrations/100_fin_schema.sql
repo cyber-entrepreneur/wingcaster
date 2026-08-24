@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 COMMENT ON SCHEMA fin IS
-  'Financial Control Plane. commercial.* is frozen until Stage 13.';
+  'Financial Control Plane.';
 
 -- Optimistic concurrency bump (D §6.1 / DL-004). Writer must still
 -- WHERE version = $expected; omitting that loses C-2 protection.

@@ -15,7 +15,7 @@ import type {
   PlatformTemplateChannel,
   PlatformTemplateEditorMode,
 } from '@/types/platformTemplates'
-import type { Territory } from '@/types/commercialPricing'
+import type { Territory } from '@/types/territory'
 import {
   channelLabel,
   categoryLabel,
@@ -161,8 +161,8 @@ export function TemplateEditPage() {
   useEffect(() => {
     if (!isAdmin) return
     setTerritoriesLoading(true)
-    api.listAdminTerritories({ include_inactive: false })
-      .then((res) => setTerritories(res.territories))
+    api.listTerritories()
+      .then((territories) => setTerritories(Array.isArray(territories) ? territories : []))
       .catch(() => setTerritories([]))
       .finally(() => setTerritoriesLoading(false))
   }, [isAdmin])

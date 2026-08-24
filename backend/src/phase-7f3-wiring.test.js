@@ -61,115 +61,6 @@ function expectStepUpRequired(res) {
   expect(res.body.max_age_seconds).toBeGreaterThan(0)
 }
 
-describe('7f/3 — billing/products/routes', () => {
-  const sensitive = [
-    ['post', '/api/admin/billing/products'],
-    ['patch', '/api/admin/billing/products/prod-1'],
-    ['post', '/api/admin/billing/products/prod-1/publish'],
-    ['post', '/api/admin/billing/products/prod-1/deprecate'],
-    ['post', '/api/admin/billing/products/prod-1/retire'],
-    ['post', '/api/admin/billing/products/prod-1/clone-as-new-version'],
-    ['post', '/api/admin/billing/products/prod-1/tiers'],
-    ['patch', '/api/admin/billing/tiers/tier-1'],
-    ['post', '/api/admin/billing/tiers/tier-1/activate'],
-    ['post', '/api/admin/billing/tiers/tier-1/deprecate'],
-    ['post', '/api/admin/billing/tiers/tier-1/retire'],
-    ['post', '/api/admin/billing/products/prod-1/pricing-overrides'],
-    ['patch', '/api/admin/billing/pricing-overrides/ov-1'],
-    ['delete', '/api/admin/billing/pricing-overrides/ov-1'],
-    ['post', '/api/admin/billing/subscriptions/sub-1/cancel'],
-    ['post', '/api/admin/billing/subscriptions/sub-1/expire'],
-    ['post', '/api/admin/billing/subscriptions/sub-1/mark-past-due'],
-    ['post', '/api/admin/billing/subscriptions/sub-1/resolve-past-due'],
-    ['post', '/api/admin/billing/subscriptions/sub-1/migrate'],
-    ['post', '/api/admin/billing/subscriptions/bulk-cancel'],
-    ['post', '/api/admin/billing/subscriptions/bulk-expire'],
-    ['post', '/api/admin/billing/subscriptions/bulk-migrate'],
-    ['post', '/api/admin/billing/subscriptions/bulk-pause'],
-    ['post', '/api/admin/billing/subscriptions/bulk-resume'],
-    ['post', '/api/admin/billing/credit-notes/bulk-issue'],
-    ['post', '/api/admin/billing/subscriptions/tick'],
-    ['post', '/api/admin/billing/credit-notes'],
-    ['post', '/api/admin/billing/credit-notes/cn-1/void'],
-  ]
-
-  let app
-  beforeEach(async () => {
-    await withPatchedEnv(async () => {
-      const { registerProductCatalogRoutes } = await import('./billing/products/routes.js')
-      app = express()
-      app.use(express.json())
-      registerProductCatalogRoutes(app, {
-        authMiddleware: fakeAuth,
-        requirePlatformAdmin: fakePlatformAdmin,
-      })
-    })
-  })
-
-  it.each(sensitive)('%s %s refuses without X-Elevated-Token', async (method, route) => {
-    const res = await request(app)[method](route).send({})
-    expectStepUpRequired(res)
-  })
-})
-
-describe('7f/3 — billing/pricing/routes', () => {
-  const sensitive = [
-    ['post', '/api/admin/pricing/rate-cards'],
-    ['patch', '/api/admin/pricing/rate-cards/rc-1'],
-    ['post', '/api/admin/pricing/rate-cards/rc-1/activate'],
-    ['post', '/api/admin/pricing/territories'],
-    ['patch', '/api/admin/pricing/territories/t-1'],
-    ['delete', '/api/admin/pricing/territories/t-1'],
-    ['post', '/api/admin/pricing/zones'],
-    ['patch', '/api/admin/pricing/zones/z-1'],
-    ['delete', '/api/admin/pricing/zones/z-1'],
-    ['post', '/api/admin/pricing/cities'],
-    ['patch', '/api/admin/pricing/cities/c-1'],
-    ['delete', '/api/admin/pricing/cities/c-1'],
-    ['post', '/api/admin/pricing/cities/bulk-assign-zone'],
-  ]
-
-  let app
-  beforeEach(async () => {
-    await withPatchedEnv(async () => {
-      const { registerPricingRoutes } = await import('./billing/pricing/routes.js')
-      app = express()
-      app.use(express.json())
-      registerPricingRoutes(app, {
-        authMiddleware: fakeAuth,
-        requirePlatformAdmin: fakePlatformAdmin,
-      })
-    })
-  })
-
-  it.each(sensitive)('%s %s refuses without X-Elevated-Token', async (method, route) => {
-    const res = await request(app)[method](route).send({})
-    expectStepUpRequired(res)
-  })
-})
-
-describe('7f/3 — billing credit grant', () => {
-  let app
-  beforeEach(async () => {
-    await withPatchedEnv(async () => {
-      const { registerBillingRoutes } = await import('./billing/routes.js')
-      app = express()
-      app.use(express.json())
-      registerBillingRoutes(app, {
-        authMiddleware: fakeAuth,
-        requirePlatformAdmin: fakePlatformAdmin,
-      })
-    })
-  })
-
-  it('POST /api/admin/billing/credit refuses without X-Elevated-Token', async () => {
-    const res = await request(app).post('/api/admin/billing/credit').send({
-      tenant_id: 't-1', quota_key: 'anything', amount: 10, reason: 'test',
-    })
-    expectStepUpRequired(res)
-  })
-})
-
 describe('7f/3 — auth surfaces on server.js', () => {
   // password/change + my-connections + 2fa/disable are declared directly
   // in server.js / auth-2fa.js. Rather than boot the whole app (heavy),
@@ -269,8 +160,6 @@ describe('7f/3 — fin/admin/routes (ops writes)', () => {
     ['post', '/api/admin/fin/facilities/f-1/close'],
     ['post', '/api/admin/fin/facilities/f-1/limit'],
     ['post', '/api/admin/fin/reconciliation/run'],
-    ['post', '/api/admin/fin/cutover/attest'],
-    ['post', '/api/admin/fin/cutover/quiet-period/log'],
     ['post', '/api/admin/fin/reconciliation/drift/d-1/resolve'],
     ['post', '/api/admin/fin/approvals/a-1/approve'],
     ['post', '/api/admin/fin/approvals/a-1/reject'],
@@ -316,8 +205,6 @@ describe('7f/3 — fin/admin/routes (ops writes)', () => {
     const src = await fs.readFile('src/fin/admin/routes.js', 'utf8')
     expect(src).toContain("app.post('/api/admin/fin/facilities'")
     expect(src).toContain("app.post('/api/admin/fin/reconciliation/run'")
-    expect(src).toContain("app.post('/api/admin/fin/cutover/attest'")
-    expect(src).toContain("app.post('/api/admin/fin/cutover/quiet-period/log'")
     expect(src).toContain("app.post('/api/admin/fin/approvals/:id/approve'")
     expect(src).toContain("app.post('/api/admin/fin/dunning/cases/:id/advance'")
     expect(src).toContain("app.post('/api/admin/fin/billing/periods/:id/close'")
