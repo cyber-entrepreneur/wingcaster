@@ -1657,3 +1657,5 @@ Fast suite also runs `cutover/mode.test.js`, `cutover/mapping.test.js`.
 
 **Follow-up (PR #23 audit):** DL-236 repoints billing pg tests to `quota.ledger_entries` (6→0 grep hits). DL-237 isolates deprecation DROP tests via per-test `withTestDb`. DL-238 confirms snapshot-note validation returns HTTP 400.
 
+**Follow-up #2 (PR #23 audit):** DL-239 adds `IF EXISTS` to 290a commercial DROP loop (partition CASCADE ordering). DL-240 expects HTTP 401 for missing elevated token on deprecate-commercial route.
+

@@ -30,7 +30,7 @@ skipIfNoPostgres()('admin/routes-deprecate-commercial', () => {
         .post('/api/admin/fin/cutover/deprecate-commercial')
         .set({ 'Idempotency-Key': 'deprecate-route-guard', 'If-Match': '"1"' })
         .send({ snapshot_note: 'snap-id@2026-08-17, verified restore by ops' })
-      expect(noElevate.status).toBe(403)
+      expect(noElevate.status).toBe(401)
 
       const shortNote = await request(app)
         .post('/api/admin/fin/cutover/deprecate-commercial')

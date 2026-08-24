@@ -64,7 +64,7 @@ BEGIN
      WHERE schemaname = 'commercial'
      ORDER BY tablename
   LOOP
-    EXECUTE format('DROP TABLE commercial.%I CASCADE', t.tablename);
+    EXECUTE format('DROP TABLE IF EXISTS commercial.%I CASCADE', t.tablename);
   END LOOP;
 END
 $$;
