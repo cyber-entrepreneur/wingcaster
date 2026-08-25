@@ -3,7 +3,7 @@
  * templates.
  *
  * Syntax matches the existing billing template convention
- * (billing/notifications/templates.js): `{{name}}` and dotted paths like
+ * (notifications/subscription/templates.js): `{{name}}` and dotted paths like
  * `{{user.name}}`. Whitespace inside the braces is tolerated. Anything
  * that doesn't match the pattern is left as literal text.
  *

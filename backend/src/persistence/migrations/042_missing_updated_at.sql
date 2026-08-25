@@ -18,8 +18,12 @@
 --
 -- Affected (all confirmed present in table-mapper.js):
 --   public.distribution_attempts, public.price_history, public.sync_logs,
---   public.webhook_delivery_log, commercial.billing_subscription_history,
---   commercial.notification_events, market_pricing.csv_import_logs
+--   public.webhook_delivery_log, market_pricing.csv_import_logs
+--
+-- DL-244: billing_subscription_history and notification_events ALTERs
+-- that targeted the retired billing schema were removed with that strip.
+-- notification_events now lives in public and is created with updated_at
+-- in migration 040.
 
 ALTER TABLE distribution_attempts
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -31,12 +35,6 @@ ALTER TABLE sync_logs
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE webhook_delivery_log
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE commercial.billing_subscription_history
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE commercial.notification_events
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE market_pricing.csv_import_logs

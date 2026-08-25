@@ -11,7 +11,7 @@ import type {
   PlatformTemplateCategory,
   PlatformTemplateChannel,
 } from '@/types/platformTemplates'
-import type { Territory } from '@/types/commercialPricing'
+import type { Territory } from '@/types/territory'
 
 const CHANNELS: PlatformTemplateChannel[] = ['email', 'whatsapp', 'sms']
 const CATEGORIES: PlatformTemplateCategory[] = ['auth', 'onboarding', 'billing', 'notification', 'marketing']

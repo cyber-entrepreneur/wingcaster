@@ -1,6 +1,6 @@
 -- Stage 4 — contracts + versions + components (A §7.1–7.3 / DL-029).
 -- Tenant-scoped RLS on the header; versions and components inherit via join
--- (113 metered_usage_sources pattern). commercial.* is not touched.
+-- (113 metered_usage_sources pattern).
 -- facility_id is UUID without FK until Stage 8 creates fin.credit_facilities (DL-071).
 
 CREATE TABLE fin.contracts (

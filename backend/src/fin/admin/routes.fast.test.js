@@ -35,9 +35,6 @@ const WRITES = [
   ['post', '/api/admin/fin/facilities/x/close'],
   ['post', '/api/admin/fin/facilities/x/limit'],
   ['post', '/api/admin/fin/reconciliation/run'],
-  ['post', '/api/admin/fin/cutover/attest'],
-  ['post', '/api/admin/fin/cutover/activate'],
-  ['post', '/api/admin/fin/cutover/deactivate'],
   ['post', '/api/admin/fin/reconciliation/drift/x/resolve'],
   ['post', '/api/admin/fin/approvals/x/approve'],
   ['post', '/api/admin/fin/approvals/x/reject'],
@@ -74,18 +71,6 @@ describe('fin.admin ops fast gates', () => {
   it('GET overview refuses a non-admin', async () => {
     const app = mount({ role: 'agent' })
     const res = await request(app).get('/api/admin/fin/overview')
-    expect(res.status).toBe(403)
-  })
-
-  it('GET cutover/readiness refuses a non-admin', async () => {
-    const app = mount({ role: 'agent' })
-    const res = await request(app).get('/api/admin/fin/cutover/readiness')
-    expect(res.status).toBe(403)
-  })
-
-  it('GET cutover/parity refuses a non-admin', async () => {
-    const app = mount({ role: 'agent' })
-    const res = await request(app).get('/api/admin/fin/cutover/parity')
     expect(res.status).toBe(403)
   })
 })

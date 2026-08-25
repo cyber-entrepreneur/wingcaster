@@ -5,8 +5,17 @@ import { useAuth } from '@/context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { formatRelativeIso } from '@/components/commercial-pricing/subscription-helpers'
-import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/commercialPricing'
+import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
+
+function formatRelativeIso(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
 
 const EVENT_LABELS: Record<string, string> = {
   'subscription.trial_ending': 'Trial ending soon',

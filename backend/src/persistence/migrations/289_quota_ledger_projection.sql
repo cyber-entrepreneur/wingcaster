@@ -1,19 +1,28 @@
--- Stage 13f — quota projection (DL-226 option a).
--- Moves quota-relevant ledger_entries out of commercial.* so 13f can DROP
--- commercial without losing quota_key/type/billing_period semantics.
+-- Quota allowance ledger (DL-243 / formerly DL-226 option a).
+-- Independent of the retired legacy billing surface. Greenfield installs
+-- create quota.ledger_entries directly — there is no historical copy step
+-- because no live clients exist.
 
 CREATE SCHEMA IF NOT EXISTS quota;
 
 COMMENT ON SCHEMA quota IS
-  'Quota allowance ledger (DL-226). Migrated from commercial.ledger_entries; survives commercial.* DROP.';
+  'Quota allowance ledger (DL-243). Per-tenant per-quota-key per-period. Independent of fin.* rated_usage.';
 
 CREATE TABLE IF NOT EXISTS quota.ledger_entries (
-  LIKE commercial.ledger_entries INCLUDING ALL
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  subscription_id TEXT,
+  billing_period VARCHAR(10) NOT NULL,
+  type VARCHAR(30) NOT NULL CHECK (type IN
+    ('allowance_grant','consumption','overage','topup','adjustment')),
+  quota_key VARCHAR(80) NOT NULL,
+  amount NUMERIC(15,4) NOT NULL,
+  source_event_id TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb
 );
-
-INSERT INTO quota.ledger_entries
-SELECT * FROM commercial.ledger_entries
-ON CONFLICT (id) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_quota_ledger_entries_tenant_quota_period
   ON quota.ledger_entries(tenant_id, quota_key, billing_period);

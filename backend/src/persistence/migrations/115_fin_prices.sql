@@ -1,7 +1,7 @@
 -- Stage 4 — prices header + versions + tiers + dimensions (A §7.4–7.7).
 -- Catalog-style RLS (H §1.1 / 112 meters pattern). No tenant grain.
 -- DL-023 gist is partial: DRAFT rows are excluded so overlap is an
--- activate-time 23P01 (DL-069). commercial.* is not touched.
+-- activate-time 23P01 (DL-069).
 
 CREATE TABLE fin.prices (
   id UUID PRIMARY KEY,

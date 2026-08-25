@@ -50,21 +50,8 @@ import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PricingPage as FinPricingPage, ReconciliationPage, TenantsPage, UsagePage,
-  VendorCostsPage, ParityPage,
+  VendorCostsPage,
 } from '@/pages/admin/fin'
-import { TerritoriesAdminPage } from '@/pages/admin/commercial-pricing/TerritoriesAdminPage'
-import { TerritoryDetailPage } from '@/pages/admin/commercial-pricing/TerritoryDetailPage'
-import { RateCardsAdminPage } from '@/pages/admin/commercial-pricing/RateCardsAdminPage'
-import { ProductsAdminPage } from '@/pages/admin/commercial-pricing/ProductsAdminPage'
-import { ProductDetailPage } from '@/pages/admin/commercial-pricing/ProductDetailPage'
-import { SubscriptionsAdminPage } from '@/pages/admin/commercial-pricing/SubscriptionsAdminPage'
-import { SubscriptionDetailPage } from '@/pages/admin/commercial-pricing/SubscriptionDetailPage'
-import { CreditNotesAdminPage } from '@/pages/admin/commercial-pricing/CreditNotesAdminPage'
-import { ReportsAdminPage } from '@/pages/admin/commercial-pricing/ReportsAdminPage'
-import { ReconciliationLookupPage } from '@/pages/admin/commercial-pricing/ReconciliationLookupPage'
-import { PlansPage } from '@/pages/PlansPage'
-import { MySubscriptionPage } from '@/pages/MySubscriptionPage'
-import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
@@ -137,25 +124,10 @@ function AppShell() {
           <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
           <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
           <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
-          <Route path="/admin/fin/parity" element={<ParityPage />} />
           <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
           <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
           <Route path="/admin/fin/audit" element={<AuditPage />} />
           <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
-          <Route path="/admin/commercial-pricing" element={<Navigate to="/admin/commercial-pricing/territories" replace />} />
-          <Route path="/admin/commercial-pricing/territories" element={<TerritoriesAdminPage />} />
-          <Route path="/admin/commercial-pricing/territories/:id" element={<TerritoryDetailPage />} />
-          <Route path="/admin/commercial-pricing/rate-cards" element={<RateCardsAdminPage />} />
-          <Route path="/admin/commercial-pricing/products" element={<ProductsAdminPage />} />
-          <Route path="/admin/commercial-pricing/products/:id" element={<ProductDetailPage />} />
-          <Route path="/admin/commercial-pricing/subscriptions" element={<SubscriptionsAdminPage />} />
-          <Route path="/admin/commercial-pricing/subscriptions/:id" element={<SubscriptionDetailPage />} />
-          <Route path="/admin/commercial-pricing/credit-notes" element={<CreditNotesAdminPage />} />
-          <Route path="/admin/commercial-pricing/reports" element={<ReportsAdminPage />} />
-          <Route path="/admin/commercial-pricing/reconciliation" element={<ReconciliationLookupPage />} />
-          <Route path="/pricing" element={<PlansPage />} />
-          <Route path="/subscription" element={<MySubscriptionPage />} />
-          <Route path="/credit-notes" element={<MyCreditNotesPage />} />
           <Route path="/notifications" element={<NotificationPreferencesPage />} />
           <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
           <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />

@@ -30,14 +30,6 @@ export const FIN_ACCOUNTING_PERIOD_CLOSE = 1019
 export const FIN_BILLING_PERIOD_CLOSE = 1020
 /** Per-statement vendor recon (A §11 / D). xact-scoped (DL-151). */
 export const FIN_VENDOR_STATEMENT_RECON = 1021
-/** Stage 13b historical backfill mutex. Session-scoped; one batch per source at a time (DL-180). */
-export const FIN_CUTOVER_BACKFILL = 1030
-/** Stage 13c parity worker mutex. Session-scoped per tick; key2 = hashtext(source) so sources run in parallel (DL-196). */
-export const FIN_CUTOVER_PARITY = 1031
-/** Stage 13d cutover activate/deactivate mutex. Session-scoped; key2 = hashtext(environment) (DL-206). */
-export const FIN_CUTOVER_ACTIVATION = 1032
-/** Stage 13f commercial DROP mutex. Session-scoped; key2 = 0 (DL-231). */
-export const FIN_CUTOVER_DEPRECATE = 1033
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -60,8 +52,4 @@ export const LOCK_CLASSES = {
   FIN_ACCOUNTING_PERIOD_CLOSE,
   FIN_BILLING_PERIOD_CLOSE,
   FIN_VENDOR_STATEMENT_RECON,
-  FIN_CUTOVER_BACKFILL,
-  FIN_CUTOVER_PARITY,
-  FIN_CUTOVER_ACTIVATION,
-  FIN_CUTOVER_DEPRECATE,
 }

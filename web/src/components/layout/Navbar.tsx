@@ -3,7 +3,7 @@ import { useState } from 'react'
 import {
   Menu, X, LogIn, UserPlus, LayoutDashboard, LogOut, User, Inbox,
   ListTodo, Users as UsersIcon, Building2, Megaphone, Calendar, Radar,
-  Coins, ChevronDown, CreditCard, Shield, MessageSquare,
+  ChevronDown, CreditCard, Shield, MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,19 +34,7 @@ export function Navbar() {
     { path: '/tasks', label: 'Tasks', icon: ListTodo },
   ]
 
-  const commercialPricingSubItems = [
-    { path: '/admin/commercial-pricing/territories', label: 'Territories' },
-    { path: '/admin/commercial-pricing/rate-cards', label: 'Rate cards' },
-    { path: '/admin/commercial-pricing/products', label: 'Products' },
-    { path: '/admin/commercial-pricing/subscriptions', label: 'Subscriptions' },
-    { path: '/admin/commercial-pricing/credit-notes', label: 'Credit notes' },
-    { path: '/admin/commercial-pricing/reports', label: 'Reports' },
-    { path: '/admin/commercial-pricing/reconciliation', label: 'Reconciliation' },
-  ]
-  const commercialPricingActive = location.pathname.startsWith('/admin/commercial-pricing')
-
-  // Platform-admin surfaces that aren't part of commercial pricing.
-  // Kept as a separate dropdown so the Commercial menu stays scoped.
+  // Platform-admin surfaces (message templates, etc.).
   const platformAdminSubItems = [
     { path: '/admin/message-templates', label: 'Message templates', icon: MessageSquare },
   ]
@@ -65,7 +53,6 @@ export function Navbar() {
     { path: '/admin/fin/invoices', label: 'Invoices' },
     { path: '/admin/fin/vendor-costs', label: 'Vendor costs' },
     { path: '/admin/fin/reconciliation', label: 'Reconciliation' },
-    { path: '/admin/fin/parity', label: 'Parity' },
     { path: '/admin/fin/exceptions', label: 'Exceptions' },
     { path: '/admin/fin/approvals', label: 'Approvals' },
     { path: '/admin/fin/audit', label: 'Audit' },
@@ -107,33 +94,6 @@ export function Navbar() {
                 </Link>
               )
             })}
-            {isAdmin ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      commercialPricingActive
-                        ? 'text-white'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    }`}
-                    style={commercialPricingActive ? { backgroundColor: brand.primaryColor } : undefined}
-                  >
-                    <Coins className="h-4 w-4" />
-                    Commercial
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Commercial Pricing</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {commercialPricingSubItems.map((sub) => (
-                    <DropdownMenuItem key={sub.path} asChild>
-                      <Link to={sub.path}>{sub.label}</Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
             {isAdmin ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -215,17 +175,7 @@ export function Navbar() {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Billing</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/pricing">Plans</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/subscription">My subscription</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/credit-notes">My credit notes</Link>
-                  </DropdownMenuItem>
+                  <DropdownMenuLabel>Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link to="/notifications">Notification preferences</Link>
@@ -281,24 +231,6 @@ export function Navbar() {
                   </Link>
                 )
               })}
-            {isAdmin ? (
-              <div className="mt-2 border-t pt-3">
-                <div className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
-                  <Coins className="h-3.5 w-3.5" />
-                  Commercial
-                </div>
-                {commercialPricingSubItems.map((sub) => (
-                  <Link
-                    key={sub.path}
-                    to={sub.path}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
-                  >
-                    {sub.label}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
             {isAdmin ? (
               <div className="mt-2 border-t pt-3">
                 <div className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold uppercase text-muted-foreground">

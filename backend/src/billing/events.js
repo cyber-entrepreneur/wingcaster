@@ -1,33 +1,19 @@
 /**
- * emitUsageEvent — the single call every meterable endpoint makes.
+ * emitUsageEvent — facts-only ingest into fin.usage_events.
  *
- * SPEC §6: "every meterable action must emit a usage event from day one,
- * including the free ones, at a rate of zero."
- *
- * Fire-and-forget from the caller's perspective — never blocks the
- * primary action, never throws. Errors are logged via the injected
- * logger; missing rate-card entries default to 0 casts (rate-0 event
- * still written for telemetry).
+ * Every meterable endpoint emits a usage event. Rating and lot-draw
+ * happen later on the fin.* pipeline. This wrapper maps a public tenant
+ * id onto fin.* context and lands the fact. Errors never throw to the
+ * caller.
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { insert, transaction } from '../db.js'
-import { RATE_CARD_LATEST_VERSION, CAST_VALUE_MINOR_SEED } from './rate-card.js'
-import { resolveActiveSubscription, meteredRateOverride } from './entitlements.js'
-import { recordConsumption, currentBillingPeriod } from './ledger.js'
-import { resolveEffectivePrice, resolveMarketContext } from './pricing/index.js'
+import { query, transaction } from '../db.js'
 import { BusinessClock } from '../fin/clock.js'
-import { resolveCutoverMode } from '../fin/cutover/mode.js'
-import { dualWrite } from '../fin/cutover/dual-writer.js'
-import { usageEventInput } from '../fin/cutover/mapping.js'
-import { resolveFinMirrorContext } from '../fin/cutover/context.js'
 import { ingestUsageEventWithClient } from '../fin/usage/ingest.js'
-import { watchCommercialWrite } from '../fin/cutover/quiet_period/logger.js'
 
-// Sentinel territory_id for events with no market context (webhook
-// receipts, platform-scoped telemetry). commercial.usage_events is
-// LIST-partitioned by territory_id, and PRIMARY KEY (id, territory_id)
-// requires NOT NULL — see migration 036.
+// Sentinel residency for events with no market context (webhook receipts,
+// platform-scoped telemetry). Matches fin.usage_events partition default.
 export const PLATFORM_TERRITORY_ID = '__platform__'
 
 let injectedLogger = null
@@ -37,6 +23,51 @@ let injectedLogger = null
  */
 export function setBillingLogger(logger) {
   injectedLogger = logger
+}
+
+async function resolveFinTenantContext({
+  publicTenantId,
+  environment = 'LIVE',
+  client = null,
+} = {}) {
+  if (!publicTenantId) return null
+  const sessionEnv = environment === 'TEST' || environment === 'LIVE' ? environment : 'LIVE'
+  const run = async (q) => {
+    const tenants = await q(
+      `SELECT id, environment FROM fin.tenants
+        WHERE public_tenant_id = $1 AND environment = $2 AND status = 'ACTIVE'`,
+      [publicTenantId, sessionEnv],
+    )
+    const tenant = tenants[0]
+    if (!tenant) return null
+    const holders = await q(
+      `SELECT id FROM fin.holders
+        WHERE tenant_id = $1 AND holder_kind = 'TENANT_ROOT'
+        ORDER BY created_at ASC LIMIT 1`,
+      [tenant.id],
+    )
+    const billing = await q(
+      `SELECT id FROM fin.billing_accounts
+        WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [tenant.id],
+    )
+    if (!holders[0] || !billing[0]) return null
+    return {
+      tenantId: tenant.id,
+      holderId: holders[0].id,
+      billingAccountId: billing[0].id,
+      environment: tenant.environment,
+      publicTenantId: String(publicTenantId),
+    }
+  }
+
+  if (client) {
+    return run(async (sql, params) => {
+      const { rows } = await client.query(sql, params)
+      return rows
+    })
+  }
+  return run(query)
 }
 
 /**
@@ -71,157 +102,65 @@ export async function emitUsageEvent({
   }
 
   try {
-    // Resolve the tenant's subscription to pick up any per-plan metered
-    // rate override. Falls back to the runtime rate card if none.
-    const active = await resolveActiveSubscription(tenantId)
-    const pinnedTerritoryId = active?.subscription?.territory_id || null
-    const pinnedZoneId = active?.subscription?.zone_id || null
-
-    // Territory/zone context: pinned from the tenant's subscription when
-    // one exists, otherwise inferred from destination country for
-    // telemetry. Never falls back to CAST_VALUE_MINOR_SEED silently —
-    // resolveEffectivePrice picks up the active CoreRateCard.
-    let territoryId = pinnedTerritoryId
-    let zoneId = pinnedZoneId
-    if (!territoryId && country) {
-      const ctx = await resolveMarketContext({ countryCode: country })
-      territoryId = ctx.territory?.id || null
-      zoneId = ctx.zone?.id || null
-    }
-
-    const override = await meteredRateOverride(tenantId, actionKey)
-    let cost
-    if (override != null) {
-      cost = {
-        casts_charged: 0,
-        price_minor: Math.round(override * (quantity || 1)),
-        cogs_estimate_minor: 0,
-        rate_card_version: active?.subscription?.rate_card_version || RATE_CARD_LATEST_VERSION,
-        cast_value_minor: active?.subscription?.cast_value_minor || CAST_VALUE_MINOR_SEED,
-        territory_id: territoryId,
-        zone_id: zoneId,
-      }
-    } else {
-      cost = await resolveEffectivePrice({
-        actionKey,
-        quantity,
-        country,
-        whatsappCategory,
-        territoryId,
-        zoneId,
-        rateCardVersion: active?.subscription?.rate_card_version || null,
-        castValueMinorOverride: active?.subscription?.cast_value_minor || null,
-        priceLockedMinor: active?.subscription?.price_locked_minor ?? null,
-        logger: injectedLogger || console,
-      })
-    }
-
-    const event = {
-      id: uuidv4(),
-      tenant_id: tenantId,
-      subscription_id: active?.subscription?.id || null,
-      action_key: actionKey,
-      quantity: Math.max(1, Number(quantity) || 1),
-      channel,
-      destination_country: country,
-      whatsapp_category: whatsappCategory,
-      listing_id: listingId,
-      conversation_id: conversationId,
-      distribution_id: distributionId,
-      casts_charged: cost.casts_charged,
-      price_minor: cost.price_minor,
-      cogs_estimate_minor: cost.cogs_estimate_minor,
-      rate_card_version: cost.rate_card_version || RATE_CARD_LATEST_VERSION,
-      cast_value_minor: cost.cast_value_minor || CAST_VALUE_MINOR_SEED,
-      territory_id: cost.territory_id || territoryId || PLATFORM_TERRITORY_ID,
-      zone_id: cost.zone_id || zoneId,
-      metadata: metadata || {},
-      occurred_at: BusinessClock.now(),
-      billing_period: currentBillingPeriod(),
-    }
-
     const environment = metadata?.fin_environment === 'TEST' ? 'TEST' : 'LIVE'
-    const mode = await resolveCutoverMode({ publicTenantId: tenantId, environment })
-
-    // DL-171 / Stage 13a — when DUAL/FIN_ONLY, legacy + fin.* share one
-    // transaction(fn) (I-14 / D-T11). OFF keeps the historical separate
-    // inserts so non-allowlisted tenants see unchanged behaviour.
-    if (mode === 'DUAL' || mode === 'FIN_ONLY') {
-      await transaction(async (client) => {
-        await watchCommercialWrite(client, {
-          environment,
-          sourceFile: 'billing/events.js',
-          payload: { action_key: actionKey, tenant_id: tenantId, event_id: event.id },
-        }, () => insert('usage_events', event))
-
-        // DL-171 / Stage 13a — dual-write to fin.*. Failure logs to
-        // fin.cutover_dual_write_errors and does NOT block the legacy write.
-        const ctx = await resolveFinMirrorContext({
-          publicTenantId: tenantId,
-          environment,
-          client,
-        })
-        await dualWrite({
-          client,
-          environment,
-          tenantId,
-          finCommand: 'ingestUsageEventWithClient',
-          legacy: {
-            source: 'commercial.usage_events',
-            rowId: event.id,
-            payload: event,
-          },
-          fin: async (finClient) => {
-            if (!ctx) {
-              throw Object.assign(new Error('FIN_MIRROR_CONTEXT_MISSING'), {
-                code: 'FIN_MIRROR_CONTEXT_MISSING',
-              })
-            }
-            return ingestUsageEventWithClient(finClient, usageEventInput(event, {
-              environment: ctx.environment,
-              finTenantId: ctx.tenantId,
-              holderId: ctx.holderId,
-              billingAccountId: ctx.billingAccountId,
-              now: event.occurred_at,
-            }))
-          },
-          now: event.occurred_at,
-        })
-
-        const quotaKeyForAction = QUOTA_KEY_FOR_ACTION[actionKey]
-        if (quotaKeyForAction && cost.casts_charged > 0 && active?.subscription?.id) {
-          await recordConsumption({
-            tenantId,
-            subscriptionId: active.subscription.id,
-            quotaKey: quotaKeyForAction,
-            amount: quantity,
-            sourceEventId: event.id,
-            metadata: { action_key: actionKey, casts: cost.casts_charged, country, channel },
-            cutoverMode: mode,
-            cutoverEnvironment: environment,
-            cutoverClient: client,
-          })
-        }
-      })
-    } else {
-      await insert('usage_events', event)
-
-      const quotaKeyForAction = QUOTA_KEY_FOR_ACTION[actionKey]
-      if (quotaKeyForAction && cost.casts_charged > 0 && active?.subscription?.id) {
-        await recordConsumption({
-          tenantId,
-          subscriptionId: active.subscription.id,
-          quotaKey: quotaKeyForAction,
-          amount: quantity,
-          sourceEventId: event.id,
-          metadata: { action_key: actionKey, casts: cost.casts_charged, country, channel },
-        })
-      }
+    const eventId = uuidv4()
+    const occurredAt = BusinessClock.now()
+    const qty = Math.max(1, Number(quantity) || 1)
+    const dimensions = {
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+      channel: channel ?? null,
+      destination_country: country ?? null,
+      whatsapp_category: whatsappCategory ?? null,
+      listing_id: listingId ?? null,
+      conversation_id: conversationId ?? null,
+      distribution_id: distributionId ?? null,
+      public_tenant_id: tenantId,
     }
 
-    return event
+    await transaction(async (client) => {
+      const ctx = await resolveFinTenantContext({
+        publicTenantId: tenantId,
+        environment,
+        client,
+      })
+      if (!ctx) {
+        injectedLogger?.warn(
+          { actionKey, tenantId, environment },
+          'emitUsageEvent skipped — no ACTIVE fin.tenants row',
+        )
+        return
+      }
+      await ingestUsageEventWithClient(client, {
+        environment: ctx.environment,
+        tenantId: ctx.tenantId,
+        holderId: ctx.holderId,
+        billingAccountId: ctx.billingAccountId,
+        sourceSystem: 'app.usage',
+        sourceEventId: eventId,
+        eventType: actionKey,
+        quantityUnits: qty,
+        dimensions,
+        occurredAt,
+        receivedAt: occurredAt,
+        subjectType: conversationId ? 'CONVERSATION' : listingId ? 'LISTING' : null,
+        subjectId: conversationId || listingId || null,
+        eventKind: 'ORIGINAL',
+        actorType: 'SYSTEM',
+        actorId: null,
+        actorEmail: 'system@fin.local',
+        now: occurredAt,
+      })
+    })
+
+    return {
+      id: eventId,
+      tenant_id: tenantId,
+      action_key: actionKey,
+      quantity: qty,
+      occurred_at: occurredAt,
+    }
   } catch (err) {
-    injectedLogger?.error({ err, actionKey, tenantId, country }, 'pricing failure — event NOT persisted')
+    injectedLogger?.error({ err, actionKey, tenantId, country }, 'usage ingest failure — event NOT persisted')
     return null
   }
 }
@@ -251,7 +190,7 @@ const QUOTA_KEY_FOR_ACTION = {
   'staging.ai_image':               'staging_images',
   'ai.reply.drafted':               'ai_reply_drafts',
   'ai.chat.turn':                   'ai_chat_turns',
-  'listing.active_day':             'active_listings', // 1 per listing per day
+  'listing.active_day':             'active_listings',
 }
 
 export function quotaKeyForAction(actionKey) {

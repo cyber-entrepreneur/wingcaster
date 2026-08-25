@@ -30,7 +30,7 @@ import {
   type TemplateSettingsDraft,
 } from './TemplateSettingsForm'
 import type { PlatformMessageTemplate } from '@/types/platformTemplates'
-import type { Territory } from '@/types/commercialPricing'
+import type { Territory } from '@/types/territory'
 
 expect.extend(toHaveNoViolations)
 
@@ -55,11 +55,6 @@ function template(overrides: Partial<PlatformMessageTemplate> = {}): PlatformMes
 function territory(overrides: Partial<Territory> = {}): Territory {
   return {
     id: 't-lb', code: 'LB', name: 'Lebanon', currency: 'USD',
-    pricing_multiplier: 1, launch_status: 'launched', launch_wave: null,
-    data_residency_required: false, billing_mode: 'card', vat_percent: 0,
-    regulator_id_type: null, default_zone_id: null,
-    payment_gateway_primary: null, payment_gateway_secondary: null,
-    sort_order: 0, active: true, created_at: '', updated_at: '',
     ...overrides,
   }
 }
