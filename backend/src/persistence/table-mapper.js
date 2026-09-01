@@ -256,7 +256,7 @@ const TABLE_MAP = {
     columns: [
       'tenant_id', 'feature', 'call_type', 'provider', 'model',
       'input_tokens', 'output_tokens', 'cost_estimate_micro_usd', 'fallback_from',
-      'related_entity_type', 'related_entity_id', 'occurred_at',
+      'related_entity_type', 'related_entity_id', 'occurred_at', 'data',
     ],
   },
 
