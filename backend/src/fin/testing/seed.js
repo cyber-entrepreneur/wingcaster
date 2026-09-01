@@ -311,6 +311,55 @@ export async function insertFxSnapshot(client, {
   return id
 }
 
+/**
+ * Insert a fin.purchase_intents stub row so a downstream fundPurchase() call
+ * can pass its id and satisfy fk_lots_purchase_intent.
+ *
+ * All required NOT NULL columns are set to test-safe defaults; every writable
+ * column is overrideable. Returns the intent id.
+ */
+export async function seedPurchaseIntent(client, {
+  id = randomUUID(),
+  environment = 'LIVE',
+  tenantId,
+  billingAccountId,
+  holderId,
+  status = 'PAID',
+  quotedUnits = 1,
+  quotedBonusUnits = 0,
+  quotedMinor = 1,
+  currency = 'USD',
+  provider = null,
+  providerEventId = null,
+  reasonCode = 'TEST',
+  now = NOW,
+} = {}) {
+  if (!tenantId) throw new Error('seedPurchaseIntent: tenantId is required')
+  if (!billingAccountId) throw new Error('seedPurchaseIntent: billingAccountId is required')
+  if (!holderId) throw new Error('seedPurchaseIntent: holderId is required')
+  await client.query(
+    `INSERT INTO fin.purchase_intents (
+       id, environment, tenant_id, billing_account_id, holder_id,
+       status, quoted_units, quoted_bonus_units, quoted_minor, currency,
+       provider, provider_event_id, reason_code,
+       paid_at, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9, $10,
+       $11, $12, $13,
+       $14, $15, $15
+     )
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      id, environment, tenantId, billingAccountId, holderId,
+      status, quotedUnits, quotedBonusUnits, quotedMinor, currency,
+      provider, providerEventId, reasonCode,
+      status === 'PAID' ? now : null, now,
+    ],
+  )
+  return id
+}
+
 export async function asRole(client, role, gucs, fn) {
   await client.query('BEGIN')
   try {

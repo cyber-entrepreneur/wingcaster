@@ -4,7 +4,7 @@ import { finPostgresSuite } from '../testing/suite.js'
 import { authorizeUsage } from '../auth/authorize.js'
 import { captureUsage } from '../auth/capture.js'
 import { fundPurchase } from '../ledger/transactions.js'
-import { commandEnv, seedBook } from '../testing/seed.js'
+import { commandEnv, seedBook, seedPurchaseIntent } from '../testing/seed.js'
 import { seedIsolatedHolder } from '../rating/test-support.js'
 import { runAutoTopupTick } from './auto-topup-worker.js'
 import { insertAutoTopupPolicy, insertControls, seedProduct } from './test-support.js'
@@ -19,9 +19,17 @@ finPostgresSuite('auto-topup worker DL-094', {}, ({ pool, world }) => {
       tenantId: world().tenantA.tenantId,
       billingAccountId,
     })
+    const purchaseIntentId = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId,
+      holderId,
+      quotedUnits: units,
+      quotedMinor: 1,
+    })
     await fundPurchase({
       ...commandEnv(world(), { holderId, bookId: book.bookId }),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId,
       paidUnits: units,
       bonusUnits: 0,
       considerationMinor: 1,

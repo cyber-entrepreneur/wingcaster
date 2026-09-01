@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
-import { commandEnv, insertApproval } from '../testing/seed.js'
+import { commandEnv, insertApproval, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { insertControls } from '../funding/test-support.js'
 import { openDunningCase } from '../dunning/cases.js'
@@ -16,9 +16,17 @@ finPostgresSuite('accounting write-off spec §73', {}, ({ pool, world }) => {
       subjectType: 'BILLING_ACCOUNT',
       subjectId: world().tenantA.billingAccountId,
     })
+    const purchaseIntentId = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: world().tenantA.billingAccountId,
+      holderId: world().tenantA.holderId,
+      quotedUnits: 40,
+      quotedMinor: 40,
+    })
     const funded = await fundPurchase({
       ...env,
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId,
       paidUnits: 40,
       bonusUnits: 0,
       considerationMinor: 40,

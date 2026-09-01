@@ -1,14 +1,24 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { FinError } from '../errors.js'
-import { commandEnv, NOW } from '../testing/seed.js'
+import { commandEnv, NOW, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { directSpend, fundPurchase, manualAdjust } from './transactions.js'
 
 finPostgresSuite('idempotency-replay C12', {}, ({ pool, world }) => {
+  async function newIntent() {
+    return seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: world().tenantA.billingAccountId,
+      holderId: world().tenantA.holderId,
+      quotedUnits: 100, quotedMinor: 1,
+    })
+  }
+
   it('C12 — COMPLETED replay inserts 0 new txs', async () => {
     const env = commandEnv(world())
-    const purchaseIntentId = randomUUID()
+    const purchaseIntentId = await newIntent()
     const first = await fundPurchase({
       ...env, purchaseIntentId, paidUnits: 30, bonusUnits: 0, considerationMinor: 1,
     })
@@ -23,7 +33,7 @@ finPostgresSuite('idempotency-replay C12', {}, ({ pool, world }) => {
 
   it('C12 — fingerprint conflict', async () => {
     const env = commandEnv(world())
-    const purchaseIntentId = randomUUID()
+    const purchaseIntentId = await newIntent()
     const key = `FUND:${purchaseIntentId}`
     await fundPurchase({
       ...env, purchaseIntentId, paidUnits: 10, bonusUnits: 0, considerationMinor: 1,
@@ -41,7 +51,7 @@ finPostgresSuite('idempotency-replay C12', {}, ({ pool, world }) => {
 
   it('C12 — expired key does not fund', async () => {
     const env = commandEnv(world())
-    const purchaseIntentId = randomUUID()
+    const purchaseIntentId = await newIntent()
     const key = `FUND:${purchaseIntentId}`
     await pool().query(
       `INSERT INTO fin.idempotency_keys (

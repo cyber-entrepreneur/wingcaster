@@ -5,7 +5,7 @@ import { activatePriceVersion, createPrice, draftPriceVersion } from '../pricing
 import {
   activateContractVersion, createContract, draftContractVersion,
 } from '../pricing/contracts.js'
-import { commandEnv, NOW, seedBook } from '../testing/seed.js'
+import { commandEnv, NOW, seedBook, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { fundPurchase } from '../ledger/transactions.js'
 import { seedIsolatedHolder } from '../rating/test-support.js'
@@ -24,9 +24,17 @@ async function seedSpendWorld(pool, world, {
     label,
     aggregationType: 'SUM',
   })
+  const purchaseIntentId = await seedPurchaseIntent(pool, {
+    environment: 'LIVE',
+    tenantId: world.tenantA.tenantId,
+    billingAccountId,
+    holderId,
+    quotedUnits: units,
+    quotedMinor: 1,
+  })
   await fundPurchase({
     ...commandEnv(world, { holderId, bookId: book.bookId }),
-    purchaseIntentId: randomUUID(),
+    purchaseIntentId,
     paidUnits: units,
     bonusUnits: 0,
     considerationMinor: 1,

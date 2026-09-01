@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
-import { commandEnv, insertApproval, seedBook, seedExtraBillingAccount } from '../testing/seed.js'
+import { commandEnv, insertApproval, seedBook, seedExtraBillingAccount, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import {
   authorizeHold, captureFacility, captureHold, directSpend, directSpendPostpaid,
@@ -27,8 +27,15 @@ finPostgresSuite('conservation C01', {}, ({ pool, world }) => {
       currency: 'USD',
     })
 
+    const intent1 = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: w.tenantA.tenantId,
+      billingAccountId: w.tenantA.billingAccountId,
+      holderId: w.tenantA.holderId,
+      quotedUnits: 600, quotedMinor: 50,
+    })
     await fundPurchase({
-      ...env, purchaseIntentId: randomUUID(), paidUnits: 500, bonusUnits: 100,
+      ...env, purchaseIntentId: intent1, paidUnits: 500, bonusUnits: 100,
       considerationMinor: 50,
     })
     const h1 = await authorizeHold({ ...env, units: 10, subjectId: randomUUID() })
@@ -39,8 +46,15 @@ finPostgresSuite('conservation C01', {}, ({ pool, world }) => {
     await expireHold({ ...env, holdId: h3.holdId })
     await directSpend({ ...env, units: 5, ratedUsageId: randomUUID() })
     await directSpendPostpaid({ ...env, units: 3, ratedUsageId: randomUUID() })
+    const intent2 = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: w.tenantA.tenantId,
+      billingAccountId: w.tenantA.billingAccountId,
+      holderId: w.tenantA.holderId,
+      quotedUnits: 20, quotedMinor: 1,
+    })
     const expireFund = await fundPurchase({
-      ...env, purchaseIntentId: randomUUID(), paidUnits: 20, bonusUnits: 0,
+      ...env, purchaseIntentId: intent2, paidUnits: 20, bonusUnits: 0,
       considerationMinor: 1,
     })
     await expireLot({ ...env, lotId: expireFund.lotIds[0] })
@@ -49,12 +63,26 @@ finPostgresSuite('conservation C01', {}, ({ pool, world }) => {
     await transferCredits({
       ...env, sourceBookId: env.bookId, destBookId: book2.bookId, units: 7,
     })
-    await refundPurchase({ ...env, purchaseIntentId: randomUUID(), units: 8 })
+    const refundIntent = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: w.tenantA.tenantId,
+      billingAccountId: w.tenantA.billingAccountId,
+      holderId: w.tenantA.holderId,
+      quotedUnits: 8, quotedMinor: 1,
+    })
+    await refundPurchase({ ...env, purchaseIntentId: refundIntent, units: 8 })
     await manualAdjust({ ...env, units: 4, direction: 'increase' })
     await reconcileAdjust({ ...env, units: 2, direction: 'decrease' })
     await writeOffInvoice({ ...env, subjectId: randomUUID() })
+    const intent3 = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: w.tenantA.tenantId,
+      billingAccountId: w.tenantA.billingAccountId,
+      holderId: w.tenantA.holderId,
+      quotedUnits: 11, quotedMinor: 1,
+    })
     const mig = await fundPurchase({
-      ...env, purchaseIntentId: randomUUID(), paidUnits: 11, bonusUnits: 0,
+      ...env, purchaseIntentId: intent3, paidUnits: 11, bonusUnits: 0,
       considerationMinor: 1,
     })
     await migrateLot({ ...env, lotId: mig.lotIds[0] })
@@ -77,9 +105,16 @@ finPostgresSuite('conservation C01', {}, ({ pool, world }) => {
 
   it('C01 — mid-command failure leaves zero new txs', async () => {
     const before = await pool().query('SELECT count(*)::int AS n FROM fin.ledger_transactions')
+    const rejectIntent = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: world().tenantA.billingAccountId,
+      holderId: world().tenantA.holderId,
+      quotedUnits: 1, quotedMinor: 1,
+    })
     await expect(fundPurchase({
       ...commandEnv(world()),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId: rejectIntent,
       paidUnits: 0,
       bonusUnits: 0,
       considerationMinor: 0,
