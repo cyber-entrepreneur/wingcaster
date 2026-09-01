@@ -324,7 +324,7 @@ export async function seedPurchaseIntent(client, {
   tenantId,
   billingAccountId,
   holderId,
-  status = 'PAID',
+  status = 'CREATED',
   quotedUnits = 1,
   quotedBonusUnits = 0,
   quotedMinor = 1,
