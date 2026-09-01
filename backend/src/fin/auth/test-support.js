@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { fundPurchase } from '../ledger/transactions.js'
 import { seedIsolatedHolder } from '../rating/test-support.js'
-import { commandEnv, NOW, seedBook } from '../testing/seed.js'
+import { seedIsolatedMeter } from '../metering/test-support.js'
+import { commandEnv, NOW, seedBook, seedPurchaseIntent } from '../testing/seed.js'
 
 export { NOW }
 
@@ -15,12 +16,24 @@ export async function seedAuthHolder(pool, world, {
     tenantId: world.tenantA.tenantId,
     billingAccountId,
   })
+  const purchaseIntentId = await seedPurchaseIntent(pool, {
+    environment: 'LIVE',
+    tenantId: world.tenantA.tenantId,
+    billingAccountId,
+    holderId,
+    quotedUnits: units,
+    quotedMinor: 1,
+  })
   const funded = await fundPurchase({
     ...commandEnv(world, { holderId, bookId: book.bookId }),
-    purchaseIntentId: randomUUID(),
+    purchaseIntentId,
     paidUnits: units,
     bonusUnits: 0,
     considerationMinor: 1,
+  })
+  const { meterId } = await seedIsolatedMeter(pool, {
+    label: label || 'auth',
+    aggregationType: 'SUM',
   })
   return {
     holderId,
@@ -28,7 +41,7 @@ export async function seedAuthHolder(pool, world, {
     bookId: book.bookId,
     lotId: funded.lotIds[0],
     tenantId: world.tenantA.tenantId,
-    meterId: randomUUID(),
+    meterId,
   }
 }
 

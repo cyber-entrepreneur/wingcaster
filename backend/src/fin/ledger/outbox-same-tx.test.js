@@ -1,15 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
-import { commandEnv } from '../testing/seed.js'
+import { commandEnv, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { fundPurchase } from './transactions.js'
 
 finPostgresSuite('outbox-same-tx C13', {}, ({ world, pool }) => {
   it('C13 — committed FUNDING always has ledger.posted + lot.issued', async () => {
     const env = commandEnv(world())
+    const purchaseIntentId = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: world().tenantA.billingAccountId,
+      holderId: world().tenantA.holderId,
+      quotedUnits: 50, quotedMinor: 2,
+    })
     const result = await fundPurchase({
       ...env,
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId,
       paidUnits: 40,
       bonusUnits: 10,
       considerationMinor: 2,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
-import { commandEnv, insertLedgerTx, NOW } from '../testing/seed.js'
+import { commandEnv, insertLedgerTx, NOW, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { fundPurchase } from '../ledger/transactions.js'
 import { CHECKS } from './checks.js'
@@ -61,10 +61,20 @@ finPostgresSuite('reconciliation runner', {}, ({ pool, world }) => {
     expect(drift.rows[0].action).toBe('BLOCK_BILLING_CLOSE')
   })
 
+  async function newFundIntent(units = 100) {
+    return seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: world().tenantA.billingAccountId,
+      holderId: world().tenantA.holderId,
+      quotedUnits: units, quotedMinor: 1,
+    })
+  }
+
   it('R004 DRIFT when the balance cache is off by 1', async () => {
     await fundPurchase({
       ...commandEnv(world()),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId: await newFundIntent(20),
       paidUnits: 20,
       bonusUnits: 0,
       considerationMinor: 1,
@@ -79,7 +89,7 @@ finPostgresSuite('reconciliation runner', {}, ({ pool, world }) => {
   it('R006 is GREEN after fundPurchase (remaining = granted, no issue allocation)', async () => {
     await fundPurchase({
       ...commandEnv(world()),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId: await newFundIntent(15),
       paidUnits: 15,
       bonusUnits: 0,
       considerationMinor: 1,
@@ -91,7 +101,7 @@ finPostgresSuite('reconciliation runner', {}, ({ pool, world }) => {
   it('R006 DRIFT when a draw allocation is applied without updating remaining', async () => {
     const funded = await fundPurchase({
       ...commandEnv(world()),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId: await newFundIntent(15),
       paidUnits: 15,
       bonusUnits: 0,
       considerationMinor: 1,

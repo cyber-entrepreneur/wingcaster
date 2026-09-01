@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
-import { NOW, commandEnv, seedBook } from '../testing/seed.js'
+import { NOW, commandEnv, seedBook, seedPurchaseIntent } from '../testing/seed.js'
 import { finPostgresSuite } from '../testing/suite.js'
 import { rateMeteredUsage } from '../rating/engine.js'
 import { rateInput, seedRatedCase } from '../rating/test-support.js'
@@ -28,9 +28,16 @@ finPostgresSuite('reconciliation runner after rating', {}, ({ pool, world }) => 
       tenantId: world().tenantA.tenantId,
       billingAccountId: seeded.billingAccountId,
     })
+    const purchaseIntentId = await seedPurchaseIntent(pool(), {
+      environment: 'LIVE',
+      tenantId: world().tenantA.tenantId,
+      billingAccountId: seeded.billingAccountId,
+      holderId: seeded.holderId,
+      quotedUnits: 50, quotedMinor: 1,
+    })
     await fundPurchase({
       ...commandEnv(world(), { holderId: seeded.holderId, bookId: book.bookId }),
-      purchaseIntentId: randomUUID(),
+      purchaseIntentId,
       paidUnits: 50,
       bonusUnits: 0,
       considerationMinor: 1,
