@@ -21,6 +21,7 @@ import { createSessionStore } from '../infrastructure/sessions.js'
 import { createIntentClassifier } from './intent.js'
 import { createListingMatcher } from './matcher.js'
 import { DraftStatus, SessionState, Intent, TemplateVariant, SocialPlatform, CreditScope, CreditType, LocationSource } from '../domain/types.js'
+import { recordAiCall } from '../../../lib/ai-usage-logger.js'
 
 export function createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger }) {
   const storage = createStorage({ config, logger })
@@ -156,6 +157,9 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
         messages: session.messages.map((m) => ({ role: 'user', text: m.text })),
         images: session.media.map((m) => ({ url: m.publicUrl, mimeType: m.mimeType })),
         agentListings,
+        tenantId: session.agent_id || agencyId || null,
+        relatedEntityType: session.draft_id ? 'draft' : 'session',
+        relatedEntityId: session.draft_id || session.id,
       })
     } catch (err) {
       logger.warn({ err: err.message }, 'intent classification failed, defaulting to create')
@@ -237,6 +241,15 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       return null
     }
 
+    await recordAiCall({
+      tenantId: session.agent_id || agencyId || null,
+      feature: 'whatsapp-listings',
+      callType: 'extractProperty',
+      providerResult: extraction,
+      relatedEntityType: session.draft_id ? 'draft' : 'session',
+      relatedEntityId: session.draft_id || session.id,
+    })
+
     let extractedProperty = extraction.property
     if (matchedListing) {
       extractedProperty = mergeUpdateContext(matchedListing, extractedProperty, intentResult)
@@ -269,6 +282,14 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
           })
           heroImage = imageMedia[heroResult.index] || imageMedia[0]
           logger.info({ heroIndex: heroResult.index, reason: heroResult.reason }, 'AI selected hero image')
+          await recordAiCall({
+            tenantId: session.agent_id || agencyId || null,
+            feature: 'whatsapp-listings',
+            callType: 'selectHeroImage',
+            providerResult: heroResult,
+            relatedEntityType: session.draft_id ? 'draft' : 'session',
+            relatedEntityId: session.draft_id || session.id,
+          })
         } catch (err) {
           logger.warn({ err: err.message }, 'AI hero selection failed, falling back to first image')
         }
@@ -292,8 +313,32 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
     let captions = {}
     try {
       captions.instagram = await aiAdapter.generateCaption({ platform: 'instagram', property: extractedProperty, variant: selectedVariant })
+      await recordAiCall({
+        tenantId: session.agent_id || agencyId || null,
+        feature: 'whatsapp-listings',
+        callType: 'generateCaption:instagram',
+        providerResult: captions.instagram,
+        relatedEntityType: session.draft_id ? 'draft' : 'session',
+        relatedEntityId: session.draft_id || session.id,
+      })
       captions.tiktok = await aiAdapter.generateCaption({ platform: 'tiktok', property: extractedProperty, variant: selectedVariant })
+      await recordAiCall({
+        tenantId: session.agent_id || agencyId || null,
+        feature: 'whatsapp-listings',
+        callType: 'generateCaption:tiktok',
+        providerResult: captions.tiktok,
+        relatedEntityType: session.draft_id ? 'draft' : 'session',
+        relatedEntityId: session.draft_id || session.id,
+      })
       captions.x = await aiAdapter.generateCaption({ platform: 'x', property: extractedProperty, variant: selectedVariant })
+      await recordAiCall({
+        tenantId: session.agent_id || agencyId || null,
+        feature: 'whatsapp-listings',
+        callType: 'generateCaption:x',
+        providerResult: captions.x,
+        relatedEntityType: session.draft_id ? 'draft' : 'session',
+        relatedEntityId: session.draft_id || session.id,
+      })
     } catch (err) {
       logger.warn({ err: err.message }, 'caption generation failed')
     }

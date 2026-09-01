@@ -68,6 +68,7 @@ describe('WhatsApp Listing AI adapter', () => {
           confidence: 0.9,
         }),
         raw: {},
+        usage: { inputTokens: 80, outputTokens: 20 },
       }),
       classifyIntent: vi.fn(),
       generateCaption: vi.fn(),
@@ -85,6 +86,10 @@ describe('WhatsApp Listing AI adapter', () => {
     expect(successProvider.extractProperty).toHaveBeenCalled()
     expect(result.property.title).toBe('Test Villa')
     expect(result.provider).toBe('openai')
+    expect(result.model).toBe('gpt-4o-mini')
+    expect(result.fallbackFrom).toBe('gemini')
+    expect(result.usage).toEqual({ inputTokens: 80, outputTokens: 20 })
+    expect(result.text).toBeTruthy()
   })
 
   it('opens a circuit breaker after repeated failures', async () => {

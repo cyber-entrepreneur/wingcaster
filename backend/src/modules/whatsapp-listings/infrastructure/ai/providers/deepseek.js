@@ -1,10 +1,11 @@
 import {
   cleanJsonResponse,
   createTimeoutSignal,
+  extractTokenUsage,
 } from '../shared.js'
 
 const API_BASE = 'https://api.deepseek.com'
-const MODEL = 'deepseek-chat'
+export const MODEL = 'deepseek-chat'
 
 /**
  * DeepSeek chat completions adapter.
@@ -57,7 +58,13 @@ export function createProvider({ apiKey, logger }) {
       const data = await res.json()
       const text = data.choices?.[0]?.message?.content
       if (!text) throw new Error('DeepSeek response missing content')
-      return { text: cleanJsonResponse(text), raw: data }
+      const usage = extractTokenUsage(data, {
+        inputKeys: ['usage.prompt_tokens', 'usage.input_tokens'],
+        outputKeys: ['usage.completion_tokens', 'usage.output_tokens'],
+        logger,
+        provider: 'deepseek',
+      })
+      return { text: cleanJsonResponse(text), raw: data, usage }
     } finally {
       clear()
     }
@@ -97,5 +104,5 @@ export function createProvider({ apiKey, logger }) {
     }
   }
 
-  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck }
+  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck, getModel: () => MODEL }
 }

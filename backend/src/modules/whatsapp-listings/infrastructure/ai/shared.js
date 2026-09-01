@@ -200,6 +200,51 @@ export function createTimeoutSignal(ms) {
   return { signal: controller.signal, clear: () => clearTimeout(timer) }
 }
 
+function readNumericPath(obj, path) {
+  let cur = obj
+  for (const part of path.split('.')) {
+    if (cur == null || typeof cur !== 'object') return null
+    cur = cur[part]
+  }
+  if (cur == null || cur === '') return null
+  const n = Number(cur)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Best-effort token usage from a provider JSON body.
+ * Tries each candidate path in order. Missing fields become 0 and log a warn —
+ * the call already succeeded; observability must not throw.
+ */
+export function extractTokenUsage(data, { inputKeys, outputKeys, logger, provider }) {
+  let inputTokens = null
+  let outputTokens = null
+  for (const key of inputKeys) {
+    const value = readNumericPath(data, key)
+    if (value != null) {
+      inputTokens = value
+      break
+    }
+  }
+  for (const key of outputKeys) {
+    const value = readNumericPath(data, key)
+    if (value != null) {
+      outputTokens = value
+      break
+    }
+  }
+  if (inputTokens == null || outputTokens == null) {
+    logger?.warn?.(
+      { provider, inputTokens, outputTokens },
+      'AI usage fields missing from provider response',
+    )
+  }
+  return {
+    inputTokens: inputTokens || 0,
+    outputTokens: outputTokens || 0,
+  }
+}
+
 export function cleanJsonResponse(text) {
   if (!text) return ''
   let cleaned = String(text).trim()
