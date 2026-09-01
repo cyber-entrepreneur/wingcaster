@@ -315,7 +315,12 @@ export async function insertFxSnapshot(client, {
  * Insert a fin.purchase_intents stub row so a downstream fundPurchase() call
  * can pass its id and satisfy fk_lots_purchase_intent.
  *
- * All required NOT NULL columns are set to test-safe defaults; every writable
+ * INSERTs must be status='CREATED' per DB trigger. If a different terminal
+ * status is requested, this transitions via UPDATE — matching the real
+ * state machine. Defaults to 'PAID' so downstream workers (auto-topup,
+ * dunning) treat the intent as settled and don't try to charge it.
+ *
+ * All required NOT NULL columns set to test-safe defaults; every writable
  * column is overrideable. Returns the intent id.
  */
 export async function seedPurchaseIntent(client, {
@@ -324,7 +329,7 @@ export async function seedPurchaseIntent(client, {
   tenantId,
   billingAccountId,
   holderId,
-  status = 'CREATED',
+  status = 'PAID',
   quotedUnits = 1,
   quotedBonusUnits = 0,
   quotedMinor = 1,
@@ -345,18 +350,31 @@ export async function seedPurchaseIntent(client, {
        paid_at, created_at, updated_at
      ) VALUES (
        $1, $2, $3, $4, $5,
-       $6, $7, $8, $9, $10,
-       $11, $12, $13,
-       $14, $15, $15
+       'CREATED', $6, $7, $8, $9,
+       $10, $11, $12,
+       null, $13, $13
      )
      ON CONFLICT (id) DO NOTHING`,
     [
       id, environment, tenantId, billingAccountId, holderId,
-      status, quotedUnits, quotedBonusUnits, quotedMinor, currency,
+      quotedUnits, quotedBonusUnits, quotedMinor, currency,
       provider, providerEventId, reasonCode,
-      status === 'PAID' ? now : null, now,
+      now,
     ],
   )
+  if (status !== 'CREATED') {
+    const paidAt = status === 'PAID' ? now : null
+    const failedAt = status === 'FAILED' ? now : null
+    const canceledAt = status === 'CANCELED' ? now : null
+    const refundedAt = status === 'REFUNDED' ? now : null
+    await client.query(
+      `UPDATE fin.purchase_intents
+          SET status = $1, paid_at = $2, failed_at = $3,
+              canceled_at = $4, refunded_at = $5, updated_at = $6
+        WHERE id = $7`,
+      [status, paidAt, failedAt, canceledAt, refundedAt, now, id],
+    )
+  }
   return id
 }
 
