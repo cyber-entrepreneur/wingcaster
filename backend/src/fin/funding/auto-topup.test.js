@@ -85,7 +85,8 @@ finPostgresSuite('auto-topup worker DL-094', {}, ({ pool, world }) => {
     const funding = await pool().query(
       `SELECT count(*)::int AS n FROM fin.ledger_transactions
         WHERE shape = 'FUNDING' AND economic_source_id = (
-          SELECT id FROM fin.purchase_intents WHERE holder_id = $1
+          SELECT id FROM fin.purchase_intents
+           WHERE holder_id = $1 AND reason_code = 'AUTO_TOPUP'
         )`,
       [seeded.holderId],
     )
