@@ -3,7 +3,7 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'crypto'
 import pg from 'pg'
-import { loadDb, insert, findOne, update, closeDb, configure } from '../../../db.js'
+import { loadDb, insert, findOne, findAll, update, closeDb, configure } from '../../../db.js'
 import { skipIfNoPostgres } from '../../../testing/postgres.js'
 
 vi.mock('../../../whatsapp.js', () => ({
@@ -194,22 +194,27 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
           longitude: 35.5018,
         }),
         raw: {},
+        usage: { inputTokens: 120, outputTokens: 50 },
       }),
       classifyIntent: vi.fn().mockResolvedValue({
         text: JSON.stringify({ intent: 'create', confidence: 0.9, matched_listing_id: null, matched_address: null, reason: 'test' }),
         raw: {},
+        usage: { inputTokens: 40, outputTokens: 10 },
       }),
       generateCaption: vi.fn().mockResolvedValue({
         text: JSON.stringify({ caption: 'Great apartment! #realestate', hashtags: ['realestate'] }),
         raw: {},
+        usage: { inputTokens: 60, outputTokens: 25 },
       }),
       selectBestTemplate: vi.fn().mockResolvedValue({
         text: JSON.stringify({ variant: 'modern', reason: 'test' }),
         raw: {},
+        usage: { inputTokens: 20, outputTokens: 8 },
       }),
       selectHeroImage: vi.fn().mockResolvedValue({
         text: JSON.stringify({ index: 0, reason: 'test' }),
         raw: {},
+        usage: { inputTokens: 30, outputTokens: 6 },
       }),
       healthCheck: vi.fn().mockResolvedValue({ ok: true }),
     }
@@ -251,6 +256,24 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
     expect(draft).toBeTruthy()
     expect(draft.status).toBe('awaiting_approval')
     expect(draft.extracted_property.title).toBe('Integration Test Apartment')
+
+    const usageRows = await findAll('ai_call_usage', (row) => row.related_entity_id === ingestResult.sessionId || row.related_entity_id === draft.id)
+    expect(usageRows.length).toBeGreaterThanOrEqual(5)
+    const callTypes = usageRows.map((row) => row.call_type).sort()
+    expect(callTypes).toEqual(expect.arrayContaining([
+      'classifyIntent',
+      'extractProperty',
+      'generateCaption:instagram',
+      'generateCaption:tiktok',
+      'generateCaption:x',
+    ]))
+    for (const row of usageRows) {
+      expect(row.provider).toBe('gemini')
+      expect(row.model).toBe('gemini-1.5-flash')
+      expect(Number(row.input_tokens)).toBeGreaterThan(0)
+      expect(Number(row.output_tokens)).toBeGreaterThan(0)
+      expect(row.feature).toBe('whatsapp-listings')
+    }
   })
 
   it('detects and stores a WhatsApp location pin as canonical coordinates', async () => {

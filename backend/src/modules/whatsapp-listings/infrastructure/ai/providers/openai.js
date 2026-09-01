@@ -2,10 +2,11 @@ import {
   cleanJsonResponse,
   fetchImageAsBase64,
   createTimeoutSignal,
+  extractTokenUsage,
 } from '../shared.js'
 
 const API_BASE = 'https://api.openai.com/v1'
-const MODEL = 'gpt-4o-mini'
+export const MODEL = 'gpt-4o-mini'
 
 export function createProvider({ apiKey, logger }) {
   if (!apiKey) throw new Error('OpenAI API key is required')
@@ -64,7 +65,13 @@ export function createProvider({ apiKey, logger }) {
       const data = await res.json()
       const text = data.choices?.[0]?.message?.content
       if (!text) throw new Error('OpenAI response missing content')
-      return { text: cleanJsonResponse(text), raw: data }
+      const usage = extractTokenUsage(data, {
+        inputKeys: ['usage.prompt_tokens', 'usage.input_tokens'],
+        outputKeys: ['usage.completion_tokens', 'usage.output_tokens'],
+        logger,
+        provider: 'openai',
+      })
+      return { text: cleanJsonResponse(text), raw: data, usage }
     } finally {
       clear()
     }
@@ -104,5 +111,5 @@ export function createProvider({ apiKey, logger }) {
     }
   }
 
-  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck }
+  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck, getModel: () => MODEL }
 }

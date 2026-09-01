@@ -2,10 +2,11 @@ import {
   cleanJsonResponse,
   fetchImageAsBase64,
   createTimeoutSignal,
+  extractTokenUsage,
 } from '../shared.js'
 
 const API_BASE = 'https://api.anthropic.com/v1'
-const MODEL = 'claude-3-haiku-20240307'
+export const MODEL = 'claude-3-haiku-20240307'
 
 export function createProvider({ apiKey, logger }) {
   if (!apiKey) throw new Error('Claude API key is required')
@@ -54,7 +55,13 @@ export function createProvider({ apiKey, logger }) {
       const data = await res.json()
       const text = data.content?.[0]?.text
       if (!text) throw new Error('Claude response missing content')
-      return { text: cleanJsonResponse(text), raw: data }
+      const usage = extractTokenUsage(data, {
+        inputKeys: ['usage.input_tokens'],
+        outputKeys: ['usage.output_tokens'],
+        logger,
+        provider: 'claude',
+      })
+      return { text: cleanJsonResponse(text), raw: data, usage }
     } finally {
       clear()
     }
@@ -94,5 +101,5 @@ export function createProvider({ apiKey, logger }) {
     }
   }
 
-  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck }
+  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck, getModel: () => MODEL }
 }

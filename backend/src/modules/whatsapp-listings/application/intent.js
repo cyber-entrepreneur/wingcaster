@@ -6,6 +6,7 @@
  */
 
 import { Intent } from '../domain/types.js'
+import { recordAiCall } from '../../../lib/ai-usage-logger.js'
 
 const UPDATE_KEYWORDS = [
   'update', 'change', 'edit', 'modify', 'price drop', 'price increase', 'reduce price',
@@ -21,7 +22,7 @@ const CREATE_KEYWORDS = [
 ]
 
 export function createIntentClassifier({ aiAdapter }) {
-  async function classify({ messages, images, agentListings }) {
+  async function classify({ messages, images, agentListings, tenantId = null, relatedEntityType = null, relatedEntityId = null } = {}) {
     const combinedText = messages
       .filter((m) => typeof m.text === 'string')
       .map((m) => m.text)
@@ -56,6 +57,14 @@ export function createIntentClassifier({ aiAdapter }) {
     if (aiAdapter) {
       try {
         const aiResult = await aiAdapter.classifyIntent({ messages, images })
+        await recordAiCall({
+          tenantId,
+          feature: 'whatsapp-listings',
+          callType: 'classifyIntent',
+          providerResult: aiResult,
+          relatedEntityType,
+          relatedEntityId,
+        })
         if (aiResult?.intent) {
           return {
             intent: aiResult.intent === 'update' ? Intent.UPDATE : Intent.CREATE,

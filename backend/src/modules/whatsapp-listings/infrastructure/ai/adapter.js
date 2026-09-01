@@ -1,9 +1,9 @@
-import { createProvider as createOpenAiProvider } from './providers/openai.js'
-import { createProvider as createGeminiProvider } from './providers/gemini.js'
-import { createProvider as createClaudeProvider } from './providers/claude.js'
-import { createProvider as createDeepseekProvider } from './providers/deepseek.js'
-import { createProvider as createQwenProvider } from './providers/qwen.js'
-import { createProvider as createKimiProvider } from './providers/kimi.js'
+import { createProvider as createOpenAiProvider, MODEL as OPENAI_MODEL } from './providers/openai.js'
+import { createProvider as createGeminiProvider, MODEL as GEMINI_MODEL } from './providers/gemini.js'
+import { createProvider as createClaudeProvider, MODEL as CLAUDE_MODEL } from './providers/claude.js'
+import { createProvider as createDeepseekProvider, MODEL as DEEPSEEK_MODEL } from './providers/deepseek.js'
+import { createProvider as createQwenProvider, MODEL as QWEN_MODEL } from './providers/qwen.js'
+import { createProvider as createKimiProvider, MODEL as KIMI_MODEL } from './providers/kimi.js'
 import {
   safeJsonParse,
   buildExtractionPrompt,
@@ -20,6 +20,15 @@ const PROVIDER_FACTORIES = {
   deepseek: createDeepseekProvider,
   qwen: createQwenProvider,
   kimi: createKimiProvider,
+}
+
+const PROVIDER_MODELS = {
+  openai: OPENAI_MODEL,
+  gemini: GEMINI_MODEL,
+  claude: CLAUDE_MODEL,
+  deepseek: DEEPSEEK_MODEL,
+  qwen: QWEN_MODEL,
+  kimi: KIMI_MODEL,
 }
 
 const API_KEY_ENV_VARS = {
@@ -111,6 +120,7 @@ export function createAiAdapter({ config, logger }) {
     }
 
     const errors = []
+    const primary = names[0] || null
     for (const name of names) {
       if (isCircuitOpen(name)) {
         errors.push({ provider: name, error: 'Circuit breaker open' })
@@ -128,7 +138,11 @@ export function createAiAdapter({ config, logger }) {
         const args = argsBuilder()
         const result = await provider[methodName](args)
         recordSuccess(name)
-        return { result, provider: name }
+        return {
+          result,
+          provider: name,
+          fallbackFrom: primary && name !== primary ? primary : null,
+        }
       } catch (error) {
         logger.warn(
           { provider: name, method: methodName, error: error.message },
@@ -206,9 +220,19 @@ export function createAiAdapter({ config, logger }) {
     return { variant, reason: parsed.reason || '' }
   }
 
+  function callMeta(result, usedProvider, fallbackFrom) {
+    return {
+      text: result?.text,
+      usage: result?.usage || { inputTokens: 0, outputTokens: 0 },
+      provider: usedProvider,
+      model: PROVIDER_MODELS[usedProvider] || usedProvider,
+      fallbackFrom: fallbackFrom || null,
+    }
+  }
+
   async function extractProperty({ messages, images, provider, locationPin, hasPin, intent = 'create', existingListing = null } = {}) {
     const prompt = buildExtractionPrompt(messages, { locationPin, hasPin, intent, existingListing })
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'extractProperty',
       provider || config.aiProvider,
       () => ({ messages, images, prompt, locationPin, hasPin, intent, existingListing })
@@ -217,8 +241,8 @@ export function createAiAdapter({ config, logger }) {
     return {
       property: normalizeProperty(parsed),
       changeSummary: normalizeChangeSummary(parsed?.change_summary),
-      provider: usedProvider,
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 
@@ -237,7 +261,7 @@ export function createAiAdapter({ config, logger }) {
 
   async function classifyIntent({ messages, images, provider } = {}) {
     const prompt = buildIntentPrompt(messages)
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'classifyIntent',
       provider || config.aiProvider,
       () => ({ messages, images, prompt })
@@ -246,12 +270,13 @@ export function createAiAdapter({ config, logger }) {
     return {
       ...normalizeIntent(parsed),
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 
   async function generateCaption({ platform, property, variant, provider } = {}) {
     const prompt = buildCaptionPrompt(platform, property, variant)
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'generateCaption',
       provider || config.aiProvider,
       () => ({ platform, property, variant, prompt })
@@ -260,12 +285,13 @@ export function createAiAdapter({ config, logger }) {
     return {
       ...normalizeCaption(parsed, platform),
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 
   async function selectBestTemplate({ imageDescriptions, provider } = {}) {
     const prompt = buildTemplatePrompt(imageDescriptions)
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'selectBestTemplate',
       provider || config.aiProvider,
       () => ({ imageDescriptions, prompt })
@@ -274,12 +300,13 @@ export function createAiAdapter({ config, logger }) {
     return {
       ...normalizeTemplate(parsed),
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 
   async function selectHeroImage({ images, provider } = {}) {
     const prompt = buildHeroSelectionPrompt(images?.length || 0)
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'selectHeroImage',
       provider || config.aiProvider,
       () => ({ images, prompt })
@@ -290,6 +317,7 @@ export function createAiAdapter({ config, logger }) {
       index: Math.max(0, Math.min(images?.length - 1 || 0, index)),
       reason: parsed?.reason || '',
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 
@@ -298,7 +326,7 @@ export function createAiAdapter({ config, logger }) {
    * Provider is expected to return JSON containing { sentence: "..." }.
    */
   async function generateMarketContextSentence({ prompt, provider } = {}) {
-    const { result, provider: usedProvider } = await withFallback(
+    const { result, provider: usedProvider, fallbackFrom } = await withFallback(
       'generateCaption',
       provider || config.aiProvider,
       () => ({ platform: 'instagram', property: {}, variant: 'modern', prompt })
@@ -306,8 +334,8 @@ export function createAiAdapter({ config, logger }) {
     const parsed = safeJsonParse(result.text)
     return {
       sentence: parsed?.sentence || parsed?.caption || String(result.text || '').slice(0, 300),
-      provider: usedProvider,
       raw: { provider: usedProvider, response: result.raw, parsed },
+      ...callMeta(result, usedProvider, fallbackFrom),
     }
   }
 

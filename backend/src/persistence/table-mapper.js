@@ -250,6 +250,15 @@ const TABLE_MAP = {
   feature_entitlements: { schema: 'public', table: 'feature_entitlements', columns: ['scope', 'scope_id', 'feature', 'enabled', 'config'] },
   ai_credit_balances: { schema: 'public', table: 'ai_credit_balances', columns: ['scope', 'scope_id', 'credits_remaining', 'credits_reserved'] },
   ai_credit_transactions: { schema: 'public', table: 'ai_credit_transactions', columns: ['scope', 'scope_id', 'type', 'amount', 'description', 'related_draft_id'] },
+  ai_call_usage: {
+    schema: 'public',
+    table: 'ai_call_usage',
+    columns: [
+      'tenant_id', 'feature', 'call_type', 'provider', 'model',
+      'input_tokens', 'output_tokens', 'cost_estimate_micro_usd', 'fallback_from',
+      'related_entity_type', 'related_entity_id', 'occurred_at',
+    ],
+  },
 
   // Auth / support
   auth_recovery_tokens: { schema: 'public', table: 'auth_recovery_tokens', columns: ['user_id', 'email', 'type', 'token_hash', 'status', 'case_id', 'expires_at', 'attempts', 'ip', 'user_agent'] },

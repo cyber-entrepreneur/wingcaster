@@ -2,10 +2,11 @@ import {
   cleanJsonResponse,
   fetchImageAsBase64,
   createTimeoutSignal,
+  extractTokenUsage,
 } from '../shared.js'
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-const MODEL = 'gemini-1.5-flash'
+export const MODEL = 'gemini-1.5-flash'
 
 export function createProvider({ apiKey, logger }) {
   if (!apiKey) throw new Error('Gemini API key is required')
@@ -53,7 +54,13 @@ export function createProvider({ apiKey, logger }) {
       const data = await res.json()
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text
       if (!text) throw new Error('Gemini response missing content')
-      return { text: cleanJsonResponse(text), raw: data }
+      const usage = extractTokenUsage(data, {
+        inputKeys: ['usageMetadata.promptTokenCount', 'usage_metadata.promptTokenCount', 'usageMetadata.prompt_token_count'],
+        outputKeys: ['usageMetadata.candidatesTokenCount', 'usage_metadata.candidatesTokenCount', 'usageMetadata.candidates_token_count'],
+        logger,
+        provider: 'gemini',
+      })
+      return { text: cleanJsonResponse(text), raw: data, usage }
     } finally {
       clear()
     }
@@ -93,5 +100,5 @@ export function createProvider({ apiKey, logger }) {
     }
   }
 
-  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck }
+  return { extractProperty, classifyIntent, generateCaption, selectBestTemplate, selectHeroImage, healthCheck, getModel: () => MODEL }
 }
