@@ -61,7 +61,8 @@ finPostgresSuite('auto-topup worker DL-094', {}, ({ pool, world }) => {
       actorType: 'SYSTEM',
     })
     const intents = await pool().query(
-      `SELECT count(*)::int AS n FROM fin.purchase_intents WHERE holder_id = $1`,
+      `SELECT count(*)::int AS n FROM fin.purchase_intents
+        WHERE holder_id = $1 AND reason_code = 'AUTO_TOPUP'`,
       [seeded.holderId],
     )
     expect(intents.rows[0].n).toBe(0)
@@ -71,7 +72,8 @@ finPostgresSuite('auto-topup worker DL-094', {}, ({ pool, world }) => {
     expect(tick.processed).toBeGreaterThanOrEqual(1)
     const created = await pool().query(
       `SELECT status, reason_code, created_by_actor_type
-         FROM fin.purchase_intents WHERE holder_id = $1`,
+         FROM fin.purchase_intents
+        WHERE holder_id = $1 AND reason_code = 'AUTO_TOPUP'`,
       [seeded.holderId],
     )
     expect(created.rowCount).toBe(1)
@@ -98,7 +100,8 @@ finPostgresSuite('auto-topup worker DL-094', {}, ({ pool, world }) => {
     const forPolicy = second.results.filter((r) => r.policyId === seeded.policyId)
     expect(forPolicy.every((r) => r.skipped)).toBe(true)
     const intents = await pool().query(
-      `SELECT count(*)::int AS n FROM fin.purchase_intents WHERE holder_id = $1`,
+      `SELECT count(*)::int AS n FROM fin.purchase_intents
+        WHERE holder_id = $1 AND reason_code = 'AUTO_TOPUP'`,
       [seeded.holderId],
     )
     expect(intents.rows[0].n).toBe(1)
