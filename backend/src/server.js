@@ -21,6 +21,7 @@ import { registerFinVendorAdminRoutes } from './fin/admin/vendors/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
 import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
+import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
@@ -623,6 +624,10 @@ registerFinVendorAdminRoutes(app, {
 })
 
 registerFinOpsAdminRoutes(app, {
+  authMiddleware,
+  requirePlatformAdmin,
+})
+registerFinPackagesAdminRoutes(app, {
   authMiddleware,
   requirePlatformAdmin,
 })

@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      msw: path.resolve(__dirname, '../backend/node_modules/msw'),
     },
   },
   test: {

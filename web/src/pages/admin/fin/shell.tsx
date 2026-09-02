@@ -13,6 +13,9 @@ export const FIN_NAV = [
   { path: '/admin/fin/facilities', label: 'Facilities' },
   { path: '/admin/fin/contracts', label: 'Contracts' },
   { path: '/admin/fin/pricing', label: 'Pricing' },
+  { path: '/admin/fin/packages', label: 'Packages' },
+  { path: '/admin/fin/package-approvals', label: 'Package approvals' },
+  { path: '/admin/fin/subscriptions', label: 'Subscriptions' },
   { path: '/admin/fin/invoices', label: 'Invoices' },
   { path: '/admin/fin/vendor-costs', label: 'Vendor Costs' },
   { path: '/admin/fin/reconciliation', label: 'Reconciliation' },
@@ -51,7 +54,15 @@ export function FinAdminGate({ title, children }: { title: string; children: Rea
   )
 }
 
-export function FinTable({ columns, rows }: { columns: string[]; rows: Array<Record<string, unknown>> }) {
+export function FinTable({
+  columns,
+  rows,
+  onRowClick,
+}: {
+  columns: string[]
+  rows: Array<Record<string, unknown>>
+  onRowClick?: (row: Record<string, unknown>) => void
+}) {
   if (!rows.length) {
     return <p className="text-sm text-muted-foreground">No rows.</p>
   }
@@ -68,7 +79,11 @@ export function FinTable({ columns, rows }: { columns: string[]; rows: Array<Rec
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={String(row.id || idx)} className="border-t">
+              <tr
+                key={String(row.id || idx)}
+                className={onRowClick ? 'cursor-pointer border-t hover:bg-muted/30' : 'border-t'}
+                onClick={() => onRowClick?.(row)}
+              >
                 {columns.map((col) => (
                   <td key={col} className="px-3 py-2">{String(row[col] ?? '')}</td>
                 ))}

@@ -964,4 +964,44 @@ export const CHECKS = [
         WHERE COALESCE((s.data->>'last_granted_credits')::bigint, 0) > 0
           AND s.data ? 'last_granted_cycle_start'`,
   },
+  {
+    check_code: 'R119',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'product_package_versions',
+    source_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+        WHERE v.state = 'PUBLISHED'
+          AND COALESCE(v.effective_from, '-infinity'::timestamptz) <= :now
+          AND (v.effective_to IS NULL OR v.effective_to > :now)`,
+    comparison_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+        WHERE v.state = 'PUBLISHED'
+          AND COALESCE(v.effective_from, '-infinity'::timestamptz) <= :now
+          AND (v.effective_to IS NULL OR v.effective_to > :now)
+          AND NOT EXISTS (
+            SELECT 1 FROM public.product_package_versions s
+             WHERE s.package_id = v.package_id
+               AND s.id <> v.id
+               AND s.state = 'PUBLISHED'
+               AND COALESCE(s.effective_from, '-infinity'::timestamptz) <= :now
+               AND (s.effective_to IS NULL OR s.effective_to > :now)
+          )`,
+  },
+  {
+    check_code: 'R120',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'product_package_versions',
+    source_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+        WHERE v.state = 'PENDING_APPROVAL'`,
+    comparison_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+         JOIN fin.approval_requests a ON a.id = v.approval_request_id
+        WHERE v.state = 'PENDING_APPROVAL'
+          AND a.status IN ('REQUESTED', 'APPROVED')`,
+  },
 ]
