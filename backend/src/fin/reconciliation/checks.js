@@ -896,4 +896,72 @@ export const CHECKS = [
                AND t.shape = 'CONSUME_MIRROR'
           )`,
   },
+  {
+    check_code: 'R115',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'product_package_versions',
+    source_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+        WHERE v.state = 'PENDING_APPROVAL'`,
+    comparison_query: `SELECT v.id AS entity_id, 1::bigint AS qty
+         FROM public.product_package_versions v
+         JOIN fin.approval_requests a ON a.id = v.approval_request_id
+        WHERE v.state = 'PENDING_APPROVAL'
+          AND a.status IN ('REQUESTED', 'APPROVED', 'EXECUTED')`,
+  },
+  {
+    check_code: 'R116',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'tenant_subscriptions',
+    source_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+        WHERE s.status = 'ACTIVE'`,
+    comparison_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+         JOIN public.product_package_versions v ON v.id = s.package_version_id
+        WHERE s.status = 'ACTIVE'
+          AND v.state = 'PUBLISHED'
+          AND COALESCE(v.effective_from, '-infinity'::timestamptz) <= :now
+          AND (v.effective_to IS NULL OR v.effective_to > :now)`,
+  },
+  {
+    check_code: 'R117',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'tenant_subscriptions',
+    emptyComparisonIsDrift: true,
+    source_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+        WHERE s.status = 'ACTIVE'
+          AND (
+            SELECT COUNT(*) FROM public.tenant_active_properties p
+             WHERE p.tenant_id = s.tenant_id AND p.deactivated_at IS NULL
+          ) > s.properties_committed`,
+    comparison_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+        WHERE false`,
+  },
+  {
+    check_code: 'R118',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'tenant_subscriptions',
+    source_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+        WHERE COALESCE((s.data->>'last_granted_credits')::bigint, 0) > 0
+          AND s.data ? 'last_granted_cycle_start'`,
+    comparison_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+         JOIN public.credit_grants g
+           ON g.source = 'subscription_cycle'
+          AND g.grant_ref->>'subscription_id' = s.id::text
+        WHERE COALESCE((s.data->>'last_granted_credits')::bigint, 0) > 0
+          AND s.data ? 'last_granted_cycle_start'`,
+  },
 ]

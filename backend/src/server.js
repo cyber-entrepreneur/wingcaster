@@ -23,6 +23,7 @@ import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
+import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { handleStripeWebhook } from './fin/funding/http.js'
 import { sendPlatformNotification } from './notifications/platform-templates/index.js'
 import {
@@ -658,8 +659,11 @@ const CREDITS_JANITOR_ENABLED = process.env.CREDITS_JANITOR_ENABLED !== 'false'
 const CREDITS_JANITOR_INTERVAL_MS = Math.max(15_000, Number(process.env.CREDITS_JANITOR_INTERVAL_MS || 60_000))
 const CREDITS_MIRROR_ENABLED = process.env.CREDITS_FIN_MIRROR_ENABLED !== 'false'
 const CREDITS_MIRROR_INTERVAL_MS = Math.max(10_000, Number(process.env.CREDITS_FIN_MIRROR_INTERVAL_MS || 30_000))
+const CREDITS_BILLING_CYCLE_ENABLED = process.env.CREDITS_BILLING_CYCLE_ENABLED !== 'false'
+const CREDITS_BILLING_CYCLE_INTERVAL_MS = Math.max(15_000, Number(process.env.CREDITS_BILLING_CYCLE_INTERVAL_MS || 60_000))
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
+let creditsBillingCycleTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8145,6 +8149,17 @@ const startServer = async () => {
         }
       }, CREDITS_MIRROR_INTERVAL_MS)
       if (typeof creditsMirrorTimer.unref === 'function') creditsMirrorTimer.unref()
+    }
+
+    if (CREDITS_BILLING_CYCLE_ENABLED) {
+      creditsBillingCycleTimer = setInterval(async () => {
+        try {
+          await runBillingCycleWorkerTick({ pool: getPool() })
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Package billing-cycle worker failed')
+        }
+      }, CREDITS_BILLING_CYCLE_INTERVAL_MS)
+      if (typeof creditsBillingCycleTimer.unref === 'function') creditsBillingCycleTimer.unref()
     }
   })
 }

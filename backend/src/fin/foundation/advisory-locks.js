@@ -34,6 +34,8 @@ export const FIN_VENDOR_STATEMENT_RECON = 1021
 export const FIN_CREDITS_JANITOR = 1022
 /** Credit → fin.* ledger mirror worker. Spec asked for 1021; that class is FIN_VENDOR_STATEMENT_RECON. */
 export const FIN_CREDITS_FIN_MIRROR = 1023
+/** Package billing-cycle grant worker. Spec value 1024 is free. */
+export const FIN_PACKAGE_BILLING_CYCLE = 1024
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -58,4 +60,5 @@ export const LOCK_CLASSES = {
   FIN_VENDOR_STATEMENT_RECON,
   FIN_CREDITS_JANITOR,
   FIN_CREDITS_FIN_MIRROR,
+  FIN_PACKAGE_BILLING_CYCLE,
 }
