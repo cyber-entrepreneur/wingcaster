@@ -61,7 +61,12 @@ export function registerAdminRoutes(app, { entitlements, credits, pipeline, conf
   app.get('/api/admin/whatsapp-listings/usage', authMiddleware, requirePlatformAdmin, async (_req, res) => {
     try {
       const drafts = await findAllModule(Collections.DRAFTS, () => true)
-      const transactions = await findAllModule(Collections.AI_CREDIT_TRANSACTIONS, () => true)
+      const { query } = await import('../../../db.js')
+      const transactions = await query(
+        `SELECT credits_amount AS amount, consumed_at AS created_at
+           FROM public.credit_consumptions
+          WHERE feature = 'whatsapp-listings'`,
+      )
 
       const now = new Date()
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
@@ -81,8 +86,8 @@ export function registerAdminRoutes(app, { entitlements, credits, pipeline, conf
         total_drafts: drafts.length,
         drafts_today: drafts.filter((d) => d.created_at >= startOfDay).length,
         drafts_this_month: drafts.filter((d) => d.created_at >= startOfMonth).length,
-        ai_credits_consumed: transactions.filter((t) => t.type === 'consumption').reduce((sum, t) => sum + Number(t.amount), 0),
-        ai_credits_consumed_today: transactions.filter((t) => t.type === 'consumption' && t.created_at >= startOfDay).reduce((sum, t) => sum + Number(t.amount), 0),
+        ai_credits_consumed: transactions.reduce((sum, t) => sum + Number(t.amount || 0) / 100, 0),
+        ai_credits_consumed_today: transactions.filter((t) => t.created_at >= startOfDay).reduce((sum, t) => sum + Number(t.amount || 0) / 100, 0),
         approval_rate: drafts.length ? Math.round(((drafts.filter((d) => d.status === 'published').length / drafts.length) * 100)) : 0,
         by_agent: byAgent,
       })

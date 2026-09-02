@@ -5,7 +5,6 @@
 import { authMiddleware } from '../../../auth.js'
 import { findOne, update } from '../../../db.js'
 import { Collections, findAllModule, findOneModule, updateModule } from '../infrastructure/db.js'
-import { CreditScope } from '../domain/types.js'
 
 export function registerAgentRoutes(app, { entitlements, credits, pipeline, config }) {
   app.get('/api/agent/whatsapp-listings/drafts', authMiddleware, async (req, res) => {
@@ -93,39 +92,6 @@ export function registerAgentRoutes(app, { entitlements, credits, pipeline, conf
       res.json({ success: true })
     } catch (err) {
       res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.get('/api/agent/credits/balance', authMiddleware, async (req, res) => {
-    try {
-      const balance = await credits.balance(CreditScope.AGENT, req.user.id)
-      res.json(balance)
-    } catch (err) {
-      res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.get('/api/agent/credits/transactions', authMiddleware, async (req, res) => {
-    try {
-      const rows = await credits.transactions(CreditScope.AGENT, req.user.id, { limit: req.query.limit || 100 })
-      res.json(rows)
-    } catch (err) {
-      res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.post('/api/agent/credits/top-up', authMiddleware, async (req, res, next) => {
-    try {
-      const { handleCreditsTopUp } = await import('../../../fin/funding/http.js')
-      const { query } = await import('../../../db.js')
-      const tenants = await query(
-        `SELECT id FROM public.tenants WHERE personal_owner_user_id = $1 LIMIT 1`,
-        [req.user.id],
-      )
-      const publicTenantId = tenants[0]?.id || req.user.id
-      return await handleCreditsTopUp(req, res, { publicTenantId, reasonCode: 'USER_TOPUP' })
-    } catch (err) {
-      next(err)
     }
   })
 

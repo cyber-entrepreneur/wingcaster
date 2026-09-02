@@ -20,6 +20,8 @@ export default defineConfig({
       AREA_INTELLIGENCE_SCORING_WORKER_ENABLED: 'false',
       AREA_INTELLIGENCE_GOOGLE_REFRESH_WORKER_ENABLED: 'false',
       BILLING_SCHEDULER_ENABLED: 'false',
+      CREDITS_JANITOR_ENABLED: 'false',
+      CREDITS_FIN_MIRROR_ENABLED: 'false',
       ...(process.env.TEST_DATABASE_URL ? { PG_CONNECTION_TIMEOUT_MS: '120000' } : {}),
     },
     coverage: {

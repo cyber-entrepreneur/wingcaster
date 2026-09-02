@@ -136,12 +136,14 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
     // Determine scope for credits (agency pool if exists, else agent).
     const creditScope = agencyId ? CreditScope.AGENCY : CreditScope.AGENT
     const creditScopeId = agencyId || session.agent_id
+    const creditRequestId = `wa-extract:${session.id}`
 
     // Estimate and reserve credits.
     const estimatedCost = config.credits.extractionCost + config.credits.thumbnailCost + config.credits.captionCost
     const reserve = await credits.reserve(creditScope, creditScopeId, estimatedCost, {
       description: 'Reserve for WhatsApp listing extraction',
       relatedDraftId: session.draft_id,
+      requestId: creditRequestId,
     })
     if (!reserve.ok) {
       await sessions.transition(session.id, SessionState.ERROR)
@@ -233,7 +235,11 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       })
     } catch (err) {
       logger.error({ err: err.message }, 'property extraction failed')
-      await credits.release(creditScope, creditScopeId, estimatedCost, { description: 'Release on extraction failure', relatedDraftId: session.draft_id })
+      await credits.release(creditScope, creditScopeId, estimatedCost, {
+        description: 'Release on extraction failure',
+        relatedDraftId: session.draft_id,
+        requestId: creditRequestId,
+      })
       await sessions.transition(session.id, SessionState.ERROR)
       await sessions.updateSession(session.id, { last_error: err.message })
       await scheduleRetry(session, sessions)
@@ -381,8 +387,20 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
 
     // Deduct actual thumbnail/caption costs, release remainder if none.
     const actualCost = config.credits.extractionCost + (thumbnails ? config.credits.thumbnailCost : 0) + (captions.x ? config.credits.captionCost : 0)
-    await credits.release(creditScope, creditScopeId, estimatedCost - actualCost, { description: 'Release over-reserved credits', relatedDraftId: draft.id })
-    await credits.consume(creditScope, creditScopeId, actualCost, { description: 'Consumption for extraction and asset generation', relatedDraftId: draft.id })
+    if (actualCost > 0) {
+      await credits.consume(creditScope, creditScopeId, actualCost, {
+        description: 'Consumption for extraction and asset generation',
+        relatedDraftId: draft.id,
+        requestId: creditRequestId,
+        callType: 'draft',
+      })
+    } else {
+      await credits.release(creditScope, creditScopeId, estimatedCost, {
+        description: 'Release unused reservation',
+        relatedDraftId: draft.id,
+        requestId: creditRequestId,
+      })
+    }
 
     // Send approval card.
     const draftChangeSummary = intentResult.intent === Intent.UPDATE
@@ -600,7 +618,11 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       if (draft) {
         // Release any remaining reserved credits.
         if (draft.credits_reserved) {
-          await credits.release(draft.credit_scope, draft.credit_scope_id, draft.credits_reserved, { description: 'Release on discard', relatedDraftId: draft.id })
+          await credits.release(draft.credit_scope, draft.credit_scope_id, draft.credits_reserved, {
+            description: 'Release on discard',
+            relatedDraftId: draft.id,
+            requestId: `wa-extract:${session.id}`,
+          })
         }
         await updateModule(Collections.DRAFTS, (d) => d.id === draft.id, (d) => ({ ...d, status: DraftStatus.DISCARDED, updated_at: new Date().toISOString() }))
       }

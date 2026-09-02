@@ -19,6 +19,10 @@ import { registerPlatformTemplateAdminRoutes } from './notifications/platform-te
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinVendorAdminRoutes } from './fin/admin/vendors/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
+import { registerCreditRoutes } from './lib/credits/routes.js'
+import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
+import { runCreditJanitorTick } from './lib/credits/janitor.js'
+import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { handleStripeWebhook } from './fin/funding/http.js'
 import { sendPlatformNotification } from './notifications/platform-templates/index.js'
 import {
@@ -621,6 +625,8 @@ registerFinOpsAdminRoutes(app, {
   authMiddleware,
   requirePlatformAdmin,
 })
+registerCreditRoutes(app)
+registerCreditAdminRoutes(app)
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -648,6 +654,12 @@ const COMMENT_CLASSIFIER_AI_ENABLED = process.env.COMMENT_CLASSIFIER_AI_ENABLED 
 const COMMENT_CLASSIFIER_INTERVAL_MS = Math.max(30_000, Number(process.env.COMMENT_CLASSIFIER_INTERVAL_MS || 300_000))
 const COMMENT_CLASSIFIER_BATCH_SIZE = Math.max(1, Math.min(50, Number(process.env.COMMENT_CLASSIFIER_BATCH_SIZE || 10)))
 let commentClassifierTimer = null
+const CREDITS_JANITOR_ENABLED = process.env.CREDITS_JANITOR_ENABLED !== 'false'
+const CREDITS_JANITOR_INTERVAL_MS = Math.max(15_000, Number(process.env.CREDITS_JANITOR_INTERVAL_MS || 60_000))
+const CREDITS_MIRROR_ENABLED = process.env.CREDITS_FIN_MIRROR_ENABLED !== 'false'
+const CREDITS_MIRROR_INTERVAL_MS = Math.max(10_000, Number(process.env.CREDITS_FIN_MIRROR_INTERVAL_MS || 30_000))
+let creditsJanitorTimer = null
+let creditsMirrorTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8111,6 +8123,28 @@ const startServer = async () => {
       if (typeof commentClassifierTimer.unref === 'function') {
         commentClassifierTimer.unref()
       }
+    }
+
+    if (CREDITS_JANITOR_ENABLED) {
+      creditsJanitorTimer = setInterval(async () => {
+        try {
+          await runCreditJanitorTick({ pool: getPool() })
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Credit reservation janitor failed')
+        }
+      }, CREDITS_JANITOR_INTERVAL_MS)
+      if (typeof creditsJanitorTimer.unref === 'function') creditsJanitorTimer.unref()
+    }
+
+    if (CREDITS_MIRROR_ENABLED) {
+      creditsMirrorTimer = setInterval(async () => {
+        try {
+          await runCreditFinMirrorTick({ pool: getPool() })
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Credit fin-mirror worker failed')
+        }
+      }, CREDITS_MIRROR_INTERVAL_MS)
+      if (typeof creditsMirrorTimer.unref === 'function') creditsMirrorTimer.unref()
     }
   })
 }

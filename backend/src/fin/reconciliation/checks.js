@@ -163,7 +163,7 @@ export const CHECKS = [
     expected_delta_units: 0,
     drift_action: 'WARN',
     entity_type: 'ledger_books',
-    source_query: 'SELECT b.id AS entity_id, 7::bigint AS qty FROM fin.ledger_books b',
+    source_query: 'SELECT b.id AS entity_id, 9::bigint AS qty FROM fin.ledger_books b',
     comparison_query: 'SELECT a.book_id AS entity_id, COUNT(*)::bigint AS qty FROM fin.ledger_accounts a GROUP BY a.book_id',
   },
   {
@@ -799,5 +799,101 @@ export const CHECKS = [
          ), 0)::bigint AS qty
          FROM fin.vendor_statements s
         WHERE s.status = 'FINALIZED'`,
+  },
+  {
+    check_code: 'R110',
+    severity: 'CRITICAL',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_wallets',
+    source_query: `SELECT w.tenant_id AS entity_id, w.credits_remaining AS qty
+         FROM public.credit_wallets w`,
+    comparison_query: `SELECT w.tenant_id AS entity_id,
+         (COALESCE((SELECT SUM(g.amount) FROM public.credit_grants g WHERE g.tenant_id = w.tenant_id), 0)
+          - COALESCE((SELECT SUM(c.credits_amount) FROM public.credit_consumptions c WHERE c.tenant_id = w.tenant_id), 0)
+         )::bigint AS qty
+         FROM public.credit_wallets w`,
+  },
+  {
+    check_code: 'R111',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_wallets',
+    source_query: `SELECT w.tenant_id AS entity_id, w.credits_reserved AS qty
+         FROM public.credit_wallets w`,
+    comparison_query: `SELECT w.tenant_id AS entity_id,
+         COALESCE((
+           SELECT SUM(r.credits_amount) FROM public.credit_reservations r
+            WHERE r.tenant_id = w.tenant_id AND r.status = 'HELD'
+         ), 0)::bigint AS qty
+         FROM public.credit_wallets w`,
+  },
+  {
+    check_code: 'R112',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_reservations',
+    emptyComparisonIsDrift: true,
+    source_query: `SELECT r.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_reservations r
+        WHERE r.status = 'HELD'
+          AND r.expires_at < :now - interval '10 minutes'`,
+    comparison_query: `SELECT r.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_reservations r
+        WHERE false`,
+  },
+  {
+    check_code: 'R113',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_grants',
+    source_query: `SELECT g.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_grants g
+        WHERE g.source IN ('adjustment.correction', 'goodwill')
+          AND (g.amount * COALESCE(NULLIF(current_setting('credits.per_credit_micro_usd', true), '')::bigint, 100))
+              > COALESCE(NULLIF(current_setting('credits.approval_threshold_micro_usd', true), '')::bigint, 10000000)`,
+    comparison_query: `SELECT g.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_grants g
+         JOIN fin.approval_requests a ON a.id = g.approval_request_id
+        WHERE g.source IN ('adjustment.correction', 'goodwill')
+          AND (g.amount * COALESCE(NULLIF(current_setting('credits.per_credit_micro_usd', true), '')::bigint, 100))
+              > COALESCE(NULLIF(current_setting('credits.approval_threshold_micro_usd', true), '')::bigint, 10000000)
+          AND a.status IN ('APPROVED', 'EXECUTED')`,
+  },
+  {
+    check_code: 'R114',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_grants',
+    source_query: `SELECT g.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_grants g
+        WHERE g.granted_at < :now - interval '5 minutes'
+        UNION ALL
+        SELECT c.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_consumptions c
+        WHERE c.consumed_at < :now - interval '5 minutes'`,
+    comparison_query: `SELECT g.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_grants g
+        WHERE g.granted_at < :now - interval '5 minutes'
+          AND EXISTS (
+            SELECT 1 FROM fin.ledger_transactions t
+             WHERE t.economic_source_type = 'credit_grants'
+               AND t.economic_source_id = g.id
+               AND t.shape = 'GRANT_MIRROR'
+          )
+        UNION ALL
+        SELECT c.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_consumptions c
+        WHERE c.consumed_at < :now - interval '5 minutes'
+          AND EXISTS (
+            SELECT 1 FROM fin.ledger_transactions t
+             WHERE t.economic_source_type = 'credit_consumptions'
+               AND t.economic_source_id = c.id
+               AND t.shape = 'CONSUME_MIRROR'
+          )`,
   },
 ]
