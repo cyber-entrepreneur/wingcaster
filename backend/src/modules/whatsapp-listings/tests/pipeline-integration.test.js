@@ -162,12 +162,9 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
       },
     })
 
-    await insert('ai_credit_balances', {
-      scope: 'agent',
-      scope_id: agentId,
-      credits_remaining: 100,
-      credits_reserved: 0,
-    })
+    const { createCreditService } = await import('../../../lib/credits/compat.js')
+    const seedCredits = createCreditService()
+    await seedCredits.topUp('agent', agentId, 100, { description: 'pipeline integration seed' })
 
     const fakeProvider = {
       extractProperty: vi.fn().mockResolvedValue({

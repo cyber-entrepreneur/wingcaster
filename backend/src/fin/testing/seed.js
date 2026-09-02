@@ -4,6 +4,7 @@ export const NOW = '2026-08-18T12:00:00.000Z'
 
 export const ACCOUNT_TYPES = [
   'AVAILABLE', 'HELD', 'ISSUANCE', 'CONSUMED', 'EXPIRED', 'ADJUSTMENT', 'CLEARING',
+  'DEFERRED_REVENUE', 'RECOGNIZED_REVENUE',
 ]
 
 export async function insertUser(client, { id, email, name }) {

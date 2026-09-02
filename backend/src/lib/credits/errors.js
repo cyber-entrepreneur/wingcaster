@@ -1,0 +1,19 @@
+export class CreditEngineError extends Error {
+  constructor(code, message, extra = {}) {
+    super(message || code)
+    this.name = 'CreditEngineError'
+    this.code = code
+    this.extra = extra
+  }
+}
+
+export const CREDIT_ERROR = {
+  INSUFFICIENT_CREDITS: 'INSUFFICIENT_CREDITS',
+  SPEND_CAP_EXCEEDED: 'SPEND_CAP_EXCEEDED',
+  CURRENCY_MISMATCH: 'CURRENCY_MISMATCH',
+  CREDIT_GRANT_APPROVAL_REQUIRED: 'CREDIT_GRANT_APPROVAL_REQUIRED',
+  APPROVAL_SELF_APPROVAL_FORBIDDEN: 'APPROVAL_SELF_APPROVAL_FORBIDDEN',
+  RESERVATION_NOT_HELD: 'RESERVATION_NOT_HELD',
+  INVALID_AMOUNT: 'INVALID_AMOUNT',
+  INVALID_SOURCE: 'INVALID_SOURCE',
+}

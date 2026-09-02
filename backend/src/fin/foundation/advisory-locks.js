@@ -30,6 +30,10 @@ export const FIN_ACCOUNTING_PERIOD_CLOSE = 1019
 export const FIN_BILLING_PERIOD_CLOSE = 1020
 /** Per-statement vendor recon (A §11 / D). xact-scoped (DL-151). */
 export const FIN_VENDOR_STATEMENT_RECON = 1021
+/** Credit reservation janitor. Spec asked for 1020; that class is FIN_BILLING_PERIOD_CLOSE. */
+export const FIN_CREDITS_JANITOR = 1022
+/** Credit → fin.* ledger mirror worker. Spec asked for 1021; that class is FIN_VENDOR_STATEMENT_RECON. */
+export const FIN_CREDITS_FIN_MIRROR = 1023
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -52,4 +56,6 @@ export const LOCK_CLASSES = {
   FIN_ACCOUNTING_PERIOD_CLOSE,
   FIN_BILLING_PERIOD_CLOSE,
   FIN_VENDOR_STATEMENT_RECON,
+  FIN_CREDITS_JANITOR,
+  FIN_CREDITS_FIN_MIRROR,
 }

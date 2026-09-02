@@ -248,8 +248,8 @@ const TABLE_MAP = {
     ],
   },
   feature_entitlements: { schema: 'public', table: 'feature_entitlements', columns: ['scope', 'scope_id', 'feature', 'enabled', 'config'] },
-  ai_credit_balances: { schema: 'public', table: 'ai_credit_balances', columns: ['scope', 'scope_id', 'credits_remaining', 'credits_reserved'] },
-  ai_credit_transactions: { schema: 'public', table: 'ai_credit_transactions', columns: ['scope', 'scope_id', 'type', 'amount', 'description', 'related_draft_id'] },
+  ai_credit_balances: { schema: 'public', table: 'ai_credit_balances_deprecated_20260902', columns: ['scope', 'scope_id', 'credits_remaining', 'credits_reserved'] },
+  ai_credit_transactions: { schema: 'public', table: 'ai_credit_transactions_deprecated_20260902', columns: ['scope', 'scope_id', 'type', 'amount', 'description', 'related_draft_id'] },
   ai_call_usage: {
     schema: 'public',
     table: 'ai_call_usage',

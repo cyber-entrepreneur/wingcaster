@@ -8,7 +8,6 @@ import {
   listAgencyMemberships,
   listUserAgencyMemberships,
 } from '../../../tenant-authorization.js'
-import { CreditScope } from '../domain/types.js'
 import { Collections, findAllModule } from '../infrastructure/db.js'
 
 async function requireAgencyAdmin(req, res, next) {
@@ -100,50 +99,6 @@ export function registerAgencyRoutes(app, { entitlements, credits, pipeline, con
         total_drafts: drafts.length,
         by_agent: byAgent,
       })
-    } catch (err) {
-      res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.get('/api/agency/credits/balance', authMiddleware, requireAgencyAdmin, async (req, res) => {
-    try {
-      const balance = await credits.balance(CreditScope.AGENCY, req.agencyId)
-      res.json(balance)
-    } catch (err) {
-      res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.post('/api/agency/credits/top-up', authMiddleware, requireAgencyAdmin, async (req, res, next) => {
-    try {
-      const { handleCreditsTopUp } = await import('../../../fin/funding/http.js')
-      return await handleCreditsTopUp(req, res, {
-        publicTenantId: req.agencyId,
-        reasonCode: 'USER_TOPUP',
-      })
-    } catch (err) {
-      next(err)
-    }
-  })
-
-  app.post('/api/agency/credits/allocate', authMiddleware, requireAgencyAdmin, async (req, res) => {
-    try {
-      const { agent_id, amount_usd } = req.body
-      if (!agent_id || !amount_usd || Number(amount_usd) <= 0) return res.status(400).json({ error: 'agent_id and amount_usd are required' })
-      const member = await getAgencyMembership(req.agencyId, agent_id)
-      if (!member) return res.status(403).json({ error: 'Agent is not in your agency' })
-      const result = await credits.allocateAgencyToAgent(req.agencyId, agent_id, Number(amount_usd))
-      if (!result.ok) return res.status(400).json({ error: result.error })
-      res.json(result)
-    } catch (err) {
-      res.status(500).json({ error: err.message })
-    }
-  })
-
-  app.get('/api/agency/credits/transactions', authMiddleware, requireAgencyAdmin, async (req, res) => {
-    try {
-      const rows = await credits.transactions(CreditScope.AGENCY, req.agencyId, { limit: req.query.limit || 100 })
-      res.json(rows)
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
