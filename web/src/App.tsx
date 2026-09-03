@@ -49,8 +49,9 @@ import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
-  PricingPage as FinPricingPage, ReconciliationPage, TenantsPage, UsagePage,
-  VendorCostsPage,
+  PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
+  PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
@@ -131,6 +132,12 @@ function AppShell() {
           <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
           <Route path="/admin/fin/contracts" element={<ContractsPage />} />
           <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
+          <Route path="/admin/fin/packages" element={<PackagesPage />} />
+          <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
+          <Route path="/admin/fin/packages/:id/versions/:vid" element={<PackageVersionEditor />} />
+          <Route path="/admin/fin/package-approvals" element={<PackageApprovalPage />} />
+          <Route path="/admin/fin/subscriptions" element={<SubscriptionsPage />} />
+          <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
           <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
           <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
           <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />

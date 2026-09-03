@@ -1480,6 +1480,25 @@ export const api = {
       },
     }),
 
+  finPatch: (path: string, body: Record<string, unknown> = {}): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin${path}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
+      headers: {
+        'If-Match': '"1"',
+        'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
+      },
+    }),
+
+  finDelete: (path: string): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin${path}`, {
+      method: 'DELETE',
+      headers: {
+        'If-Match': '"1"',
+        'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
+      },
+    }),
+
   getTenantCreditsBalance: (): Promise<TenantCreditsBalance> =>
     fetchJson('/tenant/credits/balance'),
   getTenantSubscription: (): Promise<{ subscription: TenantSubscription | null; tenant_id: string }> =>

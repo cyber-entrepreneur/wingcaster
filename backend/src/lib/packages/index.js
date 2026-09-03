@@ -9,4 +9,11 @@ export { syncListingPropertyTracker } from './property-tracker-hook.js'
 export { provisionFreeTier } from './onboarding.js'
 export { previewChangePlan } from './preview.js'
 export { listMeteredFeatures, getFeatureByCode, getFreeTierPackage, SEEDED_FEATURE_CODES, FREE_TIER_FLAG_CODES } from './registry.js'
-export { PackageError, PACKAGE_ERROR } from './errors.js'
+export { PackageError, PACKAGE_ERROR, PACKAGE_HTTP_STATUS } from './errors.js'
+export { registerFinPackagesAdminRoutes } from './admin-routes.js'
+export {
+  createPackageDraft, createDraftVersion, addQuota, addFlag, updateDraft,
+  submitForApproval, approvePublish, rejectPublish, publishVersion, deprecateVersion,
+  PACKAGE_FLAG_CODES,
+} from './authoring.js'
+export { previewCycleGrant, previewFromRows } from './preview.js'
