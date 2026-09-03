@@ -1,4 +1,6 @@
 import { createAiAdapter as createWhatsAppAiAdapter } from '../../../whatsapp-listings/infrastructure/ai/adapter.js'
+import { FEATURES } from '../../../../lib/credits/features.js'
+import { meterFeature } from '../../../../lib/credits/meter.js'
 
 export async function aiSynthesis({ dimension, signals, area, aiConfig, config, logger }) {
   const cfg = aiConfig || {}
@@ -47,12 +49,16 @@ export async function aiSynthesis({ dimension, signals, area, aiConfig, config, 
     .replace('{{task_instructions}}', `Score ${dimension.name} on a scale of 0-10. Provide confidence 0-1, rationale, summary, and Arabic summary. Return valid JSON only.`)
 
   try {
-    const result = await aiAdapter.complete({
-      systemPrompt,
-      userPrompt,
-      outputSchema,
-      operation: 'area_score_ai_synthesis',
-    })
+    const result = await meterFeature(
+      FEATURES.AI_AREA_SCORING,
+      { tenantId: area?.credit_tenant_id || area?.tenant_id, relatedEntityId: area?.id, creditContext: { tenantId: area?.credit_tenant_id || area?.tenant_id, relatedEntityId: area?.id, callType: 'ai_synthesis' } },
+      () => aiAdapter.complete({
+        systemPrompt,
+        userPrompt,
+        outputSchema,
+        operation: 'area_score_ai_synthesis',
+      }),
+    )
 
     const parsed = result?.content ? (typeof result.content === 'string' ? JSON.parse(result.content) : result.content) : result
     const score = Math.min(10, Math.max(0, Number(parsed?.score)))

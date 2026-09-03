@@ -15,6 +15,8 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { findAll, findOne, insert, update } from './db.js'
+import { FEATURES } from './lib/credits/features.js'
+import { meterFeature } from './lib/credits/meter.js'
 
 /* ============================================================================
  * Lead-score weighting — deterministic, no AI.
@@ -56,7 +58,11 @@ const PUBLIC_COMMENT_CHANNELS = new Set([
  * Compute lead score for a contact. Pure DB read + weighted arithmetic.
  * Never fails — returns 0 if nothing found.
  */
-export async function computeLeadScore(contactId) {
+export async function computeLeadScore(contactId, creditContext) {
+  return meterFeature(
+    FEATURES.AI_CONTACT_LEAD_SCORE,
+    { creditContext, relatedEntityId: contactId },
+    async () => {
   const conversations = await findAll('conversations', (c) => c.contact_id === contactId)
   if (!conversations.length) {
     return { score: 0, message_count: 0, category_counts: {}, weighted_sum: 0, reasoning: 'No conversations recorded yet.' }
@@ -85,6 +91,8 @@ export async function computeLeadScore(contactId) {
 
   const reasoning = buildScoreReasoning(counts, weightedSum, score)
   return { score, message_count: messages.length, category_counts: counts, weighted_sum: weightedSum, reasoning }
+    },
+  )
 }
 
 function buildScoreReasoning(counts, weightedSum, score) {
@@ -248,13 +256,13 @@ export async function isSummaryStale(cached, currentMessageCount, contactId) {
  * Get lead summary — returns cached if present. Never triggers generation.
  * Includes staleness flag so the UI can nudge for refresh.
  */
-export async function getLeadSummary({ contactId, requesterAgentId }) {
+export async function getLeadSummary({ contactId, requesterAgentId, creditContext }) {
   const contact = await findOne('contacts', (c) => c.id === contactId)
   if (!contact) return { error: 'Contact not found' }
   if (contact.assigned_agent_id !== requesterAgentId) return { error: 'Not authorised' }
 
   const [scoreBundle, cached] = await Promise.all([
-    computeLeadScore(contactId),
+    computeLeadScore(contactId, creditContext),
     getCachedLeadSummary(contactId),
   ])
   const stale = await isSummaryStale(cached, scoreBundle.message_count, contactId)
@@ -279,7 +287,11 @@ export async function getLeadSummary({ contactId, requesterAgentId }) {
  * Force regeneration of the AI summary + next steps. Synchronous — takes
  * a few seconds. Persists the new cache row.
  */
-export async function regenerateLeadSummary({ contactId, requesterAgentId, aiAdapter, provider, logger }) {
+export async function regenerateLeadSummary({ contactId, requesterAgentId, aiAdapter, provider, logger, creditContext }) {
+  return meterFeature(
+    FEATURES.AI_CONTACT_LEAD_SUMMARY,
+    { creditContext, relatedEntityId: contactId, tenantId: creditContext?.tenantId },
+    async () => {
   const contact = await findOne('contacts', (c) => c.id === contactId)
   if (!contact) return { error: 'Contact not found' }
   if (contact.assigned_agent_id !== requesterAgentId) return { error: 'Not authorised' }
@@ -319,6 +331,8 @@ export async function regenerateLeadSummary({ contactId, requesterAgentId, aiAda
     has_cached: true,
     is_stale: false,
   }
+    },
+  )
 }
 
 /* ------------------------------ AI generators ---------------------------- */

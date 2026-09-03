@@ -18,6 +18,8 @@ import { resolveTemplateForPlatform } from './schema.js'
 import { buildBindingContext } from './data-binding.js'
 import { renderTemplateToSvg } from './template-engine.js'
 import { renderBannerbearCard } from './bannerbear-adapter.js'
+import { FEATURES } from '../../lib/credits/features.js'
+import { meterFeature } from '../../lib/credits/meter.js'
 
 const MIME_BY_EXT = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -71,7 +73,11 @@ async function ensureListingDir(listingId, storageRoot) {
  * adapter (external API); anything else (including undefined, which maps
  * to 'builtin') runs the built-in SVG → sharp pipeline.
  */
-export async function renderSocialCard({ template, listing, agent, brand, distribution, platform, storageRoot, publicBaseUrl = '/uploads/social-cards' }) {
+export async function renderSocialCard(opts) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.ASSETS_RENDER_SOCIAL_CARD, opts, () => renderSocialCard({ ...opts, __charged: true }))
+  }
+  const { template, listing, agent, brand, distribution, platform, storageRoot, publicBaseUrl = '/uploads/social-cards' } = opts
   if (!template) throw Object.assign(new Error('template is required'), { code: 'MISSING_TEMPLATE' })
   if (!isValidPlatformKey(platform)) throw Object.assign(new Error(`Unknown platform: ${platform}`), { code: 'BAD_PLATFORM' })
 
@@ -119,10 +125,10 @@ export async function renderSocialCard({ template, listing, agent, brand, distri
  * Render a template across many platforms in parallel. Per-platform failures
  * are returned as `{error, platform}` entries so successes still land.
  */
-export async function renderSocialCardMatrix({ template, listing, agent, brand, distribution, platforms, storageRoot, publicBaseUrl }) {
+export async function renderSocialCardMatrix({ template, listing, agent, brand, distribution, platforms, storageRoot, publicBaseUrl, creditContext, tenantId }) {
   const results = await Promise.all(platforms.map(async (platform) => {
     try {
-      return { ok: true, asset: await renderSocialCard({ template, listing, agent, brand, distribution, platform, storageRoot, publicBaseUrl }) }
+      return { ok: true, asset: await renderSocialCard({ template, listing, agent, brand, distribution, platform, storageRoot, publicBaseUrl, creditContext, tenantId }) }
     } catch (err) {
       return { ok: false, template_id: template.id, platform, error: err.message || String(err) }
     }

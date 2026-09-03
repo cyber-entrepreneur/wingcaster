@@ -7,6 +7,9 @@
 
 import { Intent } from '../domain/types.js'
 import { recordAiCall } from '../../../lib/ai-usage-logger.js'
+import { FEATURES } from '../../../lib/credits/features.js'
+import { withCredits } from '../../../lib/credits/with-credits.js'
+import { randomUUID } from 'node:crypto'
 
 const UPDATE_KEYWORDS = [
   'update', 'change', 'edit', 'modify', 'price drop', 'price increase', 'reduce price',
@@ -56,7 +59,14 @@ export function createIntentClassifier({ aiAdapter }) {
     // AI fallback for ambiguous cases.
     if (aiAdapter) {
       try {
-        const aiResult = await aiAdapter.classifyIntent({ messages, images })
+        const aiResult = await withCredits({
+          tenantId,
+          feature: FEATURES.AI_POST_CREATION,
+          requestId: `wa-intent:${relatedEntityId || randomUUID()}`,
+          callType: 'classifyIntent',
+          relatedEntityType,
+          relatedEntityId,
+        }, () => aiAdapter.classifyIntent({ messages, images }))
         await recordAiCall({
           tenantId,
           feature: 'whatsapp-listings',

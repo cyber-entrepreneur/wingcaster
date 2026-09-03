@@ -1,4 +1,5 @@
 import { findOne, transaction, update } from './db.js'
+import { provisionFreeTier } from './lib/packages/onboarding.js'
 
 export async function findUserById(userId) {
   return findOne('users', (user) => user.id === userId)
@@ -143,6 +144,12 @@ export async function createAgentAccount({ user, agent }) {
         JSON.stringify(membership),
       ],
     )
+    await provisionFreeTier(client, {
+      scope: 'personal',
+      scopeId: principal.id,
+      actorId: principal.id,
+      now: principal.created_at || now,
+    })
   })
 
   return { user: principal, agent: profile }
@@ -155,6 +162,22 @@ export async function updateUser(userId, patch) {
     updated_at: new Date().toISOString(),
   }))
   return changed > 0 ? findUserById(userId) : null
+}
+
+export async function bumpTokenVersion(client, userId) {
+  const updatedAt = new Date().toISOString()
+  await client.query(
+    `UPDATE users
+        SET updated_at = $2::timestamptz,
+            data = jsonb_set(
+              COALESCE(data, '{}'::jsonb),
+              '{token_version}',
+              to_jsonb(COALESCE((data->>'token_version')::integer, 0) + 1),
+              true
+            )
+      WHERE id = $1`,
+    [userId, updatedAt],
+  )
 }
 
 export async function updatePlatformRole(userId, platformRole) {

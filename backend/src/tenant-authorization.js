@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto'
 import { findAll, findOne, transaction } from './db.js'
+import { bumpTokenVersion } from './identity.js'
+import { provisionFreeTier } from './lib/packages/onboarding.js'
 
 export const TENANT_ROLES = Object.freeze(['owner', 'admin', 'member', 'guest'])
 export const AFFILIATION_MODES = Object.freeze(['personal', 'exclusive', 'non_exclusive'])
@@ -174,6 +176,12 @@ export async function createAgencyWithOwner({ agency, ownerUserId, membershipId 
       )`,
       [membership.id, tenantId, ownerUserId, membershipId, now, JSON.stringify(membership)],
     )
+    await provisionFreeTier(client, {
+      scope: 'agency',
+      scopeId: agency.id,
+      actorId: ownerUserId,
+      now,
+    })
   })
 
   return { agency, tenant, membership, legacyMembership }
@@ -438,6 +446,8 @@ export async function endAgencyMembership({ agencyId, membershipId, endedBy, rea
         [membership.legacy_agency_member_id, now, reason, endedBy],
       )
     }
+
+    await bumpTokenVersion(client, membership.user_id)
 
     return { ok: true, membership_id: membership.id, ended_at: now }
   })

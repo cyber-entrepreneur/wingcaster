@@ -32,6 +32,7 @@ import { PLATFORM_DIMENSIONS, PLATFORM_KEYS, isValidPlatformKey } from './dimens
 import { OWNER_TYPES, validateTemplate } from './schema.js'
 import { BINDABLE_PATHS } from './data-binding.js'
 import { renderSocialCard, renderSocialCardMatrix } from './renderer.js'
+import { creditContextFromRequest } from '../../lib/credits/tenant-context.js'
 import { seedSocialCardTemplates } from './seed-templates.js'
 import {
   isBannerbearEnabled, getBannerbearConfig,
@@ -289,6 +290,7 @@ export function createModule() {
             platforms,
             storageRoot: config.storagePath,
             publicBaseUrl: config.publicBaseUrl,
+            creditContext: creditContextFromRequest(req, { relatedEntityId: listing.id, callType: 'render' }),
           })
           for (const a of assets) {
             await insert('social_cards', { ...a, agent_id: listing.agent_id })

@@ -1498,4 +1498,137 @@ export const api = {
         'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
       },
     }),
+
+  getTenantCreditsBalance: (): Promise<TenantCreditsBalance> =>
+    fetchJson('/tenant/credits/balance'),
+  getTenantSubscription: (): Promise<{ subscription: TenantSubscription | null; tenant_id: string }> =>
+    fetchJson('/tenant/subscription'),
+  getTenantPlans: (): Promise<{ plans: TenantPlan[] }> =>
+    fetchJson('/tenant/plans'),
+  getTenantInvoices: (): Promise<{ invoices: TenantInvoice[] }> =>
+    fetchJson('/tenant/invoices'),
+  getTenantCreditNotes: (): Promise<{ credit_notes: TenantCreditNote[] }> =>
+    fetchJson('/tenant/credit-notes'),
+  requestTenantTopUp: (amountUsd: number, idempotencyKey?: string): Promise<{
+    status: string
+    message?: string
+    amount_usd: number
+    idempotency_key: string
+  }> => fetchJson('/tenant/credits/top-up', {
+    method: 'POST',
+    body: JSON.stringify({ amount_usd: amountUsd, idempotency_key: idempotencyKey }),
+  }),
+  previewTenantPlanChange: (subscriptionId: string, newPackageVersionId: string): Promise<TenantPlanPreview> =>
+    fetchJson('/tenant/subscription/preview-change', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription_id: subscriptionId,
+        new_package_version_id: newPackageVersionId,
+      }),
+    }),
+  changeTenantPlan: (subscriptionId: string, newPackageVersionId: string, prorate = true): Promise<{
+    previous: TenantSubscription
+    subscription: TenantSubscription
+    fraction?: number
+    net?: number
+  }> => fetchJson('/tenant/subscription/change-plan', {
+    method: 'POST',
+    body: JSON.stringify({
+      subscription_id: subscriptionId,
+      new_package_version_id: newPackageVersionId,
+      prorate,
+    }),
+  }),
+}
+
+export interface FeatureQuota {
+  enabled: boolean
+  registered: boolean
+  feature_code: string
+  display_name?: string
+  quota_used_this_cycle: number
+  quota_display: number
+  typical_monthly: number
+  usage_ratio: number
+  soft_warning: boolean
+  used_credits?: number
+  typical_credits?: number
+}
+
+export interface TenantCreditsBalance {
+  tenant_id: string
+  public_tenant_id: string
+  scope: string
+  credits_remaining: number
+  credits_reserved: number
+  credits_remaining_units: number
+  credits_reserved_units: number
+  currency: string
+  hard_block: boolean
+  quotas: FeatureQuota[]
+}
+
+export interface TenantSubscription {
+  id: string
+  status: string
+  package_code?: string
+  display_name?: string
+  tier?: string
+  billing_cadence?: string
+  version_number?: number
+  properties_committed: number
+  properties_covered?: number
+  monthly_price_minor?: number
+  billing_cycle_start: string
+  billing_cycle_end: string
+  auto_renew: boolean
+}
+
+export interface TenantPlan {
+  package_id: string
+  code: string
+  display_name: string
+  tier: string
+  target_audience: string
+  billing_cadence: string
+  currency: string
+  version_id: string
+  version_number: number
+  properties_covered: number
+  monthly_price_minor: number
+  state: string
+}
+
+export interface TenantInvoice {
+  id: string
+  status: string
+  currency: string
+  total_minor: number
+  issued_at: string | null
+  due_at: string | null
+  invoice_number: string | null
+}
+
+export interface TenantCreditNote {
+  id: string
+  invoice_id: string
+  amount_minor: number
+  currency: string
+  reason_code: string | null
+  status: string
+  note_number: string | null
+  issued_at: string | null
+  created_at: string
+}
+
+export interface TenantPlanPreview {
+  subscription_id: string
+  new_package_version_id: string
+  new_package_display_name?: string
+  fraction: number
+  old_remaining: number
+  new_remaining: number
+  net: number
+  currency: string
+  new_monthly_price_minor: number
 }
