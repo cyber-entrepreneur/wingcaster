@@ -1,17 +1,6 @@
 import { authMiddleware } from '../../../auth.js'
+import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { AreaStatus } from '../domain/types.js'
-
-async function requirePlatformAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-  try {
-    if (req.user.platform_role !== 'platform_admin') {
-      return res.status(403).json({ error: 'Forbidden: platform admin required' })
-    }
-    next()
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-}
 
 export function registerAdminRoutes(
   app,

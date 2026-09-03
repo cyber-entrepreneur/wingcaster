@@ -237,10 +237,7 @@ export async function publishInstagramFeed(opts = {}) {
 /**
  * Publish an Instagram carousel post.
  */
-export async function publishInstagramCarousel(opts = {}) {
-  if (!opts.__charged) {
-    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramCarousel({ ...opts, __charged: true }))
-  }
+async function _doPublishCarousel(opts) {
   const { imageUrls, caption, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
@@ -285,15 +282,16 @@ export async function publishInstagramCarousel(opts = {}) {
   }
 }
 
+export async function publishInstagramCarousel(opts = {}) {
+  return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => _doPublishCarousel(opts))
+}
+
 /**
  * Publish an Instagram Reel.
  * Note: Reels have strict requirements (duration, aspect ratio, codec). The caller
  * should provide a compliant video URL. We attempt the Graph API container flow.
  */
-export async function publishInstagramReel(opts = {}) {
-  if (!opts.__charged) {
-    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramReel({ ...opts, __charged: true }))
-  }
+async function _doPublishReel(opts) {
   const { videoUrl, caption, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
@@ -328,13 +326,14 @@ export async function publishInstagramReel(opts = {}) {
   }
 }
 
+export async function publishInstagramReel(opts = {}) {
+  return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => _doPublishReel(opts))
+}
+
 /**
  * Publish an Instagram Story (single image).
  */
-export async function publishInstagramStory(opts = {}) {
-  if (!opts.__charged) {
-    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramStory({ ...opts, __charged: true }))
-  }
+async function _doPublishStory(opts) {
   const { imageUrl, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
@@ -364,6 +363,10 @@ export async function publishInstagramStory(opts = {}) {
     provider_message_id: publishData.id,
     media_id: publishData.id,
   }
+}
+
+export async function publishInstagramStory(opts = {}) {
+  return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => _doPublishStory(opts))
 }
 
 function requireInstagramPublishing(accountId, token) {

@@ -13,21 +13,12 @@ import { insertOutbox } from '../../fin/ledger/write.js'
 import { changePlan } from '../packages/lifecycle.js'
 import { previewChangePlan } from '../packages/preview.js'
 import { checkEntitlement, listFeatureQuotas } from './feature-check.js'
-import { CREDIT_ERROR, CreditEngineError, creditErrorHttpStatus } from './errors.js'
+import { CREDIT_ERROR, CreditEngineError, sendCreditError } from './errors.js'
 import { getWallet, grant } from './engine.js'
 import { fromCreditUnits, toCreditUnits } from './scale.js'
 import { resolveRequestCreditTenant } from './tenant-context.js'
 
 const TOP_UP_ELEVATED_USD = 50
-
-function sendCreditError(res, error) {
-  const status = creditErrorHttpStatus(error)
-  return res.status(status).json({
-    error: error.message,
-    code: error.code || 'CREDIT_ERROR',
-    extra: error.extra || undefined,
-  })
-}
 
 function requireTenant(req, res) {
   const resolved = resolveRequestCreditTenant(req)

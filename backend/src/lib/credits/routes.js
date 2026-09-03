@@ -7,6 +7,7 @@ import {
   listUserAgencyMemberships,
 } from '../../tenant-authorization.js'
 import { createCreditService } from './compat.js'
+import { sendCreditError } from './errors.js'
 
 const credits = createCreditService()
 
@@ -19,7 +20,7 @@ async function requireAgencyAdmin(req, res, next) {
     req.agencyId = member.agency_id
     next()
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendCreditError(res, err)
   }
 }
 
@@ -28,7 +29,7 @@ export function registerCreditRoutes(app, { creditService = credits } = {}) {
     try {
       res.json(await creditService.balance('agency', req.agencyId))
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -56,7 +57,7 @@ export function registerCreditRoutes(app, { creditService = credits } = {}) {
       if (!result.ok) return res.status(400).json({ error: result.error })
       res.json(result)
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -64,7 +65,7 @@ export function registerCreditRoutes(app, { creditService = credits } = {}) {
     try {
       res.json(await creditService.transactions('agency', req.agencyId, { limit: req.query.limit || 100 }))
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -72,7 +73,7 @@ export function registerCreditRoutes(app, { creditService = credits } = {}) {
     try {
       res.json(await creditService.balance('agent', req.user.id))
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -80,7 +81,7 @@ export function registerCreditRoutes(app, { creditService = credits } = {}) {
     try {
       res.json(await creditService.transactions('agent', req.user.id, { limit: req.query.limit || 100 }))
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 

@@ -14,6 +14,7 @@ import { loadDb, getDb, findAll, findOne, insert, remove, update, transaction } 
 import { getPool, query } from './persistence/postgres-adapter.js'
 import { seedData } from './seed.js'
 import { signToken, authMiddleware, requireElevated } from './auth.js'
+import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
@@ -850,16 +851,6 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-async function requirePlatformAdmin(req, res, next) {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-    if (!(await isPlatformAdmin(req.user.id))) return res.status(403).json({ error: 'Forbidden: platform admin required' })
-    next()
-  } catch (err) {
-    next(err)
-  }
-}
-
 async function requireOwnerOrAdmin(req, res, next) {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
@@ -871,11 +862,6 @@ async function requireOwnerOrAdmin(req, res, next) {
   } catch (err) {
     next(err)
   }
-}
-
-async function isPlatformAdmin(userId) {
-  const user = await findUserById(userId)
-  return user?.platform_role === 'platform_admin'
 }
 
 async function checkPostgresHealth() {

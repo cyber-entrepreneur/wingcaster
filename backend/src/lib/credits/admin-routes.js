@@ -2,14 +2,15 @@
  * Platform-admin credit routes, including two-person approval for large grants.
  */
 import { randomUUID } from 'node:crypto'
-import { authMiddleware } from '../../auth.js'
+import { authMiddleware, requireElevated } from '../../auth.js'
+import { requirePlatformAdmin } from '../auth-guards.js'
+import { adminMutationLimiter } from '../admin-limiter.js'
 import { transaction } from '../../db.js'
-import { CREDIT_ERROR, CreditEngineError } from './errors.js'
-import { grant } from './engine.js'
+import { CREDIT_ERROR, CreditEngineError, sendCreditError } from './errors.js'
+import { ensureTenantWallet, grant } from './engine.js'
 import { grantRequiresApproval } from './pricing.js'
 import { createCreditService } from './compat.js'
 import { toCreditUnits } from './scale.js'
-import { ensureTenantWallet } from './wallets.js'
 
 const credits = createCreditService()
 
@@ -17,14 +18,6 @@ function asUuidOrNull(id) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))
     ? String(id)
     : null
-}
-
-async function requirePlatformAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-  if (req.user.platform_role !== 'platform_admin') {
-    return res.status(403).json({ error: 'Forbidden: platform admin required' })
-  }
-  next()
 }
 
 async function createApprovalRequest(client, {
@@ -48,7 +41,10 @@ async function createApprovalRequest(client, {
 }
 
 export function registerCreditAdminRoutes(app, { creditService = credits } = {}) {
-  app.get('/api/admin/credits/wallets', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const readGuards = [authMiddleware, requirePlatformAdmin]
+  const writeGuards = [authMiddleware, requirePlatformAdmin, requireElevated(), adminMutationLimiter]
+
+  app.get('/api/admin/credits/wallets', ...readGuards, async (req, res) => {
     try {
       const { scope, scope_id: scopeId } = req.query
       if (scope && scopeId) {
@@ -63,11 +59,11 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       )
       res.json({ wallets: rows })
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
-  app.post('/api/admin/credits/grants', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/grants', ...writeGuards, async (req, res) => {
     try {
       const {
         scope, scope_id: scopeId, amount, amount_usd: amountUsd,
@@ -100,7 +96,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
             tenant_id: wallet.tenant_id,
           },
         }))
-        return res.status(202).json({
+        return res.status(409).json({
           success: false,
           code: CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED,
           approval_request_id: approvalId,
@@ -125,15 +121,11 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.status(201).json({ success: true, grant: result.grant, balance: await creditService.balance(scope, scopeId) })
     } catch (err) {
-      if (err instanceof CreditEngineError) {
-        return res.status(err.code === CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED ? 403 : 400)
-          .json({ error: err.message, code: err.code })
-      }
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
-  app.post('/api/admin/credits/approvals/:id/approve', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/approvals/:id/approve', ...writeGuards, async (req, res) => {
     try {
       const actorId = asUuidOrNull(req.user.id)
       if (!actorId) return res.status(400).json({ error: 'approver id must be a UUID' })
@@ -196,17 +188,17 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.json({ success: true, grant: result.grant })
     } catch (err) {
-      if (String(err.message || '').includes('self-approval')) {
-        return res.status(403).json({
-          error: 'APPROVAL_SELF_APPROVAL_FORBIDDEN',
-          code: CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN,
-        })
+      if (String(err.message || '').includes('self-approval') && !(err instanceof CreditEngineError)) {
+        return sendCreditError(res, new CreditEngineError(
+          CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN,
+          'APPROVAL_SELF_APPROVAL_FORBIDDEN',
+        ))
       }
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
-  app.post('/api/admin/credits/approvals/:id/reject', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/approvals/:id/reject', ...writeGuards, async (req, res) => {
     try {
       const actorId = asUuidOrNull(req.user.id)
       await transaction(async (client) => {
@@ -224,7 +216,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.json({ success: true, status: 'REJECTED' })
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 }
