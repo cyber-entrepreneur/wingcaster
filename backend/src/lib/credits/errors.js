@@ -34,8 +34,20 @@ export function creditErrorHttpStatus(error) {
     case CREDIT_ERROR.RESERVATION_NOT_HELD:
       return 409
     case CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED:
-      return 202
+      return 409
     default:
       return 400
   }
+}
+
+export function sendCreditError(res, error) {
+  if (error instanceof CreditEngineError) {
+    const status = creditErrorHttpStatus(error)
+    return res.status(status).json({
+      error: error.message,
+      code: error.code,
+      extra: error.extra || undefined,
+    })
+  }
+  return res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR' })
 }

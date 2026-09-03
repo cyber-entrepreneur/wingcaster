@@ -2,7 +2,9 @@
  * Platform-admin credit routes, including two-person approval for large grants.
  */
 import { randomUUID } from 'node:crypto'
-import { authMiddleware } from '../../auth.js'
+import { authMiddleware, requireElevated } from '../../auth.js'
+import { requirePlatformAdmin } from '../auth-guards.js'
+import { adminMutationLimiter } from '../admin-limiter.js'
 import { transaction } from '../../db.js'
 import { CREDIT_ERROR, CreditEngineError } from './errors.js'
 import { grant } from './engine.js'
@@ -17,14 +19,6 @@ function asUuidOrNull(id) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))
     ? String(id)
     : null
-}
-
-async function requirePlatformAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-  if (req.user.platform_role !== 'platform_admin') {
-    return res.status(403).json({ error: 'Forbidden: platform admin required' })
-  }
-  next()
 }
 
 async function createApprovalRequest(client, {
@@ -48,7 +42,10 @@ async function createApprovalRequest(client, {
 }
 
 export function registerCreditAdminRoutes(app, { creditService = credits } = {}) {
-  app.get('/api/admin/credits/wallets', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const readGuards = [authMiddleware, requirePlatformAdmin]
+  const writeGuards = [authMiddleware, requirePlatformAdmin, requireElevated(), adminMutationLimiter]
+
+  app.get('/api/admin/credits/wallets', ...readGuards, async (req, res) => {
     try {
       const { scope, scope_id: scopeId } = req.query
       if (scope && scopeId) {
@@ -67,7 +64,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
     }
   })
 
-  app.post('/api/admin/credits/grants', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/grants', ...writeGuards, async (req, res) => {
     try {
       const {
         scope, scope_id: scopeId, amount, amount_usd: amountUsd,
@@ -100,7 +97,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
             tenant_id: wallet.tenant_id,
           },
         }))
-        return res.status(202).json({
+        return res.status(409).json({
           success: false,
           code: CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED,
           approval_request_id: approvalId,
@@ -133,7 +130,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
     }
   })
 
-  app.post('/api/admin/credits/approvals/:id/approve', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/approvals/:id/approve', ...writeGuards, async (req, res) => {
     try {
       const actorId = asUuidOrNull(req.user.id)
       if (!actorId) return res.status(400).json({ error: 'approver id must be a UUID' })
@@ -206,7 +203,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
     }
   })
 
-  app.post('/api/admin/credits/approvals/:id/reject', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/credits/approvals/:id/reject', ...writeGuards, async (req, res) => {
     try {
       const actorId = asUuidOrNull(req.user.id)
       await transaction(async (client) => {
