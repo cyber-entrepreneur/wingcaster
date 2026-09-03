@@ -3,7 +3,7 @@
  * Preserves reserve/consume/release/topUp signatures used by pipeline + routes.
  */
 import { randomUUID } from 'node:crypto'
-import { consume, getWallet, grant, listTransactions, release, reserve } from './engine.js'
+import { consume, ensureTenantWallet, getWallet, grant, listTransactions, release, reserve } from './engine.js'
 
 const CreditType = {
   TOP_UP: 'top_up',
@@ -19,7 +19,7 @@ const CreditScope = {
 import { CREDIT_ERROR, CreditEngineError } from './errors.js'
 import { FEATURES } from './features.js'
 import { fromCreditUnits, toCreditUnits } from './scale.js'
-import { ensureTenantWallet, syntheticTenantId } from './wallets.js'
+import { syntheticTenantId } from './wallets.js'
 
 function legacyBalance(wallet, scope, scopeId) {
   if (!wallet) {

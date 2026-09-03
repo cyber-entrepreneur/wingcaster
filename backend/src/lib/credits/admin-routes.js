@@ -6,12 +6,11 @@ import { authMiddleware, requireElevated } from '../../auth.js'
 import { requirePlatformAdmin } from '../auth-guards.js'
 import { adminMutationLimiter } from '../admin-limiter.js'
 import { transaction } from '../../db.js'
-import { CREDIT_ERROR, CreditEngineError } from './errors.js'
-import { grant } from './engine.js'
+import { CREDIT_ERROR, CreditEngineError, sendCreditError } from './errors.js'
+import { ensureTenantWallet, grant } from './engine.js'
 import { grantRequiresApproval } from './pricing.js'
 import { createCreditService } from './compat.js'
 import { toCreditUnits } from './scale.js'
-import { ensureTenantWallet } from './wallets.js'
 
 const credits = createCreditService()
 
@@ -60,7 +59,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       )
       res.json({ wallets: rows })
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -122,11 +121,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.status(201).json({ success: true, grant: result.grant, balance: await creditService.balance(scope, scopeId) })
     } catch (err) {
-      if (err instanceof CreditEngineError) {
-        return res.status(err.code === CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED ? 403 : 400)
-          .json({ error: err.message, code: err.code })
-      }
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -193,13 +188,13 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.json({ success: true, grant: result.grant })
     } catch (err) {
-      if (String(err.message || '').includes('self-approval')) {
-        return res.status(403).json({
-          error: 'APPROVAL_SELF_APPROVAL_FORBIDDEN',
-          code: CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN,
-        })
+      if (String(err.message || '').includes('self-approval') && !(err instanceof CreditEngineError)) {
+        return sendCreditError(res, new CreditEngineError(
+          CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN,
+          'APPROVAL_SELF_APPROVAL_FORBIDDEN',
+        ))
       }
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 
@@ -221,7 +216,7 @@ export function registerCreditAdminRoutes(app, { creditService = credits } = {})
       })
       res.json({ success: true, status: 'REJECTED' })
     } catch (err) {
-      res.status(500).json({ error: err.message })
+      sendCreditError(res, err)
     }
   })
 }

@@ -32,9 +32,10 @@ export function creditErrorHttpStatus(error) {
     case CREDIT_ERROR.FREE_TIER_PACKAGE_MISSING:
       return 500
     case CREDIT_ERROR.RESERVATION_NOT_HELD:
-      return 409
     case CREDIT_ERROR.CREDIT_GRANT_APPROVAL_REQUIRED:
       return 409
+    case CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN:
+      return 403
     default:
       return 400
   }

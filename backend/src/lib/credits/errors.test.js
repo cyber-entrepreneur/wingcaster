@@ -31,12 +31,12 @@ describe('credit errors', () => {
     expect(JSON.stringify(res.body)).not.toContain('secret_table')
   })
 
-  it('routes.js catch blocks delegate to sendCreditError', async () => {
-    const src = await import('node:fs/promises').then((fs) =>
-      fs.readFile(new URL('./routes.js', import.meta.url), 'utf8'),
-    )
-    expect(src).toContain("import { sendCreditError } from './errors.js'")
-    expect(src).toMatch(/sendCreditError\(res, err\)/)
-    expect(src).not.toMatch(/res\.status\(500\)\.json\(\{ error: err\.message \}\)/)
+  it('routes.js and admin-routes.js catch blocks delegate to sendCreditError', async () => {
+    const fs = await import('node:fs/promises')
+    for (const file of ['./routes.js', './admin-routes.js']) {
+      const src = await fs.readFile(new URL(file, import.meta.url), 'utf8')
+      expect(src, file).toContain('sendCreditError')
+      expect(src, file).not.toMatch(/res\.status\(500\)\.json\(\{ error: err\.message \}\)/)
+    }
   })
 })
