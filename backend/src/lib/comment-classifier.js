@@ -18,6 +18,9 @@
  * queryable via GET /api/listings/:id/comments?category=hot_lead,interest.
  */
 
+import { FEATURES } from './credits/features.js'
+import { meterFeature } from './credits/meter.js'
+
 export const COMMENT_CATEGORIES = /** @type {const} */ ([
   'hot_lead',    // explicit buy / rent / close intent
   'interest',    // asking price, availability, viewing — pre-buy signal
@@ -245,7 +248,11 @@ export function buildAiClassificationPrompt(items) {
  * Returns an array aligned with `items`, each { id, category, sentiment,
  * confidence, source: 'ai', reasoning }.
  */
-export async function classifyBatchByAi({ items, aiAdapter, provider }) {
+export async function classifyBatchByAi({ items, aiAdapter, provider, creditContext }) {
+  return meterFeature(
+    FEATURES.AI_COMMENT_CLASSIFIER,
+    { creditContext, relatedEntityId: items?.[0]?.id },
+    async () => {
   if (!items?.length) return []
   if (!aiAdapter) throw new Error('aiAdapter is required for AI classification')
 
@@ -299,4 +306,6 @@ export async function classifyBatchByAi({ items, aiAdapter, provider }) {
       reasoning: String(row.reasoning || '').slice(0, 200),
     }
   })
+    },
+  )
 }

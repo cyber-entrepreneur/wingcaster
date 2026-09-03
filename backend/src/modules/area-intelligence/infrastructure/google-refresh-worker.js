@@ -22,6 +22,8 @@ export function createGoogleRefreshWorker({
       logger.debug('Google refresh worker skipped: Google Maps not enabled')
       return
     }
+    // Deviation: Places/Distance Matrix is not a migration-303 metered feature.
+    // Do not map this worker onto ai.area_scoring (that's LLM synthesis).
     if (await googleService.isOverBudget()) {
       logger.warn('Google refresh worker skipped: monthly budget cap reached')
       return

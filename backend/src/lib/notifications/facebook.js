@@ -17,6 +17,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0'
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`
@@ -45,7 +47,11 @@ function requireFacebookCreds(token, feature) {
  * Publish a text / link post to a Facebook Page feed.
  *   POST /{page-id}/feed  {message, link?}
  */
-export async function publishFacebookPagePost({ pageId, message, linkUrl, accessToken }) {
+export async function publishFacebookPagePost(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_FACEBOOK, opts, () => publishFacebookPagePost({ ...opts, __charged: true }))
+  }
+  const { pageId, message, linkUrl, accessToken } = opts
   const cfg = getFacebookConfig()
   const targetPage = pageId || cfg.pageId
   const token = accessToken || cfg.pageAccessToken
@@ -82,7 +88,11 @@ export async function publishFacebookPagePost({ pageId, message, linkUrl, access
  * Publish a photo to a Facebook Page.
  *   POST /{page-id}/photos  {url, caption?, published=true}
  */
-export async function publishFacebookPagePhoto({ pageId, imageUrl, caption, accessToken }) {
+export async function publishFacebookPagePhoto(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_FACEBOOK, opts, () => publishFacebookPagePhoto({ ...opts, __charged: true }))
+  }
+  const { pageId, imageUrl, caption, accessToken } = opts
   const cfg = getFacebookConfig()
   const targetPage = pageId || cfg.pageId
   const token = accessToken || cfg.pageAccessToken

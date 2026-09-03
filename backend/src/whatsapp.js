@@ -2,6 +2,8 @@
  * WhatsApp Cloud API client for REB.
  * Uses META_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID from env.
  */
+import { FEATURES } from './lib/credits/features.js'
+import { meterFeature } from './lib/credits/meter.js'
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0'
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`
@@ -122,7 +124,11 @@ export function buildListingChatCard(property, { listingUrl } = {}) {
   }
 }
 
-export async function sendWhatsAppText(to, body) {
+export async function sendWhatsAppText(to, body, creditContext) {
+  return meterFeature(
+    FEATURES.COMMUNICATION_WHATSAPP_CONVERSATION_WINDOW_24H,
+    { creditContext, relatedEntityId: to },
+    async () => {
   const cfg = getWhatsAppConfig()
   const phone = normalizePhone(to)
   if (!phone) throw new Error('Recipient phone number is required (international format, digits only)')
@@ -137,6 +143,8 @@ export async function sendWhatsAppText(to, body) {
       text: { preview_url: true, body: body.trim() },
     },
   })
+    },
+  )
 }
 
 export async function sendWhatsAppImage(to, { link, caption }) {
@@ -175,7 +183,11 @@ export async function sendWhatsAppInteractive(to, payload) {
   })
 }
 
-export async function sendListingToWhatsApp(property, to) {
+export async function sendListingToWhatsApp(property, to, creditContext) {
+  return meterFeature(
+    FEATURES.PUBLISHING_SOCIAL_WHATSAPP,
+    { creditContext, listingId: property?.id, relatedEntityId: property?.id },
+    async () => {
   const card = buildListingChatCard(property)
   const recipient = normalizePhone(to) || getWhatsAppConfig().defaultRecipient
   if (!recipient) {
@@ -184,15 +196,16 @@ export async function sendListingToWhatsApp(property, to) {
     throw err
   }
 
+  const inner = { ...(creditContext || {}), skipMetering: true }
   let response
   if (card.imageUrl && /^https?:\/\//i.test(card.imageUrl)) {
     try {
       response = await sendWhatsAppImage(recipient, { link: card.imageUrl, caption: card.body })
     } catch {
-      response = await sendWhatsAppText(recipient, card.body)
+      response = await sendWhatsAppText(recipient, card.body, inner)
     }
   } else {
-    response = await sendWhatsAppText(recipient, card.body)
+    response = await sendWhatsAppText(recipient, card.body, inner)
   }
 
   return {
@@ -201,6 +214,8 @@ export async function sendListingToWhatsApp(property, to) {
     message_id: response?.messages?.[0]?.id || null,
     response,
   }
+    },
+  )
 }
 
 function extractMediaIds(message) {

@@ -22,6 +22,7 @@ import { createIntentClassifier } from './intent.js'
 import { createListingMatcher } from './matcher.js'
 import { DraftStatus, SessionState, Intent, TemplateVariant, SocialPlatform, CreditScope, CreditType, LocationSource } from '../domain/types.js'
 import { recordAiCall } from '../../../lib/ai-usage-logger.js'
+import { syntheticTenantId } from '../../../lib/credits/wallets.js'
 
 export function createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger }) {
   const storage = createStorage({ config, logger })
@@ -159,7 +160,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
         messages: session.messages.map((m) => ({ role: 'user', text: m.text })),
         images: session.media.map((m) => ({ url: m.publicUrl, mimeType: m.mimeType })),
         agentListings,
-        tenantId: session.agent_id || agencyId || null,
+        tenantId: syntheticTenantId(creditScope, creditScopeId),
         relatedEntityType: session.draft_id ? 'draft' : 'session',
         relatedEntityId: session.draft_id || session.id,
       })

@@ -59,6 +59,16 @@ export function Navbar() {
     { path: '/admin/fin/configuration', label: 'Configuration' },
   ]
   const finOpsActive = location.pathname.startsWith('/admin/fin')
+  const billingSubItems = [
+    { path: '/plans', label: 'Plans' },
+    { path: '/my-subscription', label: 'Subscription' },
+    { path: '/my-credits', label: 'Credits' },
+    { path: '/my-credit-notes', label: 'Credit notes' },
+    { path: '/my-invoices', label: 'Invoices' },
+  ]
+  const billingActive = billingSubItems.some((it) =>
+    location.pathname === it.path || location.pathname.startsWith(`${it.path}/`),
+  )
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -170,13 +180,25 @@ export function Navbar() {
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1 rounded-md p-1.5 text-sm text-muted-foreground hover:bg-accent">
+                  <button
+                    className={`flex items-center gap-1 rounded-md p-1.5 text-sm ${
+                      billingActive ? 'text-foreground' : 'text-muted-foreground hover:bg-accent'
+                    }`}
+                    aria-label="Billing menu"
+                  >
                     <CreditCard className="h-4 w-4" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Account</DropdownMenuLabel>
+                  <DropdownMenuLabel>Billing</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {billingSubItems.map((sub) => (
+                    <DropdownMenuItem key={sub.path} asChild>
+                      <Link to={sub.path}>{sub.label}</Link>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Account</DropdownMenuLabel>
                   <DropdownMenuItem asChild>
                     <Link to="/notifications">Notification preferences</Link>
                   </DropdownMenuItem>
@@ -231,6 +253,24 @@ export function Navbar() {
                   </Link>
                 )
               })}
+            {agent ? (
+              <div className="mt-2 border-t pt-3">
+                <div className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Billing
+                </div>
+                {billingSubItems.map((sub) => (
+                  <Link
+                    key={sub.path}
+                    to={sub.path}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+                  >
+                    {sub.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             {isAdmin ? (
               <div className="mt-2 border-t pt-3">
                 <div className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold uppercase text-muted-foreground">

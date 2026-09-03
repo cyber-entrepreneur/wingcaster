@@ -12,6 +12,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 export function getXConfig() {
   return {
@@ -127,7 +129,11 @@ export async function replyToXMention({ tweetId, text, bearerToken }) {
  *
  * Reference: https://developer.x.com/en/docs/x-api/tweets/manage-tweets/api-reference/post-tweets
  */
-export async function publishXTweet({ text, mediaIds = [], replyToTweetId = null, bearerToken }) {
+export async function publishXTweet(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_X, opts, () => publishXTweet({ ...opts, __charged: true }))
+  }
+  const { text, mediaIds = [], replyToTweetId = null, bearerToken } = opts
   const cfg = getXConfig()
   const token = bearerToken || cfg.bearerToken
   if (!text?.trim() && mediaIds.length === 0) {

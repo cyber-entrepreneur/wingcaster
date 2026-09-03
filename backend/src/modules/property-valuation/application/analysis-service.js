@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { createHash } from 'node:crypto'
 import { Collections } from '../infrastructure/db.js'
 import { ConfidenceLevel, PricePosition } from '../domain/types.js'
+import { FEATURES } from '../../../lib/credits/features.js'
+import { meterFeature } from '../../../lib/credits/meter.js'
 
 export function createAnalysisService({
   dal,
@@ -207,7 +209,11 @@ export function createAnalysisService({
     }
 
     try {
-      return await aiAdapter.generateMarketContextSentence(context)
+      return await meterFeature(
+        FEATURES.AI_MARKET_PRICING_ANALYSIS,
+        { creditContext: { tenantId: property?.agent_id ? undefined : undefined, relatedEntityId: property?.id, callType: 'market_context' }, listingId: property?.id, tenantId: property?.credit_tenant_id || property?.tenant_id },
+        () => aiAdapter.generateMarketContextSentence(context),
+      )
     } catch (err) {
       logger.warn({ err: err.message }, 'AI market context sentence failed; using fallback')
       return deterministicSentence(context)

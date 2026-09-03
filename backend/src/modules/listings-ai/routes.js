@@ -29,6 +29,12 @@
  *   }
  */
 
+import { FEATURES } from '../../lib/credits/features.js'
+import { withCredits } from '../../lib/credits/with-credits.js'
+import { creditErrorHttpStatus } from '../../lib/credits/errors.js'
+import { creditContextFromRequest } from '../../lib/credits/tenant-context.js'
+import { randomUUID } from 'node:crypto'
+
 export function registerListingsAiRoutes(app, { aiAdapter, config, logger, authMiddleware, emitUsageEventAsync: emitUsageEvent }) {
   const auth = authMiddleware || ((_req, _res, next) => next())
 
@@ -60,13 +66,26 @@ export function registerListingsAiRoutes(app, { aiAdapter, config, logger, authM
     const messages = buildHintMessages(hints)
 
     try {
-      const result = await aiAdapter.extractProperty({
+      const credit = creditContextFromRequest(req, {
+        requestId: `listings-ai:${req.body?.listing_id || randomUUID()}`,
+        callType: 'describe',
+        relatedEntityType: 'listing',
+        relatedEntityId: req.body?.listing_id || null,
+      })
+      const result = await withCredits({
+        tenantId: credit.tenantId,
+        feature: FEATURES.AI_LISTINGS_DESCRIBE,
+        requestId: credit.requestId,
+        callType: credit.callType,
+        relatedEntityType: credit.relatedEntityType,
+        relatedEntityId: credit.relatedEntityId,
+      }, async () => aiAdapter.extractProperty({
         messages,
         images,
         provider: provider || undefined,
         intent: intent === 'update' ? 'update' : 'create',
         existingListing: existingListing || null,
-      })
+      }))
       const elapsed = Date.now() - started
       logger.info(
         {
@@ -113,6 +132,12 @@ export function registerListingsAiRoutes(app, { aiAdapter, config, logger, authM
             ai_duration_ms: elapsed,
             ai_success: false,
           },
+        })
+      }
+      if (err?.code) {
+        return res.status(creditErrorHttpStatus(err)).json({
+          error: err.message,
+          code: err.code,
         })
       }
       return res.status(502).json({

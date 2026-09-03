@@ -15,6 +15,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0'
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`
@@ -197,42 +199,49 @@ export async function fetchInstagramInsights({ mediaId, accessToken }) {
  * Uses the Instagram Graph API content publishing flow.
  * Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
  */
-export async function publishInstagramFeed({ imageUrl, caption, businessAccountId, accessToken }) {
-  const cfg = getInstagramConfig()
-  const igAccountId = businessAccountId || cfg.businessAccountId
-  const token = accessToken || cfg.pageAccessToken
-  requireInstagramPublishing(igAccountId, token)
+export async function publishInstagramFeed(opts = {}) {
+  return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, async () => {
+    const { imageUrl, caption, businessAccountId, accessToken } = opts
+    const cfg = getInstagramConfig()
+    const igAccountId = businessAccountId || cfg.businessAccountId
+    const token = accessToken || cfg.pageAccessToken
+    requireInstagramPublishing(igAccountId, token)
 
-  const createUrl = `${GRAPH_BASE}/${igAccountId}/media?access_token=${token}`
-  const createBody = new URLSearchParams({ image_url: imageUrl })
-  if (caption) createBody.append('caption', caption)
+    const createUrl = `${GRAPH_BASE}/${igAccountId}/media?access_token=${token}`
+    const createBody = new URLSearchParams({ image_url: imageUrl })
+    if (caption) createBody.append('caption', caption)
 
-  const createRes = await fetch(createUrl, { method: 'POST', body: createBody })
-  const createData = await createRes.json().catch(() => ({}))
-  if (!createRes.ok || !createData.id) {
-    throw Object.assign(new Error(`Instagram feed creation failed (${createRes.status}): ${createData?.error?.message || JSON.stringify(createData).slice(0, 200)}`), { code: 'INSTAGRAM_FEED_CREATE_FAILED', details: createData })
-  }
+    const createRes = await fetch(createUrl, { method: 'POST', body: createBody })
+    const createData = await createRes.json().catch(() => ({}))
+    if (!createRes.ok || !createData.id) {
+      throw Object.assign(new Error(`Instagram feed creation failed (${createRes.status}): ${createData?.error?.message || JSON.stringify(createData).slice(0, 200)}`), { code: 'INSTAGRAM_FEED_CREATE_FAILED', details: createData })
+    }
 
-  const publishUrl = `${GRAPH_BASE}/${igAccountId}/media_publish?access_token=${token}`
-  const publishBody = new URLSearchParams({ creation_id: createData.id })
-  const publishRes = await fetch(publishUrl, { method: 'POST', body: publishBody })
-  const publishData = await publishRes.json().catch(() => ({}))
-  if (!publishRes.ok || !publishData.id) {
-    throw Object.assign(new Error(`Instagram feed publish failed (${publishRes.status}): ${publishData?.error?.message || JSON.stringify(publishData).slice(0, 200)}`), { code: 'INSTAGRAM_FEED_PUBLISH_FAILED', details: publishData })
-  }
+    const publishUrl = `${GRAPH_BASE}/${igAccountId}/media_publish?access_token=${token}`
+    const publishBody = new URLSearchParams({ creation_id: createData.id })
+    const publishRes = await fetch(publishUrl, { method: 'POST', body: publishBody })
+    const publishData = await publishRes.json().catch(() => ({}))
+    if (!publishRes.ok || !publishData.id) {
+      throw Object.assign(new Error(`Instagram feed publish failed (${publishRes.status}): ${publishData?.error?.message || JSON.stringify(publishData).slice(0, 200)}`), { code: 'INSTAGRAM_FEED_PUBLISH_FAILED', details: publishData })
+    }
 
-  return {
-    ok: true,
-    provider: 'instagram_graph_api',
-    provider_message_id: publishData.id,
-    media_id: publishData.id,
-  }
+    return {
+      ok: true,
+      provider: 'instagram_graph_api',
+      provider_message_id: publishData.id,
+      media_id: publishData.id,
+    }
+  })
 }
 
 /**
  * Publish an Instagram carousel post.
  */
-export async function publishInstagramCarousel({ imageUrls, caption, businessAccountId, accessToken }) {
+export async function publishInstagramCarousel(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramCarousel({ ...opts, __charged: true }))
+  }
+  const { imageUrls, caption, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
   const token = accessToken || cfg.pageAccessToken
@@ -281,7 +290,11 @@ export async function publishInstagramCarousel({ imageUrls, caption, businessAcc
  * Note: Reels have strict requirements (duration, aspect ratio, codec). The caller
  * should provide a compliant video URL. We attempt the Graph API container flow.
  */
-export async function publishInstagramReel({ videoUrl, caption, businessAccountId, accessToken }) {
+export async function publishInstagramReel(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramReel({ ...opts, __charged: true }))
+  }
+  const { videoUrl, caption, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
   const token = accessToken || cfg.pageAccessToken
@@ -318,7 +331,11 @@ export async function publishInstagramReel({ videoUrl, caption, businessAccountI
 /**
  * Publish an Instagram Story (single image).
  */
-export async function publishInstagramStory({ imageUrl, businessAccountId, accessToken }) {
+export async function publishInstagramStory(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_INSTAGRAM, opts, () => publishInstagramStory({ ...opts, __charged: true }))
+  }
+  const { imageUrl, businessAccountId, accessToken } = opts
   const cfg = getInstagramConfig()
   const igAccountId = businessAccountId || cfg.businessAccountId
   const token = accessToken || cfg.pageAccessToken

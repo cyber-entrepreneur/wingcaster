@@ -5,6 +5,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 function normalizePhone(phone) {
   if (!phone) return ''
@@ -36,7 +38,11 @@ function requireSMSCreds(cfg, feature) {
   }
 }
 
-export async function sendSMS({ to, body }) {
+export async function sendSMS(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.COMMUNICATION_SMS_PER_MESSAGE, opts, () => sendSMS({ ...opts, __charged: true }))
+  }
+  const { to, body } = opts
   const cfg = getSMSConfig()
   const phone = normalizePhone(to)
   if (!phone) throw Object.assign(new Error('Recipient phone number is required'), { code: 'MISSING_RECIPIENT' })

@@ -19,6 +19,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 const REST_BASE = 'https://api.linkedin.com/rest'
 const UGC_BASE = 'https://api.linkedin.com/v2'
@@ -55,16 +57,20 @@ function requireLinkedInCreds(token, feature) {
  * we do NOT perform here. The `imageAssetUrn` should already be a registered
  * asset URN. Text and article posts work with just the caller args.
  */
-export async function publishLinkedInPost({
-  authorUrn,
-  commentary,
-  imageAssetUrn,
-  articleUrl,
-  articleTitle,
-  articleDescription,
-  visibility = 'PUBLIC',
-  accessToken,
-}) {
+export async function publishLinkedInPost(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_LINKEDIN, opts, () => publishLinkedInPost({ ...opts, __charged: true }))
+  }
+  const {
+    authorUrn,
+    commentary,
+    imageAssetUrn,
+    articleUrl,
+    articleTitle,
+    articleDescription,
+    visibility = 'PUBLIC',
+    accessToken,
+  } = opts
   const cfg = getLinkedInConfig()
   const author = authorUrn || cfg.authorUrn
   const token = accessToken || cfg.accessToken

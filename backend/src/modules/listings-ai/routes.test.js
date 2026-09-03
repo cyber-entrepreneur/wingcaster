@@ -3,6 +3,10 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerListingsAiRoutes } from './routes.js'
 
+vi.mock('../../lib/credits/with-credits.js', () => ({
+  withCredits: async (_opts, work) => work(),
+}))
+
 function createHarness(extractProperty) {
   const calls = []
   const app = express()

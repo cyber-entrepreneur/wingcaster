@@ -964,4 +964,58 @@ export const CHECKS = [
         WHERE COALESCE((s.data->>'last_granted_credits')::bigint, 0) > 0
           AND s.data ? 'last_granted_cycle_start'`,
   },
+  {
+    check_code: 'R121',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'tenant_subscriptions',
+    source_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+        WHERE s.status = 'ACTIVE'`,
+    comparison_query: `SELECT s.id AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+         JOIN public.credit_wallets w ON w.tenant_id = s.tenant_id
+        WHERE s.status = 'ACTIVE'`,
+  },
+  {
+    check_code: 'R122',
+    severity: 'HIGH',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_consumptions',
+    source_query: `SELECT c.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_consumptions c`,
+    comparison_query: `SELECT c.id AS entity_id, 1::bigint AS qty
+         FROM public.credit_consumptions c
+         JOIN public.metered_features f ON f.code = c.feature`,
+  },
+  {
+    check_code: 'R123',
+    severity: 'MEDIUM',
+    expected_delta_units: 0,
+    drift_action: 'WARN',
+    entity_type: 'credit_consumptions',
+    emptyComparisonIsDrift: true,
+    source_query: `SELECT md5(s.tenant_id::text || ':' || f.code)::uuid AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+         JOIN public.package_feature_quotas q ON q.package_version_id = s.package_version_id
+         JOIN public.metered_features f ON f.id = q.feature_id
+         JOIN LATERAL (
+           SELECT COALESCE(SUM(c.credits_amount), 0)::bigint AS used
+             FROM public.credit_consumptions c
+            WHERE c.tenant_id = s.tenant_id
+              AND c.feature = f.code
+              AND c.consumed_at >= s.billing_cycle_start
+              AND c.consumed_at < s.billing_cycle_end
+         ) u ON true
+        WHERE s.status IN ('ACTIVE', 'CANCELED_AT_PERIOD_END')
+          AND q.credits_per_property * s.properties_committed > 0
+          AND u.used > (2 * q.credits_per_property * s.properties_committed)`,
+    comparison_query: `SELECT md5(s.tenant_id::text || ':' || f.code)::uuid AS entity_id, 1::bigint AS qty
+         FROM public.tenant_subscriptions s
+         JOIN public.package_feature_quotas q ON q.package_version_id = s.package_version_id
+         JOIN public.metered_features f ON f.id = q.feature_id
+        WHERE false`,
+  },
 ]

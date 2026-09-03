@@ -21,9 +21,12 @@ import { registerFinVendorAdminRoutes } from './fin/admin/vendors/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
 import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
+import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
+import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
+import { resolveRequestCreditTenant, creditContextFromRequest, creditTenantIdForScope } from './lib/credits/tenant-context.js'
 import { handleStripeWebhook } from './fin/funding/http.js'
 import { sendPlatformNotification } from './notifications/platform-templates/index.js'
 import {
@@ -470,6 +473,17 @@ const authLimiter = rateLimit({
   },
 })
 
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.WHATSAPP_WEBHOOK_RATE_MAX || 120),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    logger.warn({ ip: req.ip, path: req.path }, 'Webhook rate limit exceeded')
+    res.status(429).json({ error: 'Too many webhook events', code: 'WEBHOOK_RATE_LIMITED' })
+  },
+})
+
 app.use(generalLimiter)
 app.use('/api/auth', authLimiter)
 app.use('/api/inquiries', authLimiter)
@@ -628,6 +642,7 @@ registerFinOpsAdminRoutes(app, {
 })
 registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
+registerTenantBillingRoutes(app)
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -1711,6 +1726,23 @@ app.post('/api/properties', authMiddleware, validate(propertyCreateSchema), asyn
   })
 
   await invalidatePricingForPropertyChange(propertyRecord)
+
+  try {
+    await transaction(async (client) => {
+      const tenant = resolveRequestCreditTenant({ user: req.user, agent: agent || req.agent })
+      if (!tenant) return
+      await syncListingPropertyTracker(client, {
+        tenantId: tenant.creditTenantId,
+        propertyId: propertyRecord.id,
+        listingStatus: propertyRecord.status,
+      })
+    })
+  } catch (err) {
+    if (err?.code === 'PROPERTY_LIMIT_EXCEEDED') {
+      return res.status(402).json({ error: err.message, code: err.code, extra: err.extra })
+    }
+    logger.warn({ err: err.message, listingId: propertyRecord.id }, 'property tracker sync failed')
+  }
 
   emitUsageEventAsync({
     actionKey: 'listing.created',
@@ -4274,13 +4306,23 @@ app.get('/api/contacts/:id/conversations-360', authMiddleware, async (req, res) 
 
 app.get('/api/contacts/:id/lead-score', authMiddleware, async (req, res) => {
   await assertOwnsContact(req.user.id, req.params.id)
-  const score = await computeLeadScore(req.params.id)
+  const score = await computeLeadScore(req.params.id, creditContextFromRequest(req, {
+    relatedEntityId: req.params.id,
+    callType: 'lead_score',
+  }))
   res.json(score)
 })
 
 app.get('/api/contacts/:id/lead-summary', authMiddleware, async (req, res) => {
   await assertOwnsContact(req.user.id, req.params.id)
-  const bundle = await getLeadSummary({ contactId: req.params.id, requesterAgentId: req.user.id })
+  const bundle = await getLeadSummary({
+    contactId: req.params.id,
+    requesterAgentId: req.user.id,
+    creditContext: creditContextFromRequest(req, {
+      relatedEntityId: req.params.id,
+      callType: 'lead_summary',
+    }),
+  })
   if (bundle.error) {
     const code = bundle.error === 'Contact not found' ? 404 : 403
     return res.status(code).json({ error: bundle.error })
@@ -4303,6 +4345,10 @@ app.post('/api/contacts/:id/regenerate-summary', authMiddleware, async (req, res
       aiAdapter,
       provider: listingsAiModule.config?.aiProvider,
       logger,
+      creditContext: creditContextFromRequest(req, {
+        relatedEntityId: req.params.id,
+        callType: 'lead_summary',
+      }),
     })
     if (bundle.error) {
       const code = bundle.error === 'Contact not found' ? 404 : 403
@@ -4515,7 +4561,11 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
       if (!recipient) {
         throw new Error('Add a WhatsApp recipient number in Channel Settings (or WHATSAPP_DEFAULT_RECIPIENT in .env)')
       }
-      const sent = await sendListingToWhatsApp(serialized, recipient)
+      const sent = await sendListingToWhatsApp(serialized, recipient, {
+        tenantId: creditTenantIdForScope('personal', row.agent_id),
+        relatedEntityId: serialized.id,
+        callType: 'retry_publish',
+      })
       externalId = sent.message_id
       status = 'published'
       publishedAt = nowIso
@@ -4531,15 +4581,24 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
       const imageUrls = meta.media_urls?.length ? meta.media_urls : (serialized.photos || [])
       const caption = meta.caption || `${serialized.title} · ${serialized.city || serialized.location || ''}`
       const formats = row.formats || meta.formats || []
+      const creditContext = {
+        tenantId: creditTenantIdForScope('personal', row.agent_id),
+        relatedEntityId: serialized.id,
+        callType: 'retry_publish',
+      }
       let publishResult
       if (formats.includes('carousel') && imageUrls.length > 1) {
-        publishResult = await publishInstagramCarousel({ imageUrls, caption })
+        publishResult = await publishInstagramCarousel({ imageUrls, caption, creditContext })
       } else if (formats.includes('reel') && imageUrls[0]?.includes('video')) {
-        publishResult = await publishInstagramReel({ videoUrl: imageUrls[0], caption })
+        publishResult = await publishInstagramReel({ videoUrl: imageUrls[0], caption, creditContext })
       } else if (formats.includes('story') && imageUrls.length) {
-        publishResult = await publishInstagramStory({ imageUrl: imageUrls[0] })
+        publishResult = await publishInstagramStory({ imageUrl: imageUrls[0], creditContext })
       } else if (imageUrls.length) {
-        publishResult = await publishInstagramFeed({ imageUrl: imageUrls[0], caption })
+        publishResult = await publishInstagramFeed({
+          imageUrl: imageUrls[0],
+          caption,
+          creditContext,
+        })
       } else {
         throw new Error('No media URLs available for Instagram publish')
       }
@@ -5266,7 +5325,10 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
           error = 'Add a WhatsApp recipient number in Channel Settings (or WHATSAPP_DEFAULT_RECIPIENT in .env)'
         } else {
           try {
-            const sent = await sendListingToWhatsApp(serialized, to)
+            const sent = await sendListingToWhatsApp(serialized, to, creditContextFromRequest(req, {
+              relatedEntityId: serialized.id,
+              callType: 'listing_card',
+            }))
             externalId = sent.message_id
             meta = {
               ...meta,
@@ -5381,6 +5443,10 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
   const firstImage = mediaUrls.find((u) => typeof u === 'string' && !/\.(mp4|webm|mov)(\?|$)/i.test(u)) || mediaUrls[0]
   const firstVideo = mediaUrls.find((u) => typeof u === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(u))
   const text = String(caption || '').trim() || `${property.title} — ${[property.city, property.neighborhood].filter(Boolean).join(', ')}`
+  const creditContext = creditContextFromRequest(req, {
+    relatedEntityId: property.id,
+    callType: 'publish',
+  })
 
   const results = []
   for (const raw of channels) {
@@ -5441,13 +5507,13 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
             accessToken: creds.ig_page_access_token_override || undefined,
           }
           if (format === 'reel' && firstVideo) {
-            publishResult = await publishInstagramReel({ videoUrl: firstVideo, caption: text, ...igArgs })
+            publishResult = await publishInstagramReel({ videoUrl: firstVideo, caption: text, ...igArgs, creditContext })
           } else if (format === 'story' && firstImage) {
-            publishResult = await publishInstagramStory({ imageUrl: firstImage, ...igArgs })
+            publishResult = await publishInstagramStory({ imageUrl: firstImage, ...igArgs, creditContext })
           } else if (mediaUrls.length > 1) {
-            publishResult = await publishInstagramCarousel({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...igArgs })
+            publishResult = await publishInstagramCarousel({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...igArgs, creditContext })
           } else if (firstImage) {
-            publishResult = await publishInstagramFeed({ imageUrl: firstImage, caption: text, ...igArgs })
+            publishResult = await publishInstagramFeed({ imageUrl: firstImage, caption: text, ...igArgs, creditContext })
           } else {
             throw Object.assign(new Error('Instagram publish requires at least one image or video'), { code: 'MISSING_MEDIA' })
           }
@@ -5465,9 +5531,9 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
             accessToken: creds.fb_page_access_token_override || undefined,
           }
           if (firstImage) {
-            publishResult = await publishFacebookPagePhoto({ imageUrl: firstImage, caption: text, ...fbArgs })
+            publishResult = await publishFacebookPagePhoto({ imageUrl: firstImage, caption: text, ...fbArgs, creditContext })
           } else {
-            publishResult = await publishFacebookPagePost({ message: text, linkUrl: raw?.link_url || null, ...fbArgs })
+            publishResult = await publishFacebookPagePost({ message: text, linkUrl: raw?.link_url || null, ...fbArgs, creditContext })
           }
           break
         }
@@ -5479,7 +5545,7 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
               { code: 'MISSING_OAUTH_TOKEN' },
             )
           }
-          publishResult = await publishXTweet({ text, bearerToken: creds.oauth_access_token })
+          publishResult = await publishXTweet({ text, bearerToken: creds.oauth_access_token, creditContext })
           break
         }
         case 'tiktok': {
@@ -5491,9 +5557,9 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
           }
           const ttArgs = { accessToken: creds.oauth_access_token }
           if (firstVideo) {
-            publishResult = await publishTikTokVideo({ videoUrl: firstVideo, caption: text, ...ttArgs })
+            publishResult = await publishTikTokVideo({ videoUrl: firstVideo, caption: text, ...ttArgs, creditContext })
           } else if (mediaUrls.length > 0) {
-            publishResult = await publishTikTokPhoto({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...ttArgs })
+            publishResult = await publishTikTokPhoto({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...ttArgs, creditContext })
           } else {
             throw Object.assign(new Error('TikTok publish requires at least one photo or video'), { code: 'MISSING_MEDIA' })
           }
@@ -5510,6 +5576,7 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
             commentary: text,
             authorUrn: creds.li_author_urn,
             accessToken: creds.li_access_token_override || undefined,
+            creditContext,
           })
           break
         }
@@ -5632,7 +5699,10 @@ app.post('/api/whatsapp/send-listing', authMiddleware, async (req, res) => {
     if (prop.agent_id !== req.user.id && !await isPlatformAdmin(req.user.id)) {
       return res.status(403).json({ error: 'Forbidden' })
     }
-    const result = await sendListingToWhatsApp(serializeProperty(prop), to)
+    const result = await sendListingToWhatsApp(serializeProperty(prop), to, creditContextFromRequest(req, {
+      relatedEntityId: prop.id,
+      callType: 'listing_card',
+    }))
     await logActivity({
       type: 'whatsapp_listing_sent',
       property_id: prop.id,
@@ -5707,7 +5777,7 @@ app.get('/api/webhooks/whatsapp', (req, res) => {
   return res.sendStatus(403)
 })
 
-app.post('/api/webhooks/whatsapp', async (req, res) => {
+app.post('/api/webhooks/whatsapp', webhookLimiter, async (req, res) => {
   try {
     const signature = req.headers['x-hub-signature-256'] || ''
     const secret = requiredWebhookSecret(

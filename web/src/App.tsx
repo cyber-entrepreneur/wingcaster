@@ -62,6 +62,11 @@ import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
 import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
+import { PlansPage } from '@/pages/PlansPage'
+import { MySubscriptionPage } from '@/pages/MySubscriptionPage'
+import { MyCreditsPage } from '@/pages/MyCreditsPage'
+import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
+import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 
 function AppShell() {
   const location = useLocation()
@@ -98,6 +103,11 @@ function AppShell() {
           <Route path="/agency/pricing" element={<AgencyPricingPage />} />
           <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
           <Route path="/widgets" element={<WidgetBuilderPage />} />
+          <Route path="/plans" element={<PlansPage />} />
+          <Route path="/my-subscription" element={<MySubscriptionPage />} />
+          <Route path="/my-credits" element={<MyCreditsPage />} />
+          <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
+          <Route path="/my-invoices" element={<MyInvoicesPage />} />
           <Route path="/integrations" element={<IntegrationSettingsPage />} />
           <Route path="/settings/2fa" element={<TotpSettingsPage />} />
           <Route path="/settings/channels" element={<SocialChannelsPage />} />

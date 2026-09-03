@@ -15,6 +15,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { FEATURES } from '../credits/features.js'
+import { meterFeature } from '../credits/meter.js'
 
 export function getTikTokConfig() {
   return {
@@ -56,7 +58,11 @@ export async function sendTikTokDM({ userId, text, accessToken }) {
   unimplemented('DM sending')
 }
 
-export async function publishTikTokPhoto({ imageUrls, caption, accessToken }) {
+export async function publishTikTokPhoto(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_TIKTOK, opts, () => publishTikTokPhoto({ ...opts, __charged: true }))
+  }
+  const { imageUrls, caption, accessToken } = opts
   const token = accessToken || getTikTokConfig().accessToken
   const urls = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [imageUrls].filter(Boolean)
   if (!urls.length) throw Object.assign(new Error('imageUrls is required'), { code: 'MISSING_MEDIA' })
@@ -98,7 +104,11 @@ export async function publishTikTokPhoto({ imageUrls, caption, accessToken }) {
   }
 }
 
-export async function publishTikTokVideo({ videoUrl, caption, accessToken }) {
+export async function publishTikTokVideo(opts = {}) {
+  if (!opts.__charged) {
+    return meterFeature(FEATURES.PUBLISHING_SOCIAL_TIKTOK, opts, () => publishTikTokVideo({ ...opts, __charged: true }))
+  }
+  const { videoUrl, caption, accessToken } = opts
   const token = accessToken || getTikTokConfig().accessToken
   if (!videoUrl) throw Object.assign(new Error('videoUrl is required'), { code: 'MISSING_MEDIA' })
   requireTikTokCreds(token, 'video publishing')
