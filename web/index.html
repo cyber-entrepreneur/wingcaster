@@ -2,13 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link id="brand-favicon" rel="icon" type="image/svg+xml" href="/brand-icon.svg" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('wingcaster.brand')
+          var mode = 'system'
+          if (stored) {
+            var parsed = JSON.parse(stored)
+            if (parsed && (parsed.mode === 'light' || parsed.mode === 'dark' || parsed.mode === 'system')) {
+              mode = parsed.mode
+            }
+          }
+          if (mode === 'light' || mode === 'dark') {
+            document.documentElement.setAttribute('data-lc-mode', mode)
+          } else {
+            document.documentElement.removeAttribute('data-lc-mode')
+          }
+        } catch (e) {}
+      })()
+    </script>
+    <link id="brand-favicon" rel="icon" type="image/svg+xml" href="/brand/wingcaster-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0F0F0F" />
+    <meta name="theme-color" content="#FAF8F7" />
     <title>Wingcaster</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
