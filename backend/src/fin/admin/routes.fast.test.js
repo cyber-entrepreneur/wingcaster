@@ -52,6 +52,9 @@ const WRITES = [
   ['post', '/api/admin/fin/accounting/periods/x/soft-close'],
   ['post', '/api/admin/fin/accounting/periods/x/hard-close'],
   ['post', '/api/admin/fin/accounting/periods/x/reopen'],
+  ['post', '/api/admin/fin/vendors/x/rates'],
+  ['post', '/api/admin/fin/vendors/x/rates/y/deprecate'],
+  ['post', '/api/admin/fin/vendors/x/statements/2026-08/reconcile'],
 ]
 
 describe('fin.admin ops fast gates', () => {
@@ -71,6 +74,12 @@ describe('fin.admin ops fast gates', () => {
   it('GET overview refuses a non-admin', async () => {
     const app = mount({ role: 'agent' })
     const res = await request(app).get('/api/admin/fin/overview')
+    expect(res.status).toBe(403)
+  })
+
+  it('GET /api/admin/fin/vendors refuses a non-admin', async () => {
+    const app = mount({ role: 'agent' })
+    const res = await request(app).get('/api/admin/fin/vendors')
     expect(res.status).toBe(403)
   })
 })
