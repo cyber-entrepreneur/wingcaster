@@ -23,6 +23,7 @@ export default defineConfig({
       CREDITS_JANITOR_ENABLED: 'false',
       CREDITS_FIN_MIRROR_ENABLED: 'false',
       CREDITS_BILLING_CYCLE_ENABLED: 'false',
+      NOTIFICATION_RETRY_WORKER_ENABLED: 'false',
       ...(process.env.TEST_DATABASE_URL ? { PG_CONNECTION_TIMEOUT_MS: '120000' } : {}),
     },
     coverage: {
