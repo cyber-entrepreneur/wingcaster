@@ -442,7 +442,7 @@ export function AgentRegisterPage() {
           <Building2 className="mx-auto mb-4 h-12 w-12 text-foreground" />
           <h1 className="text-3xl font-bold tracking-tight font-display">Create your agent account</h1>
           <p className="mt-2 text-muted-foreground">
-            Join Real Estate Bazaar and start listing properties today.
+            Join WingCaster and start listing properties today.
           </p>
         </div>
 
@@ -958,7 +958,7 @@ export function AgentRegisterPage() {
                     <Link to="/terms" className="underline underline-offset-2 text-foreground">Terms of Use</Link>{' '}
                     and{' '}
                     <Link to="/privacy" className="underline underline-offset-2 text-foreground">Privacy Policy</Link>{' '}
-                    in the creation of my Real Estate Bazaar account. I confirm that all information provided is accurate and that I hold a valid real estate license where applicable.
+                    in the creation of my WingCaster account. I confirm that all information provided is accurate and that I hold a valid real estate license where applicable.
                   </span>
                 </label>
 
