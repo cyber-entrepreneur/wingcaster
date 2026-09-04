@@ -45,6 +45,16 @@ export function primaryRateKey(rates) {
   return Object.keys(rates)[0] || null
 }
 
+/**
+ * Percent change vs the prior unit cost.
+ *
+ * New-SKU governance: a missing or zero prior (first listing of this
+ * rate_key) returns 0 so the change applies directly. WF-20 two-person
+ * approval is for revising an existing rate above
+ * VENDOR_RATE_APPROVAL_THRESHOLD_PCT, not for introducing a SKU. A $0
+ * prior would otherwise yield an infinite delta and force approval on
+ * every new product.
+ */
 export function deltaPct(fromMinor, toMinor) {
   const from = num(fromMinor)
   const to = num(toMinor)

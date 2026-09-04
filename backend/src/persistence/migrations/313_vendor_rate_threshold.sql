@@ -1,5 +1,6 @@
 -- Vendor admin unstub (PA-VEN). Spec referred to this as 305c_vendor_rate_threshold.sql;
--- the runner skips NNN[letter]_*.sql (operator down-migrations), so this is 307.
+-- the runner skips NNN[letter]_*.sql (operator down-migrations). 307–312 were
+-- taken on main after queue movement, so this is 313.
 --
 -- 1. CFG key VENDOR_RATE_APPROVAL_THRESHOLD_PCT (default 20.0).
 -- 2. approval_requests.payload JSONB so PA-APR-002 can render impact_summary.

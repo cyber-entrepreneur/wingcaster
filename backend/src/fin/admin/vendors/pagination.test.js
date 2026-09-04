@@ -42,8 +42,9 @@ describe('vendor admin rate helpers', () => {
     expect(rates['gpt-4o-mini.input_tokens'].unit_cost_minor).toBe(180)
   })
 
-  it('deltaPct is 0 without a prior rate and >20 for a 76% hike', () => {
+  it('deltaPct is 0 for a new SKU (no prior) and >20 for a 76% hike', () => {
     expect(deltaPct(null, 30)).toBe(0)
+    expect(deltaPct(0, 30)).toBe(0)
     expect(deltaPct(17, 18)).toBeLessThan(20)
     expect(deltaPct(17, 30)).toBeGreaterThan(20)
   })

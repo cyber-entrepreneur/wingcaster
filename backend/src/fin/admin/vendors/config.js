@@ -1,5 +1,5 @@
 /**
- * Platform CFG reads for vendor admin. Key seeded in migration 307.
+ * Platform CFG reads for vendor admin. Key seeded in migration 313.
  */
 import { query } from '../../../db.js'
 
