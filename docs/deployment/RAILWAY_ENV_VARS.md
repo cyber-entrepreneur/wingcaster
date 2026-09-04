@@ -143,8 +143,8 @@ Depending on which providers you enable per-feature, set some subset of `OPENAI_
 - `AI_PROVIDER_FALLBACK` (default `anthropic`)
 - `OPENAI_MODEL_POST_CREATION` (default `gpt-4o-mini`)
 - `OPENAI_MODEL_PROPERTY_RATING` (default `gpt-4o-mini`)
-- `ANTHROPIC_MODEL_POST_CREATION` (default `claude-3-haiku`, resolved to `claude-3-haiku-20240307` for pricing)
-- `ANTHROPIC_MODEL_PROPERTY_RATING` (default `claude-3-haiku`, resolved to `claude-3-haiku-20240307` for pricing)
+- `ANTHROPIC_MODEL_POST_CREATION` (default `claude-haiku-4-5`, resolved to `claude-haiku-4-5-20251001` for pricing)
+- `ANTHROPIC_MODEL_PROPERTY_RATING` (default `claude-haiku-4-5`, resolved to `claude-haiku-4-5-20251001` for pricing)
 
 ---
 

@@ -10,6 +10,10 @@
 export const AI_PRICING = {
   // Anthropic Claude 3 Haiku — $0.25 / $1.25 per 1M. https://www.anthropic.com/pricing
   'claude:claude-3-haiku-20240307': { inputPerMillionMicroUsd: 2_500, outputPerMillionMicroUsd: 12_500 },
+  // Anthropic Claude Haiku 4.5 — $1.00 / $5.00 per 1M. Verified 2026-09-05 via
+  // claude-api skill + https://platform.claude.com/docs/en/models/haiku-4-5/overview
+  // Stored as USD × 10_000 / 1M tokens (same unit as the rest of this table).
+  'claude:claude-haiku-4-5-20251001': { inputPerMillionMicroUsd: 10_000, outputPerMillionMicroUsd: 50_000 },
   // OpenAI gpt-4o-mini — $0.15 / $0.60 per 1M. https://platform.openai.com/docs/pricing
   'openai:gpt-4o-mini': { inputPerMillionMicroUsd: 1_500, outputPerMillionMicroUsd: 6_000 },
   // Gemini 1.5 Flash last published (model retired 2025-09-24) — $0.075 / $0.30 per 1M ≤128K.

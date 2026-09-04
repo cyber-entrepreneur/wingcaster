@@ -205,7 +205,7 @@ finPostgresSuite('AI producer wiring (createAiPost + rateProperty)', {}, ({ pool
     expect(Number(consumed.credits_amount)).toBe(500)
     const logs = await usageRows(pool(), tenantId, FEATURES.AI_POST_CREATION)
     expect(logs[0].provider).toBe('anthropic')
-    expect(logs[0].model).toBe('claude-3-haiku-20240307')
+    expect(logs[0].model).toBe('claude-haiku-4-5-20251001')
   })
 
   it('rateProperty × OpenAI happy path meters, matches schema, and logs usage', async () => {
@@ -254,7 +254,7 @@ finPostgresSuite('AI producer wiring (createAiPost + rateProperty)', {}, ({ pool
     expect(Number(consumed.credits_amount)).toBe(200)
     const logs = await usageRows(pool(), tenantId, FEATURES.AI_PROPERTY_RATING)
     expect(logs[0].provider).toBe('anthropic')
-    expect(logs[0].model).toBe('claude-3-haiku-20240307')
+    expect(logs[0].model).toBe('claude-haiku-4-5-20251001')
   })
 
   it('createAiPost falls over to Anthropic when OpenAI is down', async () => {
