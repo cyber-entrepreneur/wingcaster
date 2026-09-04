@@ -61,7 +61,7 @@ export function createIntentClassifier({ aiAdapter }) {
       try {
         const aiResult = await withCredits({
           tenantId,
-          feature: FEATURES.AI_POST_CREATION,
+          feature: FEATURES.WHATSAPP_LISTINGS,
           requestId: `wa-intent:${relatedEntityId || randomUUID()}`,
           callType: 'classifyIntent',
           relatedEntityType,

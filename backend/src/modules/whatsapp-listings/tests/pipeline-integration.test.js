@@ -6,12 +6,22 @@ import pg from 'pg'
 import { loadDb, insert, findOne, findAll, update, closeDb, configure } from '../../../db.js'
 import { skipIfNoPostgres } from '../../../testing/postgres.js'
 
+const { createAiPostMock } = vi.hoisted(() => ({
+  createAiPostMock: vi.fn(),
+}))
+
 vi.mock('../../../whatsapp.js', () => ({
   sendWhatsAppText: vi.fn().mockResolvedValue({ messages: [{ id: 'mock-msg-id' }] }),
   sendWhatsAppImage: vi.fn().mockResolvedValue({ messages: [{ id: 'mock-img-id' }] }),
   sendWhatsAppInteractive: vi.fn().mockResolvedValue({ messages: [{ id: 'mock-interactive-id' }] }),
   getWhatsAppHealth: vi.fn().mockResolvedValue({ configured: false, healthy: false }),
   isWhatsAppConfigured: vi.fn().mockReturnValue(false),
+}))
+
+vi.mock('../../../lib/credits/ai-stubs.js', () => ({
+  createAiPost: (...args) => createAiPostMock(...args),
+  rateProperty: vi.fn(),
+  activateLeadGen: vi.fn(),
 }))
 
 const { Client } = pg
@@ -216,6 +226,32 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
       healthCheck: vi.fn().mockResolvedValue({ ok: true }),
     }
     module.pipeline.aiAdapter.providers.set('gemini', fakeProvider)
+    createAiPostMock.mockReset()
+    createAiPostMock.mockResolvedValue({
+      ok: true,
+      result: {
+        captions: {
+          instagram: 'Sunny Hamra 2-bed. #Beirut #RealEstate',
+          facebook: 'Bright 2-bed apartment in Hamra, ready for its next owner.',
+          tiktok: 'POV: Hamra apartment unlocked. [Sound: city loft] #Hamra',
+          x: 'Bright 2-bed in Hamra. #Beirut',
+          linkedin: 'A well-presented two-bedroom apartment in Hamra, Beirut.',
+          whatsapp: '2-bed in Hamra is available. Reply YES for a viewing.',
+        },
+      },
+      captions: {
+        instagram: 'Sunny Hamra 2-bed. #Beirut #RealEstate',
+        facebook: 'Bright 2-bed apartment in Hamra, ready for its next owner.',
+        tiktok: 'POV: Hamra apartment unlocked. [Sound: city loft] #Hamra',
+        x: 'Bright 2-bed in Hamra. #Beirut',
+        linkedin: 'A well-presented two-bedroom apartment in Hamra, Beirut.',
+        whatsapp: '2-bed in Hamra is available. Reply YES for a viewing.',
+      },
+      provider: 'openai',
+      cost_micro_usd: 14,
+      tokens_in: 100,
+      tokens_out: 80,
+    })
   })
 
   afterAll(async () => {
@@ -253,17 +289,22 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
     expect(draft).toBeTruthy()
     expect(draft.status).toBe('awaiting_approval')
     expect(draft.extracted_property.title).toBe('Integration Test Apartment')
+    expect(draft.captions.instagram.caption).toBe('Sunny Hamra 2-bed. #Beirut #RealEstate')
+    expect(createAiPostMock).toHaveBeenCalledTimes(1)
+    const postArgs = createAiPostMock.mock.calls[0][0]
+    expect(postArgs.description).toBe('Bright 2-bed apartment')
+    expect(postArgs.language).toBe('en')
+    expect(postArgs.channels).toEqual(['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'whatsapp'])
 
     const usageRows = await findAll('ai_call_usage', (row) => row.related_entity_id === ingestResult.sessionId || row.related_entity_id === draft.id)
-    expect(usageRows.length).toBeGreaterThanOrEqual(5)
+    expect(usageRows.length).toBeGreaterThanOrEqual(1)
     const callTypes = usageRows.map((row) => row.call_type).sort()
     expect(callTypes).toEqual(expect.arrayContaining([
-      'classifyIntent',
       'extractProperty',
-      'generateCaption:instagram',
-      'generateCaption:tiktok',
-      'generateCaption:x',
     ]))
+    expect(callTypes).not.toContain('generateCaption:instagram')
+    expect(callTypes).not.toContain('generateCaption:tiktok')
+    expect(callTypes).not.toContain('generateCaption:x')
     for (const row of usageRows) {
       expect(row.provider).toBe('gemini')
       expect(row.model).toBe('gemini-1.5-flash')

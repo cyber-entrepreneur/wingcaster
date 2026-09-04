@@ -145,7 +145,7 @@ finPostgresSuite('withCredits feature wiring', {}, ({ pool }) => {
     expect(entitlement.quota_used_this_cycle).toBe(0)
   })
 
-  it('stub adapters for features without producers are wrapped', async () => {
+  it('opts.work override still bypasses real producers; activateLeadGen stays stubbed', async () => {
     const tenantId = await seedCredits()
     await expect(publishOlx({
       creditContext: { tenantId, requestId: randomUUID() },
@@ -158,6 +158,9 @@ finPostgresSuite('withCredits feature wiring', {}, ({ pool }) => {
       creditContext: { tenantId, requestId: randomUUID() },
       work: async () => ({ activated: true }),
     })).resolves.toEqual({ activated: true })
+    await expect(activateLeadGen({
+      creditContext: { tenantId, requestId: randomUUID() },
+    })).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' })
     await expect(createAiPost({
       creditContext: { tenantId, requestId: randomUUID() },
       work: async () => ({ copy: 'hi' }),

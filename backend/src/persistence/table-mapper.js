@@ -137,6 +137,7 @@ const TABLE_MAP = {
       'price', 'price_unit', 'bedrooms', 'bathrooms', 'area', 'area_unit', 'city', 'neighborhood', 'location',
       'latitude', 'longitude', 'territory_id', 'marketplace_syndicated', 'asset_version', 'last_asset_generated_at',
       'tenant_id', 'ownership_type', 'custody_tenant_id', 'source_user_id', 'exit_disposition',
+      'ai_ratings',
     ],
   },
   property_media: { schema: 'public', table: 'property_media', columns: ['property_id', 'type', 'url', 'order_index', 'is_hero', 'caption'] },

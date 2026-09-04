@@ -36,6 +36,12 @@ export function creditErrorHttpStatus(error) {
       return 409
     case CREDIT_ERROR.APPROVAL_SELF_APPROVAL_FORBIDDEN:
       return 403
+    case 'LANGUAGE_NOT_YET_SUPPORTED':
+    case 'INVALID_INPUT':
+      return 400
+    case 'AI_STRUCTURED_OUTPUT_FAILED':
+    case 'AI_PROVIDERS_UNAVAILABLE':
+      return 502
     default:
       return 400
   }

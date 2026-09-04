@@ -138,6 +138,14 @@ Provider selection uses per-feature env vars like `LISTINGS_AI_PROVIDER`, `MARKE
 
 Depending on which providers you enable per-feature, set some subset of `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `WHATSAPP_LISTINGS_GEMINI_API_KEY`), `ANTHROPIC_API_KEY`.
 
+**Metered AI producers** (`createAiPost`, `rateProperty`):
+- `AI_PROVIDER_PRIMARY` (default `openai`)
+- `AI_PROVIDER_FALLBACK` (default `anthropic`)
+- `OPENAI_MODEL_POST_CREATION` (default `gpt-4o-mini`)
+- `OPENAI_MODEL_PROPERTY_RATING` (default `gpt-4o-mini`)
+- `ANTHROPIC_MODEL_POST_CREATION` (default `claude-3-haiku`, resolved to `claude-3-haiku-20240307` for pricing)
+- `ANTHROPIC_MODEL_PROPERTY_RATING` (default `claude-3-haiku`, resolved to `claude-3-haiku-20240307` for pricing)
+
 ---
 
 ## Tier 9 — External data / integrations
