@@ -70,6 +70,26 @@ describe('recordAiCall', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
+  it('places request_id and duration_ms on the insert payload, not nested under data', async () => {
+    insert.mockResolvedValue({ id: 'row-2' })
+    await recordAiCall({
+      feature: 'ai.post_creation',
+      callType: 'createAiPost',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      tokens_in: 10,
+      tokens_out: 4,
+      duration_ms: 42,
+      request_id: 'req-1',
+      extras: { tone: 'warm' },
+    })
+    const [, row] = insert.mock.calls[0]
+    expect(row.request_id).toBe('req-1')
+    expect(row.duration_ms).toBe(42)
+    expect(row.tone).toBe('warm')
+    expect(row.data).toBeUndefined()
+  })
+
   it('logs a warn and does not throw when insert fails', async () => {
     insert.mockRejectedValue(new Error('db down'))
     await expect(recordAiCall({

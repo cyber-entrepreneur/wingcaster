@@ -50,6 +50,11 @@ export async function recordAiCall({
       usage.inputTokens,
       usage.outputTokens,
     )
+    // toRow copies the whole insert item into the JSONB `data` column. Nested
+    // `data: { request_id }` therefore lands at data.data.request_id. Keep
+    // observability fields as top-level payload keys so they hydrate as
+    // data.request_id / data.duration_ms on a raw SELECT.
+    const { data: _nested, ...safeExtras } = extras || {}
     await insert('ai_call_usage', {
       id: uuidv4(),
       tenant_id: tenantId,
@@ -64,11 +69,9 @@ export async function recordAiCall({
       related_entity_type: relatedEntityType,
       related_entity_id: relatedEntityId,
       occurred_at: new Date().toISOString(),
-      data: {
-        ...extras,
-        ...(duration_ms != null ? { duration_ms } : {}),
-        ...(request_id != null ? { request_id } : {}),
-      },
+      ...safeExtras,
+      duration_ms,
+      request_id,
     })
   } catch (err) {
     logger.warn({ err, feature, callType }, 'recordAiCall failed — call succeeded, log did not')

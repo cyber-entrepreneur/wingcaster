@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import { authMiddleware } from '../../../auth.js'
 import { findOne } from '../../../db.js'
+import { findUserById } from '../../../identity.js'
 import { creditContextFromRequest } from '../../../lib/credits/tenant-context.js'
 import { creditErrorHttpStatus } from '../../../lib/credits/errors.js'
 import { rateProperty } from '../../../lib/credits/ai-stubs.js'
+import { authorizeInspectorPropertyRate } from '../application/property-area-match.js'
+
+async function callerIsPlatformAdmin(userId) {
+  if (!userId) return false
+  const user = await findUserById(userId)
+  return user?.platform_role === 'platform_admin' || user?.platform_role === 'admin'
+}
 
 async function requireAgent(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
@@ -12,6 +20,17 @@ async function requireAgent(req, res, next) {
       return res.status(403).json({ error: 'Forbidden: inspector required' })
     }
     next()
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+async function requireInspectorOrPa(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    if (req.user.role === 'agent') return next()
+    if (await callerIsPlatformAdmin(req.user.id)) return next()
+    return res.status(403).json({ error: 'Forbidden: inspector required' })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -100,19 +119,29 @@ export function registerInspectorRoutes(
     }
   })
 
-  app.post('/api/inspector/properties/:propertyId/rate', authMiddleware, requireAgent, async (req, res) => {
+  app.post('/api/inspector/properties/:propertyId/rate', authMiddleware, requireInspectorOrPa, async (req, res) => {
     try {
       const property = await findOne('properties', (p) => p.id === req.params.propertyId)
       if (!property) return res.status(404).json({ error: 'Property not found' })
 
-      let areaContext = req.body?.area_context || req.body?.areaContext || {}
-      if (req.body?.assignment_id) {
-        const assignment = await inspectorService.getAssignmentById(req.body.assignment_id)
-        if (!assignment || assignment.agent_id !== req.user.id) {
-          return res.status(403).json({ error: 'Forbidden: assignment not owned by you' })
-        }
-        const area = await areaService.getById(assignment.area_id)
-        areaContext = { ...areaContext, assignment_id: assignment.id, area }
+      const isPlatformAdmin = await callerIsPlatformAdmin(req.user.id)
+      const assignmentId = req.body?.assignment_id || req.body?.assignmentId || null
+      const gate = await authorizeInspectorPropertyRate({
+        user: req.user,
+        assignmentId,
+        property,
+        inspectorService,
+        areaService,
+        isPlatformAdmin,
+      })
+      if (!gate.ok) {
+        return res.status(gate.status).json({ error: gate.error })
+      }
+
+      const areaContext = {
+        ...(req.body?.area_context || req.body?.areaContext || {}),
+        assignment_id: gate.assignment?.id || assignmentId || null,
+        area: gate.area || null,
       }
 
       const credit = creditContextFromRequest(req, {
