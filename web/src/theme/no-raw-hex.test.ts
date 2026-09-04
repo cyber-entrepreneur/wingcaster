@@ -37,4 +37,36 @@ describe('Broadcast token hygiene', () => {
     }
     expect(offenders).toEqual([])
   })
+
+  it('every used Tailwind palette class is aliased to a Broadcast token', () => {
+    const ALIASED_PALETTES = new Set([
+      'slate', 'gray', 'zinc',
+      'red', 'rose',
+      'amber', 'yellow',
+      'green', 'emerald',
+      'purple', 'violet', 'indigo',
+      'blue', 'cyan',
+      'pink',
+      'orange',
+    ])
+    const KNOWN_TAILWIND_PALETTES = new Set([
+      ...ALIASED_PALETTES,
+      'stone', 'neutral',
+      'lime', 'teal', 'sky', 'fuchsia',
+    ])
+    const paletteClassRe =
+      /(?:bg|text|border|ring|from|to|via|shadow|divide|placeholder|outline|decoration|fill|stroke|caret|accent)(?:-(?:t|b|l|r|x|y|s|e|tl|tr|bl|br|start|end))?-([a-z]+)-\d+/g
+    const src = walk(SRC)
+      .filter((file) => /\.(tsx|ts)$/.test(file))
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n')
+    const usedPalettes = new Set<string>()
+    for (const match of src.matchAll(paletteClassRe)) {
+      usedPalettes.add(match[1])
+    }
+    const unaliased = [...usedPalettes].filter(
+      (p) => KNOWN_TAILWIND_PALETTES.has(p) && !ALIASED_PALETTES.has(p),
+    )
+    expect(unaliased).toEqual([])
+  })
 })
