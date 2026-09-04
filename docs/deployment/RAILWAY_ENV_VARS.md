@@ -132,6 +132,19 @@ If behind Railway's proxy and Twilio's webhook URL is a route on your service, s
 
 ---
 
+## Tier 7b — Push (FCM)
+
+Consumer push (iOS via APNS relay, Android native, FCM web tokens) is dispatched by [backend/src/lib/notifications/push.js](../../backend/src/lib/notifications/push.js). JWT signing and the OAuth access-token cache are handled by `google-auth-library` inside `firebase-admin` — do not mint tokens by hand.
+
+| Var | Purpose |
+|---|---|
+| `FCM_SERVICE_ACCOUNT_JSON` | Firebase service-account JSON key. Base64-encode it to fit in an env var; the process accepts raw JSON as well and decodes in-process. |
+| `FCM_PROJECT_ID` | Optional. Inferred from the service account JSON `project_id` when unset. |
+
+If these are missing, push dispatches return `skipped` with code `PUSH_UNCONFIGURED` and are **not** retried. The rest of notification dispatch (email / SMS / WhatsApp / in-app) is unaffected.
+
+---
+
 ## Tier 8 — AI providers
 
 Provider selection uses per-feature env vars like `LISTINGS_AI_PROVIDER`, `MARKET_PRICING_AI_PROVIDER`, `AREA_INTELLIGENCE_AI_PROVIDER`, `WHATSAPP_LISTINGS_AI_PROVIDER`. Fallback ordering uses `MARKET_PRICING_FALLBACK_AI_PROVIDERS`, `WHATSAPP_LISTINGS_FALLBACK_AI_PROVIDERS`.

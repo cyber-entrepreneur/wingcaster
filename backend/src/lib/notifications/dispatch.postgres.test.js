@@ -15,10 +15,15 @@ const waMock = vi.hoisted(() => ({
   isWhatsAppConfigured: vi.fn(() => true),
   sendWhatsAppText: vi.fn(async () => ({ messages: [{ id: 'wamid.1' }] })),
 }))
+const pushMock = vi.hoisted(() => ({
+  isPushConfigured: vi.fn(() => false),
+  sendPushNotification: vi.fn(),
+}))
 
 vi.mock('./email.js', () => emailMock)
 vi.mock('./sms.js', () => smsMock)
 vi.mock('../../whatsapp.js', () => waMock)
+vi.mock('./push.js', () => pushMock)
 
 const {
   dispatchConsumerNotification,
@@ -42,6 +47,8 @@ function resetTransportMocks() {
   smsMock.sendSMS.mockReset().mockResolvedValue({ ok: true, provider: 'twilio', provider_message_id: 'SM1' })
   waMock.isWhatsAppConfigured.mockReset().mockReturnValue(true)
   waMock.sendWhatsAppText.mockReset().mockResolvedValue({ messages: [{ id: 'wamid.1' }] })
+  pushMock.isPushConfigured.mockReset().mockReturnValue(false)
+  pushMock.sendPushNotification.mockReset()
 }
 
 beforeEach(() => {
@@ -62,6 +69,7 @@ describe('dispatchConsumerNotification — validation and deferred channels', ()
       { channel: 'sms', recipient: 'buyer@example.com' },
       { channel: 'whatsapp', recipient: 'buyer@example.com' },
       { channel: 'in_app', recipient: 'x' },
+      { channel: 'push', recipient: 'x' },
       { channel: 'email', recipient: '' },
     ]
     for (const { channel, recipient } of cases) {
@@ -78,17 +86,49 @@ describe('dispatchConsumerNotification — validation and deferred channels', ()
     expect(waMock.sendWhatsAppText).not.toHaveBeenCalled()
   })
 
-  it('returns PUSH_DEFERRED_TO_PART2 skipped for push', async () => {
+  it('returns PUSH_UNCONFIGURED skipped when FCM is not configured', async () => {
+    pushMock.isPushConfigured.mockReturnValue(false)
     const result = await dispatchConsumerNotification({
       channel: 'push',
-      recipient: 'usr_device_or_token',
+      recipient: 'usr_device01',
+      subject: 'Match',
       body: 'hello',
     })
     expect(result).toMatchObject({
       ok: false,
       status: 'skipped',
-      code: 'PUSH_DEFERRED_TO_PART2',
+      code: 'PUSH_UNCONFIGURED',
     })
+    expect(pushMock.sendPushNotification).not.toHaveBeenCalled()
+  })
+
+  it('push happy path maps sendPushNotification onto the standard result shape', async () => {
+    pushMock.isPushConfigured.mockReturnValue(true)
+    pushMock.sendPushNotification.mockResolvedValue({
+      ok: true,
+      provider: 'fcm',
+      provider_message_id: 'projects/wc-test/messages/1',
+      tokens_sent: 1,
+      tokens_invalidated: 0,
+    })
+    const result = await dispatchConsumerNotification({
+      channel: 'push',
+      recipient: 'usr_device01',
+      subject: 'Match',
+      body: 'hello',
+      metadata: { deep_link_url: 'https://app.example/x' },
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      status: 'sent',
+      provider: 'fcm',
+      provider_message_id: 'projects/wc-test/messages/1',
+    })
+    expect(pushMock.sendPushNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'usr_device01',
+      title: 'Match',
+      body: 'hello',
+    }))
   })
 
   it('returns failed UNKNOWN_CHANNEL for an unknown channel', async () => {

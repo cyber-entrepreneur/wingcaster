@@ -216,6 +216,7 @@ const TABLE_MAP = {
   consumer_notification_prefs: { schema: 'public', table: 'consumer_notification_prefs', columns: ['user_id', 'agent_id', 'channels', 'event_toggles', 'quiet_hours'] },
   consumer_notification_retries: { schema: 'public', table: 'consumer_notification_retries', columns: ['notification_id', 'channel', 'status', 'attempts', 'last_error', 'next_retry_at'] },
   consumer_automation_checkpoints: { schema: 'public', table: 'consumer_automation_checkpoints', columns: ['user_id', 'agent_id', 'checkpoint_type', 'last_evaluated_at', 'cursor'] },
+  user_push_tokens: { schema: 'public', table: 'user_push_tokens', columns: ['user_id', 'platform', 'token', 'device_id', 'last_used_at'] },
 
   // Audit / activity
   audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
