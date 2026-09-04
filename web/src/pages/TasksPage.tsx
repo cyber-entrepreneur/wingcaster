@@ -188,7 +188,7 @@ export function TasksPage() {
 
       {/* Inline quick-create form */}
       {showForm && (
-        <div className="shrink-0 border-b border-[#E4E3E0] bg-white px-6 py-4">
+        <div className="shrink-0 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <Input
               placeholder="Task title"
@@ -243,7 +243,7 @@ export function TasksPage() {
       )}
 
       {/* Filter toolbar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-[#E4E3E0] bg-white px-6 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6 py-2">
         {(['pending', 'completed', 'all'] as const).map((s) => (
           <button
             key={s}
@@ -251,8 +251,8 @@ export function TasksPage() {
             className={cn(
               'rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors',
               statusFilter === s
-                ? 'bg-[#0F0F0F] text-white'
-                : 'text-muted-foreground hover:bg-[#F0EFED] hover:text-foreground',
+                ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                : 'text-muted-foreground hover:bg-[var(--lc-action-secondary)] hover:text-foreground',
             )}
           >
             {s}
@@ -260,7 +260,7 @@ export function TasksPage() {
         ))}
         <div className="ml-auto flex items-center gap-2">
           <select
-            className="h-8 rounded-md border border-[#E4E3E0] bg-background px-2 text-xs text-muted-foreground"
+            className="h-8 rounded-md border border-[var(--lc-border)] bg-background px-2 text-xs text-muted-foreground"
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
           >
@@ -286,7 +286,7 @@ export function TasksPage() {
             description="Create a task above to start tracking your follow-ups."
           />
         ) : (
-          <div className="divide-y divide-[#E4E3E0]">
+          <div className="divide-y divide-[var(--lc-border)]">
             {filtered.map((t) => {
               const isOverdue = t.status === 'pending' && new Date(t.due_at) < now
               const isToday = t.status === 'pending' && new Date(t.due_at).toDateString() === now.toDateString()
@@ -294,7 +294,7 @@ export function TasksPage() {
                 <div
                   key={t.id}
                   className={cn(
-                    'group flex items-start gap-4 bg-white px-6 py-3.5 transition-colors hover:bg-[#F8F8F7]',
+                    'group flex items-start gap-4 bg-[var(--lc-surface)] px-6 py-3.5 transition-colors hover:bg-[var(--lc-bg-page)]',
                     t.status === 'completed' && 'opacity-60',
                   )}
                 >
@@ -341,7 +341,7 @@ export function TasksPage() {
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <Badge
                       variant="outline"
-                      className={cn('text-[10px]', isOverdue ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#E4E3E0]')}
+                      className={cn('text-[10px]', isOverdue ? 'border-red-200 bg-red-50 text-red-700' : 'border-[var(--lc-border)]')}
                     >
                       {t.priority}
                     </Badge>

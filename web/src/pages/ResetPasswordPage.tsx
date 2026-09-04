@@ -51,7 +51,7 @@ export function ResetPasswordPage() {
 
   if (done) {
     return (
-      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-muted/20 px-4 py-12">
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-[var(--lc-bg-page)] px-4 py-12">
         <Card className="w-full max-w-md">
           <CardContent className="py-10 text-center">
             <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-600" />
@@ -64,7 +64,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-muted/20 px-4 py-12">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-[var(--lc-bg-page)] px-4 py-12">
       <div className="w-full max-w-md">
         <Card className="border shadow-sm">
           <CardHeader>

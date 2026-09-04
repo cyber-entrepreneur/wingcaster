@@ -1,16 +1,26 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_BRAND, type BrandConfig } from '@/config/brand'
+import {
+  applyLcMode,
+  persistLcMode,
+  readStoredLcMode,
+  type LcColorMode,
+} from '@/theme/mode'
 
 interface BrandContextValue {
   brand: BrandConfig
   setBrand: (next: Partial<BrandConfig>) => void
   loading: boolean
+  colorMode: LcColorMode
+  setColorMode: (mode: LcColorMode) => void
 }
 
 const BrandContext = createContext<BrandContextValue>({
   brand: DEFAULT_BRAND,
   setBrand: () => {},
   loading: false,
+  colorMode: 'light',
+  setColorMode: () => {},
 })
 
 const STORAGE_KEY = 'wingcaster.brand'
@@ -30,16 +40,24 @@ function syncDocument(brand: BrandConfig) {
   document.title = brand.name
   const link = document.getElementById('brand-favicon') as HTMLLinkElement | null
   if (link && brand.iconUrl) link.href = brand.iconUrl
-  const themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null
-  if (themeMeta && brand.primaryColor) themeMeta.content = brand.primaryColor
-  const root = document.documentElement
-  if (brand.primaryColor) root.style.setProperty('--brand-primary', brand.primaryColor)
-  if (brand.accentColor) root.style.setProperty('--brand-accent', brand.accentColor)
 }
 
 export function BrandProvider({ children }: { children: ReactNode }) {
   const [brand, setBrandState] = useState<BrandConfig>(() => loadCached())
   const [loading, setLoading] = useState(true)
+  const [colorMode, setColorModeState] = useState<LcColorMode>(() => readStoredLcMode())
+
+  useEffect(() => {
+    applyLcMode(colorMode)
+  }, [colorMode])
+
+  useEffect(() => {
+    if (colorMode !== 'system' || typeof window === 'undefined') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => applyLcMode('system')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [colorMode])
 
   useEffect(() => {
     let cancelled = false
@@ -76,7 +94,15 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const value = useMemo(() => ({ brand, setBrand, loading }), [brand, loading])
+  const setColorMode = (mode: LcColorMode) => {
+    persistLcMode(mode)
+    setColorModeState(mode)
+  }
+
+  const value = useMemo(
+    () => ({ brand, setBrand, loading, colorMode, setColorMode }),
+    [brand, loading, colorMode],
+  )
 
   return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>
 }

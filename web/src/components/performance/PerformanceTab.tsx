@@ -9,15 +9,16 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { lcChannelColor, lcChannelTextClass } from '@/theme/channel'
 
 const PLATFORM_META: Record<string, { label: string; icon: any; color: string; band: string }> = {
-  instagram: { label: 'Instagram', icon: Instagram, color: 'text-pink-600', band: 'bg-pink-500' },
-  facebook:  { label: 'Facebook',  icon: Facebook,  color: 'text-blue-600', band: 'bg-blue-500' },
-  tiktok:    { label: 'TikTok',    icon: Video,     color: 'text-black',   band: 'bg-slate-900' },
-  x:         { label: 'X',         icon: Twitter,   color: 'text-slate-800', band: 'bg-slate-700' },
-  linkedin:  { label: 'LinkedIn',  icon: Linkedin,  color: 'text-blue-700', band: 'bg-blue-700' },
-  whatsapp:  { label: 'WhatsApp',  icon: MessageCircle, color: 'text-green-600', band: 'bg-green-500' },
-  facebook_feed: { label: 'FB Feed', icon: Facebook, color: 'text-blue-600', band: 'bg-blue-500' },
+  instagram: { label: 'Instagram', icon: Instagram, color: lcChannelTextClass('instagram'), band: 'bg-[var(--lc-channel-instagram)]' },
+  facebook:  { label: 'Facebook',  icon: Facebook,  color: lcChannelTextClass('facebook'), band: 'bg-[var(--lc-channel-facebook)]' },
+  tiktok:    { label: 'TikTok',    icon: Video,     color: lcChannelTextClass('tiktok'), band: 'bg-[var(--lc-channel-tiktok)]' },
+  x:         { label: 'X',         icon: Twitter,   color: lcChannelTextClass('x'), band: 'bg-[var(--lc-channel-x)]' },
+  linkedin:  { label: 'LinkedIn',  icon: Linkedin,  color: lcChannelTextClass('linkedin'), band: 'bg-[var(--lc-channel-linkedin)]' },
+  whatsapp:  { label: 'WhatsApp',  icon: MessageCircle, color: lcChannelTextClass('whatsapp'), band: 'bg-[var(--lc-channel-whatsapp)]' },
+  facebook_feed: { label: 'FB Feed', icon: Facebook, color: lcChannelTextClass('facebook'), band: 'bg-[var(--lc-channel-facebook)]' },
 }
 const PLATFORM_ORDER = ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'whatsapp']
 
@@ -72,7 +73,7 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
                 type="button"
                 onClick={() => setDays(d)}
                 className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                  days === d ? 'bg-slate-900 text-white' : 'text-muted-foreground hover:bg-muted'
+                  days === d ? 'bg-slate-900 text-[var(--lc-action-primary-text)]' : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {d}d
@@ -209,7 +210,7 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
               ]
               const max = Math.max(1, ...stages.map((s) => s.value))
               return (
-                <div key={f.platform} className="rounded-lg border bg-white p-3">
+                <div key={f.platform} className="rounded-lg border bg-[var(--lc-surface)] p-3">
                   <div className="mb-2 flex items-center gap-2 border-b pb-2">
                     <meta.icon className={`h-4 w-4 ${meta.color}`} />
                     <span className="font-medium">{meta.label}</span>
@@ -358,8 +359,8 @@ function TimeSeriesChart({ timeSeries }: { timeSeries: { days: number; channels:
           const y = padding.top + innerH - (tick / maxY) * innerH
           return (
             <g key={i}>
-              <line x1={padding.left} x2={padding.left + innerW} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" />
-              <text x={padding.left - 4} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8">
+              <line x1={padding.left} x2={padding.left + innerW} y1={y} y2={y} stroke="var(--lc-border)" strokeWidth="1" />
+              <text x={padding.left - 4} y={y + 3} textAnchor="end" fontSize="9" fill="var(--lc-text-muted)">
                 {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : tick}
               </text>
             </g>
@@ -369,14 +370,7 @@ function TimeSeriesChart({ timeSeries }: { timeSeries: { days: number; channels:
         {/* lines per channel */}
         {channels.map((k) => {
           const meta = PLATFORM_META[k]
-          const stroke = ({
-            instagram: '#EC4899',
-            facebook: '#3B82F6',
-            tiktok: '#0F172A',
-            x: '#334155',
-            linkedin: '#1D4ED8',
-            whatsapp: '#22C55E',
-          } as Record<string, string>)[k] || '#64748B'
+          const stroke = lcChannelColor(k)
           const points = timeSeries.channels[k].map((p, i) => {
             const x = padding.left + i * xStep
             const y = padding.top + innerH - (p.impressions / maxY) * innerH
@@ -403,7 +397,7 @@ function TimeSeriesChart({ timeSeries }: { timeSeries: { days: number; channels:
           const x = padding.left + i * xStep
           const date = timeSeries.channels[anyChannel][i]?.date || ''
           return (
-            <text key={i} x={x} y={H - 6} fontSize="9" fill="#94a3b8" textAnchor={i === 0 ? 'start' : i === dayCount - 1 ? 'end' : 'middle'}>
+            <text key={i} x={x} y={H - 6} fontSize="9" fill="var(--lc-text-muted)" textAnchor={i === 0 ? 'start' : i === dayCount - 1 ? 'end' : 'middle'}>
               {date.slice(5)}
             </text>
           )

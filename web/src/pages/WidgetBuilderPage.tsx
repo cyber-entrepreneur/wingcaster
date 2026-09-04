@@ -113,8 +113,8 @@ export function WidgetBuilderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="border-b bg-white px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+      <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -146,7 +146,7 @@ export function WidgetBuilderPage() {
                   <CardContent className="p-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-primary/10 p-3">
+                        <div className="rounded-lg bg-primary-faint p-3">
                           <Icon className="h-6 w-6 text-primary" />
                         </div>
                         <div>
@@ -177,8 +177,8 @@ export function WidgetBuilderPage() {
 
       {/* Create Widget Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Create Widget</h3>
               <button onClick={() => setShowCreate(false)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
@@ -194,7 +194,7 @@ export function WidgetBuilderPage() {
                         type="button"
                         key={key}
                         onClick={() => setCreateForm({ ...createForm, type: key, config: meta.defaults })}
-                        className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${createForm.type === key ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                        className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${createForm.type === key ? 'border-primary bg-primary-faint' : 'hover:bg-[var(--lc-surface-sunken)]'}`}
                       >
                         <Icon className="h-5 w-5 shrink-0" />
                         <div>

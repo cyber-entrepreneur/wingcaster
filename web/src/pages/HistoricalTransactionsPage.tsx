@@ -229,7 +229,7 @@ export function HistoricalTransactionsPage() {
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-white p-3">
+    <div className="rounded-lg border bg-[var(--lc-surface)] p-3">
       <div className="text-2xl font-semibold text-slate-900">{value}</div>
       <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
@@ -264,8 +264,8 @@ function ImportCsvModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-start justify-between border-b p-4">
           <div>
             <h2 className="text-lg font-semibold">Import historical transactions (CSV)</h2>

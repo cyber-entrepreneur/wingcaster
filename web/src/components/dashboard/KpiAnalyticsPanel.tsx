@@ -92,9 +92,9 @@ export function KpiAnalyticsPanel({
                 setPropertyDetail(null)
                 onSelectMetric(active ? null : stat.key)
               }}
-              className={`text-left transition-shadow ${active ? 'ring-2 ring-[#0F0F0F] rounded-xl' : ''}`}
+              className={`text-left transition-shadow ${active ? 'ring-2 ring-transparent rounded-xl' : ''}`}
             >
-              <Card className={`h-full ${active ? 'border-[#0F0F0F]' : 'hover:border-foreground/30'}`}>
+              <Card className={`h-full ${active ? 'border-[var(--lc-action-primary)]' : 'hover:border-foreground/30'}`}>
                 <CardContent className="flex items-center gap-4 p-6">
                   <div className={`rounded-lg bg-muted p-3 ${stat.color}`}><Icon className="h-6 w-6" /></div>
                   <div>
@@ -194,7 +194,7 @@ export function KpiAnalyticsPanel({
             )}
 
             {analytics.ga_note && (
-              <p className="mt-6 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <p className="mt-6 rounded-md border border-dashed bg-[var(--lc-surface-sunken)] px-3 py-2 text-xs text-muted-foreground">
                 {analytics.ga_note}
               </p>
             )}

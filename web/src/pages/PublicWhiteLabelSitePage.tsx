@@ -40,7 +40,7 @@ export function PublicWhiteLabelSitePage() {
   }, [subdomain, addToast])
 
   const brand = data?.site?.brand_config || {}
-  const primary = brand.primary_color || data?.agency?.primary_color || '#0f172a'
+  const primary = brand.primary_color || data?.agency?.primary_color || 'var(--lc-action-primary)' 
 
   const listings = useMemo(() => {
     let rows = data?.listings || []
@@ -102,7 +102,7 @@ export function PublicWhiteLabelSitePage() {
 
   return (
     <div className="min-h-screen" style={{ ['--wl-primary' as any]: primary }}>
-      <header className="border-b bg-white">
+      <header className="border-b bg-[var(--lc-surface)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             {brand.logo_url ? (
@@ -151,12 +151,12 @@ export function PublicWhiteLabelSitePage() {
         )}
       </section>
 
-      <section className="border-t bg-white px-4 py-10 sm:px-6 lg:px-8">
+      <section className="border-t bg-[var(--lc-surface)] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <h3 className="mb-4 text-lg font-semibold">Our agents</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {(data.agents || []).map((agent: any) => (
-              <Link key={agent.id} to={`/public/agent/${agent.id}`} className="rounded-xl border p-4 hover:bg-muted/30">
+              <Link key={agent.id} to={`/public/agent/${agent.id}`} className="rounded-xl border p-4 hover:bg-[var(--lc-surface-sunken)]">
                 <p className="font-medium">{agent.name}</p>
                 <p className="text-sm text-muted-foreground">{agent.specialization}</p>
               </Link>
@@ -178,7 +178,7 @@ export function PublicWhiteLabelSitePage() {
               Leads from this site are routed into the agency dashboard with source attribution.
             </p>
           </div>
-          <form onSubmit={sendContact} className="space-y-3 rounded-xl border bg-white p-4">
+          <form onSubmit={sendContact} className="space-y-3 rounded-xl border bg-[var(--lc-surface)] p-4">
             <div>
               <Label>Name</Label>
               <Input required value={contact.name} onChange={(e) => setContact((c) => ({ ...c, name: e.target.value }))} />

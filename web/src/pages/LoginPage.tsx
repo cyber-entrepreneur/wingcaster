@@ -93,7 +93,7 @@ export function LoginPage() {
   if (challenge) {
     const isTotp = challenge.method === 'totp'
     return (
-      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-muted/20 px-4 py-12">
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-[var(--lc-bg-page)] px-4 py-12">
         <div className="w-full max-w-md">
           <div className="mb-8 text-center">
             <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-foreground" />
@@ -126,6 +126,7 @@ export function LoginPage() {
                     // the notification / clipboard automatically.
                     autoComplete="one-time-code"
                     inputMode={isTotp ? 'text' : 'numeric'}
+                    data-lc-numeric=""
                     autoFocus
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
@@ -140,7 +141,7 @@ export function LoginPage() {
                 )}
                 <Button
                   type="submit"
-                  className="h-11 w-full bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                  className="w-full"
                   disabled={loading}
                 >
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
@@ -163,7 +164,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-muted/20 px-4 py-12">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-[var(--lc-bg-page)] px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Building2 className="mx-auto mb-4 h-12 w-12 text-foreground" />
@@ -220,7 +221,7 @@ export function LoginPage() {
               )}
               <Button
                 type="submit"
-                className="h-11 w-full bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                className="w-full"
                 disabled={loading || authLoading}
               >
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}

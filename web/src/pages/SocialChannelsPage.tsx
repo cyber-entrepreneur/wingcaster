@@ -27,13 +27,15 @@ type Connection = {
   updated_at: string | null
 }
 
+import { lcChannelTextClass } from '@/theme/channel'
+
 const PLATFORM_META: Record<string, { name: string; icon: any; color: string; description: string }> = {
-  facebook: { name: 'Facebook Page', icon: Facebook, color: 'text-blue-600', description: 'Publish page posts + reply to comments and Messenger DMs via Meta Graph.' },
-  instagram: { name: 'Instagram', icon: Instagram, color: 'text-pink-600', description: 'Publish feed / carousel / reels / stories + reply to DMs and comments.' },
-  linkedin: { name: 'LinkedIn', icon: Linkedin, color: 'text-blue-700', description: 'Publish text, image, and article posts to a page or personal profile.' },
-  whatsapp: { name: 'WhatsApp Business', icon: MessageCircle, color: 'text-green-600', description: 'Send template messages and Status broadcasts via WhatsApp Cloud API.' },
-  x: { name: 'X (Twitter)', icon: Twitter, color: 'text-slate-800', description: 'Publish tweets, reply to mentions, and DM leads.' },
-  tiktok: { name: 'TikTok', icon: Video, color: 'text-black', description: 'Publish photo carousels and vertical video via the Content Posting API.' },
+  facebook: { name: 'Facebook Page', icon: Facebook, color: lcChannelTextClass('facebook'), description: 'Publish page posts + reply to comments and Messenger DMs via Meta Graph.' },
+  instagram: { name: 'Instagram', icon: Instagram, color: lcChannelTextClass('instagram'), description: 'Publish feed / carousel / reels / stories + reply to DMs and comments.' },
+  linkedin: { name: 'LinkedIn', icon: Linkedin, color: lcChannelTextClass('linkedin'), description: 'Publish text, image, and article posts to a page or personal profile.' },
+  whatsapp: { name: 'WhatsApp Business', icon: MessageCircle, color: lcChannelTextClass('whatsapp'), description: 'Send template messages and Status broadcasts via WhatsApp Cloud API.' },
+  x: { name: 'X (Twitter)', icon: Twitter, color: lcChannelTextClass('x'), description: 'Publish tweets, reply to mentions, and DM leads.' },
+  tiktok: { name: 'TikTok', icon: Video, color: lcChannelTextClass('tiktok'), description: 'Publish photo carousels and vertical video via the Content Posting API.' },
 }
 
 const PLATFORM_ORDER = ['facebook', 'instagram', 'linkedin', 'whatsapp', 'x', 'tiktok']

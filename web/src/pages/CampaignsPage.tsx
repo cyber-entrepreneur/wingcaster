@@ -153,14 +153,14 @@ export function CampaignsPage() {
             }
           />
         ) : (
-          <div className="divide-y divide-[#E4E3E0]">
+          <div className="divide-y divide-[var(--lc-border)]">
             {campaigns.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center gap-4 bg-white px-6 py-4 transition-colors hover:bg-[#F8F8F7]"
+                className="flex items-center gap-4 bg-[var(--lc-surface)] px-6 py-4 transition-colors hover:bg-[var(--lc-bg-page)]"
               >
                 {/* Channel icon */}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F0EFED] text-muted-foreground">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--lc-surface-sunken)] text-muted-foreground">
                   {CHANNEL_ICON[c.target_channel] ?? <Megaphone className="h-3.5 w-3.5" />}
                 </div>
 
@@ -191,7 +191,7 @@ export function CampaignsPage() {
                     <button
                       onClick={() => handleToggle(c)}
                       disabled={toggling === c.id}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[#F0EFED]"
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--lc-action-secondary)]"
                       title={c.status === 'active' ? 'Pause' : 'Activate'}
                     >
                       {toggling === c.id ? (
@@ -212,7 +212,7 @@ export function CampaignsPage() {
                   </button>
                   <Link
                     to={`/campaigns/${c.id}`}
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[#F0EFED]"
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--lc-action-secondary)]"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Link>

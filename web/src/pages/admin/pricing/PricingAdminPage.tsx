@@ -345,7 +345,7 @@ function MatchConfigPanel({ configs, onChange }: { configs: MatchConfig[]; onCha
                   Set as default
                 </label>
               </div>
-              <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+              <div className="rounded-lg border bg-[var(--lc-surface-sunken)] p-4 text-sm">
                 <p className="font-medium">Live scope preview</p>
                 <p className="mt-1 text-muted-foreground">
                   Match {cfg.same_property_type ? 'the same property type' : 'all property types'} within {Number(cfg.radius_meters || 0).toLocaleString()}m,

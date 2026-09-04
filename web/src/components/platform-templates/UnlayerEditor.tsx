@@ -239,7 +239,7 @@ function UnlayerCanvas({
   }, [ready, designJson])
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-white">
+    <div className="overflow-hidden rounded-md border border-border bg-[var(--lc-surface)]">
       {!ready && (
         <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -259,7 +259,7 @@ function UnlayerCanvas({
         }}
       />
       {html && (
-        <p className="border-t border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <p className="border-t border-border bg-[var(--lc-surface-sunken)] px-3 py-2 text-xs text-muted-foreground">
           Last export: {html.length.toLocaleString()} characters of HTML — saved with the template on next Save.
         </p>
       )}
@@ -291,7 +291,7 @@ function RawHtmlEditor({
           onChange={(e) => onChange({ html: e.target.value })}
           rows={16}
           spellCheck={false}
-          className="w-full rounded-md border border-input bg-white p-3 font-mono text-sm shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="w-full rounded-md border border-input bg-[var(--lc-surface)] p-3 font-mono text-sm shadow-sm focus:outline-none"
           placeholder="<p>Hello {{name}}, your code is {{code}}.</p>"
         />
         <p className="mt-1 text-xs text-muted-foreground">
@@ -312,7 +312,7 @@ function RawHtmlEditor({
           onChange={(e) => onChange({ text: e.target.value })}
           rows={8}
           spellCheck={false}
-          className="w-full rounded-md border border-input bg-white p-3 font-mono text-sm shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="w-full rounded-md border border-input bg-[var(--lc-surface)] p-3 font-mono text-sm shadow-sm focus:outline-none"
           placeholder={'Hello {{name}}, your code is {{code}}.'}
         />
         <p className="mt-1 text-xs text-muted-foreground">

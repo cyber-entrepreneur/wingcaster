@@ -151,14 +151,14 @@ export function ContactDetailPage() {
 
   if (loading || !contact) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/20">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--lc-bg-page)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center gap-3">
           <Link to="/contacts"><Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
@@ -174,7 +174,7 @@ export function ContactDetailPage() {
             <CardContent className="p-6">
               <div className="flex flex-col items-center text-center">
                 <Avatar className="h-20 w-20">
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl">{initials(contact.name)}</AvatarFallback>
+                  <AvatarFallback className="bg-primary-faint text-primary text-2xl">{initials(contact.name)}</AvatarFallback>
                 </Avatar>
                 <h2 className="mt-3 text-lg font-semibold">{contact.name || 'Unknown'}</h2>
                 <Badge variant="outline" className={cn('mt-1', statusColor(contact.status))}>{contact.status}</Badge>
@@ -346,7 +346,7 @@ export function ContactDetailPage() {
                   </div>
                   <div className="mt-4 space-y-3">
                     {notes.map((n) => (
-                      <div key={n.id} className="rounded-md border bg-muted/20 p-3">
+                      <div key={n.id} className="rounded-md border bg-[var(--lc-bg-page)] p-3">
                         <p className="text-sm">{n.content}</p>
                         <p className="mt-1 text-xs text-muted-foreground">{n.author_name} &bull; {new Date(n.created_at).toLocaleString()}</p>
                       </div>

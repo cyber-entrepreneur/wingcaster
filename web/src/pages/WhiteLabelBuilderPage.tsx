@@ -10,6 +10,16 @@ import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { readLcColor } from '@/theme/css'
+
+function defaultBrandConfig() {
+  return {
+    primary_color: readLcColor('--lc-action-primary'),
+    secondary_color: readLcColor('--lc-accent'),
+    font_family: 'IBM Plex Sans',
+    logo_url: '',
+  }
+}
 
 export function WhiteLabelBuilderPage() {
   const { agent, loading: authLoading } = useAuth()
@@ -28,7 +38,7 @@ export function WhiteLabelBuilderPage() {
     template_id: '',
     subdomain: '',
     custom_domain: '',
-    brand_config: { primary_color: '#0f172a', secondary_color: '#3b82f6', font_family: 'Inter', logo_url: '' }
+    brand_config: defaultBrandConfig(),
   })
   const [creating, setCreating] = useState(false)
 
@@ -62,7 +72,7 @@ export function WhiteLabelBuilderPage() {
     try {
       await api.createSite(createForm)
       setShowCreate(false)
-      setCreateForm({ name: '', template_id: '', subdomain: '', custom_domain: '', brand_config: { primary_color: '#0f172a', secondary_color: '#3b82f6', font_family: 'Inter', logo_url: '' } })
+      setCreateForm({ name: '', template_id: '', subdomain: '', custom_domain: '', brand_config: defaultBrandConfig() })
       const st = await api.getSites()
       setSites(st)
       addToast({ title: 'Site created', variant: 'success' })
@@ -118,7 +128,7 @@ export function WhiteLabelBuilderPage() {
 
   if (!agency) {
     return (
-      <div className="min-h-screen bg-muted/20 px-4 py-12 text-center">
+      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-12 text-center">
         <Globe className="mx-auto h-16 w-16 text-primary/60" />
         <h1 className="mt-6 text-2xl font-bold">No Agency Found</h1>
         <p className="mt-2 text-muted-foreground">Create an agency first to build white-label websites.</p>
@@ -136,8 +146,8 @@ export function WhiteLabelBuilderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="border-b bg-white px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+      <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -164,7 +174,7 @@ export function WhiteLabelBuilderPage() {
                   <CardContent className="p-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-primary/10 p-3">
+                        <div className="rounded-lg bg-primary-faint p-3">
                           <Globe className="h-6 w-6 text-primary" />
                         </div>
                         <div>
@@ -237,8 +247,8 @@ export function WhiteLabelBuilderPage() {
 
       {/* Create Site Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Create White-Label Site</h3>
               <button onClick={() => setShowCreate(false)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
@@ -246,7 +256,7 @@ export function WhiteLabelBuilderPage() {
             <div className="space-y-4">
               <div><Label>Site Name *</Label><Input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g., Haddad Properties" /></div>
               <div><Label>Template *</Label>
-                <select value={createForm.template_id} onChange={e => setCreateForm({ ...createForm, template_id: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10">
+                <select value={createForm.template_id} onChange={e => setCreateForm({ ...createForm, template_id: e.target.value })} className="min-h-tap w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                   <option value="">Select template</option>
                   {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
@@ -259,19 +269,31 @@ export function WhiteLabelBuilderPage() {
               </div>
               <div><Label>Custom Domain (optional)</Label><Input value={createForm.custom_domain} onChange={e => setCreateForm({ ...createForm, custom_domain: e.target.value })} placeholder="www.youragency.com" /></div>
 
-              <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+              <div className="rounded-lg bg-[var(--lc-surface-sunken)] p-4 space-y-3">
                 <h4 className="text-sm font-semibold flex items-center gap-2"><Palette className="h-4 w-4" />Brand Configuration</h4>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div><Label className="text-xs">Primary Color</Label>
                     <div className="flex items-center gap-2">
-                      <input type="color" value={createForm.brand_config.primary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, primary_color: e.target.value } })} className="h-8 w-8 rounded border" />
-                      <Input value={createForm.brand_config.primary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, primary_color: e.target.value } })} className="h-8 text-sm" />
+                      <input
+                        type="color"
+                        value={/^#[0-9A-Fa-f]{6}$/.test(createForm.brand_config.primary_color) ? createForm.brand_config.primary_color : readLcColor('--lc-action-primary')}
+                        onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, primary_color: e.target.value } })}
+                        className="h-8 w-8 rounded border"
+                        style={{ background: 'var(--lc-action-primary)' }}
+                      />
+                      <Input value={createForm.brand_config.primary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, primary_color: e.target.value } })} className="min-h-tap text-sm" />
                     </div>
                   </div>
                   <div><Label className="text-xs">Secondary Color</Label>
                     <div className="flex items-center gap-2">
-                      <input type="color" value={createForm.brand_config.secondary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, secondary_color: e.target.value } })} className="h-8 w-8 rounded border" />
-                      <Input value={createForm.brand_config.secondary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, secondary_color: e.target.value } })} className="h-8 text-sm" />
+                      <input
+                        type="color"
+                        value={/^#[0-9A-Fa-f]{6}$/.test(createForm.brand_config.secondary_color) ? createForm.brand_config.secondary_color : readLcColor('--lc-accent')}
+                        onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, secondary_color: e.target.value } })}
+                        className="h-8 w-8 rounded border"
+                        style={{ background: 'var(--lc-accent)' }}
+                      />
+                      <Input value={createForm.brand_config.secondary_color} onChange={e => setCreateForm({ ...createForm, brand_config: { ...createForm.brand_config, secondary_color: e.target.value } })} className="min-h-tap text-sm" />
                     </div>
                   </div>
                 </div>

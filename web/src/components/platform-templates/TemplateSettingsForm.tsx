@@ -264,7 +264,7 @@ export function TemplateSettingsForm({
               rows={3}
               maxLength={1000}
               placeholder="Sent when a new agent signs up. Contains the 6-digit verification code."
-              className={`flex w-full rounded-md border ${errors.description ? 'border-red-300' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y`}
+              className={`flex w-full rounded-md border ${errors.description ? 'border-red-300' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none  resize-y`}
               aria-invalid={Boolean(errors.description)}
               aria-describedby={errors.description ? 'settings-description-error' : 'settings-description-hint'}
             />
@@ -373,7 +373,7 @@ export function TemplateSettingsForm({
             </Field>
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+          <div className="flex items-start gap-3 rounded-md border border-border bg-[var(--lc-surface-sunken)] p-3">
             <input
               id="settings-is-active"
               type="checkbox"

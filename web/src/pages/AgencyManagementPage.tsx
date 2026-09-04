@@ -172,7 +172,7 @@ export function AgencyManagementPage() {
   // Not in an agency yet
   if (!loading && !agency && !createMode) {
     return (
-      <div className="min-h-screen bg-muted/20 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <Building2 className="mx-auto h-16 w-16 text-primary/60" />
           <h1 className="mt-6 text-3xl font-bold">Create Your Agency</h1>
@@ -185,7 +185,7 @@ export function AgencyManagementPage() {
 
   if (createMode) {
     return (
-      <div className="min-h-screen bg-muted/20 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-xl">
           <Card>
             <CardHeader>
@@ -239,13 +239,13 @@ export function AgencyManagementPage() {
   const canManageSettings = ['owner', 'admin'].includes(myRole)
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
       {/* Header */}
-      <div className="border-b bg-white px-4 py-6 sm:px-6 lg:px-8">
+      <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <div className="rounded-lg bg-primary/10 p-3">
+              <div className="rounded-lg bg-primary-faint p-3">
                 <Building2 className="h-8 w-8 text-primary" />
               </div>
               <div>
@@ -373,7 +373,7 @@ export function AgencyManagementPage() {
                   })}
                 </div>
 
-                <div className="mt-6 rounded-lg bg-muted/50 p-4">
+                <div className="mt-6 rounded-lg bg-[var(--lc-surface-sunken)] p-4">
                   <h4 className="text-sm font-semibold mb-2 flex items-center gap-2"><Shield className="h-4 w-4" />Role Permissions</h4>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {Object.entries(ROLE_META).map(([key, meta]) => (
@@ -413,8 +413,8 @@ export function AgencyManagementPage() {
       </div>
 
       {departure && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold">End affiliation — {departure.name}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Agency-tied listings must be reassigned to another active member before departure.

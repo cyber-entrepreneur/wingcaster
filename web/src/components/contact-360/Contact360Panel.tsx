@@ -196,7 +196,7 @@ export function Contact360Panel({ contactId }: Props) {
                     ? feed.listings.find((l) => l.id === s.params.listing_id) || null
                     : null
                   return (
-                    <li key={i} className="flex items-start gap-2 rounded-md border bg-white p-2.5 text-sm">
+                    <li key={i} className="flex items-start gap-2 rounded-md border bg-[var(--lc-surface)] p-2.5 text-sm">
                       <meta.icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-600" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export function Contact360Panel({ contactId }: Props) {
               type="button"
               onClick={() => setChannelFilter(null)}
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                channelFilter === null ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                channelFilter === null ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]' : 'border-slate-200 bg-[var(--lc-surface)] text-slate-700 hover:bg-slate-50'
               }`}
             >
               All channels
@@ -265,7 +265,7 @@ export function Contact360Panel({ contactId }: Props) {
                   type="button"
                   onClick={() => setChannelFilter(ch)}
                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                    channelFilter === ch ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    channelFilter === ch ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]' : 'border-slate-200 bg-[var(--lc-surface)] text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   <meta.icon className={`h-3.5 w-3.5 ${channelFilter === ch ? '' : meta.color}`} />
@@ -283,7 +283,7 @@ export function Contact360Panel({ contactId }: Props) {
                 type="button"
                 onClick={() => setCategoryFilter(null)}
                 className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                  categoryFilter === null ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  categoryFilter === null ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]' : 'border-slate-200 bg-[var(--lc-surface)] text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 All categories
@@ -295,7 +295,7 @@ export function Contact360Panel({ contactId }: Props) {
                   onClick={() => setCategoryFilter(cat)}
                   className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
                     categoryFilter === cat
-                      ? 'border-slate-900 bg-slate-900 text-white'
+                      ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]'
                       : (CATEGORY_COLORS[cat] || CATEGORY_COLORS.general)
                   }`}
                 >
@@ -322,12 +322,12 @@ export function Contact360Panel({ contactId }: Props) {
                     className={
                       m.direction === 'inbound'
                         ? 'rounded-md bg-slate-50 px-3 py-2 text-sm'
-                        : 'ml-8 rounded-md bg-slate-900 px-3 py-2 text-sm text-white'
+                        : 'ml-8 rounded-md bg-slate-900 px-3 py-2 text-sm text-[var(--lc-action-primary-text)]'
                     }
                   >
                     <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px]">
-                      <chanMeta.icon className={`h-3 w-3 ${m.direction === 'inbound' ? chanMeta.color : 'text-white/70'}`} />
-                      <span className={m.direction === 'inbound' ? 'text-muted-foreground' : 'text-white/70'}>
+                      <chanMeta.icon className={`h-3 w-3 ${m.direction === 'inbound' ? chanMeta.color : 'text-[var(--lc-action-primary-text)]/70'}`} />
+                      <span className={m.direction === 'inbound' ? 'text-muted-foreground' : 'text-[var(--lc-action-primary-text)]/70'}>
                         {chanMeta.label}
                       </span>
                       {m.category && m.direction === 'inbound' && (
@@ -339,14 +339,14 @@ export function Contact360Panel({ contactId }: Props) {
                       {linkedListing && (
                         <Link
                           to={`/listings/${linkedListing.id}`}
-                          className={m.direction === 'inbound' ? 'text-primary hover:underline' : 'text-white/80 hover:underline'}
+                          className={m.direction === 'inbound' ? 'text-primary hover:underline' : 'text-[var(--lc-action-primary-text)]/80 hover:underline'}
                         >
                           → {linkedListing.title}
                         </Link>
                       )}
                     </div>
                     <div className="whitespace-pre-wrap">{m.content}</div>
-                    <div className={`mt-1 flex items-center justify-between gap-2 text-[10px] ${m.direction === 'inbound' ? 'text-muted-foreground' : 'text-white/70'}`}>
+                    <div className={`mt-1 flex items-center justify-between gap-2 text-[10px] ${m.direction === 'inbound' ? 'text-muted-foreground' : 'text-[var(--lc-action-primary-text)]/70'}`}>
                       <span>{new Date(m.created_at).toLocaleString()}</span>
                       {m.direction === 'outbound' && <span>{m.status}</span>}
                     </div>
@@ -370,7 +370,7 @@ export function Contact360Panel({ contactId }: Props) {
                 <li key={l.id}>
                   <Link
                     to={`/listings/${l.id}`}
-                    className="flex items-center justify-between rounded border bg-white px-3 py-2 text-sm hover:bg-slate-50"
+                    className="flex items-center justify-between rounded border bg-[var(--lc-surface)] px-3 py-2 text-sm hover:bg-slate-50"
                   >
                     <div className="min-w-0">
                       <div className="line-clamp-1 font-medium">{l.title}</div>

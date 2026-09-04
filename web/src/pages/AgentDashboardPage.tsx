@@ -528,9 +528,9 @@ export function AgentDashboardPage() {
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
       {/* Header */}
-      <div className="border-b bg-white px-4 py-6 sm:px-6 lg:px-8">
+      <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
@@ -587,7 +587,7 @@ export function AgentDashboardPage() {
                 {Object.entries(stepLabelMap).map(([key, label]) => {
                   const done = Boolean(onboardingSteps[key])
                   return (
-                    <div key={key} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm">
+                    <div key={key} className="flex items-center gap-2 rounded-md border bg-[var(--lc-surface)] px-3 py-2 text-sm">
                       {done ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
                       <span>{label}</span>
                     </div>
@@ -638,7 +638,7 @@ export function AgentDashboardPage() {
             <CardContent>
               <div className="space-y-2">
                 {operations.todays_viewings.map((v: any) => (
-                  <div key={v.id} className="flex items-center justify-between rounded border bg-white px-3 py-2 text-sm">
+                  <div key={v.id} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] px-3 py-2 text-sm">
                     <div>
                       <span className="font-medium">{v.client_name}</span>
                       <span className="text-muted-foreground"> · {new Date(v.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -846,7 +846,7 @@ export function AgentDashboardPage() {
                         </div>
 
                         {timelineInquiryId === inq.id && (
-                          <div className="mt-3 space-y-3 rounded-md border bg-muted/20 p-3">
+                          <div className="mt-3 space-y-3 rounded-md border bg-[var(--lc-bg-page)] p-3">
                             <div className="flex items-center justify-between">
                               <h5 className="text-sm font-semibold">Inquiry timeline</h5>
                               <Button variant="ghost" size="sm" onClick={() => loadTimeline(null)}>Close</Button>
@@ -862,7 +862,7 @@ export function AgentDashboardPage() {
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Viewings</h6>
                                     <div className="space-y-2">
                                       {timeline.viewings.map((v: any) => (
-                                        <div key={v.id} className="rounded border bg-white p-2 text-xs">
+                                        <div key={v.id} className="rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <div className="flex items-center justify-between">
                                             <span className="font-medium">{new Date(v.scheduled_at).toLocaleString()}</span>
                                             <Badge variant="outline" className="text-[10px]">{v.status}</Badge>
@@ -879,7 +879,7 @@ export function AgentDashboardPage() {
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Follow-ups</h6>
                                     <div className="space-y-2">
                                       {timeline.follow_ups.map((f: any) => (
-                                        <div key={f.id} className="flex items-center justify-between rounded border bg-white p-2 text-xs">
+                                        <div key={f.id} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <span>{f.label}</span>
                                           <div className="flex items-center gap-2">
                                             <span className="text-muted-foreground">{new Date(f.due_at).toLocaleString()}</span>
@@ -895,7 +895,7 @@ export function AgentDashboardPage() {
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity log</h6>
                                     <div className="space-y-2">
                                       {timeline.activities.slice(0, 20).map((a: any) => (
-                                        <div key={a.id} className="rounded border bg-white p-2 text-xs">
+                                        <div key={a.id} className="rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <div className="flex items-center justify-between">
                                             <span className="font-medium">{a.type?.replace(/_/g, ' ') || 'Activity'}</span>
                                             <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
@@ -915,7 +915,7 @@ export function AgentDashboardPage() {
                         )}
 
                         {schedulingInquiryId === inq.id && (
-                          <div className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3">
+                          <div className="mt-3 space-y-2 rounded-md border bg-[var(--lc-bg-page)] p-3">
                             <div className="grid gap-2 sm:grid-cols-3">
                               <Input
                                 type="datetime-local"
@@ -984,13 +984,13 @@ export function AgentDashboardPage() {
                   </div>
                 )}
                 {viewings.length > 0 && (
-                  <div className="mt-6 rounded-lg border bg-muted/20 p-4">
+                  <div className="mt-6 rounded-lg border bg-[var(--lc-bg-page)] p-4">
                     <h4 className="mb-3 text-sm font-semibold">Viewings</h4>
                     <div className="space-y-3">
                       {viewings
                         .sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
                         .map((v: any) => (
-                          <div key={v.id} className="rounded border bg-white p-3 text-xs">
+                          <div key={v.id} className="rounded border bg-[var(--lc-surface)] p-3 text-xs">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <div className="flex items-center gap-2">
@@ -1068,7 +1068,7 @@ export function AgentDashboardPage() {
                             </div>
 
                             {viewingAction.viewingId === v.id && viewingAction.mode === 'reschedule' && (
-                              <div className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3">
+                              <div className="mt-3 space-y-2 rounded-md border bg-[var(--lc-bg-page)] p-3">
                                 <Input
                                   type="datetime-local"
                                   value={viewingAction.scheduled_at}
@@ -1111,7 +1111,7 @@ export function AgentDashboardPage() {
                             )}
 
                             {viewingAction.viewingId === v.id && viewingAction.mode === 'complete' && (
-                              <div className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3">
+                              <div className="mt-3 space-y-2 rounded-md border bg-[var(--lc-bg-page)] p-3">
                                 <select
                                   className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                                   value={viewingAction.outcome}
@@ -1144,7 +1144,7 @@ export function AgentDashboardPage() {
                             )}
 
                             {viewingAction.viewingId === v.id && viewingAction.mode === 'cancel' && (
-                              <div className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3">
+                              <div className="mt-3 space-y-2 rounded-md border bg-[var(--lc-bg-page)] p-3">
                                 <textarea
                                   rows={2}
                                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
@@ -1303,7 +1303,7 @@ export function AgentDashboardPage() {
                     })}
                   </div>
 
-                  <div className="mt-6 rounded-lg border border-dashed bg-muted/30 p-4">
+                  <div className="mt-6 rounded-lg border border-dashed bg-[var(--lc-surface-sunken)] p-4">
                     <p className="text-sm text-muted-foreground">
                       <strong className="text-foreground">Your accounts stay yours.</strong> REB never posts to your Instagram, Telegram, TikTok, or X without you choosing them in Promote / Distribute.
                     </p>
@@ -1324,7 +1324,7 @@ export function AgentDashboardPage() {
                       const Icon = PLATFORM_META[acc.platform]?.icon || Globe
                       return (
                         <div key={acc.id} className="flex items-center gap-4 rounded-lg border p-3">
-                          <div className="rounded-lg bg-primary/10 p-2">
+                          <div className="rounded-lg bg-primary-faint p-2">
                             <Icon className="h-5 w-5 text-primary" />
                           </div>
                           <div className="flex-1">
@@ -1408,7 +1408,7 @@ export function AgentDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-lg border bg-muted/20 p-4">
+                    <div className="rounded-lg border bg-[var(--lc-bg-page)] p-4">
                       <h4 className="mb-3 text-sm font-semibold">Quiet hours</h4>
                       <div className="flex flex-wrap items-center gap-4">
                         <label className="flex items-center gap-2">

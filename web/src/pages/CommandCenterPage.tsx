@@ -180,7 +180,7 @@ export function CommandCenterPage() {
               ) : (
                 <ul className="space-y-2">
                   {data.inquiries.map((i) => (
-                    <li key={i.id} className="rounded border bg-white p-3">
+                    <li key={i.id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <div className="text-sm font-medium">{i.name || 'Anonymous'}</div>
@@ -219,7 +219,7 @@ export function CommandCenterPage() {
                 <h4 className="mb-1 text-xs font-semibold uppercase text-muted-foreground">By platform</h4>
                 <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {Object.entries(data.engagement.by_platform).map(([p, m]) => (
-                    <li key={p} className="flex items-center justify-between rounded border bg-white px-3 py-1.5 text-sm">
+                    <li key={p} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] px-3 py-1.5 text-sm">
                       <span className="font-medium">{PLATFORM_LABEL[p] || p}</span>
                       <span className="text-xs text-muted-foreground">
                         {m.reactions} ❤️ · {m.referrals} 🔗 · {m.mentions} 💬
@@ -248,7 +248,7 @@ export function CommandCenterPage() {
               ) : (
                 <ul className="space-y-2">
                   {data.ai_watching.map((t) => (
-                    <li key={t.conversation_id} className="rounded border bg-white p-3">
+                    <li key={t.conversation_id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-sm font-medium">{t.contact_name || 'Unnamed contact'}</div>
@@ -283,7 +283,7 @@ export function CommandCenterPage() {
               ) : (
                 <ul className="space-y-2">
                   {data.testimonials.map((t) => (
-                    <li key={t.id} className="rounded border bg-white p-3">
+                    <li key={t.id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{t.author_name || 'Anonymous'}</span>
@@ -327,7 +327,7 @@ export function CommandCenterPage() {
               ) : (
                 <ul className="space-y-1.5">
                   {data.routing_activity.map((r) => (
-                    <li key={r.id} className="rounded border bg-white px-3 py-2 text-xs">
+                    <li key={r.id} className="rounded border bg-[var(--lc-surface)] px-3 py-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1">
                           <Badge variant="outline" className="text-[10px]">{r.category}</Badge>
@@ -359,7 +359,7 @@ function EscalationGroup({
   const borderClass = tone === 'rose' ? 'border-rose-200' : 'border-orange-200'
   const bgClass = tone === 'rose' ? 'bg-rose-50' : 'bg-orange-50'
   return (
-    <div className={`rounded-lg border ${borderClass} bg-white p-3`}>
+    <div className={`rounded-lg border ${borderClass} bg-[var(--lc-surface)] p-3`}>
       <div className={`-mx-3 -mt-3 mb-2 flex items-center justify-between rounded-t-lg ${bgClass} px-3 py-1.5 text-sm font-semibold`}>
         <span>{icon} {title}</span>
         <span>{items.length}</span>
@@ -418,7 +418,7 @@ function PipelineColumn({
         ) : (
           <ul className="space-y-1.5">
             {items.map((o) => (
-              <li key={o.id} className="rounded border bg-white p-2 text-xs">
+              <li key={o.id} className="rounded border bg-[var(--lc-surface)] p-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium capitalize">{o.stage.replace(/_/g, ' ')}</span>
                   <span className="text-[10px] text-muted-foreground">{o.probability}%</span>

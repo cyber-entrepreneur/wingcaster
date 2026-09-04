@@ -1,0 +1,304 @@
+/* ListingClarion — Broadcast (adopted theme)
+   Generated from broadcast-tokens.json. Do not hand-edit: change tokens.js and regenerate.
+   Components read only these semantic variables, never a raw hex.
+   Light is the default; dark applies via [data-lc-mode="dark"] or prefers-color-scheme.
+
+   Display tokens carry weight 800 — the shorthand already includes it, so
+   `font: var(--lc-type-display)` renders at the theme's display weight with no extra rule. */
+
+:root {
+  --lc-radius-sm: 3px;
+  --lc-radius-md: 5px;
+  --lc-radius-lg: 7px;
+  --lc-radius-xl: 10px;
+  --lc-radius-pill: 999px;
+  --lc-space-3xs: 2px;
+  --lc-space-2xs: 4px;
+  --lc-space-xs: 8px;
+  --lc-space-sm: 12px;
+  --lc-space-md: 16px;
+  --lc-space-lg: 20px;
+  --lc-space-xl: 24px;
+  --lc-space-2xl: 32px;
+  --lc-space-3xl: 40px;
+  --lc-space-4xl: 48px;
+  --lc-space-5xl: 64px;
+  --lc-font-display: Archivo, system-ui, sans-serif;
+  --lc-font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --lc-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --lc-display-weight: 800;
+  --lc-display-tracking: -0.03em;
+  --lc-type-display-xl: 800 40px/44px var(--lc-font-display);
+  --lc-type-display: 800 32px/38px var(--lc-font-display);
+  --lc-type-heading-1: 600 26px/32px var(--lc-font-ui);
+  --lc-type-heading-2: 600 21px/28px var(--lc-font-ui);
+  --lc-type-heading-3: 600 18px/24px var(--lc-font-ui);
+  --lc-type-body-lg: 400 16px/24px var(--lc-font-ui);
+  --lc-type-body: 400 15px/22px var(--lc-font-ui);
+  --lc-type-body-sm: 400 13px/18px var(--lc-font-ui);
+  --lc-type-caption: 500 12px/16px var(--lc-font-ui);
+  --lc-type-overline: 600 11px/14px var(--lc-font-ui);
+  --lc-type-data: 500 15px/20px var(--lc-font-mono);
+  --lc-type-data-sm: 500 13px/18px var(--lc-font-mono);
+  --lc-tracking-display-xl: -0.03em;
+  --lc-tracking-display: -0.03em;
+  --lc-tracking-heading-1: -0.015em;
+  --lc-tracking-heading-2: -0.01em;
+  --lc-tracking-heading-3: -0.005em;
+  --lc-tracking-body-lg: 0;
+  --lc-tracking-body: 0;
+  --lc-tracking-body-sm: 0;
+  --lc-tracking-caption: 0.005em;
+  --lc-tracking-overline: 0.08em;
+  --lc-tracking-data: 0;
+  --lc-tracking-data-sm: 0;
+  --lc-duration-instant: 0ms;
+  --lc-duration-fast: 120ms;
+  --lc-duration-base: 180ms;
+  --lc-duration-slow: 240ms;
+  --lc-duration-deliberate: 320ms;
+  --lc-easing-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lc-easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --lc-easing-emphasis: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --lc-z-base: 0;
+  --lc-z-raised: 10;
+  --lc-z-sticky: 100;
+  --lc-z-dropdown: 300;
+  --lc-z-overlay: 500;
+  --lc-z-modal: 1000;
+  --lc-z-toast: 1500;
+  --lc-z-tooltip: 2000;
+  --lc-tap-target-min: 44px;
+  --lc-breakpoint-xs: 390px;
+  --lc-breakpoint-sm: 480px;
+  --lc-breakpoint-md: 768px;
+  --lc-breakpoint-lg: 1024px;
+  --lc-breakpoint-xl: 1280px;
+  --lc-breakpoint-2xl: 1536px;
+
+  /* semantic — Broadcast light */
+  --lc-bg-page: #FAF8F7;
+  --lc-surface: #FFFFFF;
+  --lc-surface-raised: #FFFFFF;
+  --lc-surface-sunken: #F2EFED;
+  --lc-surface-inverse: #191512;
+  --lc-border: #E6E1DD;
+  --lc-border-strong: #CFC7C1;
+  --lc-text-primary: #0C1533;
+  --lc-text-heading: #1A2E77;
+  --lc-text-secondary: #1A2E77;
+  --lc-text-muted: #5B6486;
+  --lc-text-inverse: #FFFFFF;
+  --lc-text-brand: #C93C08;
+  --lc-action-primary: #C93C08;
+  --lc-action-primary-hover: #A3320A;
+  --lc-action-primary-text: #FFFFFF;
+  --lc-action-primary-scrim: #5C2010;
+  --lc-action-secondary: #F2EFED;
+  --lc-action-secondary-text: #3E3733;
+  --lc-accent: #0A7A85;
+  --lc-accent-bold: #0A7A85;
+  --lc-accent-bold-text: #FFFFFF;
+  --lc-accent-bold-edge: #0B626C;
+  --lc-focus-ring: #0C1533;
+  --lc-focus-ring-contrast: #FFFFFF;
+  --lc-elevation-sm: 2px 2px 0 rgba(25,21,18,0.10);
+  --lc-elevation-md: 4px 4px 0 rgba(25,21,18,0.12);
+  --lc-elevation-lg: 8px 8px 0 rgba(25,21,18,0.14);
+  --lc-status-draft-bg: #F2EFED;
+  --lc-status-draft-fg: #3E3733;
+  --lc-status-draft-dot: #756B65;
+  --lc-status-published-bg: #E1F6E9;
+  --lc-status-published-fg: #0E6B3D;
+  --lc-status-published-dot: #12864C;
+  --lc-status-underOffer-bg: #FFEEDC;
+  --lc-status-underOffer-fg: #8A4600;
+  --lc-status-underOffer-dot: #D97706;
+  --lc-status-closed-bg: #ECE6FD;
+  --lc-status-closed-fg: #4B2A9E;
+  --lc-status-closed-dot: #6D45C9;
+  --lc-status-archived-bg: #FAF8F7;
+  --lc-status-archived-fg: #635A54;
+  --lc-status-archived-dot: #948A82;
+  --lc-status-unpublished-bg: #FFEAE4;
+  --lc-status-unpublished-fg: #A32D12;
+  --lc-status-unpublished-dot: #D9411F;
+  --lc-channel-instagram: #D62B62;
+  --lc-channel-instagram-on: #FFFFFF;
+  --lc-channel-whatsapp: #0E7A40;
+  --lc-channel-whatsapp-on: #FFFFFF;
+  --lc-channel-messenger: #0069CC;
+  --lc-channel-messenger-on: #FFFFFF;
+  --lc-channel-facebook: #1257A8;
+  --lc-channel-facebook-on: #FFFFFF;
+  --lc-channel-tiktok: #1B1B1B;
+  --lc-channel-tiktok-on: #FFFFFF;
+  --lc-channel-x: #111111;
+  --lc-channel-x-on: #FFFFFF;
+  --lc-channel-linkedin: #0A66C2;
+  --lc-channel-linkedin-on: #FFFFFF;
+  --lc-channel-olx: #00666F;
+  --lc-channel-olx-on: #FFFFFF;
+}
+
+[data-lc-mode="dark"] {
+  --lc-bg-page: #0C1533;
+  --lc-surface: #141E3D;
+  --lc-surface-raised: #1C2749;
+  --lc-surface-sunken: #070C21;
+  --lc-surface-inverse: #FAF8F7;
+  --lc-border: #26315A;
+  --lc-border-strong: #374371;
+  --lc-text-primary: #F2F4FB;
+  --lc-text-heading: #FFFFFF;
+  --lc-text-secondary: #A9B2CE;
+  --lc-text-muted: #8C96B6;
+  --lc-text-inverse: #0C1533;
+  --lc-text-brand: #FF7440;
+  --lc-action-primary: #FF7440;
+  --lc-action-primary-hover: #FF9C78;
+  --lc-action-primary-text: #2A1206;
+  --lc-action-primary-scrim: #FFC3AD;
+  --lc-action-secondary: #1E2848;
+  --lc-action-secondary-text: #DCE2F2;
+  --lc-accent: #35B7C0;
+  --lc-accent-bold: #35B7C0;
+  --lc-accent-bold-text: #06262B;
+  --lc-accent-bold-edge: #6DD2D8;
+  --lc-focus-ring: #FFFFFF;
+  --lc-focus-ring-contrast: #080E22;
+  --lc-elevation-sm: 2px 2px 0 rgba(0,0,0,0.7);
+  --lc-elevation-md: 4px 4px 0 rgba(0,0,0,0.75);
+  --lc-elevation-lg: 8px 8px 0 rgba(0,0,0,0.8);
+  --lc-status-draft-bg: #232C4A;
+  --lc-status-draft-fg: #C3CBE4;
+  --lc-status-draft-dot: #939BB4;
+  --lc-status-published-bg: #12331F;
+  --lc-status-published-fg: #63DD97;
+  --lc-status-published-dot: #3DD68C;
+  --lc-status-underOffer-bg: #3B2708;
+  --lc-status-underOffer-fg: #FFC773;
+  --lc-status-underOffer-dot: #F5A524;
+  --lc-status-closed-bg: #2A2150;
+  --lc-status-closed-fg: #BCA8FB;
+  --lc-status-closed-dot: #A78BFA;
+  --lc-status-archived-bg: #1A2340;
+  --lc-status-archived-fg: #99A3C2;
+  --lc-status-archived-dot: #666E88;
+  --lc-status-unpublished-bg: #3F1A10;
+  --lc-status-unpublished-fg: #FFA48D;
+  --lc-status-unpublished-dot: #F0500F;
+  --lc-channel-instagram: #F76FA0;
+  --lc-channel-instagram-on: #0B0E12;
+  --lc-channel-whatsapp: #4BE38C;
+  --lc-channel-whatsapp-on: #0B0E12;
+  --lc-channel-messenger: #5FB3FF;
+  --lc-channel-messenger-on: #0B0E12;
+  --lc-channel-facebook: #6BA8F5;
+  --lc-channel-facebook-on: #0B0E12;
+  --lc-channel-tiktok: #25F4EE;
+  --lc-channel-tiktok-on: #0B0E12;
+  --lc-channel-x: #F2F2F2;
+  --lc-channel-x-on: #0B0E12;
+  --lc-channel-linkedin: #6BB2F0;
+  --lc-channel-linkedin-on: #0B0E12;
+  --lc-channel-olx: #6ED3D9;
+  --lc-channel-olx-on: #0B0E12;
+}
+
+/* Same values as the block above, generated from one source. If they ever drift, this
+   block wins over an explicit data-lc-mode="dark" when the OS is dark — keep it generated. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-lc-mode="light"]) {
+    --lc-bg-page: #0C1533;
+    --lc-surface: #141E3D;
+    --lc-surface-raised: #1C2749;
+    --lc-surface-sunken: #070C21;
+    --lc-surface-inverse: #FAF8F7;
+    --lc-border: #26315A;
+    --lc-border-strong: #374371;
+    --lc-text-primary: #F2F4FB;
+    --lc-text-heading: #FFFFFF;
+    --lc-text-secondary: #A9B2CE;
+    --lc-text-muted: #8C96B6;
+    --lc-text-inverse: #0C1533;
+    --lc-text-brand: #FF7440;
+    --lc-action-primary: #FF7440;
+    --lc-action-primary-hover: #FF9C78;
+    --lc-action-primary-text: #2A1206;
+    --lc-action-primary-scrim: #FFC3AD;
+    --lc-action-secondary: #1E2848;
+    --lc-action-secondary-text: #DCE2F2;
+    --lc-accent: #35B7C0;
+    --lc-accent-bold: #35B7C0;
+    --lc-accent-bold-text: #06262B;
+    --lc-accent-bold-edge: #6DD2D8;
+    --lc-focus-ring: #FFFFFF;
+    --lc-focus-ring-contrast: #080E22;
+    --lc-elevation-sm: 2px 2px 0 rgba(0,0,0,0.7);
+    --lc-elevation-md: 4px 4px 0 rgba(0,0,0,0.75);
+    --lc-elevation-lg: 8px 8px 0 rgba(0,0,0,0.8);
+    --lc-status-draft-bg: #232C4A;
+    --lc-status-draft-fg: #C3CBE4;
+    --lc-status-draft-dot: #939BB4;
+    --lc-status-published-bg: #12331F;
+    --lc-status-published-fg: #63DD97;
+    --lc-status-published-dot: #3DD68C;
+    --lc-status-underOffer-bg: #3B2708;
+    --lc-status-underOffer-fg: #FFC773;
+    --lc-status-underOffer-dot: #F5A524;
+    --lc-status-closed-bg: #2A2150;
+    --lc-status-closed-fg: #BCA8FB;
+    --lc-status-closed-dot: #A78BFA;
+    --lc-status-archived-bg: #1A2340;
+    --lc-status-archived-fg: #99A3C2;
+    --lc-status-archived-dot: #666E88;
+    --lc-status-unpublished-bg: #3F1A10;
+    --lc-status-unpublished-fg: #FFA48D;
+    --lc-status-unpublished-dot: #F0500F;
+    --lc-channel-instagram: #F76FA0;
+    --lc-channel-instagram-on: #0B0E12;
+    --lc-channel-whatsapp: #4BE38C;
+    --lc-channel-whatsapp-on: #0B0E12;
+    --lc-channel-messenger: #5FB3FF;
+    --lc-channel-messenger-on: #0B0E12;
+    --lc-channel-facebook: #6BA8F5;
+    --lc-channel-facebook-on: #0B0E12;
+    --lc-channel-tiktok: #25F4EE;
+    --lc-channel-tiktok-on: #0B0E12;
+    --lc-channel-x: #F2F2F2;
+    --lc-channel-x-on: #0B0E12;
+    --lc-channel-linkedin: #6BB2F0;
+    --lc-channel-linkedin-on: #0B0E12;
+    --lc-channel-olx: #6ED3D9;
+    --lc-channel-olx-on: #0B0E12;
+  }
+}
+
+/* Base — the only global rules the theme owns. */
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  background: var(--lc-bg-page);
+  color: var(--lc-text-primary);
+  font: var(--lc-type-body);
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--lc-duration-base) var(--lc-easing-in-out), color var(--lc-duration-base) var(--lc-easing-in-out);
+}
+a { color: var(--lc-text-brand); text-decoration: none; }
+a:hover { color: var(--lc-action-primary-hover); text-decoration: underline; }
+/* Two-tone focus ring. No single colour clears 3:1 against BOTH the page and the orange
+   primary button, so the ring pairs an inner and an outer band — one of them always contrasts,
+   whatever the element sits on. Do not collapse this to a single outline. */
+:where(button, a, [role="button"], input, select, textarea):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--lc-focus-ring), 0 0 0 4px var(--lc-focus-ring-contrast);
+}
+@supports not (selector(:focus-visible)) {
+  :where(button, a, [role="button"], input, select, textarea):focus {
+    box-shadow: 0 0 0 2px var(--lc-focus-ring), 0 0 0 4px var(--lc-focus-ring-contrast);
+  }
+}
+:where(button, a[role="button"], [role="button"]) { min-height: var(--lc-tap-target-min); }
+/* Numerals are tabular everywhere — prices and counts must not jitter between rows. */
+:where(.lc-data, [data-lc-numeric]) { font-family: var(--lc-font-mono); font-variant-numeric: tabular-nums; }

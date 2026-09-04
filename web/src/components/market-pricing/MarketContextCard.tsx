@@ -18,7 +18,7 @@ function formatPrice(value: number | null | undefined) {
 export function MarketContextCard({ analysis, onViewComparables }: MarketContextCardProps) {
   if (!analysis) {
     return (
-      <div className="rounded-xl border bg-white p-5">
+      <div className="rounded-xl border bg-[var(--lc-surface)] p-5">
         <div className="flex items-center gap-2 text-muted-foreground">
           <BarChart3 className="h-5 w-5" />
           <span className="text-sm">Market analysis not available.</span>
@@ -37,7 +37,7 @@ export function MarketContextCard({ analysis, onViewComparables }: MarketContext
   const positionColor = position === 'above' ? 'text-red-600' : position === 'below' ? 'text-green-600' : 'text-blue-600'
 
   return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm">
+    <div className="rounded-xl border bg-[var(--lc-surface)] p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
@@ -58,11 +58,11 @@ export function MarketContextCard({ analysis, onViewComparables }: MarketContext
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-lg bg-muted/50 p-3">
+            <div className="rounded-lg bg-[var(--lc-surface-sunken)] p-3">
               <p className="text-muted-foreground">Median</p>
               <p className="font-semibold">{formatPrice(analysis.median_price)}</p>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3">
+            <div className="rounded-lg bg-[var(--lc-surface-sunken)] p-3">
               <p className="text-muted-foreground">Your price</p>
               <p className={`font-semibold ${positionColor}`}>
                 {positionText}

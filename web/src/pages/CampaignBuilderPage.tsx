@@ -143,7 +143,7 @@ const PRESET_TEMPLATES: { label: string; steps: Step[] }[] = [
 
 function WizardProgressBar({ current }: { current: number }) {
   return (
-    <div className="flex shrink-0 items-center gap-0 border-b border-[#E4E3E0] bg-white px-6 py-3">
+    <div className="flex shrink-0 items-center gap-0 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6 py-3">
       {WIZARD_STEPS.map((label, i) => (
         <div key={label} className="flex items-center">
           <div className="flex flex-col items-center gap-1">
@@ -151,10 +151,10 @@ function WizardProgressBar({ current }: { current: number }) {
               className={cn(
                 'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
                 i < current
-                  ? 'bg-[#0F0F0F] text-white'
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                   : i === current
-                  ? 'border-2 border-[#0F0F0F] bg-white text-[#0F0F0F]'
-                  : 'border border-[#D0CFCD] bg-white text-muted-foreground',
+                  ? 'border-2 border-[var(--lc-action-primary)] bg-[var(--lc-surface)] text-[var(--lc-text-primary)]'
+                  : 'border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] text-muted-foreground',
               )}
             >
               {i < current ? <Check className="h-3 w-3" /> : i + 1}
@@ -164,7 +164,7 @@ function WizardProgressBar({ current }: { current: number }) {
             </span>
           </div>
           {i < WIZARD_STEPS.length - 1 && (
-            <div className={cn('mx-2 mb-4 h-px w-12 sm:w-20', i < current ? 'bg-[#0F0F0F]' : 'bg-[#E4E3E0]')} />
+            <div className={cn('mx-2 mb-4 h-px w-12 sm:w-20', i < current ? 'bg-[var(--lc-action-primary)]' : 'bg-[var(--lc-border)]')} />
           )}
         </div>
       ))}
@@ -196,13 +196,13 @@ function StepEditor({
   const isUsingTemplate = Boolean(selectedTemplate)
 
   return (
-    <div className="rounded-lg border border-[#E4E3E0] bg-white">
+    <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface)]">
       {/* Step header */}
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3"
         onClick={() => setOpen((v) => !v)}
       >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F0EFED] text-xs font-semibold">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--lc-surface-sunken)] text-xs font-semibold">
           {index + 1}
         </div>
         <ChannelIcon className="h-4 w-4 text-muted-foreground" />
@@ -228,7 +228,7 @@ function StepEditor({
 
       {/* Step body */}
       {open && (
-        <div className="space-y-3 border-t border-[#E4E3E0] p-4">
+        <div className="space-y-3 border-t border-[var(--lc-border)] p-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Template</Label>
             <select
@@ -327,7 +327,7 @@ function StepEditor({
               placeholder="Write your message…"
               disabled={isUsingTemplate}
               onChange={(e) => onUpdate({ ...step, body: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-60"
             />
           </div>
         </div>
@@ -485,7 +485,7 @@ export function CampaignBuilderPage() {
                     placeholder="What is this campaign for?"
                     value={form.description}
                     onChange={(e) => setField('description', e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
                   />
                 </div>
 
@@ -500,14 +500,14 @@ export function CampaignBuilderPage() {
                         className={cn(
                           'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
                           form.trigger === t.value
-                            ? 'border-[#0F0F0F] bg-[#0F0F0F] text-white'
-                            : 'border-[#E4E3E0] bg-white hover:border-foreground',
+                            ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                            : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
                         )}
                       >
                         <Zap className="mt-0.5 h-4 w-4 shrink-0" />
                         <div>
                           <p className="text-sm font-medium">{t.label}</p>
-                          <p className={cn('text-xs', form.trigger === t.value ? 'text-white/70' : 'text-muted-foreground')}>
+                          <p className={cn('text-xs', form.trigger === t.value ? 'text-[var(--lc-action-primary-text)]/70' : 'text-muted-foreground')}>
                             {t.description}
                           </p>
                         </div>
@@ -527,8 +527,8 @@ export function CampaignBuilderPage() {
                         className={cn(
                           'flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors',
                           form.target_channel === value
-                            ? 'border-[#0F0F0F] bg-[#0F0F0F] text-white'
-                            : 'border-[#E4E3E0] bg-white hover:border-foreground',
+                            ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                            : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
                         )}
                       >
                         <Icon className="h-4 w-4" />
@@ -588,13 +588,13 @@ export function CampaignBuilderPage() {
                 </div>
 
                 {form.audience_rules.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-[#D0CFCD] py-8 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-[var(--lc-border-strong)] py-8 text-center text-sm text-muted-foreground">
                     No rules yet — campaign will run on manual enrollment
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {form.audience_rules.map((rule, i) => (
-                      <div key={i} className="flex items-center gap-2 rounded-lg border border-[#E4E3E0] bg-white p-3">
+                      <div key={i} className="flex items-center gap-2 rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface)] p-3">
                         <select
                           className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                           value={rule.field}
@@ -637,7 +637,7 @@ export function CampaignBuilderPage() {
               </div>
 
               {/* Preset templates */}
-              <div className="rounded-lg border border-[#E4E3E0] bg-[#FAFAF9] p-4">
+              <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-bg-page)] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start from a template</p>
                 <div className="flex flex-wrap gap-2">
                   {PRESET_TEMPLATES.map((t) => (
@@ -645,7 +645,7 @@ export function CampaignBuilderPage() {
                       key={t.label}
                       type="button"
                       onClick={() => applyTemplate(t)}
-                      className="rounded-full border border-[#E4E3E0] bg-white px-3 py-1 text-xs font-medium hover:border-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white transition-colors"
+                      className="rounded-full border border-[var(--lc-border)] bg-[var(--lc-surface)] px-3 py-1 text-xs font-medium hover:border-[var(--lc-action-primary)] hover:bg-[var(--lc-action-primary)] hover:text-[var(--lc-action-primary-text)] transition-colors"
                     >
                       {t.label}
                     </button>
@@ -683,13 +683,13 @@ export function CampaignBuilderPage() {
                 <p className="text-sm text-muted-foreground">Check your campaign settings before publishing.</p>
               </div>
 
-              <div className="divide-y divide-[#E4E3E0] rounded-xl border border-[#E4E3E0] bg-white">
+              <div className="divide-y divide-[var(--lc-border)] rounded-xl border border-[var(--lc-border)] bg-[var(--lc-surface)]">
                 <div className="px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campaign</p>
                   <p className="mt-1 font-semibold">{form.name}</p>
                   {form.description && <p className="text-sm text-muted-foreground">{form.description}</p>}
                 </div>
-                <div className="grid grid-cols-3 divide-x divide-[#E4E3E0] px-0">
+                <div className="grid grid-cols-3 divide-x divide-[var(--lc-border)] px-0">
                   {[
                     { label: 'Trigger', value: TRIGGERS.find((t) => t.value === form.trigger)?.label },
                     { label: 'Channel', value: CHANNELS.find((c) => c.value === form.target_channel)?.label },
@@ -730,7 +730,7 @@ export function CampaignBuilderPage() {
                       const template = templates.find((t) => t.id === s.template_id)
                       return (
                         <div key={i} className="flex items-start gap-3 text-sm">
-                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F0EFED] text-[10px] font-bold">
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--lc-surface-sunken)] text-[10px] font-bold">
                             {i + 1}
                           </div>
                           <div className="min-w-0">
@@ -761,7 +761,7 @@ export function CampaignBuilderPage() {
                   Save as draft
                 </Button>
                 <Button
-                  className="flex-1 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                  className="flex-1 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
                   disabled={saving}
                   onClick={() => handleSave('active')}
                 >
@@ -787,7 +787,7 @@ export function CampaignBuilderPage() {
                 size="sm"
                 disabled={!canAdvance()}
                 onClick={() => setWizardStep((s) => s + 1)}
-                className="bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                className="bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
               >
                 Continue <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>

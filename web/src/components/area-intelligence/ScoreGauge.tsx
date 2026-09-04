@@ -5,7 +5,7 @@ interface ScoreGaugeProps {
   size?: number
 }
 
-export function ScoreGauge({ score, label, color = '#3B82F6', size = 120 }: ScoreGaugeProps) {
+export function ScoreGauge({ score, label, color = 'var(--lc-accent)', size = 120 }: ScoreGaugeProps) {
   const value = score == null || !Number.isFinite(score) ? 0 : Math.min(10, Math.max(0, score))
   const percentage = value * 10
   const radius = size / 2 - 10
@@ -21,7 +21,7 @@ export function ScoreGauge({ score, label, color = '#3B82F6', size = 120 }: Scor
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#E5E7EB"
+            stroke="var(--lc-border)"
             strokeWidth={8}
           />
           <circle
@@ -37,7 +37,7 @@ export function ScoreGauge({ score, label, color = '#3B82F6', size = 120 }: Scor
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold">{score == null ? '—' : value.toFixed(1)}</span>
+          <span className="lc-data text-2xl font-bold">{score == null ? '—' : value.toFixed(1)}</span>
           <span className="text-xs text-muted-foreground">/ 10</span>
         </div>
       </div>
