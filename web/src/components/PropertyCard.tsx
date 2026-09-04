@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { MapPin, Bed, Bath, Maximize, Eye } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Numeric } from '@/components/ui/numeric'
 import { formatPrice } from '@/lib/format'
 import type { Property } from '@/types'
 
@@ -16,7 +17,7 @@ export function PropertyCard({ property, to }: PropertyCardProps) {
 
   return (
     <Link to={to || `/listings/${property.id}`} className="group block">
-      <div className="overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:shadow-md">
+      <div className="overflow-hidden rounded-xl border bg-[var(--lc-surface)] shadow-sm transition-all hover:shadow-md">
         <div className="relative aspect-[4/3] overflow-hidden">
           <img
             src={photos[0] || '/placeholder-property.svg'}
@@ -29,9 +30,9 @@ export function PropertyCard({ property, to }: PropertyCardProps) {
             </Badge>
             {featured && <Badge variant="destructive">Featured</Badge>}
           </div>
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full lc-overlay px-2 py-1 text-xs text-[var(--lc-text-inverse)]">
             <Eye className="h-3 w-3" />
-            {(property.views || 0).toLocaleString()}
+            <Numeric>{(property.views || 0).toLocaleString()}</Numeric>
           </div>
         </div>
 
@@ -49,23 +50,23 @@ export function PropertyCard({ property, to }: PropertyCardProps) {
             {property.bedrooms > 0 && (
               <span className="flex items-center gap-1">
                 <Bed className="h-4 w-4" />
-                {property.bedrooms}
+                <Numeric>{property.bedrooms}</Numeric>
               </span>
             )}
             <span className="flex items-center gap-1">
               <Bath className="h-4 w-4" />
-              {property.bathrooms}
+              <Numeric>{property.bathrooms}</Numeric>
             </span>
             <span className="flex items-center gap-1">
               <Maximize className="h-4 w-4" />
-              {property.area} {property.area_unit}
+              <Numeric>{property.area}</Numeric> {property.area_unit}
             </span>
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-primary">
+            <Numeric className="text-lg font-bold text-[var(--lc-text-brand)]">
               {formatPrice(property.price, property.type, property.price_unit)}
-            </span>
+            </Numeric>
             <div className="flex items-center gap-2">
               {property.agent_photo && (
                 <img

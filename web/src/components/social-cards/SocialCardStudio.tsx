@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { readLcColor } from '@/theme/css'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Property } from '@/types'
 
@@ -272,11 +273,11 @@ export function SocialCardStudio({ property }: Props) {
                     type="button"
                     onClick={() => togglePlatform(p.key)}
                     className={`flex flex-col items-start rounded-md border p-2 text-left text-xs transition-colors ${
-                      active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      active ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]' : 'border-slate-200 bg-[var(--lc-surface)] text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span className="font-medium">{p.label}</span>
-                    <span className={active ? 'text-white/70' : 'text-muted-foreground'}>
+                    <span className={active ? 'text-[var(--lc-action-primary-text)]/70' : 'text-muted-foreground'}>
                       {p.width}×{p.height} · {p.aspect}
                     </span>
                   </button>
@@ -311,23 +312,23 @@ export function SocialCardStudio({ property }: Props) {
           <CardContent>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {rendered.map((a) => (
-                <li key={a.id} className="group overflow-hidden rounded-md border bg-white">
+                <li key={a.id} className="group overflow-hidden rounded-md border bg-[var(--lc-surface)]">
                   <div className="relative aspect-square bg-slate-100">
                     <img src={a.url} alt={a.template_name} className="absolute inset-0 h-full w-full object-contain" loading="lazy" />
-                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/50 px-2 py-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <a href={a.url} target="_blank" rel="noreferrer" className="text-[10px] text-white hover:underline inline-flex items-center gap-0.5">
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 lc-overlay px-2 py-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <a href={a.url} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--lc-action-primary-text)] hover:underline inline-flex items-center gap-0.5">
                         <ExternalLink className="h-3 w-3" />
                         Open
                       </a>
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText(window.location.origin + a.url)}
-                        className="text-[10px] text-white hover:underline inline-flex items-center gap-0.5"
+                        className="text-[10px] text-[var(--lc-action-primary-text)] hover:underline inline-flex items-center gap-0.5"
                       >
                         <Copy className="h-3 w-3" />
                         Copy URL
                       </button>
-                      <a href={a.url} download className="text-[10px] text-white hover:underline inline-flex items-center gap-0.5">
+                      <a href={a.url} download className="text-[10px] text-[var(--lc-action-primary-text)] hover:underline inline-flex items-center gap-0.5">
                         <Download className="h-3 w-3" />
                         DL
                       </a>
@@ -407,7 +408,7 @@ function TemplateGrid({
           <li
             key={t.id}
             className={`relative flex flex-col rounded-lg border p-3 text-sm transition-colors ${
-              selected ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900' : 'border-slate-200 bg-white hover:border-slate-300'
+              selected ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900' : 'border-slate-200 bg-[var(--lc-surface)] hover:border-slate-300'
             }`}
           >
             <button
@@ -426,7 +427,7 @@ function TemplateGrid({
               </div>
               <div className="flex-shrink-0">
                 {selected
-                  ? <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"><Check className="h-3.5 w-3.5" /></span>
+                  ? <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[var(--lc-action-primary-text)]"><Check className="h-3.5 w-3.5" /></span>
                   : <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300" />}
               </div>
             </div>
@@ -473,7 +474,7 @@ function TemplateEditorModal({
   const { addToast } = useToast()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description || '')
-  const [bg, setBg] = useState(String((template.background as any)?.color || '#FFFFFF'))
+  const [bg, setBg] = useState(String((template.background as any)?.color || readLcColor('--lc-surface')))
   const [layers, setLayers] = useState(template.layers)
   const [busy, setBusy] = useState(false)
 
@@ -502,8 +503,8 @@ function TemplateEditorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">Edit template</h2>
           <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-muted">
@@ -518,7 +519,7 @@ function TemplateEditorModal({
             </div>
             <div>
               <Label className="text-xs">Background color</Label>
-              <Input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="#FFFFFF" />
+              <Input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="Surface" />
             </div>
             <div className="sm:col-span-2">
               <Label className="text-xs">Description</Label>
@@ -542,7 +543,7 @@ function TemplateEditorModal({
                       </label>
                       <label className="block">
                         <span className="text-[10px] text-muted-foreground">Color</span>
-                        <Input value={String((l as any).color || '#000')} onChange={(e) => updateLayer(i, { color: e.target.value })} className="h-7 text-xs" />
+                        <Input value={String((l as any).color || readLcColor('--lc-text-primary'))} onChange={(e) => updateLayer(i, { color: e.target.value })} className="h-7 text-xs" />
                       </label>
                       <label className="block">
                         <span className="text-[10px] text-muted-foreground">Font size</span>
@@ -557,7 +558,7 @@ function TemplateEditorModal({
                   {(l.type === 'rect' || l.type === 'badge') && (
                     <label className="block">
                       <span className="text-[10px] text-muted-foreground">Fill color</span>
-                      <Input value={String((l as any).color || (l as any).bg_color || '#000')} onChange={(e) => updateLayer(i, l.type === 'badge' ? { bg_color: e.target.value } : { color: e.target.value })} className="h-7 text-xs" />
+                      <Input value={String((l as any).color || (l as any).bg_color || readLcColor('--lc-text-primary'))} onChange={(e) => updateLayer(i, l.type === 'badge' ? { bg_color: e.target.value } : { color: e.target.value })} className="h-7 text-xs" />
                     </label>
                   )}
                   <div className="mt-1 grid grid-cols-4 gap-1.5">
@@ -637,8 +638,8 @@ function ImportTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">Import template JSON</h2>
           <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-muted">

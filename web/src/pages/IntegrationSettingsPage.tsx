@@ -184,8 +184,8 @@ export function IntegrationSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="border-b bg-white px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+      <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <h1 className="text-2xl font-bold">Integrations</h1>
           <p className="text-sm text-muted-foreground">Sync connections, lead routing, and data feeds</p>
@@ -217,7 +217,7 @@ export function IntegrationSettingsPage() {
                   const Icon = typeMeta.icon
                   return (
                     <div key={conn.id} className="flex items-center gap-4 rounded-lg border p-4">
-                      <div className="rounded-lg bg-primary/10 p-2">
+                      <div className="rounded-lg bg-primary-faint p-2">
                         <Icon className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -287,7 +287,7 @@ export function IntegrationSettingsPage() {
                   const assignee = agents.find(a => a.id === rule.assign_to)
                   return (
                     <div key={rule.id} className="flex items-center gap-4 rounded-lg border p-4">
-                      <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                      <div className="rounded-lg bg-primary-faint p-2 shrink-0">
                         <span className="text-sm font-bold text-primary">#{rule.priority}</span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -310,8 +310,8 @@ export function IntegrationSettingsPage() {
 
       {/* Add Sync Modal */}
       {showSyncForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Add Sync Connection</h3>
               <button onClick={() => setShowSyncForm(false)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
@@ -323,7 +323,7 @@ export function IntegrationSettingsPage() {
                   {SYNC_TYPES.map(t => {
                     const Icon = t.icon
                     return (
-                      <button key={t.id} onClick={() => setSyncForm({ ...syncForm, type: t.id })} className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${syncForm.type === t.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+                      <button key={t.id} onClick={() => setSyncForm({ ...syncForm, type: t.id })} className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${syncForm.type === t.id ? 'border-primary bg-primary-faint' : 'hover:bg-[var(--lc-surface-sunken)]'}`}>
                         <Icon className="h-5 w-5 shrink-0" />
                         <div><p className="font-medium text-sm">{t.name}</p><p className="text-xs text-muted-foreground">{t.description}</p></div>
                       </button>
@@ -353,8 +353,8 @@ export function IntegrationSettingsPage() {
 
       {/* Add Route Modal */}
       {showRouteForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+          <div className="w-full max-w-lg rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Add Lead Routing Rule</h3>
               <button onClick={() => setShowRouteForm(false)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5" /></button>

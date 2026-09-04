@@ -36,9 +36,10 @@ export const DEFAULT_BRAND: BrandConfig = {
   taglineSubhead: TAGLINE_SUBHEAD,
   taglineSignoff: TAGLINE_SIGNOFF,
   tagline: `${TAGLINE_HERO}\n${TAGLINE_SUBHEAD}\n${TAGLINE_SIGNOFF}`,
-  logoUrl: '/brand-logo.svg',
-  iconUrl: '/brand-icon.svg',
-  primaryColor: '#0F0F0F',
-  accentColor: '#EAB308',
+  logoUrl: '/brand/wingcaster-logo.svg',
+  iconUrl: '/brand/wingcaster-logo.svg',
+  /** Identity fields from /api/brand. Product chrome reads --lc-* and ignores these. */
+  primaryColor: '',
+  accentColor: '',
   contactEmail: '',
 }

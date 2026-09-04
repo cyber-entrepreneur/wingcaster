@@ -302,7 +302,7 @@ export function MessageTemplatesPage() {
                       key={tpl.id}
                       onClick={() => startEdit(tpl)}
                       className={cn(
-                        'cursor-pointer rounded-lg border bg-white p-4 shadow-sm transition-shadow hover:shadow-md',
+                        'cursor-pointer rounded-lg border bg-[var(--lc-surface)] p-4 shadow-sm transition-shadow hover:shadow-md',
                         editing?.id === tpl.id ? 'border-primary ring-1 ring-primary' : 'border-border',
                       )}
                     >
@@ -336,7 +336,7 @@ export function MessageTemplatesPage() {
 
           {/* Right: editor + preview */}
           <div className="w-full shrink-0 lg:w-[420px]">
-            <div className="sticky top-4 rounded-lg border bg-white p-5 shadow-sm">
+            <div className="sticky top-4 rounded-lg border bg-[var(--lc-surface)] p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">{editing ? 'Edit template' : 'New template'}</h2>
                 {editing && (
@@ -420,7 +420,7 @@ export function MessageTemplatesPage() {
                     value={form.body}
                     onChange={(e) => setForm({ ...form, body: e.target.value })}
                     rows={6}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none"
                     placeholder="Hi {{client_name}}, thank you for your interest in {{property_title}}."
                   />
                 </div>

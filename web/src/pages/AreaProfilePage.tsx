@@ -117,7 +117,7 @@ export function AreaProfilePage() {
                   key={s.dimension.id}
                   score={s.score}
                   label={s.dimension.name}
-                  color={s.dimension.display_config?.color || '#3B82F6'}
+                  color={s.dimension.display_config?.color || 'var(--lc-accent)'}
                 />
               ))}
             </div>

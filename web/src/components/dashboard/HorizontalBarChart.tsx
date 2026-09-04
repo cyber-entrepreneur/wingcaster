@@ -25,18 +25,18 @@ export function HorizontalBarChart({
           <RowTag
             key={item.id || item.label}
             {...(clickable ? { type: 'button' as const, onClick: () => onSelect?.(item) } : {})}
-            className={`w-full text-left ${clickable ? 'group rounded-md p-1 -mx-1 hover:bg-muted/50 transition-colors' : ''}`}
+            className={`w-full text-left ${clickable ? 'group rounded-md p-1 -mx-1 hover:bg-[var(--lc-surface-sunken)] transition-colors' : ''}`}
           >
             <div className="mb-1 flex items-center justify-between gap-3 text-sm">
               <span className={`truncate font-medium ${clickable ? 'group-hover:underline' : ''}`}>{item.label}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
+              <span className="lc-data shrink-0 text-muted-foreground">
                 {item.value.toLocaleString()}
                 {valueSuffix}
               </span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-[#0F0F0F] transition-all duration-500"
+                className="h-full rounded-full bg-[var(--lc-action-primary)] transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>

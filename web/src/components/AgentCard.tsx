@@ -18,7 +18,7 @@ export function AgentCard({ agent }: AgentCardProps) {
 
   return (
     <Link to={`/agent/${(agent as any).slug || agent.id}`} className="group block">
-      <div className="overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:shadow-md">
+      <div className="overflow-hidden rounded-xl border bg-[var(--lc-surface)] shadow-sm transition-all hover:shadow-md">
         <div className="flex flex-col sm:flex-row">
           <div className="flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5 p-6 sm:w-40">
             <Avatar className="h-20 w-20 border-4 border-white shadow-lg">

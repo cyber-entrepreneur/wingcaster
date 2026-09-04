@@ -404,8 +404,8 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
   })).filter((cat) => cat.items.length > 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-3xl rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="w-full max-w-3xl rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold">{property ? 'Edit Listing' : 'Add Listing'}</h3>
           <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-muted">
@@ -625,7 +625,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
               {/* Direct upload */}
               <div
                 className={`rounded-lg border border-dashed p-4 transition-colors ${
-                  dragOver ? 'border-[#0F0F0F] bg-muted/50' : 'bg-muted/20'
+                  dragOver ? 'border-[var(--lc-action-primary)] bg-[var(--lc-surface-sunken)]' : 'bg-[var(--lc-bg-page)]'
                 }`}
                 onDragOver={(e) => {
                   e.preventDefault()
@@ -667,7 +667,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
                 />
                 <Button
                   type="button"
-                  className="mt-3 w-full gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                  className="mt-3 w-full gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
                   disabled={uploading || form.media.length >= MAX_LISTING_MEDIA}
                   onClick={() => fileRef.current?.click()}
                 >
@@ -808,7 +808,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
                           onClick={() => toggleAmenity(a)}
                           className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                             on
-                              ? 'border-[#0F0F0F] bg-[#0F0F0F] text-white'
+                              ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                               : 'hover:bg-muted'
                           }`}
                         >
@@ -859,7 +859,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving} className="gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]">
+            <Button type="submit" disabled={saving} className="gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {property ? 'Save Changes' : 'Create Listing'}
             </Button>

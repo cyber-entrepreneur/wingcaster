@@ -12,7 +12,7 @@ export function AreaScoreCard({ area, livabilityScore }: AreaScoreCardProps) {
   return (
     <Link
       to={`/areas/${area.slug}`}
-      className="flex items-center gap-3 rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md"
+      className="flex items-center gap-3 rounded-lg border bg-[var(--lc-surface)] p-3 shadow-sm transition hover:shadow-md"
     >
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-lg">📍</div>
       <div className="flex-1">

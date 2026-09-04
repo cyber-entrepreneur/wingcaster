@@ -190,7 +190,7 @@ export function NeighborhoodValuatorPage() {
               <CardContent>
                 <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {googleScores.map((g: any) => (
-                    <li key={g.id || g.category} className="flex items-center justify-between rounded border bg-white px-3 py-1.5 text-sm">
+                    <li key={g.id || g.category} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] px-3 py-1.5 text-sm">
                       <span className="capitalize">{g.category || g.name || 'Signal'}</span>
                       <span className="text-xs text-muted-foreground">
                         {g.score != null ? `${Number(g.score).toFixed(1)}` : `${g.count ?? 0} nearby`}

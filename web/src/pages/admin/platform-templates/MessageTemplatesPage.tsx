@@ -272,7 +272,7 @@ function FilterChip({
       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
         active
           ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-white text-foreground hover:bg-muted/40'
+          : 'border-border bg-[var(--lc-surface)] text-foreground hover:bg-[var(--lc-surface-sunken)]'
       }`}
       {...aria}
     >
@@ -286,7 +286,7 @@ function TemplateTable({ rows }: { rows: PlatformMessageTemplate[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+        <thead className="border-b border-border bg-[var(--lc-surface-sunken)] text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th scope="col" className="px-4 py-2 font-semibold">Template</th>
             <th scope="col" className="px-4 py-2 font-semibold">Channel</th>
@@ -298,11 +298,11 @@ function TemplateTable({ rows }: { rows: PlatformMessageTemplate[] }) {
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.id} className="border-b border-border last:border-b-0 hover:bg-muted/30">
+            <tr key={t.id} className="border-b border-border last:border-b-0 hover:bg-[var(--lc-surface-sunken)]">
               <td className="px-4 py-3">
                 <Link
                   to={`/admin/message-templates/${t.id}`}
-                  className="block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block rounded focus:outline-none"
                 >
                   <div className="font-medium text-foreground">{t.display_name}</div>
                   <div className="mt-0.5 font-mono text-xs text-muted-foreground">{t.code}</div>

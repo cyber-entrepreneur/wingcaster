@@ -209,15 +209,15 @@ function VersionList({
             key={v.id}
             className={`rounded-md border transition-colors ${
               isSelected
-                ? 'border-primary bg-primary/5'
-                : 'border-border bg-white hover:bg-muted/40'
+                ? 'border-primary bg-primary-faint'
+                : 'border-border bg-[var(--lc-surface)] hover:bg-[var(--lc-surface-sunken)]'
             }`}
           >
             <button
               type="button"
               onClick={() => onSelect(v.id)}
               aria-pressed={isSelected}
-              className="block w-full rounded-t-md p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block w-full rounded-t-md p-3 text-left focus:outline-none"
               aria-label={`Show diff for version ${v.version}`}
             >
               <div className="flex items-center gap-2">
@@ -302,7 +302,7 @@ function DiffSection({
 }) {
   const isUnchanged = rows.every((r) => r.kind === 'unchanged')
   return (
-    <div className="rounded-md border border-border bg-white">
+    <div className="rounded-md border border-border bg-[var(--lc-surface)]">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{heading}</h4>
         {isUnchanged ? (
@@ -361,7 +361,7 @@ function VariablesDiff({
     !addedRequired.length && !removedRequired.length && !addedOptional.length && !removedOptional.length
 
   return (
-    <div className="rounded-md border border-border bg-white">
+    <div className="rounded-md border border-border bg-[var(--lc-surface)]">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Variables
@@ -448,7 +448,7 @@ function RevertConfirmDialog({
           </DialogDescription>
         </DialogHeader>
         {version?.change_note && (
-          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <div className="rounded-md border border-border bg-[var(--lc-surface-sunken)] p-3 text-sm">
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Change note on v{version.version}
             </p>

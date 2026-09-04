@@ -83,7 +83,7 @@ export function AgencyPricingPage() {
   const coverage = summary?.total_listings ? Math.round((summary.analyzed_listings / summary.total_listings) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-muted/20 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -121,7 +121,7 @@ export function AgencyPricingPage() {
             <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Team coverage</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {portfolio?.agents.map((row) => (
-                <button key={row.agent_id} type="button" className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-muted/40" onClick={() => setAgentFilter(row.agent_id)}>
+                <button key={row.agent_id} type="button" className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-[var(--lc-surface-sunken)]" onClick={() => setAgentFilter(row.agent_id)}>
                   <span className="min-w-0"><span className="block truncate text-sm font-medium">{row.agent_name}</span><span className="text-xs text-muted-foreground">{row.analyzed_listings}/{row.total_listings} analyzed</span></span>
                   {row.above_market > 0 && <Badge variant="destructive">{row.above_market} above</Badge>}
                 </button>

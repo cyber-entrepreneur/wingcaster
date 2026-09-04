@@ -4,7 +4,7 @@ export function PrivacyPage() {
       <h1 className="mb-6 text-3xl font-bold tracking-tight">Privacy Policy</h1>
       <div className="max-w-none space-y-4 text-muted-foreground leading-relaxed">
         <p className="mb-4">
-          This Privacy Policy explains how Real Estate Bazaar collects, uses, and protects your personal information.
+          This Privacy Policy explains how WingCaster collects, uses, and protects your personal information.
         </p>
         <h2 className="mb-2 mt-6 text-lg font-semibold text-foreground">1. Information We Collect</h2>
         <p className="mb-4">

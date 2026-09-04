@@ -12,12 +12,15 @@ interface CmdPageHeaderProps {
 
 export function CmdPageHeader({ title, subtitle, actions }: CmdPageHeaderProps) {
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#E4E3E0] bg-white px-6">
+    <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-base font-semibold leading-none">{title}</h1>
-        {subtitle && (
-          <span className="hidden text-sm text-muted-foreground sm:inline">{subtitle}</span>
-        )}
+        <h1
+          className="leading-none"
+          style={{ font: 'var(--lc-type-heading-3)', letterSpacing: 'var(--lc-tracking-heading-3)', color: 'var(--lc-text-heading)' }}
+        >
+          {title}
+        </h1>
+        {subtitle && <span className="hidden text-sm text-[var(--lc-text-muted)] sm:inline">{subtitle}</span>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

@@ -102,8 +102,8 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  closed: 'bg-slate-100 text-slate-700 border-slate-200',
+  open: 'bg-[var(--lc-status-published-bg)] text-[var(--lc-status-published-fg)] border-transparent',
+  closed: 'bg-[var(--lc-status-archived-bg)] text-[var(--lc-status-archived-fg)] border-transparent',
 }
 
 function formatMessageTime(iso: string | null) {
@@ -332,9 +332,9 @@ export function InboxPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Conversation list */}
-        <div className={cn('flex w-80 shrink-0 flex-col border-r border-[#E4E3E0] bg-white', selectedId && 'hidden lg:flex')}>
+        <div className={cn('flex w-80 shrink-0 flex-col border-r border-[var(--lc-border)] bg-[var(--lc-surface)]', selectedId && 'hidden lg:flex')}>
           {/* Search + filter */}
-          <div className="space-y-2 border-b border-[#E4E3E0] px-4 py-3">
+          <div className="space-y-2 border-b border-[var(--lc-border)] px-4 py-3">
             <Input
               placeholder="Search conversations..."
               value={search}
@@ -349,8 +349,8 @@ export function InboxPage() {
                   className={cn(
                     'flex-1 rounded-md py-1 text-xs font-medium capitalize transition-colors',
                     statusFilter === s
-                      ? 'bg-[#0F0F0F] text-white'
-                      : 'bg-[#F0EFED] text-muted-foreground hover:bg-[#E8E7E5]',
+                      ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                      : 'bg-[var(--lc-surface-sunken)] text-muted-foreground hover:bg-[var(--lc-surface-sunken)]',
                   )}
                 >
                   {s}
@@ -373,7 +373,7 @@ export function InboxPage() {
                 className="py-10"
               />
             ) : (
-              <div className="divide-y divide-[#F0EFED]">
+              <div className="divide-y divide-[var(--lc-surface-sunken)]">
                 {filteredConversations.map((c) => {
                   const selected = c.id === selectedId
                   return (
@@ -382,17 +382,17 @@ export function InboxPage() {
                       onClick={() => handleSelect(c.id)}
                       className={cn(
                         'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-                        selected ? 'bg-[#F0EFED]' : 'hover:bg-[#F8F8F7]',
+                        selected ? 'bg-[var(--lc-surface-sunken)]' : 'hover:bg-[var(--lc-bg-page)]',
                       )}
                     >
                       <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-[#E8E7E5] text-[11px] font-semibold text-[#0F0F0F]">
+                        <AvatarFallback className="bg-[var(--lc-surface-sunken)] text-[11px] font-semibold text-[var(--lc-text-primary)]">
                           {(c.contact_name || 'U').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
-                          <span className={cn('truncate text-sm font-medium', c.unread_count > 0 && !selected && 'text-[#0F0F0F]')}>
+                          <span className={cn('truncate text-sm font-medium', c.unread_count > 0 && !selected && 'text-[var(--lc-text-primary)]')}>
                             {c.contact_name || 'Unknown'}
                           </span>
                           <span className="shrink-0 text-[10px] text-muted-foreground">
@@ -409,7 +409,7 @@ export function InboxPage() {
                           </span>
                         </div>
                         {c.unread_count > 0 && (
-                          <Badge className="mt-1 h-4 min-w-[1rem] bg-[#0F0F0F] px-1.5 text-[10px] text-white">
+                          <Badge className="mt-1 h-4 min-w-[1rem] bg-[var(--lc-action-primary)] px-1.5 text-[10px] text-[var(--lc-action-primary-text)]">
                             {c.unread_count}
                           </Badge>
                         )}
@@ -423,7 +423,7 @@ export function InboxPage() {
         </div>
 
         {/* Thread view */}
-        <div className={cn('flex flex-1 flex-col bg-[#F8F8F7]', !selectedId && 'hidden lg:flex')}>
+        <div className={cn('flex flex-1 flex-col bg-[var(--lc-bg-page)]', !selectedId && 'hidden lg:flex')}>
           {!activeConversation ? (
             <CmdEmptyState
               icon={<Inbox className="h-8 w-8" />}
@@ -433,12 +433,12 @@ export function InboxPage() {
           ) : (
             <>
               {/* Thread header */}
-              <div className="flex shrink-0 items-center gap-3 border-b border-[#E4E3E0] bg-white px-5 py-3">
+              <div className="flex shrink-0 items-center gap-3 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-5 py-3">
                 <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSelectedId(null)}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-[#E8E7E5] text-[11px] font-semibold">{contactInitials || 'U'}</AvatarFallback>
+                  <AvatarFallback className="bg-[var(--lc-surface-sunken)] text-[11px] font-semibold">{contactInitials || 'U'}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold leading-none">{activeConversation.contact_name || 'Unknown'}</p>
@@ -493,7 +493,7 @@ export function InboxPage() {
                     {groupMessagesByDay(messages).map(([label, dayMessages]) => (
                       <div key={label} className="space-y-3">
                         <div className="flex justify-center">
-                          <span className="rounded-full bg-[#E8E7E5] px-3 py-1 text-[10px] text-muted-foreground">{label}</span>
+                          <span className="rounded-full bg-[var(--lc-surface-sunken)] px-3 py-1 text-[10px] text-muted-foreground">{label}</span>
                         </div>
                         {dayMessages.map((m) => {
                           const isInbound = m.direction === 'inbound'
@@ -503,12 +503,12 @@ export function InboxPage() {
                                 className={cn(
                                   'max-w-[75%] rounded-2xl px-4 py-2 text-sm shadow-sm',
                                   isInbound
-                                    ? 'rounded-tl-none bg-white'
-                                    : 'rounded-tr-none bg-[#0F0F0F] text-white',
+                                    ? 'rounded-tl-none bg-[var(--lc-surface)]'
+                                    : 'rounded-tr-none bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]',
                                 )}
                               >
                                 <p className="whitespace-pre-wrap">{m.content}</p>
-                                <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isInbound ? 'text-muted-foreground' : 'text-white/60')}>
+                                <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isInbound ? 'text-muted-foreground' : 'text-[var(--lc-action-primary-text)]/60')}>
                                   <span>{formatMessageTime(m.created_at)}</span>
                                   {!isInbound && (
                                     <span>
@@ -534,7 +534,7 @@ export function InboxPage() {
               </div>
 
               {/* Composer */}
-              <div className="shrink-0 border-t border-[#E4E3E0] bg-white px-5 py-3">
+              <div className="shrink-0 border-t border-[var(--lc-border)] bg-[var(--lc-surface)] px-5 py-3">
                 <div className="flex items-end gap-2">
                   <textarea
                     ref={composerRef}
@@ -544,11 +544,11 @@ export function InboxPage() {
                     placeholder="Type a message…"
                     rows={1}
                     disabled={activeConversation.status === 'closed'}
-                    className="max-h-32 min-h-[40px] flex-1 resize-y rounded-xl border border-[#E4E3E0] bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F0F0F] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="max-h-32 min-h-tap flex-1 resize-y rounded-xl border border-[var(--lc-border)] bg-background px-3 py-2 text-sm placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <Button
                     size="icon"
-                    className="h-10 w-10 shrink-0 rounded-xl bg-[#0F0F0F] hover:bg-[#2F2F2F]"
+                    className="shrink-0 rounded-xl bg-[var(--lc-action-primary)] hover:bg-[var(--lc-action-primary-hover)]"
                     onClick={handleSend}
                     disabled={sending || !draft.trim() || activeConversation.status === 'closed'}
                   >

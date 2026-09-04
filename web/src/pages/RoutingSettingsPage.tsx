@@ -136,7 +136,7 @@ export function RoutingSettingsPage() {
                   type="button"
                   onClick={() => setScope(s)}
                   className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
-                    scope === s ? 'bg-slate-900 text-white' : 'text-muted-foreground hover:bg-muted'
+                    scope === s ? 'bg-slate-900 text-[var(--lc-action-primary-text)]' : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
                   {s === 'agent' ? 'My overrides' : 'Agency defaults'}

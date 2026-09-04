@@ -264,7 +264,7 @@ export function TemplateSettingsForm({
               rows={3}
               maxLength={1000}
               placeholder="Sent when a new agent signs up. Contains the 6-digit verification code."
-              className={`flex w-full rounded-md border ${errors.description ? 'border-red-300' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y`}
+              className={`flex w-full rounded-md border ${errors.description ? 'border-red-300' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none  resize-y`}
               aria-invalid={Boolean(errors.description)}
               aria-describedby={errors.description ? 'settings-description-error' : 'settings-description-hint'}
             />
@@ -296,7 +296,7 @@ export function TemplateSettingsForm({
                 value={value.channel}
                 disabled={mode === 'edit'}
                 onChange={(e) => onChange({ channel: e.target.value as PlatformTemplateChannel })}
-                className="flex h-10 w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-tap w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {CHANNELS.map((c) => (
                   <option key={c} value={c}>{channelLabel(c)}</option>
@@ -310,7 +310,7 @@ export function TemplateSettingsForm({
                 value={value.category}
                 disabled={classificationLocked}
                 onChange={(e) => onChange({ category: e.target.value as PlatformTemplateCategory })}
-                className="flex h-10 w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-tap w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>{categoryLabel(c)}</option>
@@ -332,7 +332,7 @@ export function TemplateSettingsForm({
                 value={languageSelectValue}
                 disabled={classificationLocked}
                 onChange={(e) => setLanguageFromSelect(e.target.value)}
-                className="flex h-10 w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-tap w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.value} value={l.value}>{l.label} ({l.value})</option>
@@ -361,7 +361,7 @@ export function TemplateSettingsForm({
                 value={value.territory_id ?? ''}
                 disabled={classificationLocked || territoriesLoading}
                 onChange={(e) => onChange({ territory_id: e.target.value || null })}
-                className="flex h-10 w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-tap w-full items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">{territoriesLoading ? 'Loading territories…' : '— Global default —'}</option>
                 {territories.map((t) => (
@@ -373,7 +373,7 @@ export function TemplateSettingsForm({
             </Field>
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+          <div className="flex items-start gap-3 rounded-md border border-border bg-[var(--lc-surface-sunken)] p-3">
             <input
               id="settings-is-active"
               type="checkbox"

@@ -1,0 +1,1550 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "$description": "ListingClarion — Broadcast, the adopted production theme. W3C DTCG. Three tiers: primitive (raw, never referenced by components), semantic (the ONLY tier components may read), component (values no semantic role covers). Light and dark are both required: a token is only correct if it resolves in both.",
+  "$meta": {
+    "theme": "Broadcast",
+    "adopted": "2026-08-13",
+    "cssVariablePrefix": "--lc-",
+    "darkModeSelector": "[data-lc-mode=\"dark\"]",
+    "wcag": "AA — 4.5:1 text, 3:1 UI/non-text",
+    "failures": 0
+  },
+  "primitive": {
+    "$description": "Raw ramps. Never reference these from a component — alias them through the semantic tier.",
+    "color": {
+      "orange": {
+        "50": {
+          "$value": "#FFF3EE",
+          "$type": "color"
+        },
+        "100": {
+          "$value": "#FFE1D6",
+          "$type": "color"
+        },
+        "200": {
+          "$value": "#FFC3AD",
+          "$type": "color"
+        },
+        "300": {
+          "$value": "#FF9C78",
+          "$type": "color"
+        },
+        "400": {
+          "$value": "#FF7440",
+          "$type": "color"
+        },
+        "500": {
+          "$value": "#F0500F",
+          "$type": "color"
+        },
+        "600": {
+          "$value": "#C93C08",
+          "$type": "color"
+        },
+        "700": {
+          "$value": "#A3320A",
+          "$type": "color"
+        },
+        "800": {
+          "$value": "#7C280C",
+          "$type": "color"
+        },
+        "900": {
+          "$value": "#5C2010",
+          "$type": "color"
+        },
+        "950": {
+          "$value": "#331206",
+          "$type": "color"
+        }
+      },
+      "cobalt": {
+        "50": {
+          "$value": "#EEF3FF",
+          "$type": "color"
+        },
+        "100": {
+          "$value": "#DAE4FF",
+          "$type": "color"
+        },
+        "200": {
+          "$value": "#B8CBFF",
+          "$type": "color"
+        },
+        "300": {
+          "$value": "#8AA9FB",
+          "$type": "color"
+        },
+        "400": {
+          "$value": "#5B83F2",
+          "$type": "color"
+        },
+        "500": {
+          "$value": "#3A5FE0",
+          "$type": "color"
+        },
+        "600": {
+          "$value": "#2647C4",
+          "$type": "color"
+        },
+        "700": {
+          "$value": "#1E3799",
+          "$type": "color"
+        },
+        "800": {
+          "$value": "#1A2E77",
+          "$type": "color"
+        },
+        "900": {
+          "$value": "#17275E",
+          "$type": "color"
+        },
+        "950": {
+          "$value": "#0C1533",
+          "$type": "color"
+        }
+      },
+      "ember": {
+        "0": {
+          "$value": "#FFFFFF",
+          "$type": "color"
+        },
+        "50": {
+          "$value": "#FAF8F7",
+          "$type": "color"
+        },
+        "100": {
+          "$value": "#F2EFED",
+          "$type": "color"
+        },
+        "200": {
+          "$value": "#E6E1DD",
+          "$type": "color"
+        },
+        "300": {
+          "$value": "#CFC7C1",
+          "$type": "color"
+        },
+        "400": {
+          "$value": "#9E948D",
+          "$type": "color"
+        },
+        "500": {
+          "$value": "#756B65",
+          "$type": "color"
+        },
+        "600": {
+          "$value": "#574E49",
+          "$type": "color"
+        },
+        "700": {
+          "$value": "#3E3733",
+          "$type": "color"
+        },
+        "800": {
+          "$value": "#2A2521",
+          "$type": "color"
+        },
+        "900": {
+          "$value": "#191512",
+          "$type": "color"
+        },
+        "950": {
+          "$value": "#0F0C0A",
+          "$type": "color"
+        }
+      }
+    },
+    "space": {
+      "3xs": {
+        "$value": "2px",
+        "$type": "dimension"
+      },
+      "2xs": {
+        "$value": "4px",
+        "$type": "dimension"
+      },
+      "xs": {
+        "$value": "8px",
+        "$type": "dimension"
+      },
+      "sm": {
+        "$value": "12px",
+        "$type": "dimension"
+      },
+      "md": {
+        "$value": "16px",
+        "$type": "dimension"
+      },
+      "lg": {
+        "$value": "20px",
+        "$type": "dimension"
+      },
+      "xl": {
+        "$value": "24px",
+        "$type": "dimension"
+      },
+      "2xl": {
+        "$value": "32px",
+        "$type": "dimension"
+      },
+      "3xl": {
+        "$value": "40px",
+        "$type": "dimension"
+      },
+      "4xl": {
+        "$value": "48px",
+        "$type": "dimension"
+      },
+      "5xl": {
+        "$value": "64px",
+        "$type": "dimension"
+      }
+    },
+    "radius": {
+      "sm": {
+        "$value": "3px",
+        "$type": "dimension"
+      },
+      "md": {
+        "$value": "5px",
+        "$type": "dimension"
+      },
+      "lg": {
+        "$value": "7px",
+        "$type": "dimension"
+      },
+      "xl": {
+        "$value": "10px",
+        "$type": "dimension"
+      },
+      "pill": {
+        "$value": "999px",
+        "$type": "dimension"
+      }
+    },
+    "duration": {
+      "instant": {
+        "$value": "0ms",
+        "$type": "duration",
+        "$description": "State flips with no spatial change"
+      },
+      "fast": {
+        "$value": "120ms",
+        "$type": "duration",
+        "$description": "Hover, dot pulse, badge swap"
+      },
+      "base": {
+        "$value": "180ms",
+        "$type": "duration",
+        "$description": "Theme + mode transition, tab change"
+      },
+      "slow": {
+        "$value": "240ms",
+        "$type": "duration",
+        "$description": "Sheet, drawer, view switch"
+      },
+      "deliberate": {
+        "$value": "320ms",
+        "$type": "duration",
+        "$description": "Full-screen route change"
+      }
+    },
+    "easing": {
+      "out": {
+        "$value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "$type": "cubicBezier",
+        "$description": "Entering elements"
+      },
+      "in-out": {
+        "$value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "$type": "cubicBezier",
+        "$description": "Moving / resizing"
+      },
+      "emphasis": {
+        "$value": "cubic-bezier(0.34, 1.4, 0.64, 1)",
+        "$type": "cubicBezier",
+        "$description": "Publish confirmation"
+      }
+    },
+    "zIndex": {
+      "base": {
+        "$value": 0,
+        "$type": "number"
+      },
+      "raised": {
+        "$value": 10,
+        "$type": "number"
+      },
+      "sticky": {
+        "$value": 100,
+        "$type": "number"
+      },
+      "dropdown": {
+        "$value": 300,
+        "$type": "number"
+      },
+      "overlay": {
+        "$value": 500,
+        "$type": "number"
+      },
+      "modal": {
+        "$value": 1000,
+        "$type": "number"
+      },
+      "toast": {
+        "$value": 1500,
+        "$type": "number"
+      },
+      "tooltip": {
+        "$value": 2000,
+        "$type": "number"
+      }
+    },
+    "breakpoint": {
+      "xs": {
+        "$value": "390px",
+        "$type": "dimension"
+      },
+      "sm": {
+        "$value": "480px",
+        "$type": "dimension"
+      },
+      "md": {
+        "$value": "768px",
+        "$type": "dimension"
+      },
+      "lg": {
+        "$value": "1024px",
+        "$type": "dimension"
+      },
+      "xl": {
+        "$value": "1280px",
+        "$type": "dimension"
+      },
+      "2xl": {
+        "$value": "1536px",
+        "$type": "dimension"
+      }
+    }
+  },
+  "typography": {
+    "family": {
+      "display": {
+        "$value": "Archivo",
+        "$type": "fontFamily",
+        "$description": "Headings only, weight 800, tracking -0.03em"
+      },
+      "ui": {
+        "$value": "IBM Plex Sans",
+        "$type": "fontFamily",
+        "$description": "All UI text and body copy, 400-600"
+      },
+      "mono": {
+        "$value": "IBM Plex Mono",
+        "$type": "fontFamily",
+        "$description": "Every numeral. tabular-nums always on."
+      }
+    },
+    "scale": {
+      "display-xl": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.display}",
+          "fontSize": "40px",
+          "lineHeight": "44px",
+          "fontWeight": 800,
+          "letterSpacing": "-0.03em"
+        },
+        "$description": "Screen hero, marketing · weight follows the theme display weight (800), already baked into the CSS shorthand"
+      },
+      "display": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.display}",
+          "fontSize": "32px",
+          "lineHeight": "38px",
+          "fontWeight": 800,
+          "letterSpacing": "-0.03em"
+        },
+        "$description": "Dashboard greeting, KPI value · weight follows the theme display weight (800), already baked into the CSS shorthand"
+      },
+      "heading-1": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "26px",
+          "lineHeight": "32px",
+          "fontWeight": 600,
+          "letterSpacing": "-0.015em"
+        },
+        "$description": "Screen title"
+      },
+      "heading-2": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "21px",
+          "lineHeight": "28px",
+          "fontWeight": 600,
+          "letterSpacing": "-0.01em"
+        },
+        "$description": "Section title"
+      },
+      "heading-3": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "18px",
+          "lineHeight": "24px",
+          "fontWeight": 600,
+          "letterSpacing": "-0.005em"
+        },
+        "$description": "Card title, listing address"
+      },
+      "body-lg": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "fontWeight": 400,
+          "letterSpacing": "0"
+        },
+        "$description": "Mobile body, descriptions"
+      },
+      "body": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "15px",
+          "lineHeight": "22px",
+          "fontWeight": 400,
+          "letterSpacing": "0"
+        },
+        "$description": "Default UI text"
+      },
+      "body-sm": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "13px",
+          "lineHeight": "18px",
+          "fontWeight": 400,
+          "letterSpacing": "0"
+        },
+        "$description": "Table cells, meta"
+      },
+      "caption": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "12px",
+          "lineHeight": "16px",
+          "fontWeight": 500,
+          "letterSpacing": "0.005em"
+        },
+        "$description": "Badges, timestamps"
+      },
+      "overline": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.ui}",
+          "fontSize": "11px",
+          "lineHeight": "14px",
+          "fontWeight": 600,
+          "letterSpacing": "0.08em"
+        },
+        "$description": "Labels, column heads"
+      },
+      "data": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.mono}",
+          "fontSize": "15px",
+          "lineHeight": "20px",
+          "fontWeight": 500,
+          "letterSpacing": "0"
+        },
+        "$description": "Prices, counts — tabular · font-variant-numeric: tabular-nums"
+      },
+      "data-sm": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{typography.family.mono}",
+          "fontSize": "13px",
+          "lineHeight": "18px",
+          "fontWeight": 500,
+          "letterSpacing": "0"
+        },
+        "$description": "Table numerics — tabular · font-variant-numeric: tabular-nums"
+      }
+    }
+  },
+  "semantic": {
+    "light": {
+      "color": {
+        "bg": {
+          "page": {
+            "$value": "#FAF8F7",
+            "$type": "color"
+          }
+        },
+        "surface": {
+          "default": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "raised": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "sunken": {
+            "$value": "#F2EFED",
+            "$type": "color"
+          },
+          "inverse": {
+            "$value": "#191512",
+            "$type": "color"
+          }
+        },
+        "border": {
+          "default": {
+            "$value": "#E6E1DD",
+            "$type": "color"
+          },
+          "strong": {
+            "$value": "#CFC7C1",
+            "$type": "color"
+          }
+        },
+        "text": {
+          "primary": {
+            "$value": "#0C1533",
+            "$type": "color"
+          },
+          "secondary": {
+            "$value": "#1A2E77",
+            "$type": "color"
+          },
+          "heading": {
+            "$value": "#1A2E77",
+            "$type": "color"
+          },
+          "muted": {
+            "$value": "#5B6486",
+            "$type": "color"
+          },
+          "inverse": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "brand": {
+            "$value": "#C93C08",
+            "$type": "color"
+          }
+        },
+        "action": {
+          "primary": {
+            "default": {
+              "$value": "#C93C08",
+              "$type": "color"
+            },
+            "hover": {
+              "$value": "#A3320A",
+              "$type": "color"
+            },
+            "text": {
+              "$value": "#FFFFFF",
+              "$type": "color"
+            },
+            "scrim": {
+              "$value": "#5C2010",
+              "$type": "color"
+            }
+          },
+          "secondary": {
+            "default": {
+              "$value": "#F2EFED",
+              "$type": "color"
+            },
+            "text": {
+              "$value": "#3E3733",
+              "$type": "color"
+            }
+          }
+        },
+        "accent": {
+          "default": {
+            "$value": "#0A7A85",
+            "$type": "color"
+          },
+          "bold": {
+            "$value": "#0A7A85",
+            "$type": "color"
+          },
+          "boldText": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "boldEdge": {
+            "$value": "#0B626C",
+            "$type": "color"
+          }
+        },
+        "focus": {
+          "ring": {
+            "$value": "#0C1533",
+            "$type": "color"
+          },
+          "contrast": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "$description": "Two-tone focus indicator: inner band focus.ring, outer band focus.contrast. No single colour clears 3:1 against BOTH the page and the orange primary button, so both bands ship together. Do not collapse to one outline."
+        },
+        "status": {
+          "draft": {
+            "bg": {
+              "$value": "#F2EFED",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#3E3733",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#756B65",
+              "$type": "color"
+            }
+          },
+          "published": {
+            "bg": {
+              "$value": "#E1F6E9",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#0E6B3D",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#12864C",
+              "$type": "color"
+            }
+          },
+          "underOffer": {
+            "bg": {
+              "$value": "#FFEEDC",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#8A4600",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#D97706",
+              "$type": "color"
+            }
+          },
+          "closed": {
+            "bg": {
+              "$value": "#ECE6FD",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#4B2A9E",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#6D45C9",
+              "$type": "color"
+            }
+          },
+          "archived": {
+            "bg": {
+              "$value": "#FAF8F7",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#635A54",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#948A82",
+              "$type": "color"
+            }
+          },
+          "unpublished": {
+            "bg": {
+              "$value": "#FFEAE4",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#A32D12",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#D9411F",
+              "$type": "color"
+            }
+          }
+        }
+      },
+      "elevation": {
+        "sm": {
+          "$value": "2px 2px 0 rgba(25,21,18,0.10)",
+          "$type": "shadow"
+        },
+        "md": {
+          "$value": "4px 4px 0 rgba(25,21,18,0.12)",
+          "$type": "shadow"
+        },
+        "lg": {
+          "$value": "8px 8px 0 rgba(25,21,18,0.14)",
+          "$type": "shadow"
+        }
+      },
+      "channel": {
+        "instagram": {
+          "mark": {
+            "$value": "#D62B62",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "whatsapp": {
+          "mark": {
+            "$value": "#0E7A40",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "messenger": {
+          "mark": {
+            "$value": "#0069CC",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "facebook": {
+          "mark": {
+            "$value": "#1257A8",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "tiktok": {
+          "mark": {
+            "$value": "#1B1B1B",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "x": {
+          "mark": {
+            "$value": "#111111",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "linkedin": {
+          "mark": {
+            "$value": "#0A66C2",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "olx": {
+          "mark": {
+            "$value": "#00666F",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        }
+      }
+    },
+    "dark": {
+      "color": {
+        "bg": {
+          "page": {
+            "$value": "#0C1533",
+            "$type": "color"
+          }
+        },
+        "surface": {
+          "default": {
+            "$value": "#141E3D",
+            "$type": "color"
+          },
+          "raised": {
+            "$value": "#1C2749",
+            "$type": "color"
+          },
+          "sunken": {
+            "$value": "#070C21",
+            "$type": "color"
+          },
+          "inverse": {
+            "$value": "#FAF8F7",
+            "$type": "color"
+          }
+        },
+        "border": {
+          "default": {
+            "$value": "#26315A",
+            "$type": "color"
+          },
+          "strong": {
+            "$value": "#374371",
+            "$type": "color"
+          }
+        },
+        "text": {
+          "primary": {
+            "$value": "#F2F4FB",
+            "$type": "color"
+          },
+          "secondary": {
+            "$value": "#A9B2CE",
+            "$type": "color"
+          },
+          "heading": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "muted": {
+            "$value": "#8C96B6",
+            "$type": "color"
+          },
+          "inverse": {
+            "$value": "#0C1533",
+            "$type": "color"
+          },
+          "brand": {
+            "$value": "#FF7440",
+            "$type": "color"
+          }
+        },
+        "action": {
+          "primary": {
+            "default": {
+              "$value": "#FF7440",
+              "$type": "color"
+            },
+            "hover": {
+              "$value": "#F0500F",
+              "$type": "color"
+            },
+            "text": {
+              "$value": "#2A1206",
+              "$type": "color"
+            },
+            "scrim": {
+              "$value": "#FFC3AD",
+              "$type": "color"
+            }
+          },
+          "secondary": {
+            "default": {
+              "$value": "#1E2848",
+              "$type": "color"
+            },
+            "text": {
+              "$value": "#DCE2F2",
+              "$type": "color"
+            }
+          }
+        },
+        "accent": {
+          "default": {
+            "$value": "#35B7C0",
+            "$type": "color"
+          },
+          "bold": {
+            "$value": "#35B7C0",
+            "$type": "color"
+          },
+          "boldText": {
+            "$value": "#06262B",
+            "$type": "color"
+          },
+          "boldEdge": {
+            "$value": "#6DD2D8",
+            "$type": "color"
+          }
+        },
+        "focus": {
+          "ring": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          },
+          "contrast": {
+            "$value": "#080E22",
+            "$type": "color"
+          },
+          "$description": "Two-tone focus indicator: inner band focus.ring, outer band focus.contrast. No single colour clears 3:1 against BOTH the page and the orange primary button, so both bands ship together. Do not collapse to one outline."
+        },
+        "status": {
+          "draft": {
+            "bg": {
+              "$value": "#232C4A",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#C3CBE4",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#939BB4",
+              "$type": "color"
+            }
+          },
+          "published": {
+            "bg": {
+              "$value": "#12331F",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#63DD97",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#3DD68C",
+              "$type": "color"
+            }
+          },
+          "underOffer": {
+            "bg": {
+              "$value": "#3B2708",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#FFC773",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#F5A524",
+              "$type": "color"
+            }
+          },
+          "closed": {
+            "bg": {
+              "$value": "#2A2150",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#BCA8FB",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#A78BFA",
+              "$type": "color"
+            }
+          },
+          "archived": {
+            "bg": {
+              "$value": "#1A2340",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#99A3C2",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#666E88",
+              "$type": "color"
+            }
+          },
+          "unpublished": {
+            "bg": {
+              "$value": "#3F1A10",
+              "$type": "color"
+            },
+            "fg": {
+              "$value": "#FFA48D",
+              "$type": "color"
+            },
+            "dot": {
+              "$value": "#F0500F",
+              "$type": "color"
+            }
+          }
+        }
+      },
+      "elevation": {
+        "sm": {
+          "$value": "2px 2px 0 rgba(0,0,0,0.7)",
+          "$type": "shadow"
+        },
+        "md": {
+          "$value": "4px 4px 0 rgba(0,0,0,0.75)",
+          "$type": "shadow"
+        },
+        "lg": {
+          "$value": "8px 8px 0 rgba(0,0,0,0.8)",
+          "$type": "shadow"
+        }
+      },
+      "channel": {
+        "instagram": {
+          "mark": {
+            "$value": "#F76FA0",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "whatsapp": {
+          "mark": {
+            "$value": "#4BE38C",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "messenger": {
+          "mark": {
+            "$value": "#5FB3FF",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "facebook": {
+          "mark": {
+            "$value": "#6BA8F5",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "tiktok": {
+          "mark": {
+            "$value": "#25F4EE",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "x": {
+          "mark": {
+            "$value": "#F2F2F2",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "linkedin": {
+          "mark": {
+            "$value": "#6BB2F0",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "olx": {
+          "mark": {
+            "$value": "#6ED3D9",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        }
+      }
+    }
+  },
+  "component": {
+    "$description": "Component tokens exist only where no semantic role covers the need.",
+    "badge": {
+      "status": {
+        "paddingInline": {
+          "$value": "10px",
+          "$type": "dimension"
+        },
+        "paddingBlock": {
+          "$value": "4px",
+          "$type": "dimension"
+        },
+        "fontSize": {
+          "$value": "12px",
+          "$type": "dimension"
+        },
+        "glyphRequired": {
+          "$value": true,
+          "$type": "boolean",
+          "$description": "Status is never colour-only: glyph + label always present."
+        }
+      }
+    },
+    "table": {
+      "row": {
+        "minHeight": {
+          "$value": "44px",
+          "$type": "dimension"
+        },
+        "paddingInline": {
+          "$value": "18px",
+          "$type": "dimension"
+        },
+        "paddingBlockCompact": {
+          "$value": "8px",
+          "$type": "dimension"
+        },
+        "paddingBlockComfortable": {
+          "$value": "12px",
+          "$type": "dimension"
+        },
+        "paddingBlockRoomy": {
+          "$value": "18px",
+          "$type": "dimension"
+        }
+      }
+    },
+    "channelMark": {
+      "size": {
+        "$value": "20px",
+        "$type": "dimension"
+      },
+      "sizeLarge": {
+        "$value": "28px",
+        "$type": "dimension"
+      },
+      "radius": {
+        "$value": "{primitive.radius.sm}",
+        "$type": "dimension",
+        "$description": "Primitive alias — this file has no theme.* node, so the reference must stay inside it."
+      }
+    },
+    "tapTarget": {
+      "min": {
+        "$value": "44px",
+        "$type": "dimension",
+        "$description": "Mobile-first floor for every interactive element."
+      }
+    },
+    "signalLamp": {
+      "$description": "The live-broadcast lamp: accent.bold fill on an action surface, pulsing at duration.slow.",
+      "size": {
+        "$value": "9px",
+        "$type": "dimension"
+      },
+      "pulseScale": {
+        "$value": 2.6,
+        "$type": "number"
+      },
+      "pulseDuration": {
+        "$value": "1800ms",
+        "$type": "duration"
+      }
+    }
+  },
+  "$validation": {
+    "$description": "WCAG 2.1 AA, computed from the values in this file. The focus indicator is two-tone — the individual band rows are diagnostics; the \"either band\" rows are the requirement.",
+    "light": {
+      "text.primary/bg.page": {
+        "ratio": 16.94,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.secondary/surface": {
+        "ratio": 12.34,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.muted/surface": {
+        "ratio": 5.19,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.brand/surface": {
+        "ratio": 5.08,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary.text/action.primary": {
+        "ratio": 5.08,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary/bg.page": {
+        "ratio": 4.8,
+        "required": 3,
+        "result": "AA"
+      },
+      "action.secondary.text/action.secondary": {
+        "ratio": 10.2,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent/bg.page (non-text)": {
+        "ratio": 4.8,
+        "required": 3,
+        "result": "AA"
+      },
+      "accent.bold.text/accent.bold": {
+        "ratio": 5.08,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent.bold.edge/bg.page (rule, non-text)": {
+        "ratio": 6.66,
+        "required": 3,
+        "result": "AA"
+      },
+      "accent.bold.edge/surface.raised (11px label)": {
+        "ratio": 7.05,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent.bold.edge/surface.sunken (marker boundary)": {
+        "ratio": 6.16,
+        "required": 3,
+        "result": "AA"
+      },
+      "lamp ring (action.primary.text)/action.primary": {
+        "ratio": 5.08,
+        "required": 3,
+        "result": "AA"
+      },
+      "status.draft.fg/.bg": {
+        "ratio": 10.2,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.published.fg/.bg": {
+        "ratio": 5.82,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.underOffer.fg/.bg": {
+        "ratio": 6.26,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.closed.fg/.bg": {
+        "ratio": 8.15,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.archived.fg/.bg": {
+        "ratio": 6.36,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.unpublished.fg/.bg": {
+        "ratio": 6.17,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.instagram glyph/mark": {
+        "ratio": 4.79,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.whatsapp glyph/mark": {
+        "ratio": 5.42,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.messenger glyph/mark": {
+        "ratio": 5.39,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.facebook glyph/mark": {
+        "ratio": 7.11,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.tiktok glyph/mark": {
+        "ratio": 17.22,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.x glyph/mark": {
+        "ratio": 18.88,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.linkedin glyph/mark": {
+        "ratio": 5.69,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.olx glyph/mark": {
+        "ratio": 6.71,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary.text/action.primary.scrim": {
+        "ratio": 12.58,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.heading/bg.page": {
+        "ratio": 11.66,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "focus.ring/bg.page (inner band)": {
+        "ratio": 16.94,
+        "required": 3,
+        "result": "AA"
+      },
+      "focus.contrast/bg.page (outer band)": {
+        "ratio": 1.06,
+        "required": 3,
+        "result": "FAIL"
+      },
+      "focus.ring/action.primary (inner band, on button)": {
+        "ratio": 3.53,
+        "required": 3,
+        "result": "AA"
+      },
+      "focus.contrast/action.primary (outer band, on button)": {
+        "ratio": 5.08,
+        "required": 3,
+        "result": "AA"
+      },
+      "focus indicator on page (either band)": {
+        "ratio": "pass",
+        "required": 3,
+        "result": "AA"
+      },
+      "focus indicator on primary button (either band)": {
+        "ratio": "pass",
+        "required": 3,
+        "result": "AA"
+      }
+    },
+    "dark": {
+      "text.primary/bg.page": {
+        "ratio": 16.32,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.secondary/surface": {
+        "ratio": 7.75,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.muted/surface": {
+        "ratio": 5.58,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.brand/surface": {
+        "ratio": 6.1,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary.text/action.primary": {
+        "ratio": 6.59,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary/bg.page": {
+        "ratio": 6.68,
+        "required": 3,
+        "result": "AA"
+      },
+      "action.primary.hover/bg.page (non-text)": {
+        "ratio": 5.01,
+        "required": 3,
+        "result": "AA"
+      },
+      "action.primary.hover/action.primary (state-change)": {
+        "ratio": 1.34,
+        "required": 3,
+        "result": "FAIL"
+      },
+      "action.secondary.text/action.secondary": {
+        "ratio": 11.16,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent/bg.page (non-text)": {
+        "ratio": 7.42,
+        "required": 3,
+        "result": "AA"
+      },
+      "accent.bold.text/accent.bold": {
+        "ratio": 6.58,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent.bold.edge/bg.page (rule, non-text)": {
+        "ratio": 10.13,
+        "required": 3,
+        "result": "AA"
+      },
+      "accent.bold.edge/surface.raised (11px label)": {
+        "ratio": 8.26,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "accent.bold.edge/surface.sunken (marker boundary)": {
+        "ratio": 10.95,
+        "required": 3,
+        "result": "AA"
+      },
+      "lamp ring (action.primary.text)/action.primary": {
+        "ratio": 6.59,
+        "required": 3,
+        "result": "AA"
+      },
+      "status.draft.fg/.bg": {
+        "ratio": 8.48,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.published.fg/.bg": {
+        "ratio": 8.11,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.underOffer.fg/.bg": {
+        "ratio": 9.24,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.closed.fg/.bg": {
+        "ratio": 7.08,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.archived.fg/.bg": {
+        "ratio": 6.16,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "status.unpublished.fg/.bg": {
+        "ratio": 8.01,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.instagram glyph/mark": {
+        "ratio": 7.13,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.whatsapp glyph/mark": {
+        "ratio": 11.66,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.messenger glyph/mark": {
+        "ratio": 8.64,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.facebook glyph/mark": {
+        "ratio": 7.87,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.tiktok glyph/mark": {
+        "ratio": 14.05,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.x glyph/mark": {
+        "ratio": 17.28,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.linkedin glyph/mark": {
+        "ratio": 8.52,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "channel.olx glyph/mark": {
+        "ratio": 11.04,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "action.primary.text/action.primary.scrim": {
+        "ratio": 11.5,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "text.heading/bg.page": {
+        "ratio": 17.94,
+        "required": 4.5,
+        "result": "AA"
+      },
+      "focus.ring/bg.page (inner band)": {
+        "ratio": 17.94,
+        "required": 3,
+        "result": "AA"
+      },
+      "focus.contrast/bg.page (outer band)": {
+        "ratio": 1.07,
+        "required": 3,
+        "result": "FAIL"
+      },
+      "focus.ring/action.primary (inner band, on button)": {
+        "ratio": 2.68,
+        "required": 3,
+        "result": "FAIL"
+      },
+      "focus.contrast/action.primary (outer band, on button)": {
+        "ratio": 7.14,
+        "required": 3,
+        "result": "AA"
+      },
+      "focus indicator on page (either band)": {
+        "ratio": "pass",
+        "required": 3,
+        "result": "AA"
+      },
+      "focus indicator on primary button (either band)": {
+        "ratio": "pass",
+        "required": 3,
+        "result": "AA"
+      }
+    },
+    "failures": 0,
+    "$note": "Diagnostic band rows below 3:1: 4. Expected — a two-tone ring only requires ONE band to contrast a given surface; the \"either band\" rows carry the requirement. Dark action.primary.hover vs default is also diagnostic: adjacent orange steps cannot hit 3:1 without collapsing to orange 600, which is too dim on the dark page. Constraint 4 (hover darker than default) is the requirement."
+  }
+}

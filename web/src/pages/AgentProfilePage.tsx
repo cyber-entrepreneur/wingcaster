@@ -75,8 +75,8 @@ export function AgentProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 px-4 py-12 text-white sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+      <div className="bg-gradient-to-br from-slate-900 to-slate-800 px-4 py-12 text-[var(--lc-action-primary-text)] sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
             <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
@@ -86,7 +86,7 @@ export function AgentProfilePage() {
             <div className="flex-1">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
                 <h1 className="text-3xl font-bold">{agent.name}</h1>
-                {agent.verified ? <Badge className="bg-green-500 text-white border-0"><Award className="mr-1 h-3 w-3" />Verified</Badge> : null}
+                {agent.verified ? <Badge className="bg-green-500 text-[var(--lc-action-primary-text)] border-0"><Award className="mr-1 h-3 w-3" />Verified</Badge> : null}
               </div>
               <p className="mt-1 text-lg text-slate-300">{agent.specialization}</p>
               <p className="text-slate-400">{agent.agency_name} • License {agent.license_number}</p>
@@ -97,8 +97,8 @@ export function AgentProfilePage() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Button className="gap-2 bg-white text-slate-900 hover:bg-slate-100"><Phone className="h-4 w-4" />{agent.phone}</Button>
-              <Button variant="outline" className="gap-2 border-white text-white hover:bg-white/10" onClick={toggleFollow} disabled={followBusy}>
+              <Button className="gap-2 bg-[var(--lc-surface)] text-slate-900 hover:bg-slate-100"><Phone className="h-4 w-4" />{agent.phone}</Button>
+              <Button variant="outline" className="gap-2 border-white text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-surface)]/10" onClick={toggleFollow} disabled={followBusy}>
                 {following ? 'Following' : 'Follow'}
               </Button>
               {agent.engagement && (
@@ -114,13 +114,13 @@ export function AgentProfilePage() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <div className="rounded-xl border bg-white p-6">
+            <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
               <h3 className="mb-3 text-lg font-semibold">About {agent.name}</h3>
               <p className="leading-relaxed text-muted-foreground">{agent.bio}</p>
             </div>
 
             {transactions.length > 0 && (
-              <div className="rounded-xl border bg-white p-6">
+              <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
                 <h3 className="mb-4 text-lg font-semibold">Recent Transactions</h3>
                 <div className="space-y-3">
                   {transactions.map((t: any) => (
@@ -137,7 +137,7 @@ export function AgentProfilePage() {
             )}
 
             {reviews.length > 0 && (
-              <div className="rounded-xl border bg-white p-6">
+              <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
                 <h3 className="mb-4 text-lg font-semibold">Reviews ({reviews.length})</h3>
                 <div className="space-y-4">
                   {reviews.map((r: any) => (
@@ -167,7 +167,7 @@ export function AgentProfilePage() {
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-xl border bg-white p-6">
+            <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
               <h3 className="mb-4 text-lg font-semibold">Agent Stats</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Active Listings</span><span className="font-semibold">{listings.length}</span></div>
@@ -178,7 +178,7 @@ export function AgentProfilePage() {
               </div>
             </div>
 
-            <div className="rounded-xl border bg-white p-6">
+            <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
               <h3 className="mb-4 text-lg font-semibold">Contact Information</h3>
               <div className="space-y-3 text-sm">
                 <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{agent.phone}</p>

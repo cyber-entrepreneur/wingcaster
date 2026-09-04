@@ -143,8 +143,8 @@ export function RecordClosureModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-start justify-between border-b p-4">
           <div>
             <div className="flex items-center gap-2">

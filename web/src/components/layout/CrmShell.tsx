@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Numeric } from '@/components/ui/numeric'
 
 interface NavItem {
   label: string
@@ -52,11 +53,12 @@ export function CrmShell({ children, badges = {} }: CrmShellProps) {
   const location = useLocation()
 
   return (
-    <div className="flex min-h-screen bg-[#F8F8F7]">
-      {/* Left sidebar */}
-      <aside className="hidden w-56 shrink-0 border-r border-[#E4E3E0] bg-white lg:flex lg:flex-col">
-        <div className="flex h-14 items-center border-b border-[#E4E3E0] px-4">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">CRM</span>
+    <div className="flex min-h-screen bg-[var(--lc-bg-page)]">
+      <aside className="hidden w-56 shrink-0 border-r border-[var(--lc-border)] bg-[var(--lc-surface)] lg:flex lg:flex-col">
+        <div className="flex h-14 items-center border-b border-[var(--lc-border)] px-4">
+          <span className="text-[11px] font-semibold uppercase tracking-[var(--lc-tracking-overline)] text-[var(--lc-text-muted)]">
+            CRM
+          </span>
         </div>
         <nav className="flex-1 overflow-y-auto py-3">
           {NAV_ITEMS.map((item) => {
@@ -66,18 +68,16 @@ export function CrmShell({ children, badges = {} }: CrmShellProps) {
                 ? location.pathname === '/dashboard'
                 : location.pathname.startsWith(item.path)
             const badge =
-              item.path === '/dashboard/inbox' ? badges.inbox
-              : item.path === '/tasks' ? badges.tasks
-              : undefined
+              item.path === '/dashboard/inbox' ? badges.inbox : item.path === '/tasks' ? badges.tasks : undefined
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'mx-2 mb-0.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'mx-2 mb-0.5 flex min-h-tap items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-[#0F0F0F] text-white'
-                    : 'text-muted-foreground hover:bg-[#F0EFED] hover:text-foreground',
+                    ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                    : 'text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-text-primary)]',
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -86,10 +86,12 @@ export function CrmShell({ children, badges = {} }: CrmShellProps) {
                   <Badge
                     className={cn(
                       'ml-auto h-4 min-w-[1.25rem] px-1 text-[10px]',
-                      active ? 'bg-white text-[#0F0F0F]' : 'bg-[#0F0F0F] text-white',
+                      active
+                        ? 'bg-[var(--lc-action-primary-text)] text-[var(--lc-action-primary)]'
+                        : 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]',
                     )}
                   >
-                    {badge}
+                    <Numeric>{badge}</Numeric>
                   </Badge>
                 )}
               </Link>
@@ -98,10 +100,7 @@ export function CrmShell({ children, badges = {} }: CrmShellProps) {
         </nav>
       </aside>
 
-      {/* Main content */}
-      <div className="flex min-h-screen flex-1 flex-col overflow-hidden">
-        {children}
-      </div>
+      <div className="flex min-h-screen flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   )
 }

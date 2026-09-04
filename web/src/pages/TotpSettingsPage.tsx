@@ -202,7 +202,7 @@ export function TotpSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ul className="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-4 font-mono text-sm">
+            <ul className="grid grid-cols-2 gap-2 rounded-md border bg-[var(--lc-surface-sunken)] p-4 font-mono text-sm">
               {backupCodes.map((c) => (
                 <li key={c}>{c}</li>
               ))}
@@ -303,7 +303,7 @@ export function TotpSettingsPage() {
                     <img
                       src={qrDataUrl}
                       alt="QR code for setting up your authenticator app"
-                      className="rounded-md border bg-white p-2"
+                      className="rounded-md border bg-[var(--lc-surface)] p-2"
                       width={220}
                       height={220}
                     />
