@@ -92,8 +92,8 @@ afterEach(() => {
 })
 
 describe('AI producer schemas', () => {
-  it('auto-applies 307_property_ai_ratings.sql (305b letter suffix would be skipped)', () => {
-    expect(isAutoMigration('307_property_ai_ratings.sql')).toBe(true)
+  it('auto-applies 310_property_ai_ratings.sql (305b letter suffix would be skipped)', () => {
+    expect(isAutoMigration('310_property_ai_ratings.sql')).toBe(true)
     expect(isAutoMigration('305b_property_ai_ratings.sql')).toBe(false)
   })
 
