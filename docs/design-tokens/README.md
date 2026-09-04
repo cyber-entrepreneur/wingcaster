@@ -139,6 +139,9 @@ they must stay generated. Hand-editing one and not the other makes the OS prefer
 
 ### Changelog
 
+- **2026-09-04** — Dark-mode `action.primary.hover` was `#FF9C78` (orange 300, LIGHTER than
+  default `#FF7440` — read as disabled). Corrected to `#F0500F` (orange 500, one step darker).
+  Regenerated CSS. Validation re-run: zero failures.
 - **14 Aug 2026** — `component.channelMark.radius` pointed at `{theme.flagship.radius.sm}`, a node that
   does not exist in this export; now `{primitive.radius.sm}`. Composed display tokens baked weight 700
   against a theme that declares 800; now 800. Focus ring was orange on an orange button; now two-tone.

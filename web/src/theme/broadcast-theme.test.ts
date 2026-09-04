@@ -52,4 +52,23 @@ describe('broadcast-theme.css', () => {
     expect(css).toContain('@media (prefers-color-scheme: dark)')
     expect(css).toContain(':root:not([data-lc-mode="light"])')
   })
+
+  it('keeps dark-mode --lc-action-primary-hover darker (lower luma) than --lc-action-primary', () => {
+    const luma = (hex: string) => {
+      const n = hex.replace('#', '')
+      const r = parseInt(n.slice(0, 2), 16)
+      const g = parseInt(n.slice(2, 4), 16)
+      const b = parseInt(n.slice(4, 6), 16)
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const dark = css.slice(css.indexOf('[data-lc-mode="dark"]'))
+    const media = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'))
+    for (const block of [dark, media]) {
+      const primary = block.match(/--lc-action-primary:\s*(#[0-9A-Fa-f]{6})/)?.[1]
+      const hover = block.match(/--lc-action-primary-hover:\s*(#[0-9A-Fa-f]{6})/)?.[1]
+      expect(primary).toBeTruthy()
+      expect(hover).toBeTruthy()
+      expect(luma(hover!)).toBeLessThan(luma(primary!))
+    }
+  })
 })
