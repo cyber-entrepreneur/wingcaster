@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/context/AuthContext'
 import { useBrand } from '@/context/BrandContext'
+import { ColorModeToggle } from '@/components/ui/color-mode-toggle'
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -74,14 +75,11 @@ export function Navbar() {
   )
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <nav className="sticky top-0 z-sticky w-full border-b border-[var(--lc-border)] bg-[var(--lc-surface)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--lc-surface)]/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to={agent ? '/dashboard' : '/login'} className="flex items-center gap-2.5">
           <img src={brand.logoUrl} alt={brand.name} className="h-9 w-auto" />
-          <span
-            className="font-display text-xl tracking-tight"
-            style={{ color: brand.primaryColor }}
-          >
+          <span className="font-display text-xl tracking-tight text-[var(--lc-text-heading)]">
             {brand.name.toUpperCase()}
           </span>
         </Link>
@@ -95,12 +93,11 @@ export function Navbar() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex min-h-tap items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     active
-                      ? 'text-white'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                      : 'text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-action-secondary-text)]'
                   }`}
-                  style={active ? { backgroundColor: brand.primaryColor } : undefined}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
@@ -111,12 +108,11 @@ export function Navbar() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex min-h-tap items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                       platformAdminActive
-                        ? 'text-white'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-action-secondary-text)]'
                     }`}
-                    style={platformAdminActive ? { backgroundColor: brand.primaryColor } : undefined}
                     aria-label="Platform admin menu"
                   >
                     <Shield className="h-4 w-4" />
@@ -145,12 +141,11 @@ export function Navbar() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex min-h-tap items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                       finOpsActive
-                        ? 'text-white'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-action-secondary-text)]'
                     }`}
-                    style={finOpsActive ? { backgroundColor: brand.primaryColor } : undefined}
                     aria-label="Fin ops menu"
                   >
                     <CreditCard className="h-4 w-4" />
@@ -173,6 +168,7 @@ export function Navbar() {
         )}
 
         <div className="hidden items-center gap-2 md:flex">
+          <ColorModeToggle className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-text-primary)]" />
           {authLoading ? (
             <div className="h-9 w-28 animate-pulse rounded-md bg-muted" />
           ) : agent ? (
@@ -220,11 +216,7 @@ export function Navbar() {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button
-                  size="sm"
-                  className="gap-1.5 text-white"
-                  style={{ backgroundColor: brand.primaryColor }}
-                >
+                <Button size="sm" className="gap-1.5">
                   <UserPlus className="h-4 w-4" />
                   Register
                 </Button>
@@ -233,13 +225,13 @@ export function Navbar() {
           )}
         </div>
 
-        <button type="button" className="lg:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
+        <button type="button" className="inline-flex h-tap w-tap items-center justify-center lg:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </div>
 
       {mobileOpen && (
-        <div className="border-t bg-white px-4 py-3 lg:hidden">
+        <div className="border-t border-[var(--lc-border)] bg-[var(--lc-surface)] px-4 py-3 lg:hidden">
           <div className="flex flex-col gap-1">
             {agent &&
               agentNav.map((item) => {
@@ -315,6 +307,7 @@ export function Navbar() {
               </div>
             ) : null}
             <div className="mt-2 flex flex-col gap-2 border-t pt-3">
+              <ColorModeToggle className="inline-flex min-h-tap w-full items-center justify-start gap-2 rounded-md px-3 text-sm text-[var(--lc-text-muted)] hover:bg-[var(--lc-action-secondary)] hover:text-[var(--lc-text-primary)]" />
               {authLoading ? (
                 <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
               ) : agent ? (
@@ -331,11 +324,7 @@ export function Navbar() {
                     </Button>
                   </Link>
                   <Link to="/register" onClick={() => setMobileOpen(false)}>
-                    <Button
-                      size="sm"
-                      className="w-full justify-start gap-2 text-white"
-                      style={{ backgroundColor: brand.primaryColor }}
-                    >
+                    <Button size="sm" className="w-full justify-start gap-2">
                       <UserPlus className="h-4 w-4" />
                       Register
                     </Button>

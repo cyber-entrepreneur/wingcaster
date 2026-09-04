@@ -545,7 +545,7 @@ export function TemplateEditPage() {
                   onChange={(e) => setChangeNote(e.target.value)}
                   rows={2}
                   maxLength={500}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none"
                   placeholder="What did you change and why? Recorded in the version history."
                 />
               </CardContent>
@@ -592,7 +592,7 @@ function SubjectBar({ value, onChange }: { value: string; onChange: (next: strin
         onChange={(e) => onChange(e.target.value)}
         maxLength={500}
         placeholder="Verify your account — {{code}}"
-        className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="w-full rounded-md border border-input bg-[var(--lc-surface)] px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none"
       />
     </div>
   )

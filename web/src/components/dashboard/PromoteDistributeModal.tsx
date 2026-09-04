@@ -8,17 +8,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/api/client'
+import { lcChannelTextClass } from '@/theme/channel'
 
 export const SOCIAL_PROMOTE_PLATFORMS: string[] = ['instagram', 'facebook', 'linkedin', 'x', 'tiktok', 'telegram']
 
 export const PLATFORM_META: Record<string, { name: string; color: string; icon: any; handleHint: string }> = {
-  whatsapp: { name: 'WhatsApp Business', color: 'text-green-600', icon: MessageCircle, handleHint: '' },
-  instagram: { name: 'Instagram', color: 'text-pink-600', icon: Instagram, handleHint: '@youragency' },
-  facebook: { name: 'Facebook Page', color: 'text-blue-600', icon: Facebook, handleHint: 'Page name or numeric page ID' },
-  linkedin: { name: 'LinkedIn', color: 'text-blue-700', icon: Linkedin, handleHint: 'Company page URL or personal profile URL' },
-  telegram: { name: 'Telegram', color: 'text-blue-500', icon: Send, handleHint: '@your_channel or channel link' },
-  tiktok: { name: 'TikTok', color: 'text-black', icon: Video, handleHint: '@yourhandle' },
-  x: { name: 'X (Twitter)', color: 'text-slate-800', icon: Twitter, handleHint: '@yourhandle' },
+  whatsapp: { name: 'WhatsApp Business', color: lcChannelTextClass('whatsapp'), icon: MessageCircle, handleHint: '' },
+  instagram: { name: 'Instagram', color: lcChannelTextClass('instagram'), icon: Instagram, handleHint: '@youragency' },
+  facebook: { name: 'Facebook Page', color: lcChannelTextClass('facebook'), icon: Facebook, handleHint: 'Page name or numeric page ID' },
+  linkedin: { name: 'LinkedIn', color: lcChannelTextClass('linkedin'), icon: Linkedin, handleHint: 'Company page URL or personal profile URL' },
+  telegram: { name: 'Telegram', color: lcChannelTextClass('messenger'), icon: Send, handleHint: '@your_channel or channel link' },
+  tiktok: { name: 'TikTok', color: lcChannelTextClass('tiktok'), icon: Video, handleHint: '@yourhandle' },
+  x: { name: 'X (Twitter)', color: lcChannelTextClass('x'), icon: Twitter, handleHint: '@yourhandle' },
 }
 
 type Mode = 'promote' | 'distribute'
@@ -139,8 +140,8 @@ export function PromoteDistributeModal({
       : 'Publish to your channels or submit to REB for review'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="w-full max-w-xl rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h3 className="flex items-center gap-2 text-lg font-bold">
@@ -174,13 +175,13 @@ export function PromoteDistributeModal({
                   onClick={() => isConnected && toggle(selectedOwn, p.id, setSelectedOwn)}
                   className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                     !isConnected
-                      ? 'opacity-60 cursor-not-allowed bg-muted/30'
+                      ? 'opacity-60 cursor-not-allowed bg-[var(--lc-surface-sunken)]'
                       : isSel
-                        ? 'border-[#0F0F0F] bg-[#0F0F0F]/5'
-                        : 'hover:bg-muted/50'
+                        ? 'border-[var(--lc-action-primary)] bg-primary-faint'
+                        : 'hover:bg-[var(--lc-surface-sunken)]'
                   }`}
                 >
-                  <div className={`rounded-lg p-2 ${isSel ? 'bg-[#0F0F0F] text-white' : 'bg-muted'}`}>
+                  <div className={`rounded-lg p-2 ${isSel ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]' : 'bg-muted'}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -231,7 +232,7 @@ export function PromoteDistributeModal({
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
           <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-2 text-muted-foreground">and / or</span>
+            <span className="bg-[var(--lc-surface)] px-2 text-muted-foreground">and / or</span>
           </div>
         </div>
 
@@ -251,10 +252,10 @@ export function PromoteDistributeModal({
                   type="button"
                   onClick={() => toggle(selectedFi, acc.platform, setSelectedFi)}
                   className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                    isSel ? 'border-[#0F0F0F] bg-[#0F0F0F]/5' : 'hover:bg-muted/50'
+                    isSel ? 'border-[var(--lc-action-primary)] bg-primary-faint' : 'hover:bg-[var(--lc-surface-sunken)]'
                   }`}
                 >
-                  <div className={`rounded-lg p-2 ${isSel ? 'bg-[#0F0F0F] text-white' : 'bg-muted'}`}>
+                  <div className={`rounded-lg p-2 ${isSel ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]' : 'bg-muted'}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1">
@@ -290,7 +291,7 @@ export function PromoteDistributeModal({
           <Button
             onClick={handleSubmit}
             disabled={loading || (selectedOwn.length === 0 && selectedFi.length === 0)}
-            className="gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+            className="gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'promote' ? <Megaphone className="h-4 w-4" /> : <Send className="h-4 w-4" />}
             {mode === 'promote' ? 'Promote now' : 'Publish'}

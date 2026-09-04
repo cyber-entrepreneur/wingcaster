@@ -115,7 +115,7 @@ export function ContactsPage() {
       />
 
       {/* Search + filter toolbar */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-[#E4E3E0] bg-white px-6 py-2">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6 py-2">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -133,8 +133,8 @@ export function ContactsPage() {
               className={cn(
                 'rounded-md px-3 py-1 text-xs font-medium transition-colors',
                 statusFilter === f.value
-                  ? 'bg-[#0F0F0F] text-white'
-                  : 'text-muted-foreground hover:bg-[#F0EFED] hover:text-foreground',
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'text-muted-foreground hover:bg-[var(--lc-action-secondary)] hover:text-foreground',
               )}
             >
               {f.label}
@@ -157,15 +157,15 @@ export function ContactsPage() {
             description={search ? 'Try a different search term.' : 'Contacts are created from inquiries, messages, and form submissions.'}
           />
         ) : (
-          <div className="divide-y divide-[#E4E3E0]">
+          <div className="divide-y divide-[var(--lc-border)]">
             {filtered.map((c) => (
               <Link
                 key={c.id}
                 to={`/contacts/${c.id}`}
-                className="flex items-center gap-4 bg-white px-6 py-3.5 transition-colors hover:bg-[#F8F8F7]"
+                className="flex items-center gap-4 bg-[var(--lc-surface)] px-6 py-3.5 transition-colors hover:bg-[var(--lc-bg-page)]"
               >
                 <Avatar className="h-9 w-9 shrink-0">
-                  <AvatarFallback className="bg-[#F0EFED] text-[#0F0F0F] text-xs font-semibold">
+                  <AvatarFallback className="bg-[var(--lc-surface-sunken)] text-[var(--lc-text-primary)] text-xs font-semibold">
                     {initials(c.name)}
                   </AvatarFallback>
                 </Avatar>

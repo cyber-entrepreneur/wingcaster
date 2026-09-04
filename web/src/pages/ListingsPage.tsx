@@ -117,7 +117,7 @@ export function ListingsPage() {
         </Button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-white p-3">
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-[var(--lc-surface)] p-3">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -138,14 +138,16 @@ export function ListingsPage() {
                 type="button"
                 onClick={() => setStatusFilter(s)}
                 className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                  isActive ? 'bg-slate-900 text-white' : 'text-muted-foreground hover:bg-muted'
+                  isActive ? 'bg-slate-900 text-[var(--lc-action-primary-text)]' : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {s !== 'all' && (
-                  <span className={`h-1.5 w-1.5 rounded-full ${LISTING_STATUS_META[s].dotClass}`} />
+                  <span aria-hidden="true">{LISTING_STATUS_META[s].glyph}</span>
                 )}
                 {label}
-                <span className="text-[10px] opacity-70">({counts[s]})</span>
+                <span className="text-[10px] opacity-70" data-lc-numeric>
+                  ({counts[s]})
+                </span>
               </button>
             )
           })}
@@ -158,7 +160,7 @@ export function ListingsPage() {
               type="button"
               onClick={() => setTypeFilter(t)}
               className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
-                typeFilter === t ? 'bg-slate-900 text-white' : 'text-muted-foreground hover:bg-muted'
+                typeFilter === t ? 'bg-slate-900 text-[var(--lc-action-primary-text)]' : 'text-muted-foreground hover:bg-muted'
               }`}
             >
               {t === 'all' ? 'All' : t === 'sale' ? 'For sale' : 'For rent'}
@@ -210,7 +212,7 @@ function ViewToggle({
       aria-label={`${label} view`}
       title={`${label} view`}
       className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-        active === mode ? 'bg-slate-900 text-white' : 'text-muted-foreground hover:bg-muted'
+        active === mode ? 'bg-slate-900 text-[var(--lc-action-primary-text)]' : 'text-muted-foreground hover:bg-muted'
       }`}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -238,7 +240,7 @@ function ListView({
   items, onOpen,
 }: { items: Property[]; onOpen: (id: string) => void }) {
   return (
-    <div className="overflow-hidden rounded-lg border bg-white">
+    <div className="overflow-hidden rounded-lg border bg-[var(--lc-surface)]">
       <table className="min-w-full divide-y divide-slate-200">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
@@ -275,7 +277,7 @@ function ListView({
                   {p.property_type} · {p.type === 'sale' ? 'Sale' : 'Rent'}
                 </td>
                 <td className="px-4 py-2.5 font-medium">
-                  {formatPrice(p.price, p.type, p.price_unit)}
+                  <span data-lc-numeric>{formatPrice(p.price, p.type, p.price_unit)}</span>
                 </td>
                 <td className="px-4 py-2.5">
                   <StatusPill status={normalizeStatus(p.status)} />
@@ -283,7 +285,7 @@ function ListView({
                 <td className="px-4 py-2.5 text-muted-foreground">
                   <span className="inline-flex items-center gap-1">
                     <Eye className="h-3.5 w-3.5" />
-                    {(p.views || 0).toLocaleString()}
+                    <span data-lc-numeric>{(p.views || 0).toLocaleString()}</span>
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">
@@ -317,9 +319,9 @@ function GalleryGrid({ items }: { items: Property[] }) {
             <div className="absolute left-2 top-2">
               <StatusPill status={normalizeStatus(p.status)} compact />
             </div>
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-              <div className="line-clamp-1 text-xs font-medium text-white">{p.title}</div>
-              <div className="line-clamp-1 text-[11px] text-white/80">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--lc-surface-inverse)_70%,transparent)] to-transparent p-2">
+              <div className="line-clamp-1 text-xs font-medium text-[var(--lc-action-primary-text)]">{p.title}</div>
+              <div className="line-clamp-1 text-[11px] text-[var(--lc-action-primary-text)]/80" data-lc-numeric>
                 {formatPrice(p.price, p.type, p.price_unit)}
               </div>
             </div>
@@ -333,11 +335,7 @@ function GalleryGrid({ items }: { items: Property[] }) {
 function StatusPill({ status, compact = false }: { status: ListingStatus; compact?: boolean }) {
   const meta = LISTING_STATUS_META[status]
   return (
-    <Badge
-      variant="outline"
-      className={`gap-1 border ${meta.badgeClass} ${compact ? 'text-[10px] py-0 px-1.5' : ''}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${meta.dotClass}`} />
+    <Badge status={status} className={compact ? 'text-[10px] py-0 px-1.5' : undefined}>
       {meta.label}
     </Badge>
   )
@@ -348,7 +346,7 @@ function EmptyState({
 }: { hasAny: boolean; onCreate: () => void; onClearFilters: () => void }) {
   if (!hasAny) {
     return (
-      <div className="mx-auto max-w-md rounded-lg border-2 border-dashed border-slate-200 bg-white px-8 py-16 text-center">
+      <div className="mx-auto max-w-md rounded-lg border-2 border-dashed border-slate-200 bg-[var(--lc-surface)] px-8 py-16 text-center">
         <Building2 className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
         <h3 className="text-lg font-semibold">Your first listing awaits</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -362,7 +360,7 @@ function EmptyState({
     )
   }
   return (
-    <div className="rounded-lg border bg-white px-8 py-12 text-center text-sm text-muted-foreground">
+    <div className="rounded-lg border bg-[var(--lc-surface)] px-8 py-12 text-center text-sm text-muted-foreground">
       <Filter className="mx-auto mb-2 h-5 w-5" />
       No listings match the current filters.
       <div>

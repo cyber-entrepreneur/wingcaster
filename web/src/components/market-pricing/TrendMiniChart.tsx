@@ -52,7 +52,7 @@ export function TrendMiniChart({ snapshots }: TrendMiniChartProps) {
                   className="w-full rounded-t bg-primary/80 transition-all group-hover:bg-primary"
                   style={{ height: `${height}%` }}
                 />
-                <div className="absolute -top-10 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-black px-2 py-1 text-xs text-white group-hover:block">
+                <div className="absolute -top-10 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-black px-2 py-1 text-xs text-[var(--lc-action-primary-text)] group-hover:block">
                   {formatPrice(val)}
                 </div>
               </div>

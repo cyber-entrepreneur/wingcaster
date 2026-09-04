@@ -29,9 +29,9 @@ interface ProximityRingExplorerProps {
 }
 
 const RINGS = [
-  { key: 'local', label: 'Local', min: 0, max: 3000, color: '#3B82F6' },
-  { key: 'secondary', label: 'Secondary', min: 3001, max: 5000, color: '#60A5FA' },
-  { key: 'macro', label: 'Macro', min: 5001, max: 10000, color: '#93C5FD' },
+  { key: 'local', label: 'Local', min: 0, max: 3000, color: 'var(--lc-accent)' },
+  { key: 'secondary', label: 'Secondary', min: 3001, max: 5000, color: 'var(--lc-accent)' },
+  { key: 'macro', label: 'Macro', min: 5001, max: 10000, color: 'var(--lc-accent-bold-edge)' },
 ]
 
 const CATEGORY_PILLS = ['Medical', 'F&B', 'Fitness', 'Education', 'Grocery', 'All']
@@ -105,7 +105,7 @@ export function ProximityRingExplorer({ googleScores, center }: ProximityRingExp
             key={r.key}
             onClick={() => setActiveRing(r.key)}
             className={`flex flex-col items-center rounded-full border px-4 py-2 transition ${
-              activeRing === r.key ? 'border-transparent text-white' : 'border-gray-200 bg-white'
+              activeRing === r.key ? 'border-transparent text-[var(--lc-action-primary-text)]' : 'border-gray-200 bg-[var(--lc-surface)]'
             }`}
             style={activeRing === r.key ? { backgroundColor: r.color } : undefined}
           >
@@ -128,8 +128,8 @@ export function ProximityRingExplorer({ googleScores, center }: ProximityRingExp
                 disabled
                   ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                   : active
-                  ? 'bg-gray-900 text-white'
-                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-gray-900 text-[var(--lc-action-primary-text)]'
+                  : 'border border-gray-200 bg-[var(--lc-surface)] text-gray-700 hover:bg-gray-50'
               }`}
             >
               {cat} {cat !== 'All' ? `(${countsByCategory[cat] || 0})` : ''}

@@ -110,7 +110,7 @@ export function AgentPricingPage() {
 
   const summary = portfolio?.summary
   return (
-    <div className="min-h-screen bg-muted/20 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -206,7 +206,7 @@ export function AgentPricingPage() {
         </div>
 
         {adjusting && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="adjust-price-title">
+          <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4" role="dialog" aria-modal="true" aria-labelledby="adjust-price-title">
             <Card className="w-full max-w-md">
               <CardHeader><CardTitle id="adjust-price-title">Adjust listing price</CardTitle><CardDescription>{adjusting.title || adjusting.id} · Current {formatMoney(adjusting.price, adjusting.currency)}</CardDescription></CardHeader>
               <CardContent className="space-y-4">

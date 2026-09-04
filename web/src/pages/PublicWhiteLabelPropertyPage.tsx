@@ -57,7 +57,7 @@ export function PublicWhiteLabelPropertyPage() {
   }
 
   const brand = data.site?.brand_config || {}
-  const primary = brand.primary_color || data.agency?.primary_color || '#0f172a'
+  const primary = brand.primary_color || data.agency?.primary_color || 'var(--lc-action-primary)' 
   const property = data.property
   const photos = Array.isArray(property.photos) ? property.photos : []
   const agent = data.agent
@@ -91,7 +91,7 @@ export function PublicWhiteLabelPropertyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[var(--lc-surface)]">
       <header className="border-b">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link to={`/site/${subdomain}`} className="flex items-center gap-2 text-sm font-medium" style={{ color: primary }}>

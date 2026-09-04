@@ -70,7 +70,7 @@ export function FinTable({
     <Card>
       <CardContent className="p-0">
         <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-left">
+          <thead className="bg-[var(--lc-surface-sunken)] text-left">
             <tr>
               {columns.map((col) => (
                 <th key={col} className="px-3 py-2 font-medium">{col}</th>
@@ -81,7 +81,7 @@ export function FinTable({
             {rows.map((row, idx) => (
               <tr
                 key={String(row.id || idx)}
-                className={onRowClick ? 'cursor-pointer border-t hover:bg-muted/30' : 'border-t'}
+                className={onRowClick ? 'cursor-pointer border-t hover:bg-[var(--lc-surface-sunken)]' : 'border-t'}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (

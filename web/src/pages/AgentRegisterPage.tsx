@@ -435,7 +435,7 @@ export function AgentRegisterPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] bg-muted/20 px-4 py-10 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-8rem)] bg-[var(--lc-bg-page)] px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
         {/* Header */}
         <div className="mb-8 text-center">
@@ -455,10 +455,10 @@ export function AgentRegisterPage() {
               disabled={s.id > step}
               className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                 step === s.id
-                  ? 'border-foreground bg-white shadow-sm'
+                  ? 'border-foreground bg-[var(--lc-surface)] shadow-sm'
                   : s.id < step
                     ? 'border-green-300 bg-green-50 text-green-700'
-                    : 'bg-muted/40 text-muted-foreground'
+                    : 'bg-[var(--lc-surface-sunken)] text-muted-foreground'
               }`}
             >
               <span className="block font-semibold">
@@ -480,7 +480,7 @@ export function AgentRegisterPage() {
         {step === 0 && (
           <Card className="border shadow-sm">
             <CardHeader>
-              <CardTitle className="font-display">Verify your contact</CardTitle>
+              <div className="font-display text-lg font-semibold leading-none" style={{ color: 'var(--lc-text-heading)' }}>Verify your contact</div>
               <CardDescription>
                 We'll send a one-time code to confirm it's you.
               </CardDescription>
@@ -519,7 +519,7 @@ export function AgentRegisterPage() {
                         setContactValue('')
                         setError('')
                       }}
-                      className="flex items-center gap-2 rounded-lg border bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-muted/50 hover:border-foreground"
+                      className="flex items-center gap-2 rounded-lg border bg-[var(--lc-surface)] px-4 py-2.5 text-sm font-medium transition hover:bg-[var(--lc-surface-sunken)] hover:border-foreground"
                     >
                       <c.icon className="h-4 w-4" />
                       {c.label}
@@ -539,7 +539,7 @@ export function AgentRegisterPage() {
                 <Button
                   onClick={handleSendOtp}
                   disabled={loading}
-                  className="h-11 w-full gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                  className="h-11 w-full gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   Send verification code
@@ -577,7 +577,7 @@ export function AgentRegisterPage() {
                     value={d}
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="h-14 w-12 rounded-lg border border-input bg-white text-center text-2xl font-semibold tracking-widest shadow-sm transition focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                    className="h-14 w-12 rounded-lg border border-input bg-[var(--lc-surface)] text-center text-2xl font-semibold tracking-widest shadow-sm transition focus:border-[var(--lc-border-strong)] focus:outline-none"
                   />
                 ))}
               </div>
@@ -599,7 +599,7 @@ export function AgentRegisterPage() {
                 <Button
                   onClick={handleVerifyOtp}
                   disabled={loading}
-                  className="h-11 gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                  className="h-11 gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   Verify & continue
@@ -640,7 +640,7 @@ export function AgentRegisterPage() {
                     <Label htmlFor="phone">Phone *</Label>
                     <div className="flex gap-2">
                       <select
-                        className="w-28 rounded-md border border-input bg-white px-2 py-2 text-sm"
+                        className="w-28 rounded-md border border-input bg-[var(--lc-surface)] px-2 py-2 text-sm"
                         value={form.country_code}
                         onChange={(e) => setField('country_code', e.target.value)}
                       >
@@ -703,7 +703,7 @@ export function AgentRegisterPage() {
                   <textarea
                     id="bio"
                     rows={4}
-                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                    className="w-full rounded-md border border-input bg-[var(--lc-surface)] px-3 py-2 text-sm shadow-sm focus:border-[var(--lc-border-strong)] focus:outline-none"
                     value={form.bio}
                     onChange={(e) => setField('bio', e.target.value)}
                     placeholder="Tell buyers and sellers about your experience, achievements, and what makes you different…"
@@ -742,8 +742,8 @@ export function AgentRegisterPage() {
                         onClick={() => toggleArray('property_types', pt)}
                         className={`rounded-full border px-3 py-1.5 text-sm transition ${
                           form.property_types.includes(pt)
-                            ? 'border-foreground bg-foreground text-white'
-                            : 'border-input bg-white text-foreground hover:bg-muted/50'
+                            ? 'border-foreground bg-foreground text-[var(--lc-action-primary-text)]'
+                            : 'border-input bg-[var(--lc-surface)] text-foreground hover:bg-[var(--lc-surface-sunken)]'
                         }`}
                       >
                         {form.property_types.includes(pt) && <Check className="mr-1 inline h-3 w-3" />}
@@ -754,7 +754,7 @@ export function AgentRegisterPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Territories / Cities * <span className="text-muted-foreground font-normal">(select all that apply)</span></Label>
-                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-white">
+                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-[var(--lc-surface)]">
                     {TERRITORIES.map((t) => (
                       <button
                         key={t}
@@ -762,8 +762,8 @@ export function AgentRegisterPage() {
                         onClick={() => toggleArray('territories', t)}
                         className={`rounded-full border px-3 py-1.5 text-sm transition ${
                           form.territories.includes(t)
-                            ? 'border-foreground bg-foreground text-white'
-                            : 'border-input bg-white text-foreground hover:bg-muted/50'
+                            ? 'border-foreground bg-foreground text-[var(--lc-action-primary-text)]'
+                            : 'border-input bg-[var(--lc-surface)] text-foreground hover:bg-[var(--lc-surface-sunken)]'
                         }`}
                       >
                         {form.territories.includes(t) && <Check className="mr-1 inline h-3 w-3" />}
@@ -800,8 +800,8 @@ export function AgentRegisterPage() {
                       }}
                       className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
                         form.agency_mode === opt.id
-                          ? 'border-foreground bg-foreground text-white'
-                          : 'border-input bg-white text-foreground hover:bg-muted/50'
+                          ? 'border-foreground bg-foreground text-[var(--lc-action-primary-text)]'
+                          : 'border-input bg-[var(--lc-surface)] text-foreground hover:bg-[var(--lc-surface-sunken)]'
                       }`}
                     >
                       {opt.label}
@@ -826,12 +826,12 @@ export function AgentRegisterPage() {
                         onFocus={() => setAgencySearchOpen(true)}
                       />
                       {agencySearchOpen && agencyResults.length > 0 && (
-                        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg">
+                        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-[var(--lc-surface)] shadow-lg">
                           {agencyResults.map((a) => (
                             <button
                               key={a.id}
                               type="button"
-                              className="flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition"
+                              className="flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm hover:bg-[var(--lc-surface-sunken)] transition"
                               onClick={() => {
                                 setSelectedAgency(a)
                                 setField('agency_id', a.id)
@@ -855,7 +855,7 @@ export function AgentRegisterPage() {
                         </div>
                       )}
                       {agencySearchOpen && agencyQuery.length >= 2 && agencyResults.length === 0 && (
-                        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-white p-3 text-sm text-muted-foreground shadow-lg">
+                        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-[var(--lc-surface)] p-3 text-sm text-muted-foreground shadow-lg">
                           No agencies found. Try a different search or{' '}
                           <button type="button" className="underline text-foreground" onClick={() => setField('agency_mode', 'new')}>
                             register a new agency
@@ -878,7 +878,7 @@ export function AgentRegisterPage() {
 
                 {/* New agency registration */}
                 {form.agency_mode === 'new' && (
-                  <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                  <div className="space-y-4 rounded-lg border bg-[var(--lc-bg-page)] p-4">
                     <h4 className="text-sm font-semibold">Register New Agency</h4>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
@@ -970,7 +970,7 @@ export function AgentRegisterPage() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="h-11 gap-2 bg-[#0F0F0F] text-white hover:bg-[#2F2F2F]"
+                    className="h-11 gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                     Create Account

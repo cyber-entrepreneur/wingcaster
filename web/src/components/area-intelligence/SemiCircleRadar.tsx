@@ -9,9 +9,9 @@ interface SemiCircleRadarProps {
 
 export function SemiCircleRadar({ scores, size = 280 }: SemiCircleRadarProps) {
   const bands = [
-    { key: 'inner', radius: size * 0.45, color: '#3B82F6', stroke: 12, label: 'Local 0–3km', score: scores.inner },
-    { key: 'middle', radius: size * 0.32, color: '#60A5FA', stroke: 10, label: 'Secondary 3–5km', score: scores.middle },
-    { key: 'outer', radius: size * 0.19, color: '#93C5FD', stroke: 8, label: 'Macro 5–10km', score: scores.outer },
+    { key: 'inner', radius: size * 0.45, color: 'var(--lc-accent)', stroke: 12, label: 'Local 0–3km', score: scores.inner },
+    { key: 'middle', radius: size * 0.32, color: 'var(--lc-accent)', stroke: 10, label: 'Secondary 3–5km', score: scores.middle },
+    { key: 'outer', radius: size * 0.19, color: 'var(--lc-accent-bold-edge)', stroke: 8, label: 'Macro 5–10km', score: scores.outer },
   ]
 
   const cx = size / 2

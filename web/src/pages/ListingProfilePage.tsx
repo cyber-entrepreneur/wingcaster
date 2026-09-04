@@ -206,10 +206,7 @@ export function ListingProfilePage() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{property.title}</h1>
-            <Badge variant="outline" className={`gap-1 border ${meta.badgeClass}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${meta.dotClass}`} />
-              {meta.label}
-            </Badge>
+            <Badge status={status}>{meta.label}</Badge>
           </div>
           <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="h-3.5 w-3.5" />
@@ -256,7 +253,7 @@ export function ListingProfilePage() {
           <img src={heroPhoto} alt={property.title} className="h-full w-full object-cover" />
           <button
             type="button"
-            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-[var(--lc-action-primary-text)] hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             title={
               (property.photos?.length || 0) === 0
                 ? 'Add photos first — AI needs something to describe.'
@@ -291,7 +288,7 @@ export function ListingProfilePage() {
       </div>
 
       {/* Info strip */}
-      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-white px-4 py-3">
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-[var(--lc-surface)] px-4 py-3">
         <div className="text-2xl font-semibold">
           {formatPrice(property.price, property.type, property.price_unit)}
         </div>
@@ -546,7 +543,7 @@ function StatusSetter({
       {open && (
         <>
           <button className="fixed inset-0 z-10 cursor-default" aria-label="close" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-white p-1 shadow-lg">
+          <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-[var(--lc-surface)] p-1 shadow-lg">
             {LISTING_STATUSES.map((s) => {
               const m = LISTING_STATUS_META[s]
               const active = s === status
@@ -559,7 +556,7 @@ function StatusSetter({
                     active ? 'bg-muted' : ''
                   }`}
                 >
-                  <span className={`mt-1 h-1.5 w-1.5 rounded-full ${m.dotClass}`} />
+                  <span aria-hidden="true" className="mt-0.5">{m.glyph}</span>
                   <div>
                     <div className="font-medium">{m.label}</div>
                     <div className="text-[11px] text-muted-foreground">{m.description}</div>
@@ -629,8 +626,8 @@ function ConfirmDeleteModal({
   busy, title, onCancel, onConfirm,
 }: { busy: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="w-full max-w-md rounded-lg bg-[var(--lc-surface)] p-6 shadow-xl">
         <h2 className="text-lg font-semibold">Delete this listing?</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           "{title}" will be permanently removed. If you just want to hide it, archive it instead.
@@ -638,7 +635,7 @@ function ConfirmDeleteModal({
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>
           <Button
-            className="bg-red-600 text-white hover:bg-red-700"
+            className="bg-red-600 text-[var(--lc-action-primary-text)] hover:bg-red-700"
             onClick={onConfirm}
             disabled={busy}
           >
@@ -705,8 +702,8 @@ function ScheduleModal({
   const title = kind === 'viewing' ? 'Schedule viewing' : 'Schedule call'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="w-full max-w-md rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-muted">
@@ -867,7 +864,7 @@ function PublishSocialTab({ property }: { property: Property }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-dashed bg-white py-12">
+      <div className="flex items-center justify-center rounded-md border border-dashed bg-[var(--lc-surface)] py-12">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     )
@@ -922,7 +919,7 @@ function PublishSocialTab({ property }: { property: Property }) {
                             onChange={(e) =>
                               setSelected((prev) => ({ ...prev, [p.id]: e.target.value }))
                             }
-                            className="mt-1 block w-full rounded border bg-white px-2 py-1 text-xs"
+                            className="mt-1 block w-full rounded border bg-[var(--lc-surface)] px-2 py-1 text-xs"
                           >
                             {formats.map((f) => (
                               <option key={f} value={f}>{f}</option>
@@ -1079,8 +1076,8 @@ function AiDescribeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
+      <div className="w-full max-w-2xl rounded-lg bg-[var(--lc-surface)] shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-500" />
@@ -1279,7 +1276,7 @@ function InsightsSection({ listingId }: { listingId: string }) {
               }
               const fetchedAt = d.insights_fetched_at || d.insights?.fetched_at || null
               return (
-                <li key={d.id} className="rounded-lg border bg-white p-3">
+                <li key={d.id} className="rounded-lg border bg-[var(--lc-surface)] p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{platformLabel[d.platform] || d.platform}</Badge>
@@ -1564,8 +1561,8 @@ function CommentsSection({ listingId }: { listingId: string }) {
               onClick={() => setCategoryFilter(new Set())}
               className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
                 categoryFilter.size === 0
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-muted-foreground hover:bg-muted'
+                  ? 'bg-slate-900 text-[var(--lc-action-primary-text)] border-slate-900'
+                  : 'bg-[var(--lc-surface)] text-muted-foreground hover:bg-muted'
               }`}
             >
               All ({Object.values(summary).reduce((s, n) => s + (n || 0), 0)})
@@ -1612,7 +1609,7 @@ function CommentsSection({ listingId }: { listingId: string }) {
               const topCat = t.top_category
               const topMeta = topCat ? categoryMeta[topCat] : null
               return (
-                <li key={t.conversation_id} className="rounded-lg border bg-white p-3">
+                <li key={t.conversation_id} className="rounded-lg border bg-[var(--lc-surface)] p-3">
                   <div className="flex items-center justify-between gap-2 pb-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline">{channelLabel[t.channel] || t.channel}</Badge>
@@ -1737,14 +1734,14 @@ function MessageRow({
   const meta = m.category ? categoryMeta[m.category] : null
   const bubbleClass = m.direction === 'inbound'
     ? 'rounded-md bg-slate-50 px-2.5 py-1.5 text-sm'
-    : 'ml-8 rounded-md bg-slate-900 px-2.5 py-1.5 text-sm text-white'
+    : 'ml-8 rounded-md bg-slate-900 px-2.5 py-1.5 text-sm text-[var(--lc-action-primary-text)]'
   const sourceLabel = m.category_source
     ? m.category_source === 'manual' ? '· manual' : m.category_source === 'ai' ? '· AI' : '· rules'
     : ''
   return (
     <li className={bubbleClass}>
       <div className="whitespace-pre-wrap">{m.content}</div>
-      <div className={`mt-0.5 flex items-center gap-2 text-[10px] ${m.direction === 'inbound' ? 'text-muted-foreground' : 'text-white/70'}`}>
+      <div className={`mt-0.5 flex items-center gap-2 text-[10px] ${m.direction === 'inbound' ? 'text-muted-foreground' : 'text-[var(--lc-action-primary-text)]/70'}`}>
         <span>{new Date(m.created_at).toLocaleString()}</span>
         {m.direction === 'outbound' && <span>· {m.status}</span>}
         {m.direction === 'inbound' && meta && (
@@ -1769,7 +1766,7 @@ function MessageRow({
         )}
       </div>
       {reclassifyOpen && (
-        <div className="mt-1.5 flex flex-wrap gap-1 rounded border border-dashed bg-white p-1.5">
+        <div className="mt-1.5 flex flex-wrap gap-1 rounded border border-dashed bg-[var(--lc-surface)] p-1.5">
           {Object.entries(categoryMeta).map(([cat, cm]) => (
             <button
               key={cat}

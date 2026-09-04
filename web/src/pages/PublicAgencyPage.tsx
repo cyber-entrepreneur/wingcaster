@@ -49,15 +49,15 @@ export function PublicAgencyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
       {/* Agency Header */}
-      <div className="bg-white border-b">
+      <div className="bg-[var(--lc-surface)] border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <Link to="/agents" className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4 hover:text-primary">
             <ArrowLeft className="h-4 w-4" />Back to Agents
           </Link>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="rounded-xl bg-primary/10 p-6">
+            <div className="rounded-xl bg-primary-faint p-6">
               <Building2 className="h-16 w-16 text-primary" />
             </div>
             <div className="flex-1">

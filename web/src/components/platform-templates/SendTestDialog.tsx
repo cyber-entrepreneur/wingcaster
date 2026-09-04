@@ -144,7 +144,7 @@ export function SendTestDialog({ template, open, onOpenChange, callerEmail, runE
             </div>
 
             {varNames.length > 0 && (
-              <section aria-labelledby="send-test-vars-heading" className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+              <section aria-labelledby="send-test-vars-heading" className="space-y-2 rounded-md border border-border bg-[var(--lc-surface-sunken)] p-3">
                 <h4 id="send-test-vars-heading" className="text-sm font-semibold">
                   Sample variables
                 </h4>

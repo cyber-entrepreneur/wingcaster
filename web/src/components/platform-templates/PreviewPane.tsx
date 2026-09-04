@@ -144,7 +144,7 @@ export function PreviewPane({ template, draft, useServer = true }: Props) {
         )}
 
         {varNames.length > 0 && (
-          <section aria-labelledby="preview-vars-heading" className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <section aria-labelledby="preview-vars-heading" className="space-y-2 rounded-md border border-border bg-[var(--lc-surface-sunken)] p-3">
             <h4 id="preview-vars-heading" className="text-sm font-semibold">
               Sample variables
             </h4>
@@ -178,7 +178,7 @@ export function PreviewPane({ template, draft, useServer = true }: Props) {
           </TabsList>
 
           <TabsContent value="html" className="mt-3">
-            <div className="rounded-md border border-border bg-white">
+            <div className="rounded-md border border-border bg-[var(--lc-surface)]">
               <iframe
                 ref={iframeRef}
                 // sandbox="" is the strongest possible sandbox: no scripts,
@@ -192,13 +192,13 @@ export function PreviewPane({ template, draft, useServer = true }: Props) {
           </TabsContent>
 
           <TabsContent value="text" className="mt-3">
-            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-white p-4 text-sm text-foreground">
+            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-[var(--lc-surface)] p-4 text-sm text-foreground">
               {rendered?.text_body ?? ''}
             </pre>
           </TabsContent>
 
           <TabsContent value="subject" className="mt-3">
-            <div className="rounded-md border border-border bg-white p-4">
+            <div className="rounded-md border border-border bg-[var(--lc-surface)] p-4">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Subject</div>
               <div className="mt-1 text-lg font-semibold text-foreground">{rendered?.subject ?? ''}</div>
             </div>
@@ -261,8 +261,8 @@ function wrapHtmlDocument(bodyHtml: string): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { margin: 0; padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #111; line-height: 1.5; }
-    a { color: #C8963C; }
+    body { margin: 0; padding: 24px; font-family: var(--lc-font-ui), system-ui, sans-serif; color: var(--lc-text-primary); line-height: 1.5; }
+    a { color: var(--lc-text-brand); }
     img { max-width: 100%; height: auto; }
   </style>
 </head>

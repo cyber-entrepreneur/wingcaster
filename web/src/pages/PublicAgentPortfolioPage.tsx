@@ -83,8 +83,8 @@ export function PublicAgentPortfolioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="bg-white border-b">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+      <div className="bg-[var(--lc-surface)] border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <Link to="/agents" className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4 hover:text-primary">
             <ArrowLeft className="h-4 w-4" />Back to Agents
