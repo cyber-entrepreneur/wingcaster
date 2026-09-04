@@ -138,6 +138,11 @@ import {
   parseEmailStatusWebhook,
 } from './lib/notifications/email.js'
 import {
+  dispatchConsumerNotification,
+  dispatchStoredNotification,
+  processPendingNotificationRetries,
+} from './lib/notifications/dispatch.js'
+import {
   getGraphConfig,
   isGraphConfigured,
   _resetTokenCache as _resetGraphTokenCache,
@@ -3029,7 +3034,19 @@ async function createNotification({ userId, type, title, body, severity = 'info'
   }
   await insert('consumer_notifications', row)
 
-  if (channel !== 'inapp') {
+  if (channel === 'inapp' || channel === 'in_app') {
+    await dispatchConsumerNotification({
+      channel: 'in_app',
+      recipient: userId,
+      subject: title,
+      body,
+      metadata: { ...meta, alert_type: type },
+    })
+  } else {
+    const user = await findOne('users', (u) => u.id === userId)
+    const recipient = channel === 'email'
+      ? user?.email
+      : (channel === 'sms' || channel === 'whatsapp' ? user?.phone : null)
     await insert('consumer_notification_retries', {
       id: uuidv4(),
       notification_id: row.id,
@@ -3037,85 +3054,15 @@ async function createNotification({ userId, type, title, body, severity = 'info'
       channel,
       status: 'pending',
       attempts: 0,
-      next_retry_at: new Date(Date.now() + 60 * 1000).toISOString(),
+      recipient: recipient || null,
+      tenant_id: meta.tenant_id || null,
+      alert_type: type,
+      next_retry_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     })
   }
 
   return row
-}
-
-async function dispatchNotification(notification) {
-  // Dispatcher router for non-inapp channels.
-  // Real providers (SendGrid, Twilio, WhatsApp Cloud API) are wired here.
-  const channel = notification.dispatch?.channel
-  if (!channel || channel === 'inapp') {
-    return { ok: true, status: 'delivered' }
-  }
-
-  // Placeholder: channel-specific dispatchers would be invoked here.
-  // For now, record that the dispatch is pending until a provider is configured.
-  return {
-    ok: false,
-    status: 'pending',
-    error: `Channel ${channel} dispatch not yet wired. Provider integration required.`,
-  }
-}
-
-async function processPendingNotificationRetries({ limit = 20 } = {}) {
-  const now = new Date().toISOString()
-  const pending = (await findAll('consumer_notification_retries', (r) =>
-    r.status === 'pending' &&
-    (!r.next_retry_at || r.next_retry_at <= now),
-  )).slice(0, limit)
-
-  const results = []
-  for (const retry of pending) {
-    const notification = await findOne('consumer_notifications', (n) => n.id === retry.notification_id)
-    if (!notification) {
-      await update('consumer_notification_retries', (r) => r.id === retry.id, (r) => ({ ...r, status: 'failed', failed_at: now, last_error: 'Notification record missing' }))
-      results.push({ retry_id: retry.id, status: 'failed', error: 'Notification record missing' })
-      continue
-    }
-
-    const result = await dispatchNotification(notification)
-    const attempts = (retry.attempts || 0) + 1
-    const maxAttempts = 5
-    const exhausted = attempts >= maxAttempts
-
-    if (result.ok) {
-      await update('consumer_notifications', (n) => n.id === notification.id, (n) => ({
-        ...n,
-        dispatch: { ...n.dispatch, status: result.status, attempts, sent_at: now, delivered_at: now },
-      }))
-      await update('consumer_notification_retries', (r) => r.id === retry.id, (r) => ({
-        ...r,
-        status: 'completed',
-        attempts,
-        completed_at: now,
-      }))
-      results.push({ retry_id: retry.id, status: 'completed' })
-    } else {
-      const nextRetryAt = exhausted
-        ? null
-        : new Date(Date.now() + Math.min(60 * Math.pow(2, attempts), 3600) * 1000).toISOString()
-      await update('consumer_notifications', (n) => n.id === notification.id, (n) => ({
-        ...n,
-        dispatch: { ...n.dispatch, status: exhausted ? 'failed' : 'pending', attempts, last_error: result.error },
-      }))
-      await update('consumer_notification_retries', (r) => r.id === retry.id, (r) => ({
-        ...r,
-        status: exhausted ? 'failed' : 'pending',
-        attempts,
-        last_error: result.error,
-        next_retry_at: nextRetryAt,
-        failed_at: exhausted ? now : r.failed_at,
-      }))
-      results.push({ retry_id: retry.id, status: exhausted ? 'failed' : 'pending', error: result.error })
-    }
-  }
-
-  return { processed: results.length, results }
 }
 
 async function getAutomationCheckpoint(agentId) {
@@ -3575,7 +3522,7 @@ app.post('/api/notifications/:id/retry', authMiddleware, async (req, res) => {
   if (!notification.dispatch || notification.dispatch.channel === 'inapp') {
     return res.json({ success: true, status: 'delivered', note: 'In-app notifications do not require external dispatch.' })
   }
-  const result = await dispatchNotification(notification)
+  const result = await dispatchStoredNotification(notification)
   const now = new Date().toISOString()
   await update('consumer_notifications', (n) => n.id === notification.id, (n) => ({
     ...n,
@@ -3593,7 +3540,7 @@ app.post('/api/notifications/:id/retry', authMiddleware, async (req, res) => {
 
 app.get('/api/admin/notifications/dead-letter', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const dead = (await findAll('consumer_notification_retries', (r) => r.status === 'failed'))
+  const dead = (await findAll('consumer_notification_retries', (r) => r.status === 'dead_letter' || r.status === 'failed'))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   res.json({ items: dead, total: dead.length })
 })

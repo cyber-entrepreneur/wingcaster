@@ -210,6 +210,7 @@ const TABLE_MAP = {
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
 
   // Notifications
+  notifications: { schema: 'public', table: 'notifications', columns: ['user_id', 'type', 'title', 'body', 'metadata', 'read'] },
   consumer_notifications: { schema: 'public', table: 'consumer_notifications', columns: ['user_id', 'agent_id', 'contact_id', 'type', 'title', 'body', 'read', 'metadata'] },
   consumer_notification_prefs: { schema: 'public', table: 'consumer_notification_prefs', columns: ['user_id', 'agent_id', 'channels', 'event_toggles', 'quiet_hours'] },
   consumer_notification_retries: { schema: 'public', table: 'consumer_notification_retries', columns: ['notification_id', 'channel', 'status', 'attempts', 'last_error', 'next_retry_at'] },
