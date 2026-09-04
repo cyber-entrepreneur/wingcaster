@@ -7,6 +7,12 @@ describe('credit errors', () => {
     expect(creditErrorHttpStatus(err)).toBe(409)
   })
 
+  it('creditErrorHttpStatus returns 502 for structured-output producer failures', () => {
+    expect(creditErrorHttpStatus({ code: 'AI_STRUCTURED_OUTPUT_FAILED' })).toBe(502)
+    expect(creditErrorHttpStatus({ code: 'AI_PROVIDERS_UNAVAILABLE' })).toBe(502)
+    expect(creditErrorHttpStatus({ code: 'LANGUAGE_NOT_YET_SUPPORTED' })).toBe(400)
+  })
+
   it('sendCreditError maps CreditEngineError and hides internal error text', () => {
     const res = {
       statusCode: null,

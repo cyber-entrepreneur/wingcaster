@@ -23,6 +23,7 @@ import { createListingMatcher } from './matcher.js'
 import { DraftStatus, SessionState, Intent, TemplateVariant, SocialPlatform, CreditScope, CreditType, LocationSource } from '../domain/types.js'
 import { recordAiCall } from '../../../lib/ai-usage-logger.js'
 import { syntheticTenantId } from '../../../lib/credits/wallets.js'
+import { createAiPost } from '../../../lib/credits/ai-stubs.js'
 
 export function createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger }) {
   const storage = createStorage({ config, logger })
@@ -316,38 +317,29 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       logger.warn({ err: err.message }, 'thumbnail generation failed')
     }
 
-    // Generate captions.
+    // Per-channel captions from the DESCRIBE output — do not re-derive from raw fields.
     let captions = {}
     try {
-      captions.instagram = await aiAdapter.generateCaption({ platform: 'instagram', property: extractedProperty, variant: selectedVariant })
-      await recordAiCall({
-        tenantId: session.agent_id || agencyId || null,
-        feature: 'whatsapp-listings',
-        callType: 'generateCaption:instagram',
-        providerResult: captions.instagram,
-        relatedEntityType: session.draft_id ? 'draft' : 'session',
-        relatedEntityId: session.draft_id || session.id,
+      const description = typeof extractedProperty.description === 'string'
+        ? extractedProperty.description.trim()
+        : ''
+      const post = await createAiPost({
+        description,
+        propertyPayload: extractedProperty,
+        tone: variantToTone(selectedVariant),
+        channels: ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'whatsapp'],
+        language: 'en',
+        creditContext: {
+          tenantId: syntheticTenantId(creditScope, creditScopeId),
+          requestId: `wa-post:${session.id}`,
+          callType: 'createAiPost',
+          relatedEntityType: session.draft_id ? 'draft' : 'session',
+          relatedEntityId: session.draft_id || session.id,
+        },
       })
-      captions.tiktok = await aiAdapter.generateCaption({ platform: 'tiktok', property: extractedProperty, variant: selectedVariant })
-      await recordAiCall({
-        tenantId: session.agent_id || agencyId || null,
-        feature: 'whatsapp-listings',
-        callType: 'generateCaption:tiktok',
-        providerResult: captions.tiktok,
-        relatedEntityType: session.draft_id ? 'draft' : 'session',
-        relatedEntityId: session.draft_id || session.id,
-      })
-      captions.x = await aiAdapter.generateCaption({ platform: 'x', property: extractedProperty, variant: selectedVariant })
-      await recordAiCall({
-        tenantId: session.agent_id || agencyId || null,
-        feature: 'whatsapp-listings',
-        callType: 'generateCaption:x',
-        providerResult: captions.x,
-        relatedEntityType: session.draft_id ? 'draft' : 'session',
-        relatedEntityId: session.draft_id || session.id,
-      })
+      captions = captionsFromAiPost(post)
     } catch (err) {
-      logger.warn({ err: err.message }, 'caption generation failed')
+      logger.warn({ err: err.message, code: err.code }, 'caption generation failed')
     }
 
     await sessions.updateSession(session.id, {
@@ -781,6 +773,36 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
     aiAdapter,
     sessions,
   }
+}
+
+function variantToTone(variant) {
+  if (variant === 'luxe') return 'luxury'
+  if (variant === 'urgent') return 'concise'
+  if (variant === 'modern') return 'professional'
+  return 'warm'
+}
+
+function extractHashtags(text) {
+  return Array.from(String(text || '').matchAll(/#([A-Za-z0-9_]+)/g), (m) => m[1])
+}
+
+function captionsFromAiPost(post) {
+  const source = post?.captions || post?.result?.captions || {}
+  const meta = {
+    provider: post?.provider,
+    cost_micro_usd: post?.cost_micro_usd,
+    tokens_in: post?.tokens_in,
+    tokens_out: post?.tokens_out,
+  }
+  const mapped = {}
+  for (const [channel, text] of Object.entries(source)) {
+    mapped[channel] = {
+      caption: text,
+      hashtags: extractHashtags(text),
+      ...meta,
+    }
+  }
+  return mapped
 }
 
 function buildCreatePayload(draft, agent, agencyId) {

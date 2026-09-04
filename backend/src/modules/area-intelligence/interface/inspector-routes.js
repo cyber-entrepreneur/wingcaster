@@ -1,4 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { authMiddleware } from '../../../auth.js'
+import { findOne } from '../../../db.js'
+import { creditContextFromRequest } from '../../../lib/credits/tenant-context.js'
+import { creditErrorHttpStatus } from '../../../lib/credits/errors.js'
+import { rateProperty } from '../../../lib/credits/ai-stubs.js'
 
 async function requireAgent(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
@@ -91,6 +96,45 @@ export function registerInspectorRoutes(
       res.status(201).json(submission)
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to create submission')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  app.post('/api/inspector/properties/:propertyId/rate', authMiddleware, requireAgent, async (req, res) => {
+    try {
+      const property = await findOne('properties', (p) => p.id === req.params.propertyId)
+      if (!property) return res.status(404).json({ error: 'Property not found' })
+
+      let areaContext = req.body?.area_context || req.body?.areaContext || {}
+      if (req.body?.assignment_id) {
+        const assignment = await inspectorService.getAssignmentById(req.body.assignment_id)
+        if (!assignment || assignment.agent_id !== req.user.id) {
+          return res.status(403).json({ error: 'Forbidden: assignment not owned by you' })
+        }
+        const area = await areaService.getById(assignment.area_id)
+        areaContext = { ...areaContext, assignment_id: assignment.id, area }
+      }
+
+      const credit = creditContextFromRequest(req, {
+        requestId: `inspector-rate:${req.params.propertyId}:${randomUUID()}`,
+        callType: 'rateProperty',
+        relatedEntityType: 'property',
+        relatedEntityId: property.id,
+      })
+      const rated = await rateProperty({
+        propertyPayload: property,
+        areaContext,
+        creditContext: credit,
+      })
+      res.json(rated)
+    } catch (err) {
+      logger.error({ err: err.message, code: err.code }, 'Failed to rate property')
+      if (err?.code) {
+        return res.status(creditErrorHttpStatus(err)).json({
+          error: err.message,
+          code: err.code,
+        })
+      }
       res.status(500).json({ error: err.message })
     }
   })

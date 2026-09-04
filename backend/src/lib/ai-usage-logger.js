@@ -25,28 +25,50 @@ export async function recordAiCall({
   feature,
   callType,
   providerResult,
+  provider,
+  model,
+  tokens_in,
+  tokens_out,
+  cost_micro_usd,
+  duration_ms,
+  request_id,
   relatedEntityType = null,
   relatedEntityId = null,
   extras = {},
 }) {
   try {
-    const usage = providerResult.usage || { inputTokens: 0, outputTokens: 0 }
-    const cost = estimateCostMicroUsd(providerResult.provider, providerResult.model, usage.inputTokens, usage.outputTokens)
+    const resolvedProvider = providerResult?.provider || provider
+    const resolvedModel = providerResult?.model || model
+    const usage = providerResult?.usage || {
+      inputTokens: tokens_in || 0,
+      outputTokens: tokens_out || 0,
+    }
+    const pricingProvider = resolvedProvider === 'anthropic' ? 'claude' : resolvedProvider
+    const cost = cost_micro_usd ?? estimateCostMicroUsd(
+      pricingProvider,
+      resolvedModel,
+      usage.inputTokens,
+      usage.outputTokens,
+    )
     await insert('ai_call_usage', {
       id: uuidv4(),
       tenant_id: tenantId,
       feature,
       call_type: callType,
-      provider: providerResult.provider,
-      model: providerResult.model,
+      provider: resolvedProvider,
+      model: resolvedModel,
       input_tokens: Number(usage.inputTokens) || 0,
       output_tokens: Number(usage.outputTokens) || 0,
       cost_estimate_micro_usd: cost,
-      fallback_from: providerResult.fallbackFrom || null,
+      fallback_from: providerResult?.fallbackFrom || null,
       related_entity_type: relatedEntityType,
       related_entity_id: relatedEntityId,
       occurred_at: new Date().toISOString(),
-      data: extras,
+      data: {
+        ...extras,
+        ...(duration_ms != null ? { duration_ms } : {}),
+        ...(request_id != null ? { request_id } : {}),
+      },
     })
   } catch (err) {
     logger.warn({ err, feature, callType }, 'recordAiCall failed — call succeeded, log did not')
