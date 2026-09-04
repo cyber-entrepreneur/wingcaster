@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CATEGORY } from '../../errors.js'
 import { DEFAULT_LIMIT, MAX_LIMIT, encodeCursor, parsePagination, slicePage } from './pagination.js'
-import { buildRates, deltaPct, primaryRateKey } from './writes.js'
+import { buildRates, deltaPct, primaryRateKey, scopedCommandEnv } from './writes.js'
 
 describe('vendor admin pagination', () => {
   it('defaults limit to 50 and caps at 200', () => {
@@ -47,5 +47,20 @@ describe('vendor admin rate helpers', () => {
     expect(deltaPct(0, 30)).toBe(0)
     expect(deltaPct(17, 18)).toBeLessThan(20)
     expect(deltaPct(17, 30)).toBeGreaterThan(20)
+  })
+
+  it('scopedCommandEnv suffixes the HTTP idempotency key per inner command', () => {
+    const env = {
+      idempotencyKey: 'http-key',
+      expectedVersion: 1,
+      actorId: 'a',
+    }
+    const upsert = scopedCommandEnv(env, 'upsert')
+    const draft = scopedCommandEnv(env, 'draft')
+    expect(upsert.idempotencyKey).toBe('http-key:upsert')
+    expect(draft.idempotencyKey).toBe('http-key:draft')
+    expect(upsert.idempotencyKey).not.toBe(draft.idempotencyKey)
+    expect(upsert.expectedVersion).toBeUndefined()
+    expect(scopedCommandEnv({ actorId: 'a' }, 'recon').idempotencyKey).toBeUndefined()
   })
 })

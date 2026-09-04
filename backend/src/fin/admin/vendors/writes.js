@@ -46,6 +46,19 @@ export function primaryRateKey(rates) {
 }
 
 /**
+ * One HTTP Idempotency-Key cannot be claimed by multiple registry commands.
+ * Credit-note admin routes suffix `:draft` / `:approve`; we do the same so
+ * upsert + draft + activate (or recon) do not 409 on fingerprint conflict.
+ */
+export function scopedCommandEnv(env, suffix) {
+  return {
+    ...env,
+    expectedVersion: undefined,
+    idempotencyKey: env.idempotencyKey ? `${env.idempotencyKey}:${suffix}` : undefined,
+  }
+}
+
+/**
  * Percent change vs the prior unit cost.
  *
  * New-SKU governance: a missing or zero prior (first listing of this
@@ -244,10 +257,8 @@ export async function applyVendorRate(client, env, { vendorId, body }) {
     }
   }
 
-  const commandEnv = { ...env, expectedVersion: undefined }
-
   const product = await vendorRegistry.upsertVendorProduct({
-    ...commandEnv,
+    ...scopedCommandEnv(env, 'upsert'),
     vendorId,
     productCode,
     productClass,
@@ -263,7 +274,7 @@ export async function applyVendorRate(client, env, { vendorId, body }) {
       rateCardId = existing.id
     } else {
       const created = await vendorRegistry.createRateCard({
-        ...commandEnv,
+        ...scopedCommandEnv(env, 'card'),
         vendorId,
         name: pick(body, 'rate_card_name', 'rateCardName') || `${vendor.name}-card`,
       })
@@ -274,7 +285,7 @@ export async function applyVendorRate(client, env, { vendorId, body }) {
   let rateVersionId = pick(body, 'rate_version_id', 'rateVersionId')
   if (!rateVersionId) {
     const drafted = await vendorRegistry.draftRateVersion({
-      ...commandEnv,
+      ...scopedCommandEnv(env, 'draft'),
       rateCardId,
       rates,
       effectiveFrom,
@@ -283,7 +294,7 @@ export async function applyVendorRate(client, env, { vendorId, body }) {
   }
 
   const activated = await vendorRegistry.activateRateVersion({
-    ...commandEnv,
+    ...scopedCommandEnv(env, 'activate'),
     rateCardId,
     rateVersionId,
   })
@@ -337,8 +348,7 @@ export async function deprecateVendorRate(client, env, { vendorId, versionId }) 
     }
   }
   return vendorRegistry.deprecateRateVersion({
-    ...env,
-    expectedVersion: undefined,
+    ...scopedCommandEnv(env, 'deprecate'),
     rateCardId: version.rate_card_id,
     rateVersionId: versionId,
   })
@@ -364,10 +374,35 @@ export async function reconcileVendorStatement(client, env, { vendorId, month, e
     })
   }
   await lockVendorStatementRecon(client, statement.id)
-  const result = await reconcileStatement({
-    ...env,
-    statementId: statement.id,
-  })
+  const header = (await client.query(
+    `SELECT * FROM fin.vendor_statements WHERE id = $1 FOR UPDATE`,
+    [statement.id],
+  )).rows[0]
+  if (!header || !['RECEIVED', 'RECONCILED'].includes(header.status)) {
+    throw finError('VENDOR_STATEMENT_ILLEGAL_TRANSITION', {
+      category: CATEGORY.PRECONDITION,
+      httpStatus: 409,
+      details: { status: header?.status },
+    })
+  }
+  // Domain reconcileStatement always inserts outbox
+  // `vstmt:{id}:RECONCILED:v{version}`. Re-running on an already-RECONCILED
+  // row trips uq_outbox_events_topic_dedupe (unhandled 500). RECEIVED still
+  // goes through the domain command; RECONCILED only records evidence.
+  let result
+  if (header.status === 'RECEIVED') {
+    result = await reconcileStatement({
+      ...scopedCommandEnv(env, 'recon'),
+      statementId: header.id,
+    })
+  } else {
+    result = {
+      command: 'ReconcileVendorStatement',
+      id: header.id,
+      status: header.status,
+      version: Number(header.version),
+    }
+  }
   await insertAudit(client, {
     environment: env.environment,
     actorType: env.actorType,
