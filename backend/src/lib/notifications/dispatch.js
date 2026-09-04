@@ -1,7 +1,7 @@
 /**
  * Consumer notification dispatcher.
  *
- * Single entry for email / SMS / WhatsApp / in-app (push is PART2).
+ * Single entry for email / SMS / WhatsApp / in-app / push (FCM).
  * Transports are the existing modules — this file only validates, rate-limits,
  * maps outcomes, and runs the retry worker.
  *
@@ -38,6 +38,7 @@ import logger from '../logger.js'
 import { isEmailEnabled, sendEmail } from './email.js'
 import { isSMSEnabled, sendSMS } from './sms.js'
 import { isWhatsAppConfigured, sendWhatsAppText } from '../../whatsapp.js'
+import { isPushConfigured, sendPushNotification } from './push.js'
 
 export const DISPATCH_MAX_RETRIES = 5
 export const DISPATCH_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -66,6 +67,7 @@ const UNCONFIGURED_CODES = new Set([
   'EMAIL_UNCONFIGURED',
   'SMS_UNCONFIGURED',
   'WHATSAPP_UNCONFIGURED',
+  'PUSH_UNCONFIGURED',
 ])
 
 let dbCfgCache = null
@@ -219,9 +221,8 @@ function validateRecipientForChannel(channel, recipient) {
     case 'whatsapp':
       return /^(\+[1-9]\d{7,14}|[1-9]\d{11,15})$/.test(value) ? null : 'invalid WhatsApp recipient'
     case 'in_app':
-      return /^[a-zA-Z0-9_-]{3,64}$/.test(value) ? null : 'invalid user id'
     case 'push':
-      return null
+      return /^[a-zA-Z0-9_-]{3,64}$/.test(value) ? null : 'invalid user id'
     default:
       return null
   }
@@ -418,6 +419,51 @@ async function dispatchInApp({ recipient, subject, body, metadata }) {
   }
 }
 
+async function dispatchPush({ recipient, subject, body, metadata }) {
+  const meta = metadataOf(metadata)
+  try {
+    const sent = await sendPushNotification({
+      userId: recipient,
+      title: subject || '',
+      body: body || '',
+      data: meta,
+      priority: meta.priority,
+    })
+    if (sent?.ok) {
+      return {
+        ok: true,
+        status: 'sent',
+        provider: sent.provider || 'fcm',
+        provider_message_id: sent.provider_message_id || null,
+        tokens_sent: sent.tokens_sent,
+        tokens_invalidated: sent.tokens_invalidated,
+      }
+    }
+    const code = sent?.code || 'PUSH_FAILED'
+    if (code === 'NO_TOKENS_FOR_USER' || code === 'NO_VALID_TOKENS' || UNCONFIGURED_CODES.has(code)) {
+      return {
+        ok: false,
+        status: 'skipped',
+        code,
+        error: sent?.error || code,
+        tokens_sent: sent?.tokens_sent || 0,
+        tokens_invalidated: sent?.tokens_invalidated || 0,
+      }
+    }
+    return {
+      ok: false,
+      status: 'pending',
+      code,
+      error: sent?.error || code,
+      retry_after: backoffMs(1),
+      tokens_sent: sent?.tokens_sent || 0,
+      tokens_invalidated: sent?.tokens_invalidated || 0,
+    }
+  } catch (err) {
+    return classifyTransportError(err, 'PUSH')
+  }
+}
+
 /**
  * Dispatch one consumer notification on a single channel.
  *
@@ -478,12 +524,16 @@ export async function dispatchConsumerNotification({
       result = await dispatchInApp({ recipient, subject, body, metadata })
       break
     case 'push':
-      return {
-        ok: false,
-        status: 'skipped',
-        code: 'PUSH_DEFERRED_TO_PART2',
-        error: 'Push notifications not yet wired',
+      if (!isPushConfigured()) {
+        return {
+          ok: false,
+          status: 'skipped',
+          code: 'PUSH_UNCONFIGURED',
+          error: 'FCM credentials not set — configure FCM_SERVICE_ACCOUNT_JSON env var',
+        }
       }
+      result = await dispatchPush({ recipient, subject, body, metadata })
+      break
     default:
       return {
         ok: false,
@@ -536,7 +586,9 @@ async function resolveRecipient(channel, retry, notification) {
     || notification?.recipient
   if (stored) return stored
   const normalized = normalizeChannel(channel)
-  if (normalized === 'in_app') return notification?.user_id || retry?.user_id || null
+  if (normalized === 'in_app' || normalized === 'push') {
+    return notification?.user_id || retry?.user_id || null
+  }
   const userId = notification?.user_id || retry?.user_id
   if (!userId) return null
   const user = await findOne('users', (u) => u.id === userId)
