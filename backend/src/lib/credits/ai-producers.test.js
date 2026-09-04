@@ -4,6 +4,7 @@ import { produceAiPost } from './ai-producers/create-ai-post.js'
 import { produceRateProperty } from './ai-producers/rate-property.js'
 import { AI_PRODUCER_ERROR } from './ai-producers/errors.js'
 import { createAiPost } from './ai-stubs.js'
+import { producerConfig, resolveAnthropicModel } from './ai-producers/config.js'
 import { isAutoMigration } from '../../persistence/migrations/runner.js'
 
 vi.mock('../ai-usage-logger.js', async (importOriginal) => {
@@ -89,6 +90,24 @@ afterEach(() => {
   vi.unstubAllGlobals()
   delete process.env.OPENAI_API_KEY
   delete process.env.ANTHROPIC_API_KEY
+  delete process.env.ANTHROPIC_MODEL_POST_CREATION
+  delete process.env.ANTHROPIC_MODEL_PROPERTY_RATING
+})
+
+describe('Anthropic producer defaults', () => {
+  it('resolves Haiku 4.5 when no model env var is set', () => {
+    delete process.env.ANTHROPIC_MODEL_POST_CREATION
+    delete process.env.ANTHROPIC_MODEL_PROPERTY_RATING
+    const cfg = producerConfig()
+    expect(cfg.anthropic.postCreationModel).toBe('claude-haiku-4-5-20251001')
+    expect(cfg.anthropic.propertyRatingModel).toBe('claude-haiku-4-5-20251001')
+  })
+
+  it('keeps the claude-3-haiku alias for existing env-var overrides', () => {
+    process.env.ANTHROPIC_MODEL_POST_CREATION = 'claude-3-haiku'
+    expect(producerConfig().anthropic.postCreationModel).toBe('claude-3-haiku-20240307')
+    expect(resolveAnthropicModel('claude-3-haiku')).toBe('claude-3-haiku-20240307')
+  })
 })
 
 describe('AI producer schemas', () => {

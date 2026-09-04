@@ -1,5 +1,6 @@
 const ANTHROPIC_MODEL_ALIASES = {
   'claude-3-haiku': 'claude-3-haiku-20240307',
+  'claude-haiku-4-5': 'claude-haiku-4-5-20251001',
 }
 
 export const DEFAULT_POST_CHANNELS = ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'whatsapp']
@@ -11,7 +12,7 @@ export function envOr(name, fallback) {
 }
 
 export function resolveAnthropicModel(raw) {
-  const model = raw || 'claude-3-haiku-20240307'
+  const model = raw || 'claude-haiku-4-5-20251001'
   return ANTHROPIC_MODEL_ALIASES[model] || model
 }
 
@@ -28,8 +29,8 @@ export function producerConfig() {
     },
     anthropic: {
       apiKey: envOr('ANTHROPIC_API_KEY', ''),
-      postCreationModel: resolveAnthropicModel(envOr('ANTHROPIC_MODEL_POST_CREATION', 'claude-3-haiku')),
-      propertyRatingModel: resolveAnthropicModel(envOr('ANTHROPIC_MODEL_PROPERTY_RATING', 'claude-3-haiku')),
+      postCreationModel: resolveAnthropicModel(envOr('ANTHROPIC_MODEL_POST_CREATION', 'claude-haiku-4-5')),
+      propertyRatingModel: resolveAnthropicModel(envOr('ANTHROPIC_MODEL_PROPERTY_RATING', 'claude-haiku-4-5')),
     },
   }
 }

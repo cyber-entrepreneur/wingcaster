@@ -28,6 +28,11 @@ describe('estimateCostMicroUsd', () => {
   it('returns 0 for zero tokens on a known model', () => {
     expect(estimateCostMicroUsd('claude', 'claude-3-haiku-20240307', 0, 0)).toBe(0)
   })
+
+  it('prices Claude Haiku 4.5 at $1 / $5 per 1M tokens', () => {
+    expect(estimateCostMicroUsd('claude', 'claude-haiku-4-5-20251001', 1_000_000, 0)).toBe(10_000)
+    expect(estimateCostMicroUsd('claude', 'claude-haiku-4-5-20251001', 0, 1_000_000)).toBe(50_000)
+  })
 })
 
 describe('recordAiCall', () => {
