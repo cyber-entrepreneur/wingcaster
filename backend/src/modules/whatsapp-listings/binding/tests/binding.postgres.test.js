@@ -4,6 +4,7 @@ import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { closeDb, configure, insert, query } from '../../../../db.js'
 import { skipIfNoPostgres, withTestDb } from '../../../../testing/postgres.js'
+import { createWebhookHandler } from '../../application/webhook.js'
 import { registerBindingRoutes } from '../routes.js'
 import {
   _resetIntakeConfigCache,
