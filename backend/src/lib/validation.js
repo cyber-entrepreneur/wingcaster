@@ -30,6 +30,7 @@ export const registerSchema = z.object({
   name: z.string().min(2).max(120),
   email: emailSchema,
   phone: z.string().max(40).optional().default(''),
+  username: z.string().min(2).max(120).optional(),
   password: z.string().min(6).max(128),
   license_number: z.string().max(80).optional().default(''),
   agency_name: z.string().max(120).optional().default(''),

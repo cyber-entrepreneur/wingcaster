@@ -52,6 +52,12 @@ import {
 } from './tenant-authorization.js'
 import logger from './lib/logger.js'
 import {
+  FreeTrialAlreadyClaimedError,
+  assertFreeTierListingAllowed,
+  assertNoPriorClaim,
+  freeTrialClaimedHttpBody,
+} from './lib/auth/free-trial-claims.js'
+import {
   assertPublishChannelConfigured,
   tenantHasPublishToken,
   warnUnavailablePublishChannels,
@@ -978,6 +984,18 @@ async function revokeOutstandingRecoveryTokens(userId, reason = 'password_change
 // ==================== AUTH ====================
 app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
   const body = req.validated
+  try {
+    await assertNoPriorClaim({
+      email: body.email,
+      phone: body.phone,
+      username: body.username || body.name,
+    })
+  } catch (err) {
+    if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
+      return res.status(409).json(freeTrialClaimedHttpBody(err))
+    }
+    throw err
+  }
   if (await findUserByEmail(body.email) || await findOne('agents', a => a.email === body.email)) {
     return res.status(409).json({ error: 'Email already registered' })
   }
@@ -1006,6 +1024,7 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
     name: body.name,
     email: body.email,
     phone: body.phone,
+    username: body.username || slug,
     password_hash: bcrypt.hashSync(body.password, 10),
     role,
     platform_role: null,
@@ -1043,6 +1062,9 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
   try {
     await createAgentAccount({ user, agent })
   } catch (err) {
+    if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
+      return res.status(409).json(freeTrialClaimedHttpBody(err))
+    }
     if (err?.code === '23505') return res.status(409).json({ error: 'Email already registered' })
     throw err
   }
@@ -1647,6 +1669,20 @@ app.post('/api/properties', authMiddleware, validate(propertyCreateSchema), asyn
   const body = req.validated
   const id = uuidv4()
   const agent = await findOne('agents', a => a.id === req.user.id)
+  const userRow = await findUserById(req.user.id)
+  try {
+    await assertFreeTierListingAllowed({
+      userId: req.user.id,
+      email: userRow?.email || req.user.email || agent?.email,
+      phone: userRow?.phone || agent?.phone,
+      username: userRow?.username || agent?.slug || `user:${req.user.id}`,
+    })
+  } catch (err) {
+    if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
+      return res.status(409).json(freeTrialClaimedHttpBody(err))
+    }
+    throw err
+  }
   const affiliation = await resolveListingAffiliation({
     agentId: req.user.id,
     agencyTiedRequested: body.agency_tied,
