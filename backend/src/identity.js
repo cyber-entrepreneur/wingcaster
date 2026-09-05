@@ -1,5 +1,6 @@
 import { findOne, transaction, update } from './db.js'
 import { provisionFreeTier } from './lib/packages/onboarding.js'
+import { assertNoPriorClaim, recordClaim } from './lib/auth/free-trial-claims.js'
 
 export async function findUserById(userId) {
   return findOne('users', (user) => user.id === userId)
@@ -33,7 +34,15 @@ export async function createAgentAccount({ user, agent }) {
     throw new Error('Agent profiles must use the same id as their user principal')
   }
 
+  const claimIdentity = {
+    email: principal.email,
+    phone: principal.phone,
+    username: principal.username || profile.slug || `user:${principal.id}`,
+  }
+
   await transaction(async (client) => {
+    await assertNoPriorClaim({ ...claimIdentity, client })
+
     await client.query(
       `INSERT INTO users (
         id, email, phone, name, password_hash, role, platform_role, verified, verified_at,
@@ -144,6 +153,14 @@ export async function createAgentAccount({ user, agent }) {
         JSON.stringify(membership),
       ],
     )
+    await recordClaim({
+      userId: principal.id,
+      email: claimIdentity.email,
+      phone: claimIdentity.phone,
+      username: claimIdentity.username,
+      client,
+    })
+
     await provisionFreeTier(client, {
       scope: 'personal',
       scopeId: principal.id,

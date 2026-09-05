@@ -71,6 +71,18 @@ skipIfNoPostgres()('registration verification boundary', () => {
       expect(registration.status).toBe(202)
       expect(registration.body).toMatchObject({ status: 'otp_sent' })
       expect(registration.body.token).toBeUndefined()
+
+      const claimedAgain = await request(app).post('/api/auth/register').send({
+        name: 'Takeover Attempt',
+        email: attackerEmail,
+        password: 'secret123',
+      })
+      expect(claimedAgain.status).toBe(409)
+      expect(claimedAgain.body).toMatchObject({
+        error: 'This identity has already claimed the WingCaster free trial',
+        code: 'FREE_TRIAL_ALREADY_CLAIMED',
+        blocking_dimensions: ['email'],
+      })
       const registeredUser = await findOne('users', (user) => user.email === attackerEmail)
       expect(registeredUser).toMatchObject({ verified: false, platform_role: null })
 
