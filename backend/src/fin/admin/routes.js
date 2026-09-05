@@ -3,9 +3,6 @@
  * Guards copy Stage 4 pricing routes (platform_admin + elevated + limiter + If-Match).
  * environment / now never come from req.body (DL-164 / DL-101).
  */
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { pathToFileURL, fileURLToPath } from 'node:url'
 import { requireElevated } from '../../auth.js'
 import { getPool } from '../../persistence/postgres-adapter.js'
 import { CATEGORY, FinError, finError } from '../errors.js'
@@ -34,12 +31,7 @@ import { approveCreditNote, draftCreditNote, issueCreditNote } from '../billing/
 import { approveDebitNote, draftDebitNote, issueDebitNote } from '../billing/debit-note.js'
 import { applyPayment, recordPayment, reversePayment } from '../billing/payment-allocation.js'
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
-
-let registerFinVendorAdminRoutes = null
-const vendorRoutesPath = join(dirname(fileURLToPath(import.meta.url)), 'vendors', 'routes.js')
-if (existsSync(vendorRoutesPath)) {
-  ({ registerFinVendorAdminRoutes } = await import(pathToFileURL(vendorRoutesPath).href))
-}
+import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -102,23 +94,6 @@ function input(req, extra = {}) {
     ...extra,
     ...actorFrom(req),
   }
-}
-
-function registerVendorStub(app, readGuards) {
-  app.get('/api/admin/fin/vendors', readGuards, (_req, res) => {
-    res.status(200).json({
-      vendors: [],
-      stage11: false,
-      message: 'Stage 11 not merged',
-    })
-  })
-  app.get('/api/admin/fin/vendors/:id', readGuards, (_req, res) => {
-    res.status(200).json({
-      vendor: null,
-      stage11: false,
-      message: 'Stage 11 not merged',
-    })
-  })
 }
 
 export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatformAdmin } = {}) {
@@ -253,11 +228,7 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json({ cases })
   }))
 
-  if (registerFinVendorAdminRoutes) {
-    registerFinVendorAdminRoutes(app, { authMiddleware, requirePlatformAdmin })
-  } else {
-    registerVendorStub(app, readGuards)
-  }
+  registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
 
   app.post('/api/admin/fin/facilities', writeGuards, wrap(async (req, res) => {
     const result = await createFacility(input(req))

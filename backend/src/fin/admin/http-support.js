@@ -6,16 +6,13 @@ import { registerFinOpsAdminRoutes } from './routes.js'
 export const ADMIN_ID = '00000000-0000-0000-0000-0000000000a1'
 const SECRET = 'stage-12-ops-secret'
 
-export async function makeOpsApp(databaseUrl, { role = 'platform_admin', finEnvironment = 'LIVE' } = {}) {
+export async function makeOpsApp(databaseUrl, {
+  role = 'platform_admin',
+  finEnvironment = 'LIVE',
+  authenticated = true,
+} = {}) {
   process.env.JWT_SECRET = SECRET
   process.env.VITEST = '1'
-  // Enable Stage 11 vendor read routes in the ops test harness so
-  // /api/admin/fin/vendors serves Stage 11's real router (200 + rows)
-  // instead of requireVendorOps gating with 501. Post-merge integration
-  // test wiring, no domain change.
-  if (process.env.FIN_VENDOR_OPS_ENABLED == null || process.env.FIN_VENDOR_OPS_ENABLED === '') {
-    process.env.FIN_VENDOR_OPS_ENABLED = '1'
-  }
   vi.resetModules()
   const { configure } = await import('../../db.js')
   configure({ databaseUrl, force: true })
@@ -23,7 +20,10 @@ export async function makeOpsApp(databaseUrl, { role = 'platform_admin', finEnvi
   const { signElevatedToken: sign } = await import('../../auth.js')
   const app = express()
   app.use(express.json())
-  const fakeAuth = (req, _res, next) => {
+  const fakeAuth = (req, res, next) => {
+    if (!authenticated) {
+      return res.status(401).json({ error: 'unauthenticated' })
+    }
     req.user = {
       id: ADMIN_ID,
       token_version: 0,

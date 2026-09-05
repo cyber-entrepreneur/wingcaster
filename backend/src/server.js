@@ -18,7 +18,6 @@ import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
-import { registerFinVendorAdminRoutes } from './fin/admin/vendors/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
 import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
@@ -636,10 +635,6 @@ registerPlatformTemplateAdminRoutes(app, {
 })
 
 registerFinPricingAdminRoutes(app, {
-  authMiddleware,
-  requirePlatformAdmin,
-})
-registerFinVendorAdminRoutes(app, {
   authMiddleware,
   requirePlatformAdmin,
 })
