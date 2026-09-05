@@ -11,6 +11,8 @@
 import { v4 as uuidv4 } from 'uuid'
 import { Collections, findAllModule, findOneModule, removeModule, insertModule, updateModule } from './db.js'
 import { SessionState, DraftStatus } from '../domain/types.js'
+import { runWhatsAppIntakeJanitorTick } from '../binding/janitor.js'
+import { runTierUtilizationAlert } from '../binding/tier-alert.js'
 
 const MAX_RETRIES = 5
 const BASE_BACKOFF_MS = 5000
@@ -18,6 +20,7 @@ const BASE_BACKOFF_MS = 5000
 export function createQueue({ pipeline, config, logger }) {
   let timer = null
   let running = false
+  let lastTierAlertDate = null
 
   function isRunning() {
     return running || Boolean(timer)
@@ -31,6 +34,8 @@ export function createQueue({ pipeline, config, logger }) {
       await processRetries()
       await processApprovalTimeouts()
       await pruneDedupeRecords()
+      await processExpiredCodes()
+      await processTierUtilization()
     } catch (err) {
       logger.error({ err: err.message || String(err) }, 'WhatsApp listing worker tick failed')
     } finally {
@@ -144,6 +149,25 @@ export function createQueue({ pipeline, config, logger }) {
     const removed = await removeModule(Collections.PROCESSED_MESSAGES, (m) => m.processed_at && m.processed_at < cutoff)
     if (removed > 0) {
       logger.debug({ removed }, 'pruned old WhatsApp listing processed messages')
+    }
+  }
+
+  async function processExpiredCodes() {
+    try {
+      await runWhatsAppIntakeJanitorTick()
+    } catch (err) {
+      logger.error({ err: err.message || String(err) }, 'WhatsApp intake code janitor failed')
+    }
+  }
+
+  async function processTierUtilization() {
+    const today = new Date().toISOString().slice(0, 10)
+    if (lastTierAlertDate === today) return
+    try {
+      await runTierUtilizationAlert({ logger })
+      lastTierAlertDate = today
+    } catch (err) {
+      logger.error({ err: err.message || String(err) }, 'WhatsApp intake tier alert failed')
     }
   }
 

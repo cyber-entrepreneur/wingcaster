@@ -224,3 +224,17 @@ Trigger is measurable, not date-based. Prevents both premature investment (befor
 **Model B for v1, with the 8 H-additions above baked into the Cursor dispatch prompt.**
 
 Next step: draft `CURSOR_WHATSAPP_INTAKE_PROVISIONING_MODEL_B.md` once AGT-ONB screen dispatch is ready. That prompt scopes: `user_whatsapp_bindings` table, activation-code endpoint, webhook parser extension, WC-* bot commands, 3-number provisioning, rate-limit + cap enforcement, expiry + regeneration.
+
+---
+
+## H4 — Model C monetization framing (Phase-2, no v1 code)
+
+H4 is **not** implemented in the Model B backend PR. Shared-number intake can feel less premium than a dedicated branded WABA line; that perception is the strongest argument for Model C, but it is a **marketing/pricing** concern, not a v1 intake concern.
+
+**When it surfaces:** after paid tiers ship **and** 10 paid subscribers have upgraded (H8 trigger). Then:
+
+- Add Model C copy to the marketing site Pricing page (`wingcaster-www`), framed as a paid upgrade:
+  > "Upgrade to Pro and get **your own branded WhatsApp Business number**. Your clients see YOUR name, not WingCaster's. Cross-listing on Google, Facebook, and Bayut all point to YOUR line."
+- Do not provision dedicated numbers in this codebase until that trigger fires.
+
+This section exists so H4 is not lost between Model B shipping and the later marketing-site prompt.

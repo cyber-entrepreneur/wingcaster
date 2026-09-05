@@ -36,6 +36,8 @@ export const FIN_CREDITS_JANITOR = 1022
 export const FIN_CREDITS_FIN_MIRROR = 1023
 /** Package billing-cycle grant worker. Spec value 1024 is free. */
 export const FIN_PACKAGE_BILLING_CYCLE = 1024
+/** WhatsApp intake activation-code expiry janitor (H6). 1025–1029 unused. */
+export const WHATSAPP_INTAKE_JANITOR = 1030
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -61,4 +63,5 @@ export const LOCK_CLASSES = {
   FIN_CREDITS_JANITOR,
   FIN_CREDITS_FIN_MIRROR,
   FIN_PACKAGE_BILLING_CYCLE,
+  WHATSAPP_INTAKE_JANITOR,
 }

@@ -94,6 +94,12 @@ function normalizePropertyForDb(payload, { id, agentId, agencyId, agent, agency,
 export function createDefaultPlatformAdapter({ pricingContextBuilder } = {}) {
   return {
     async getAgentByWhatsAppNumber(number) {
+      const { getCurrentBinding, getAgentForBindingUser } = await import('./binding/service.js')
+      const binding = await getCurrentBinding(number)
+      if (binding) {
+        const boundAgent = await getAgentForBindingUser(binding.user_id)
+        if (boundAgent) return boundAgent
+      }
       const normalized = String(number || '').replace(/\D/g, '')
       return (await findOne('agents', (a) => String(a.phone || '').replace(/\D/g, '') === normalized)) || null
     },

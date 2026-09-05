@@ -11,8 +11,11 @@
 
 import { createHmac, timingSafeEqual } from 'crypto'
 import { claimProcessedMessage, releaseProcessedMessage } from '../infrastructure/db.js'
+import { bindingParser, CAP_REPLY, HINT_REPLY } from '../binding/webhook-parser.js'
+import { getIntakeConfig } from '../binding/config.js'
+import { countAgentMessagesLast24h, stampProcessedMessage, touchBinding } from '../binding/service.js'
 
-export function createWebhookHandler({ adapter, entitlements, credits, pipeline, config, logger }) {
+export function createWebhookHandler({ adapter, entitlements, credits, pipeline, config, logger, sendReply }) {
   function isListingIntent(event) {
     if (event.type !== 'message') return false
     if (!event.from) return false
@@ -70,24 +73,74 @@ export function createWebhookHandler({ adapter, entitlements, credits, pipeline,
         continue
       }
 
-      const agent = await adapter.getAgentByWhatsAppNumber(event.from)
+      const reply = async (text) => {
+        if (sendReply) {
+          await sendReply(event.from, text)
+          return
+        }
+        try {
+          const { sendWhatsAppText } = await import('../../../whatsapp.js')
+          await sendWhatsAppText(event.from, text)
+        } catch (err) {
+          logger.warn({ err: err.message }, 'failed to send WhatsApp reply')
+        }
+      }
+
+      let bindResult
+      try {
+        bindResult = await bindingParser(event.from, event.text || '', { sendReply: (text) => reply(text) })
+      } catch (err) {
+        logger.error({ err: err.message || String(err), message_id: event.message_id }, 'binding parser failed')
+        try {
+          await releaseProcessedMessage(event.message_id)
+        } catch (releaseErr) {
+          logger.error(
+            { err: releaseErr.message || String(releaseErr), message_id: event.message_id },
+            'failed to release processed_messages claim after binding parser error',
+          )
+        }
+        results.push({ handled: false, error: err.message, message_id: event.message_id, retryable: true })
+        continue
+      }
+
+      if (bindResult?.handled) {
+        results.push({ handled: true, reason: bindResult.reason, message_id: event.message_id })
+        continue
+      }
+
+      let agent = bindResult?.agent || null
       if (!agent) {
-        // Not one of ours — but we already claimed the row. Keep it so we
-        // don't reprocess this on every retry.
+        agent = await adapter.getAgentByWhatsAppNumber(event.from)
+      }
+      if (!agent) {
+        if (bindResult?.reason === 'no_binding') {
+          await reply(HINT_REPLY)
+          results.push({ handled: true, reason: 'unbound_hint', message_id: event.message_id })
+          continue
+        }
         results.push({ handled: false, reason: 'not_agent_sender', message_id: event.message_id })
         continue
       }
 
-      const agencyId = await adapter.getAgentAgencyId(agent.id)
-      if (!entitlements.isEnabled({ agentId: agent.id, agencyId })) {
-        // Feature disabled; send a polite reply and consider the delivery
-        // handled — provider must NOT retry (nothing to fix on their side).
-        try {
-          const { sendWhatsAppText } = await import('../../whatsapp.js')
-          await sendWhatsAppText(event.from, 'This feature is not included in your current plan. Upgrade to enable listing creation via WhatsApp.')
-        } catch (err) {
-          logger.warn({ err: err.message }, 'failed to send feature disabled reply')
+      if (bindResult?.binding) {
+        await touchBinding(bindResult.binding.id)
+        await stampProcessedMessage({
+          messageId: event.message_id,
+          userId: bindResult.binding.user_id,
+          sharedNumberIndex: bindResult.binding.shared_number_index,
+        })
+        const cfg = await getIntakeConfig()
+        const used = await countAgentMessagesLast24h(bindResult.binding.user_id, { excludeMessageId: event.message_id })
+        if (used >= cfg.WHATSAPP_INTAKE_PER_AGENT_DAILY_CAP) {
+          await reply(CAP_REPLY)
+          results.push({ handled: true, reason: 'daily_cap', message_id: event.message_id })
+          continue
         }
+      }
+
+      const agencyId = await adapter.getAgentAgencyId(agent.id)
+      if (!(await entitlements.isEnabled({ agentId: agent.id, agencyId }))) {
+        await reply('This feature is not included in your current plan. Upgrade to enable listing creation via WhatsApp.')
         results.push({ handled: true, reason: 'feature_disabled', message_id: event.message_id })
         continue
       }
