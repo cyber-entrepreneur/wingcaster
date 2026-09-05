@@ -135,13 +135,15 @@ export async function recordClaim({
     return Array.isArray(rows) ? rows[0] : rows
   } catch (error) {
     if (error?.code === '23505') {
-      const matches = await findMatchingClaims({ email, phone, username, client })
-      const fromRows = [...new Set(matches.flatMap((row) => blockingDimensionsFromRow(row, hashes)))]
+      // Do NOT re-query on the same client after a unique-violation — Postgres
+      // aborts the transaction, and any subsequent query throws "current
+      // transaction is aborted". `error.constraint` already tells us which of
+      // the three partial unique indexes fired, so use that as the sole source
+      // of truth. Trade-off: if multiple dimensions would collide, we only
+      // report the one Postgres surfaced first (matched via SAVEPOINT if we
+      // ever want multi-dimension reporting back — deferred).
       const fromConstraint = dimensionFromUniqueViolation(error)
-      const blockingDimensions = fromRows.length
-        ? fromRows
-        : (fromConstraint ? [fromConstraint] : [])
-      throw new FreeTrialAlreadyClaimedError(blockingDimensions)
+      throw new FreeTrialAlreadyClaimedError(fromConstraint ? [fromConstraint] : [])
     }
     throw error
   }

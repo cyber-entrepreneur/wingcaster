@@ -191,6 +191,13 @@ finPostgresSuite('free-trial claims', { seed: false }, ({ pool }) => {
         WHERE original_user_id = $1`,
       [userId],
     )
+    // Support-waive expects the original account to be gone (that's the
+    // scenario: user lost access to it). Delete the original user so the
+    // users.email / users.phone uniqueness doesn't fire ahead of the waive
+    // path we're actually testing. free_trial_claims.original_user_id has no
+    // FK, so the waived claim row stays and remains blocking except for
+    // waived_at IS NULL — which unblocks the retry.
+    await pool().query('DELETE FROM public.users WHERE id = $1', [userId])
     await expect(signup({
       email,
       phone,
