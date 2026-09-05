@@ -24,6 +24,7 @@ export default defineConfig({
       CREDITS_FIN_MIRROR_ENABLED: 'false',
       CREDITS_BILLING_CYCLE_ENABLED: 'false',
       NOTIFICATION_RETRY_WORKER_ENABLED: 'false',
+      WHATSAPP_INTAKE_SHARED_NUMBERS: '[{"e164":"+15550000001","label":"primary"},{"e164":"+15550000002","label":"secondary"},{"e164":"+15550000003","label":"tertiary"}]',
       ...(process.env.TEST_DATABASE_URL ? { PG_CONNECTION_TIMEOUT_MS: '120000' } : {}),
     },
     coverage: {

@@ -23,6 +23,8 @@ import { createWebhookHandler } from './application/webhook.js'
 import { registerAdminRoutes } from './interface/admin-routes.js'
 import { registerAgencyRoutes } from './interface/agency-routes.js'
 import { registerAgentRoutes } from './interface/agent-routes.js'
+import { registerBindingRoutes } from './binding/routes.js'
+import { getSharedNumbersSync } from './binding/config.js'
 import { createQueue } from './infrastructure/queue.js'
 
 export const MODULE_NAME = 'whatsapp-listings'
@@ -30,7 +32,6 @@ export const MODULE_NAME = 'whatsapp-listings'
 export function createModule({ platformAdapter, config: configOverride }) {
   const config = configOverride || getConfig()
   const logger = getModuleLogger()
-
   if (!config.enabled) {
     logger.info('WhatsApp Listing module is disabled via WHATSAPP_LISTINGS_ENABLED')
     return {
@@ -40,6 +41,10 @@ export function createModule({ platformAdapter, config: configOverride }) {
       registerWorker: () => {},
       handleWebhook: () => ({ handled: false }),
     }
+  }
+
+  if (!configOverride) {
+    getSharedNumbersSync()
   }
 
   const adapter = platformAdapter || createDefaultPlatformAdapter()
@@ -55,6 +60,7 @@ export function createModule({ platformAdapter, config: configOverride }) {
     registerAdminRoutes(app, { entitlements, credits, pipeline, config })
     registerAgencyRoutes(app, { entitlements, credits, pipeline, config })
     registerAgentRoutes(app, { entitlements, credits, pipeline, config })
+    registerBindingRoutes(app)
   }
 
   function registerWorker() {
