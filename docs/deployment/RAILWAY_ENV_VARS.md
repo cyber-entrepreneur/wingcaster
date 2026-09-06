@@ -74,6 +74,19 @@ Subscription / metered Stripe + Paddle Billing + manual-receipt paths (OMT / Whi
 
 ---
 
+## Tier 3b — Marketing site revalidation
+
+Optional. Used when a platform admin publishes a package-version change and the backend should tell `wingcaster-www` to rebuild `/pricing`. If either var is missing, `triggerMarketingRevalidate` logs and no-ops — product billing is unaffected.
+
+| Var | Purpose |
+|---|---|
+| `MARKETING_REVALIDATE_URL` | Full URL of the marketing site's revalidate endpoint, e.g. `https://wingcaster.com/api/revalidate` |
+| `MARKETING_REVALIDATE_SECRET` | Shared HMAC secret. The backend POSTs `{ reason, generated_at }` with `X-Wingcaster-Signature: sha256=<hex>` over the raw JSON body |
+
+Dispatch of this webhook is wired by the PA package-edit PR. This backend only exposes the hook.
+
+---
+
 ## Tier 4 — Rate limits, sessions, retention
 
 | Var | Purpose |
