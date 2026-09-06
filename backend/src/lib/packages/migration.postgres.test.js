@@ -24,7 +24,9 @@ finPostgresSuite('packages migrations 302–304', {}, ({ pool }) => {
     )
     expect(free.rows[0].code).toBe('free-agent')
     expect(free.rows[0].tier).toBe('free')
-    expect(free.rows[0].active).toBe(true)
+    // Migration 316 deactivates free from the marketing catalog; the row
+    // stays PUBLISHED so onboarding and historical subscriptions still resolve.
+    expect(free.rows[0].active).toBe(false)
     expect(free.rows[0].state).toBe('PUBLISHED')
     expect(Number(free.rows[0].properties_covered)).toBe(0)
     expect(Number(free.rows[0].monthly_price_minor)).toBe(0)
