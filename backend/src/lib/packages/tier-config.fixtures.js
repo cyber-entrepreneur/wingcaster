@@ -1,0 +1,68 @@
+import { MARKETING_PACKAGE_IDS } from './test-support.js'
+
+export const SEMSAR_TIER = {
+  id: MARKETING_PACKAGE_IDS.semsar,
+  code: 'semsar',
+  display_name: 'Semsar',
+  tagline: 'For solo agents starting out',
+  agent_cap: 1,
+  property_cap: 3,
+  price: { monthly_usd: 15, annual_usd: 150, currency: 'USD' },
+  trial_days: 30,
+  sales_led: false,
+  portal_group: {
+    id: 'single_pick',
+    display_name: 'Your #1 portal',
+    description: 'Pick your primary listing channel.',
+    portal_scope: 'single_pick',
+  },
+  feature_quotas: {
+    ai_post_creation: 20,
+    ai_property_rating: 10,
+    pricing_benchmark: 10,
+    property_scoring: 10,
+    push_notifications: 500,
+    sms: 50,
+    whatsapp_messages: 200,
+    email_sends: 1000,
+    design_credits: 0,
+  },
+  feature_toggles: {
+    ootb_social_cards: true,
+    open_design_template: false,
+    crm_pipeline: true,
+    unified_inbox: true,
+    whatsapp_intake: true,
+  },
+  support_level: 'email',
+  sort_order: 1,
+}
+
+export const BROKERAGE_TIER = {
+  ...SEMSAR_TIER,
+  id: MARKETING_PACKAGE_IDS.brokerage,
+  code: 'brokerage',
+  display_name: 'Brokerage',
+  tagline: 'Regional brokerages across MENA',
+  agent_cap: null,
+  property_cap: 250,
+  price: { monthly_usd: 500, annual_usd: 5000, currency: 'USD' },
+  trial_days: 0,
+  sales_led: true,
+  portal_group: {
+    id: 'all_mena_phase_1',
+    display_name: 'All MENA Phase-1 portals',
+    description: 'Every integrated portal across UAE, KSA, Egypt, and Lebanon.',
+    portal_scope: 'all_mena_phase_1',
+  },
+  feature_quotas: {
+    ai_post_creation: 2500,
+    push_notifications: -1,
+    sms: 3000,
+    whatsapp_messages: -1,
+    email_sends: -1,
+    design_credits: 500,
+  },
+  support_level: 'dedicated',
+  sort_order: 5,
+}
