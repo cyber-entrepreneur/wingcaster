@@ -312,6 +312,11 @@ const TABLE_MAP = {
       'account_value_tier', 'requires_two_person',
     ],
   },
+  account_recovery_reveal_audit: {
+    schema: 'public',
+    table: 'account_recovery_reveal_audit',
+    columns: ['case_id', 'reviewer_id', 'field', 'ip', 'user_agent'],
+  },
   otp_verifications: { schema: 'public', table: 'otp_verifications', columns: ['user_id', 'channel', 'value_hash', 'code_hash', 'expires_at', 'verified', 'attempts', 'last_attempt_at', 'locked_at'] },
 
   // Profile / reviews

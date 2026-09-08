@@ -20,6 +20,15 @@ import {
   CastVoteError,
   goneApproveRejectBody,
 } from './account-recovery/cast-vote.js'
+import { listAccountRecoveryCases } from './account-recovery/list-cases.js'
+import {
+  getAccountRecoveryCase,
+  AccountRecoveryCaseError,
+} from './account-recovery/get-case.js'
+import {
+  recordRevealAudit,
+  RevealAuditError,
+} from './account-recovery/reveal-audit.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -107,6 +116,7 @@ import {
   accountRecoveryRequestSchema,
   accountRecoveryReviewSchema,
   accountRecoveryCastVoteSchema,
+  accountRecoveryRevealAuditSchema,
   accountRecoveryCompleteSchema,
   otpVerifySchema,
   otpRequestSchema,
@@ -7120,17 +7130,44 @@ app.post('/api/admin/submissions/:id/reject', authMiddleware, async (req, res) =
 
 app.get('/api/admin/account-recovery', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const rows = await Promise.all((await findAll('account_recovery_cases'))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 300)
-    .map(async (c) => {
-      const agent = await findOne('agents', (a) => a.id === c.user_id)
-      return {
-        ...c,
-        agent: agent ? serializeAgent(agent) : null,
-      }
-    }))
-  res.json(rows)
+  const payload = await listAccountRecoveryCases({ req, viewerId: req.user.id })
+  res.json(payload)
+})
+
+app.get('/api/admin/account-recovery/:caseId', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const payload = await getAccountRecoveryCase({
+      caseId: req.params.caseId,
+      viewerId: req.user.id,
+      req,
+    })
+    return res.json(payload)
+  } catch (err) {
+    if (err instanceof AccountRecoveryCaseError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/reveal-audit', authMiddleware, validate(accountRecoveryRevealAuditSchema), async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const payload = await recordRevealAudit({
+      caseId: req.params.caseId,
+      reviewerId: req.user.id,
+      field: req.validated.field,
+      ip: req.ip,
+      userAgent: req.get('user-agent') || null,
+    })
+    return res.json(payload)
+  } catch (err) {
+    if (err instanceof RevealAuditError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
 })
 
 app.post('/api/admin/account-recovery/:caseId/approve', authMiddleware, async (req, res) => {

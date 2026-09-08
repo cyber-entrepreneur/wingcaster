@@ -88,6 +88,10 @@ export const accountRecoveryCastVoteSchema = z.object({
   notes: z.string().max(2000).optional().default(''),
 })
 
+export const accountRecoveryRevealAuditSchema = z.object({
+  field: z.enum(['email', 'phone', 'username', 'ip', 'row', 'name', 'contact', 'user_agent']),
+})
+
 export const accountRecoveryCompleteSchema = z.object({
   case_id: z.string().min(8).max(120),
   token: z.string().min(24).max(512),
