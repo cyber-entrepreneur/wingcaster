@@ -8,6 +8,7 @@
  */
 import express from 'express'
 import request from 'supertest'
+import bcrypt from 'bcryptjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const identity = vi.hoisted(() => ({
@@ -35,26 +36,30 @@ const USER = {
   token_version: 0,
 }
 
+const OLD_RAW = 'ABCDEFGHJK'
+const OLD_DISPLAY = 'ABCDE-FGHJK'
+
 let signElevatedToken
 let registerTwoFactorRoutes
 let matchBackupCode
 let clientQuery
 let deletedUserIds
 let insertedHashes
+let storedRows
+let logActivity
 
 async function createApp({ user = USER } = {}) {
   const app = express()
   app.use(express.json())
   registerTwoFactorRoutes(app, {
-    authMiddleware: (req, _res, next) => {
-      if (user) {
-        req.user = { id: user.id, token_version: user.token_version ?? 0 }
-      }
+    authMiddleware: (req, res, next) => {
+      if (!user) return res.status(401).json({ error: 'Unauthorized' })
+      req.user = { id: user.id, token_version: user.token_version ?? 0 }
       next()
     },
     buildAuthSession: async () => ({ token: 'session-token', agent: { id: user?.id } }),
     findAgentForUser: async () => ({ id: user?.id }),
-    logActivity: async () => {},
+    logActivity,
   })
   return app
 }
@@ -71,13 +76,17 @@ beforeEach(async () => {
 
   deletedUserIds = []
   insertedHashes = []
+  storedRows = [{ id: 'old-1', code_hash: bcrypt.hashSync(OLD_RAW, 8) }]
+  logActivity = vi.fn(async () => {})
   clientQuery = vi.fn(async (sql, params = []) => {
     if (sql.startsWith('DELETE FROM user_backup_codes')) {
       deletedUserIds.push(params[0])
+      storedRows = []
       return { rows: [] }
     }
     if (sql.startsWith('INSERT INTO user_backup_codes')) {
       insertedHashes.push(params[2])
+      storedRows.push({ id: params[0], code_hash: params[2] })
       return { rows: [] }
     }
     return { rows: [] }
@@ -99,11 +108,18 @@ afterEach(() => {
 describe('POST /api/auth/2fa/backup-codes/regenerate', () => {
   it('refuses without an elevated token (step_up_required)', async () => {
     const app = await createApp()
-    const res = await request(app).post('/api/auth/2fa/backup-codes/regenerate')
+    const missing = await request(app).post('/api/auth/2fa/backup-codes/regenerate')
+    expect(missing.status).toBe(401)
+    expect(missing.body.code).toBe('step_up_required')
 
-    expect(res.status).toBe(401)
-    expect(res.body.code).toBe('step_up_required')
+    const garbage = await request(app)
+      .post('/api/auth/2fa/backup-codes/regenerate')
+      .set('X-Elevated-Token', 'not-a-jwt')
+    expect(garbage.status).toBe(401)
+    expect(garbage.body.code).toBe('step_up_required')
+
     expect(db.transaction).not.toHaveBeenCalled()
+    expect(matchBackupCode(OLD_DISPLAY, storedRows)?.id).toBe('old-1')
   })
 
   it('returns a fresh 10-code set once when step-up succeeds', async () => {
@@ -126,9 +142,16 @@ describe('POST /api/auth/2fa/backup-codes/regenerate', () => {
     for (const hash of insertedHashes) {
       expect(res.body.backup_codes.join('')).not.toContain(hash)
     }
+    expect(logActivity).toHaveBeenCalledWith({
+      type: '2fa_backup_codes_regenerated',
+      agent_id: USER.id,
+      meta: {},
+    })
   })
 
   it('invalidates every prior backup code before inserting the new set', async () => {
+    expect(matchBackupCode(OLD_DISPLAY, storedRows)?.id).toBe('old-1')
+
     const app = await createApp()
     const elevated = signElevatedToken({ userId: USER.id, tokenVersion: 0 })
 
@@ -136,6 +159,7 @@ describe('POST /api/auth/2fa/backup-codes/regenerate', () => {
     clientQuery.mockImplementation(async (sql, params = []) => {
       if (sql.startsWith('DELETE FROM user_backup_codes')) {
         deletedUserIds.push(params[0])
+        storedRows = []
         deleted = true
         return { rows: [] }
       }
@@ -143,6 +167,7 @@ describe('POST /api/auth/2fa/backup-codes/regenerate', () => {
         // INSERT must never run until the prior set has been wiped.
         expect(deleted).toBe(true)
         insertedHashes.push(params[2])
+        storedRows.push({ id: params[0], code_hash: params[2] })
         return { rows: [] }
       }
       return { rows: [] }
@@ -155,16 +180,15 @@ describe('POST /api/auth/2fa/backup-codes/regenerate', () => {
     expect(res.status).toBe(200)
     expect(deletedUserIds).toEqual([USER.id])
     expect(insertedHashes).toHaveLength(10)
+    expect(storedRows.every((row) => row.id !== 'old-1')).toBe(true)
+    expect(matchBackupCode(OLD_DISPLAY, storedRows)).toBeNull()
+    expect(matchBackupCode(OLD_RAW, storedRows)).toBeNull()
 
     // Each newly issued plaintext code must match exactly one of the hashes
     // that replaced the deleted set — proving the returned set is what was
     // persisted, and the wiped prior set is gone.
     for (const code of res.body.backup_codes) {
-      const matched = matchBackupCode(
-        code,
-        insertedHashes.map((code_hash, i) => ({ id: `new-${i}`, code_hash })),
-      )
-      expect(matched).not.toBeNull()
+      expect(matchBackupCode(code, storedRows)).not.toBeNull()
     }
   })
 

@@ -118,6 +118,21 @@ async function countUnusedBackupCodes(userId) {
 }
 
 /**
+ * Replace a user's backup-code set. DELETE (rather than stamp used_at) so a
+ * later query that forgets the unused filter cannot resurrect a previous
+ * code. Enrolment and regenerate share this so they cannot drift.
+ */
+async function replaceBackupCodes(client, userId, hashes) {
+  await client.query('DELETE FROM user_backup_codes WHERE user_id = $1', [userId])
+  for (const hash of hashes) {
+    await client.query(
+      'INSERT INTO user_backup_codes (id, user_id, code_hash, created_at, updated_at, data) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, \'{}\'::jsonb)',
+      [uuidv4(), userId, hash],
+    )
+  }
+}
+
+/**
  * Create a challenge, clearing any earlier unconsumed one for the same
  * user+purpose so a user cannot accumulate parallel attempt budgets by simply
  * re-requesting.
@@ -381,13 +396,7 @@ export function registerTwoFactorRoutes(app, deps) {
         [user.id, ciphertext, enrolledAt, result.timeStep ?? null],
       )
       // Re-enrolment should never leave a previous set redeemable.
-      await client.query('DELETE FROM user_backup_codes WHERE user_id = $1', [user.id])
-      for (const hash of hashes) {
-        await client.query(
-          'INSERT INTO user_backup_codes (id, user_id, code_hash, created_at, updated_at, data) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, \'{}\'::jsonb)',
-          [uuidv4(), user.id, hash],
-        )
-      }
+      await replaceBackupCodes(client, user.id, hashes)
     })
 
     await logActivity({ type: '2fa_totp_enabled', agent_id: user.id, meta: {} })
@@ -395,8 +404,8 @@ export function registerTwoFactorRoutes(app, deps) {
     res.json({
       totp_enabled: true,
       totp_enrolled_at: enrolledAt,
-      // Shown to the user exactly once — there is no endpoint that can return
-      // these again.
+      // Shown to the user exactly once. A later regenerate mints a
+      // replacement set and invalidates these hashes.
       backup_codes: plaintext,
       backup_codes_remaining: BACKUP_CODE_COUNT,
     })
@@ -504,13 +513,7 @@ export function registerTwoFactorRoutes(app, deps) {
     await transaction(async (client) => {
       // Drop the previous set entirely so used AND unused codes go away —
       // regenerating must leave nothing redeemable from the old list.
-      await client.query('DELETE FROM user_backup_codes WHERE user_id = $1', [user.id])
-      for (const hash of hashes) {
-        await client.query(
-          'INSERT INTO user_backup_codes (id, user_id, code_hash, created_at, updated_at, data) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, \'{}\'::jsonb)',
-          [uuidv4(), user.id, hash],
-        )
-      }
+      await replaceBackupCodes(client, user.id, hashes)
     })
 
     await logActivity({ type: '2fa_backup_codes_regenerated', agent_id: user.id, meta: {} })
