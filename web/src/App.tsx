@@ -60,6 +60,7 @@ import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
+import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
@@ -194,6 +195,7 @@ function AppRoutes() {
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 — account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
+      <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
