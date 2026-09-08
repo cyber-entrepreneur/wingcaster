@@ -1,5 +1,6 @@
 -- BE-BLOCKER-26 / WF-06 PA-PVA-009 — agent price report admin bundle.
--- Prefer 318 was taken (conversations_channel_source_split); this is next free.
+-- Prefer 318 was taken (conversations_channel_source_split); 330 taken by
+-- report_expires_at (BE-24/25). This is 331.
 -- Idempotent. Do not renumber.
 
 -- ---------------------------------------------------------------------------
