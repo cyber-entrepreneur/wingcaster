@@ -32,12 +32,16 @@ async function agentAccount(label = 'Agent', { platformAdmin = false } = {}) {
     },
     agent: { id: userId, email, name: label },
   })
-  if (platformAdmin) await updatePlatformRole(userId, 'platform_admin')
+  let tokenVersion = 0
+  if (platformAdmin) {
+    await updatePlatformRole(userId, 'platform_admin')
+    tokenVersion = 1
+  }
   const token = signToken({
     id: userId,
     email,
     name: label,
-    token_version: 0,
+    token_version: tokenVersion,
     verified_at: now,
   })
   return { userId, token, email }

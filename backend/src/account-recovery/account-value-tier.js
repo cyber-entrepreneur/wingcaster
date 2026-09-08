@@ -69,7 +69,9 @@ export async function deriveAccountValueTier(userId, opts = {}) {
        FROM public.tenant_memberships tm
       WHERE tm.user_id = $1
         AND tm.role = 'owner'
-        AND tm.status = 'active'`,
+        AND tm.status = 'active'
+        AND tm.affiliation_mode IS DISTINCT FROM 'personal'
+        AND tm.tenant_id LIKE 'agency:%'`,
     [String(userId)],
   )
   const ownerRows = Array.isArray(ownershipRaw) ? ownershipRaw : (ownershipRaw?.rows || [])
@@ -100,6 +102,8 @@ export async function deriveAccountValueTier(userId, opts = {}) {
       WHERE tm.user_id = $1
         AND tm.role = 'owner'
         AND tm.status = 'active'
+        AND tm.affiliation_mode IS DISTINCT FROM 'personal'
+        AND tm.tenant_id LIKE 'agency:%'
         AND s.status = ANY($2::text[])`,
     [String(userId), OPEN_SUBSCRIPTION_STATUSES],
   )
