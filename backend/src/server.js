@@ -7231,6 +7231,10 @@ app.post('/api/agencies/apply', validate(agencyApplySchema), async (req, res) =>
   const body = req.validated
   const agency = await findOne('agencies', a => a.id === body.agency_id)
   if (!agency) return res.status(404).json({ error: 'Agency not found' })
+  // Soft gate for BE-BLOCKER-08. Route rename is owned by BE-06 — keep path stable.
+  if (agency.accepting_applications === false) {
+    return res.status(409).json({ error: 'AGENCY_NOT_ACCEPTING', code: 'AGENCY_NOT_ACCEPTING' })
+  }
 
   const existing = await findOne('agency_applications', a =>
     a.agency_id === body.agency_id && a.agent_email === body.agent_email && a.status === 'pending'
@@ -7367,6 +7371,26 @@ app.get('/api/agencies/my', authMiddleware, async (req, res) => {
   res.json({ ...agency, members, myRole: member.role })
 })
 
+// Safe public card for AGN-MEM-005 apply / invite landing (id or slug).
+app.get('/api/agencies/:idOrSlug/public', async (req, res) => {
+  const key = req.params.idOrSlug
+  const agency = await findOne('agencies', a => a.id === key || a.slug === key)
+  if (!agency) return res.status(404).json({ error: 'Not found' })
+  const members = await findAll('agency_members', m => m.agency_id === agency.id && m.status === 'active')
+  const listings = await findAll('properties', p => p.agency_id === agency.id)
+  res.json({
+    id: agency.id,
+    name: agency.name,
+    slug: agency.slug,
+    logo: agency.logo ?? null,
+    description: agency.description ?? null,
+    city: agency.city ?? null,
+    accepting_applications: agency.accepting_applications !== false,
+    member_count: members.length,
+    listings_count: listings.length,
+  })
+})
+
 app.get('/api/agencies/:id', async (req, res) => {
   const agency = await findOne('agencies', a => a.id === req.params.id)
   if (!agency) return res.status(404).json({ error: 'Not found' })
@@ -7378,17 +7402,27 @@ app.get('/api/agencies/:id', async (req, res) => {
   res.json({ ...agency, members, listings })
 })
 
-app.put('/api/agencies/:id', authMiddleware, async (req, res) => {
+async function updateAgencyHandler(req, res) {
   const member = await getAgencyMembership(req.params.id, req.user.id)
   if (!member || !['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Forbidden' })
-  const allowed = ['name', 'license_number', 'description', 'logo', 'primary_color', 'secondary_color', 'phone', 'email', 'address', 'website', 'site_hosting_type', 'cta_config']
+  const allowed = [
+    'name', 'license_number', 'description', 'logo', 'primary_color', 'secondary_color',
+    'phone', 'email', 'address', 'website', 'site_hosting_type', 'cta_config',
+    'accepting_applications',
+  ]
   const patch = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) patch[key] = req.body[key]
   }
+  if (patch.accepting_applications !== undefined) {
+    patch.accepting_applications = Boolean(patch.accepting_applications)
+  }
   await update('agencies', a => a.id === req.params.id, a => ({ ...a, ...patch }))
   res.json(await findOne('agencies', a => a.id === req.params.id))
-})
+}
+
+app.put('/api/agencies/:id', authMiddleware, updateAgencyHandler)
+app.patch('/api/agencies/:id', authMiddleware, updateAgencyHandler)
 
 // Agency members
 app.post('/api/agencies/:agencyId/members', authMiddleware, requireRole(['owner', 'admin']), async (req, res) => {
