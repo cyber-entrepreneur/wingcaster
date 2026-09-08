@@ -1,5 +1,6 @@
 import { authMiddleware } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
+import { resolveSessionEnv } from '../../../lib/session-env.js'
 
 export function parseCsv(text) {
   if (!text || typeof text !== 'string') return { headers: [], rows: [] }
@@ -80,6 +81,8 @@ export function registerAdminRoutes(app, services) {
     trendService,
     scraperService,
     recalculationJobService,
+    agentPriceReportAdminService,
+    benchmarkService,
     dal,
     logger,
   } = services
@@ -88,6 +91,16 @@ export function registerAdminRoutes(app, services) {
   const invalidateAllPricing = () => recalculationJobService?.invalidateAll
     ? recalculationJobService.invalidateAll({ enqueueJob: true })
     : Promise.resolve(null)
+
+  function sendServiceError(res, err) {
+    const status = err.status || err.httpStatus || 500
+    if (status >= 500) throw err
+    return res.status(status).json({
+      error: err.code || err.message,
+      message: err.message,
+      code: err.code || undefined,
+    })
+  }
 
   // Match configs
   app.get('/api/admin/pricing/configs', admin, async (_req, res, next) => {
@@ -347,31 +360,145 @@ export function registerAdminRoutes(app, services) {
     } catch (err) { next(err) }
   })
 
-  // Agent price reports
-  app.get('/api/admin/pricing/agent-price-reports', admin, async (_req, res, next) => {
+  // Agent price reports (WF-06 PA-PVA-009)
+  app.get('/api/admin/pricing/agent-price-reports', admin, async (req, res, next) => {
     try {
-      const reports = await dal.findAll('agent_price_reports', () => true)
-      res.json(reports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+      if (!agentPriceReportAdminService) {
+        const reports = await dal.findAll('agent_price_reports', () => true)
+        return res.json(reports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+      }
+      const env = resolveSessionEnv(req)
+      const payload = await agentPriceReportAdminService.listReports(req.query, {
+        viewerId: req.user?.id,
+        env,
+      })
+      res.json(payload)
+    } catch (err) { next(err) }
+  })
+
+  app.get('/api/admin/pricing/agent-price-reports.csv', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService) {
+        return res.status(501).json({ error: 'CSV export unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const csv = await agentPriceReportAdminService.exportCsv(req.query, {
+        viewerId: req.user?.id,
+        env,
+      })
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', 'attachment; filename="agent-price-reports.csv"')
+      res.send(csv)
+    } catch (err) { next(err) }
+  })
+
+  app.post('/api/admin/pricing/agent-price-reports/bulk-review', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService) {
+        return res.status(501).json({ error: 'Bulk review unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const result = await agentPriceReportAdminService.bulkReview(req.body || {}, {
+        viewerId: req.user?.id,
+        env,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.get('/api/admin/pricing/agent-price-reports/:id', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService) {
+        const existing = await dal.findOne('agent_price_reports', (r) => r.id === req.params.id)
+        if (!existing) return res.status(404).json({ error: 'Report not found' })
+        return res.json(existing)
+      }
+      const env = resolveSessionEnv(req)
+      const report = await agentPriceReportAdminService.getReport(req.params.id, {
+        viewerId: req.user?.id,
+        env,
+      })
+      if (!report) return res.status(404).json({ error: 'Report not found', code: 'NOT_FOUND' })
+      res.json(report)
     } catch (err) { next(err) }
   })
 
   app.post('/api/admin/pricing/agent-price-reports/:id/review', admin, async (req, res, next) => {
     try {
-      const { status, notes } = req.body
-      if (!['verified', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: 'status must be verified or rejected' })
+      if (!agentPriceReportAdminService) {
+        const { status, notes } = req.body
+        if (!['verified', 'rejected'].includes(status)) {
+          return res.status(400).json({ error: 'status must be verified or rejected' })
+        }
+        const existing = await dal.findOne('agent_price_reports', (r) => r.id === req.params.id)
+        if (!existing) return res.status(404).json({ error: 'Report not found' })
+        await dal.update('agent_price_reports', (r) => r.id === req.params.id, (r) => ({
+          ...r,
+          status: status || r.status,
+          review_notes: notes !== undefined ? notes : r.review_notes,
+          reviewed_by: req.user.id,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }))
+        return res.json({ success: true })
       }
-      const existing = await dal.findOne('agent_price_reports', (r) => r.id === req.params.id)
-      if (!existing) return res.status(404).json({ error: 'Report not found' })
-      await dal.update('agent_price_reports', (r) => r.id === req.params.id, (r) => ({
-        ...r,
-        status: status || r.status,
-        review_notes: notes !== undefined ? notes : r.review_notes,
-        reviewed_by: req.user.id,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }))
-      res.json({ success: true })
+      const env = resolveSessionEnv(req)
+      const result = await agentPriceReportAdminService.reviewReport(req.params.id, req.body || {}, {
+        viewerId: req.user?.id,
+        env,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/agent-price-reports/:id/undo-review', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService) {
+        return res.status(501).json({ error: 'Undo review unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const result = await agentPriceReportAdminService.undoReview(req.params.id, {
+        viewerId: req.user?.id,
+        env,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.get('/api/admin/pricing/agent-price-reports/:reportId/evidence/:evidenceId/url', admin, async (req, res, next) => {
+    try {
+      const env = resolveSessionEnv(req)
+      const report = agentPriceReportAdminService
+        ? await agentPriceReportAdminService.getReport(req.params.reportId, { viewerId: req.user?.id, env })
+        : await dal.findOne('agent_price_reports', (r) => r.id === req.params.reportId)
+      if (!report) return res.status(404).json({ error: 'Report not found' })
+      const evidence = (report.evidence_files || []).find((e) => e.id === req.params.evidenceId)
+      const legacyUrl = report.supporting_document_url
+      const url = evidence?.url || legacyUrl || null
+      if (!url) return res.status(404).json({ error: 'Evidence not found' })
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+      res.json({ url, expires_at: expiresAt })
+    } catch (err) { next(err) }
+  })
+
+  // Benchmark chart series (PA-PVA-009b)
+  app.get('/api/admin/pricing/benchmarks/:segmentId/series', admin, async (req, res, next) => {
+    try {
+      if (!benchmarkService) {
+        return res.json({ points: [], currency: 'USD', segment_id: req.params.segmentId })
+      }
+      const env = resolveSessionEnv(req)
+      const series = await benchmarkService.getSeries(req.params.segmentId, {
+        window: req.query.window || '90d',
+        env,
+      })
+      res.json(series)
     } catch (err) { next(err) }
   })
 

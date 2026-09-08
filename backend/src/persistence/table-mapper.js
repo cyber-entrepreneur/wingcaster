@@ -543,13 +543,32 @@ const TABLE_MAP = {
       'reporter_id', 'agent_id', 'property_id', 'external_property_title', 'external_property_location',
       'property_type', 'bedrooms', 'bathrooms', 'area_sqm', 'sold_price', 'currency',
       'sold_price_normalized_usd', 'sold_date', 'source', 'notes', 'supporting_document_url',
-      'status', 'reviewed_by', 'reviewed_at', 'review_notes', 'expires_at',
+      'status', 'reviewed_by', 'reviewed_at', 'review_notes',
+      'env', 'segment_id', 'segment_label', 'country_code',
+      'recommendation_price_low', 'recommendation_price_high', 'recommendation_price_point',
+      'reason_code', 'incorporated', 'incorporated_at', 'approval_request_id', 'expires_at', 'resubmit_of',
     ],
   },
   csv_import_logs: {
     schema: 'market_pricing',
     table: 'csv_import_logs',
     columns: ['uploaded_by', 'source', 'filename', 'rows_received', 'rows_imported', 'rows_failed', 'errors'],
+  },
+  pricing_benchmarks: {
+    schema: 'market_pricing',
+    table: 'pricing_benchmarks',
+    columns: [
+      'segment_id', 'country_code', 'currency', 'price_point', 'price_low', 'price_high',
+      'source_report_id', 'computed_at', 'env',
+    ],
+  },
+  pricing_benchmark_snapshots: {
+    schema: 'market_pricing',
+    table: 'pricing_benchmark_snapshots',
+    columns: [
+      'segment_id', 'env', 'snapshot_date', 'price', 'confidence_low', 'confidence_high',
+      'currency', 'source_report_id',
+    ],
   },
   pricing_recalculation_jobs: {
     schema: 'market_pricing',

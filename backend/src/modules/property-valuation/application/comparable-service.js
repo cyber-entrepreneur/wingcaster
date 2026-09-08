@@ -207,7 +207,7 @@ export function createComparableService({ dal, adapter, currencyService, config,
   async function findAgentReportCandidates(targetProperty, matchConfig, area, rules) {
     const reports = await dal.findAll(
       Collections.AGENT_PRICE_REPORTS,
-      (r) => r.status === 'verified'
+      (r) => r.status === 'verified' || r.status === 'incorporated'
     )
     if (reports.length === 0) return []
 

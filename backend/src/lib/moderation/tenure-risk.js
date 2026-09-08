@@ -1,24 +1,79 @@
 /**
- * Tenure-risk scoring for PA-MOD-001 / PA-MOD-002 risk tier display.
+ * Tenure-risk scoring — v1 stub (BE-DESIGN-02).
  *
- * v1 is an intentional stub: always returns `tier: 'unknown'` so moderators
- * see graceful "risk unknown" copy (PA-MOD-002) until Phase 2 lands.
+ * v1 MUST return `unknown` for every input and MUST NOT invent scores.
+ * This is a pure function: no database queries (avoids N+1 on the
+ * moderation / valuation queues). PA surfaces render "risk unknown" copy
+ * from this payload via `tenureRiskLabel`.
  *
- * TODO(Phase 2): replace this stub with real heuristics. Phase 2 should
- * consider at least:
- *   - agent tenure (account age / first submission)
- *   - prior rejection rate and severity
- *   - agency reputation / trust signals
- *   - listing anomaly signals (price, photos, copy patterns)
- * Must remain non-throwing on missing / partial agent or submission fields.
+ * Phase 2 will consider:
+ *   - agency onboarding age
+ *   - prior-rejection ratio across portals
+ *   - portal-fee-history
+ *   - WingCaster tenure
  *
- * @param {object} [_agent]
- * @param {object} [_submission]
- * @returns {{ tier: 'low'|'medium'|'high'|'unknown', reasons?: string[], signals?: object }}
+ * Scoring rules are deferred. Do not add heuristic scoring here.
  */
-export function scoreTenureRisk(_agent, _submission) {
-  // v1 stub — ignore inputs; never throw on null/partial/missing fields.
-  return { tier: 'unknown' }
+
+export const TENURE_RISK_TIERS = ['low', 'medium', 'high', 'unknown']
+
+const TIER_LABELS = Object.freeze({
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  unknown: 'Risk unknown',
+})
+
+/**
+ * Score tenure risk for a moderation / price-report submission.
+ *
+ * v1 always returns `{ tier: 'unknown', score: null, signals: [], version: 'v1-stub' }`
+ * regardless of input. Never throws on missing data. Never queries the database.
+ *
+ * Accepts either a single options object `{ agent, submission, agency }` or the
+ * legacy positional `(agent, submission)` form used by early PA-MOD callers.
+ *
+ * @param {{ agent?: object, submission?: object, agency?: object } | object | null | undefined} [_input]
+ * @param {object | null | undefined} [_submission]
+ * @returns {{ tier: 'low'|'medium'|'high'|'unknown', score: number|null, signals: string[], version: 'v1-stub' }}
+ */
+export function scoreTenureRisk(_input, _submission) {
+  return { tier: 'unknown', score: null, signals: [], version: 'v1-stub' }
+}
+
+/**
+ * Step-up auth is required only for high-risk tenure.
+ * v1 stubs never produce `high`, so this is false unless a caller passes a
+ * non-stub override (kept implemented for Phase 2).
+ *
+ * @param {{ tier?: string } | null | undefined} tenureRisk
+ * @returns {boolean}
+ */
+export function isStepUpRequired(tenureRisk) {
+  return tenureRisk?.tier === 'high'
+}
+
+/**
+ * Two-person reject is required only when the agency has opted in AND the
+ * tenure-risk tier is `high`. v1 stubs never produce `high`, so this is
+ * always false unless a caller passes a non-stub override.
+ *
+ * @param {{ tier?: string } | null | undefined} tenureRisk
+ * @param {{ two_person_reject_required?: boolean } | null | undefined} agency
+ * @returns {boolean}
+ */
+export function isTwoPersonRejectRequired(tenureRisk, agency) {
+  return agency?.two_person_reject_required === true && tenureRisk?.tier === 'high'
+}
+
+/**
+ * Human-readable label for a tenure-risk tier.
+ *
+ * @param {'low'|'medium'|'high'|'unknown'|string|null|undefined} tier
+ * @returns {string}
+ */
+export function tenureRiskLabel(tier) {
+  return TIER_LABELS[tier] ?? TIER_LABELS.unknown
 }
 
 export default scoreTenureRisk
