@@ -1107,6 +1107,45 @@ export const api = {
   getMySubmissions: () => fetchJson('/my-submissions'),
   getDistributionPerformance: () => fetchJson('/distribution/performance'),
 
+  /** Dynamic portal_registry picker (AGT-PUB-005) — no hardcoded portal arrays. */
+  getPortalRegistry: (): Promise<{
+    portals: Array<{
+      code: string
+      display_name: string
+      description: string | null
+      logo_url: string | null
+      country_codes: string[]
+      primary_language: string | null
+      is_active: boolean
+      deprecated_at: string | null
+      sla_hours: number | null
+    }>
+  }> => fetchJson('/portals'),
+
+  /**
+   * Create a publishing job + pending_moderation destinations.
+   * Returns jobId compatible with GET /api/publishing/jobs/:jobId (AGT-PUB-003).
+   */
+  createPublishingJob: (
+    propertyId: string,
+    portals: Array<string | { code: string; country_code?: string }>,
+    message?: string,
+  ): Promise<{
+    jobId: string
+    job: { id: string; aggregate?: string; listing_id?: string }
+    destinations: unknown[]
+  }> =>
+    fetchJson('/publishing/jobs', {
+      method: 'POST',
+      body: JSON.stringify({
+        property_id: propertyId,
+        portals,
+        message: message || undefined,
+      }),
+    }),
+
+  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
+
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),
   approveSubmission: (id: string, notes?: string) =>
