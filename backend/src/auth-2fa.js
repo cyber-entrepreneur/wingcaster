@@ -487,6 +487,43 @@ export function registerTwoFactorRoutes(app, deps) {
   })
 
   // -------------------------------------------------------------------------
+  // Regenerate backup codes. Invalidates every unused code and returns a
+  // fresh set exactly once — same one-shot policy as enrolment. Step-up is
+  // required: a hijacked session must not be able to rotate the recovery
+  // path and lock the legitimate owner out.
+  // -------------------------------------------------------------------------
+  app.post('/api/auth/2fa/backup-codes/regenerate', authMiddleware, requireElevated(), async (req, res) => {
+    const user = await findUserById(req.user.id)
+    if (!user) return res.status(401).json({ error: 'Account no longer exists' })
+    if (!user.totp_enabled) {
+      return res.status(409).json({ error: 'totp_not_enabled', message: 'Enable authenticator 2FA before regenerating backup codes.' })
+    }
+
+    const { plaintext, hashes } = generateBackupCodes()
+
+    await transaction(async (client) => {
+      // Drop the previous set entirely so used AND unused codes go away —
+      // regenerating must leave nothing redeemable from the old list.
+      await client.query('DELETE FROM user_backup_codes WHERE user_id = $1', [user.id])
+      for (const hash of hashes) {
+        await client.query(
+          'INSERT INTO user_backup_codes (id, user_id, code_hash, created_at, updated_at, data) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, \'{}\'::jsonb)',
+          [uuidv4(), user.id, hash],
+        )
+      }
+    })
+
+    await logActivity({ type: '2fa_backup_codes_regenerated', agent_id: user.id, meta: {} })
+
+    res.json({
+      // Shown to the user exactly once — there is no endpoint that can return
+      // these again.
+      backup_codes: plaintext,
+      backup_codes_remaining: BACKUP_CODE_COUNT,
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Sign-in second factor. Unauthenticated by design — the caller has proved
   // the password but holds no session yet.
   // -------------------------------------------------------------------------
