@@ -14,6 +14,17 @@ import {
   runAgencyApplicationExpiryTick,
 } from './workers/agency-application-expiry.js'
 
+
+async function seedAgency(id) {
+  await query(
+    `INSERT INTO public.agencies (id, name, slug, created_at, updated_at, data)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'::jsonb)
+     ON CONFLICT (id) DO NOTHING`,
+    [id, `Agency ${id.slice(0, 8)}`, `slug-${id.slice(0, 8)}`],
+  )
+  return id
+}
+
 async function seedApplication({
   status = 'pending',
   createdAt,
@@ -24,13 +35,15 @@ async function seedApplication({
   const expires = expiresAt === undefined
     ? agencyApplicationExpiresAt(created)
     : expiresAt
+  const agencyId = `agency-${id.slice(0, 8)}`
+  await seedAgency(agencyId)
   await query(
     `INSERT INTO public.agency_applications
       (id, agency_id, agent_email, agent_name, status, created_at, updated_at, expires_at, data)
      VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $6::timestamptz, $7::timestamptz, $8::jsonb)`,
     [
       id,
-      `agency-${id.slice(0, 8)}`,
+      agencyId,
       `agent-${id.slice(0, 8)}@example.test`,
       'Test Agent',
       status,
@@ -62,11 +75,13 @@ finPostgresSuite('agency application expiry (BE-BLOCKER-09)', { seed: false }, (
 
     const created = '2026-01-01T00:00:00.000Z'
     const id = randomUUID()
+    const agencyId = `ag-${id.slice(0, 8)}`
+    await seedAgency(agencyId)
     await pool().query(
       `INSERT INTO public.agency_applications
         (id, agency_id, agent_email, status, created_at, updated_at, expires_at, data)
        VALUES ($1, $2, $3, 'pending', $4::timestamptz, $4::timestamptz, $4::timestamptz, '{}'::jsonb)`,
-      [id, `ag-${id.slice(0, 8)}`, `a-${id.slice(0, 8)}@ex.test`, created],
+      [id, agencyId, `a-${id.slice(0, 8)}@ex.test`, created],
     )
 
     // Re-apply the migration backfill expression against a cleared column
