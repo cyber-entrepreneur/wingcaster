@@ -173,16 +173,19 @@ finPostgresSuite('agencies accepting_applications (BE-BLOCKER-08)', { seed: fals
   })
 
   it('apply soft-gates with AGENCY_NOT_ACCEPTING when flag is false', async () => {
-    const { agencyId } = await ownerAgency({ name: 'Closed Apply Agency' })
+    // BE-BLOCKER-06 retired POST /api/agencies/apply (410). Gate lives on the
+    // slug applications route; signed-in applicant required.
+    const { agencyId, agencySlug } = await ownerAgency({ name: 'Closed Apply Agency', slug: 'closed-apply' })
     await update('agencies', (a) => a.id === agencyId, (a) => ({ ...a, accepting_applications: false }))
+    const applicant = await agentAccount('Applicant')
 
-    const res = await request(app).post('/api/agencies/apply').send({
-      agency_id: agencyId,
-      agent_email: 'applicant@x.test',
-      agent_name: 'Applicant',
-      agent_phone: '+15550001111',
-      message: 'Please let me join',
-    })
+    const res = await request(app)
+      .post(`/api/agencies/${agencySlug}/applications`)
+      .set('Authorization', `Bearer ${applicant.token}`)
+      .send({
+        message: 'Please let me join',
+        consents: { terms: true, profile_share: true },
+      })
     expect(res.status).toBe(409)
     expect(res.body.code || res.body.error).toBe('AGENCY_NOT_ACCEPTING')
   })
