@@ -21,6 +21,9 @@ export async function meterFeature(feature, opts, work) {
   const ctx = opts?.creditContext || {}
   const tenantId = ctx.tenantId || opts?.tenantId || null
   if (!tenantId || ctx.skipMetering) return work()
+  const countryCode = ctx.countryCode || ctx.country_code || opts?.countryCode || opts?.country_code || null
+  const portal = ctx.portal || opts?.portal || null
+  const eventType = ctx.eventType || ctx.event_type || opts?.eventType || opts?.event_type || null
   return withCredits({
     tenantId,
     feature,
@@ -30,5 +33,9 @@ export async function meterFeature(feature, opts, work) {
     relatedEntityId: ctx.relatedEntityId || opts?.listingId || opts?.relatedEntityId || null,
     creditsAmount: ctx.creditsAmount,
     consumeOnFailure: ctx.consumeOnFailure,
+    countryCode,
+    portal,
+    eventType,
+    meterData: ctx.meterData || opts?.meterData || null,
   }, work)
 }

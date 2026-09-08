@@ -8,7 +8,11 @@
 
 import { loadDb } from '../src/db.js'
 import { runMigrations } from '../src/persistence/migrations/runner.js'
+import { bootPortalRegistry } from '../src/lib/notifications/portals/registry.js'
+import { refreshRealEstatePortalExport } from '../src/lib/notifications/realestate.js'
 
 await loadDb()
 await runMigrations()
+await bootPortalRegistry()
+refreshRealEstatePortalExport()
 await import('../src/server.js')

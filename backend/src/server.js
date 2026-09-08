@@ -8006,6 +8006,14 @@ app.use((err, req, res, _next) => {
 // ==================== START ====================
 const startServer = async () => {
   const port = await resolveServerPort()
+  try {
+    const { bootPortalRegistry } = await import('./lib/notifications/portals/registry.js')
+    const { refreshRealEstatePortalExport } = await import('./lib/notifications/realestate.js')
+    await bootPortalRegistry({ logger })
+    refreshRealEstatePortalExport()
+  } catch (err) {
+    logger.warn({ err: err?.message || String(err) }, 'portal_registry boot skipped')
+  }
   warnUnavailablePublishChannels(logger)
   const unverifiableWebhookChannels = [
     [!process.env.META_APP_SECRET, 'whatsapp'],
