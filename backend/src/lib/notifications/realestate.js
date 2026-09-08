@@ -1,12 +1,15 @@
 /**
- * Real-estate portal publishers. Production APIs are not wired yet; stub
- * adapters under `./portals/<code>.js` throw NOT_IMPLEMENTED. Portal codes
- * and feature wiring come from `portal_registry` (loaded at boot via
- * bootPortalRegistry); filesystem fallback covers offline / unit tests.
+ * Real-estate portal publishers. Portal codes and feature wiring come from
+ * `portal_registry` (loaded at boot via bootPortalRegistry); filesystem
+ * fallback covers offline / unit tests.
+ *
+ * Property Finder Group (`property_finder`) is the Phase-1 publisher
+ * (BE-BLOCKER-01). Other portals remain NOT_IMPLEMENTED stubs until their
+ * adapters ship.
  *
  * Metering uses one feature code per portal (`publishing.realestate.<code>`)
  * with a `country_code` dimension on the consumption payload (PORTAL_LIST
- * RESEARCH Option 2).
+ * RESEARCH Option 2). Adapters must not call meterFeature themselves.
  */
 import { meterFeature } from '../credits/meter.js'
 import {
