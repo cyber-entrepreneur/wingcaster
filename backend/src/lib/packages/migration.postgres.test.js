@@ -16,7 +16,7 @@ import {
   withTx,
 } from './test-support.js'
 
-finPostgresSuite('packages migrations 302–304 + 319 + 330', {}, ({ pool }) => {
+finPostgresSuite('packages migrations 302–304 + 319 + 333', {}, ({ pool }) => {
   it('applies schema, seeds free-tier, and supports start → paid → cancel-end → ended', async () => {
     const tables = await pool().query(
       `SELECT to_regclass('public.metered_features') AS features,
