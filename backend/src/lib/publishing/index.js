@@ -32,3 +32,9 @@ export {
   buildWebPath,
   VARIANT_CODES,
 } from './notify-job-completed.js'
+export {
+  listPortalsForSubmit,
+  submitPortalPublishingJob,
+  serializePortalForPicker,
+  normalizePortalSelections,
+} from './submit-job.js'
