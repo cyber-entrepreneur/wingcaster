@@ -5,18 +5,24 @@
  *   - T-7 calendar day → send `scheduled_deletion_reminder_tminus7`
  *   - T-1 calendar day → send `scheduled_deletion_reminder_tminus1`
  *
- * Idempotency: `reminders_sent TEXT[]` is claimed atomically before the
- * Graph send is considered durable. If the send fails after claim, the
- * key stays recorded so we do not spam; ops can clear the key to retry.
+ * Idempotency (spec): array contains-check BEFORE send; append AFTER a
+ * successful Graph/email send. A failed send is left unrecorded so the
+ * next tick retries. Concurrent ticks still use the atomic append so a
+ * key cannot be recorded twice.
  */
 
 import logger from '../lib/logger.js'
 import {
   REMINDER_KEYS,
-  claimReminderSend,
+  recordReminderSend,
   findDueReminders,
   sendDeletionReminderEmail,
 } from '../auth-scheduled-deletion.js'
+
+function alreadyRecorded(row, reminderKey) {
+  const sent = Array.isArray(row.reminders_sent) ? row.reminders_sent : []
+  return sent.includes(reminderKey)
+}
 
 async function processReminderKey({ reminderKey, now, send }) {
   const due = await findDueReminders({ reminderKey, now })
@@ -25,13 +31,17 @@ async function processReminderKey({ reminderKey, now, send }) {
   let failed = 0
 
   for (const row of due) {
-    const claimed = await claimReminderSend(row.id, reminderKey)
-    if (!claimed) {
+    if (alreadyRecorded(row, reminderKey)) {
       skipped += 1
       continue
     }
     try {
       await sendDeletionReminderEmail({ row, reminderKey, send })
+      const recorded = await recordReminderSend(row.id, reminderKey)
+      if (!recorded) {
+        skipped += 1
+        continue
+      }
       sent += 1
       logger.info(
         { deletion_request_id: row.id, user_id: row.user_id, reminderKey },
@@ -41,7 +51,7 @@ async function processReminderKey({ reminderKey, now, send }) {
       failed += 1
       logger.error(
         { err: err.message || String(err), deletion_request_id: row.id, reminderKey },
-        'scheduled deletion reminder send failed after claim',
+        'scheduled deletion reminder send failed; not recorded for retry',
       )
     }
   }

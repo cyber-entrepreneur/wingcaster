@@ -4,7 +4,7 @@
  *   - reminder cron idempotency
  *   - seeded email template rendering
  */
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import express from 'express'
 import request from 'supertest'
 import { expect, it, vi } from 'vitest'
@@ -24,6 +24,19 @@ import {
 } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
 import { signPurposeToken } from './lib/signed-token.js'
+
+function craftToken({ purpose, claims = {}, expOffsetSeconds = 3600, secret = process.env.JWT_SECRET || 'dev-jwt-secret-change-me' }) {
+  const now = Math.floor(Date.now() / 1000)
+  const payload = {
+    ...claims,
+    purpose,
+    iat: now,
+    exp: now + expOffsetSeconds,
+  }
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  const sig = createHmac('sha256', secret).update(body).digest('base64url')
+  return `${body}.${sig}`
+}
 
 async function seedUser({ email, name } = {}) {
   const id = randomUUID()
@@ -128,6 +141,26 @@ finPostgresSuite('scheduled deletion public + reminders', { seed: false }, ({ po
     const garbage = await getScheduledDeletionByToken('not.a.token')
     expect(garbage.ok).toBe(false)
     expect([401, 410]).toContain(garbage.status)
+
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-for-scheduled-deletion'
+    const expired = craftToken({
+      purpose: 'scheduled_deletion_view',
+      claims: { deletion_request_id: deletionId, user_id: userId },
+      expOffsetSeconds: -60,
+    })
+    const expiredResult = await getScheduledDeletionByToken(expired)
+    expect(expiredResult.ok).toBe(false)
+    expect(expiredResult.code).toBe('expired')
+    expect(expiredResult.status).toBe(410)
+
+    const valid = issueScheduledDeletionViewToken({ deletionRequestId: deletionId, userId })
+    const [payloadSeg, sig] = valid.split('.')
+    const decoded = JSON.parse(Buffer.from(payloadSeg, 'base64url').toString('utf8'))
+    decoded.deletion_request_id = randomUUID()
+    const tampered = `${Buffer.from(JSON.stringify(decoded)).toString('base64url')}.${sig}`
+    const tamperedResult = await getScheduledDeletionByToken(tampered)
+    expect(tamperedResult.ok).toBe(false)
+    expect(['invalid_signature', 'invalid_token'].includes(tamperedResult.code)).toBe(true)
   })
 
   it('HTTP GET/POST cancel flow works without a session cookie', async () => {
@@ -285,5 +318,35 @@ finPostgresSuite('scheduled deletion public + reminders', { seed: false }, ({ po
     const b = await claimReminderSend(id, 'tminus7')
     expect(a).toBe(true)
     expect(b).toBe(false)
+  })
+
+  it('cron does not record a reminder key when send fails (retry next tick)', async () => {
+    const now = new Date('2026-09-08T12:00:00.000Z')
+    const userId = await seedUser({ email: `fail-${randomUUID().slice(0, 8)}@ex.test` })
+    const id = await seedScheduledDeletion({
+      userId,
+      scheduledFor: daysFromNow(7, now),
+    })
+    const failing = vi.fn(async () => {
+      throw Object.assign(new Error('graph down'), { code: 'GRAPH_SEND_FAILED' })
+    })
+    const failedTick = await runScheduledDeletionReminderTick({ now, send: failing })
+    expect(failedTick.failed).toBeGreaterThanOrEqual(1)
+    const afterFail = await query(
+      `SELECT reminders_sent FROM public.deletion_requests WHERE id = $1`,
+      [id],
+    )
+    expect(afterFail[0].reminders_sent || []).not.toContain('tminus7')
+
+    const send = vi.fn(async ({ code, to }) => ({
+      sent: true, provider: 'graph', provider_message_id: `msg_${code}`, to,
+    }))
+    const retried = await runScheduledDeletionReminderTick({ now, send })
+    expect(retried.sent).toBeGreaterThanOrEqual(1)
+    const afterOk = await query(
+      `SELECT reminders_sent FROM public.deletion_requests WHERE id = $1`,
+      [id],
+    )
+    expect(afterOk[0].reminders_sent).toContain('tminus7')
   })
 })

@@ -244,10 +244,11 @@ export async function sendDeletionReminderEmail({ row, reminderKey, send = sendP
 }
 
 /**
- * Atomically claim a reminder send slot. Returns true if this caller owns
- * the send; false if already recorded (or the row is no longer scheduled).
+ * Append a reminder key after a successful send. Returns true if this
+ * caller recorded the key; false if it was already present (or the row
+ * is no longer scheduled).
  */
-export async function claimReminderSend(deletionRequestId, reminderKey) {
+export async function recordReminderSend(deletionRequestId, reminderKey) {
   const rows = await query(
     `UPDATE public.deletion_requests
         SET reminders_sent = array_append(reminders_sent, $2),
@@ -261,6 +262,9 @@ export async function claimReminderSend(deletionRequestId, reminderKey) {
   )
   return Boolean(rows?.[0]?.id)
 }
+
+/** @deprecated use recordReminderSend — kept as an alias for race tests */
+export const claimReminderSend = recordReminderSend
 
 /**
  * Find scheduled deletions due for a reminder relative to `now`.
@@ -326,6 +330,9 @@ export function registerScheduledDeletionRoutes(app) {
     },
   )
 }
+
+/** Spec-shaped alias; server.js imports the unique name to avoid merge collisions. */
+export const registerRoutes = registerScheduledDeletionRoutes
 
 export {
   formatDeletionDate,

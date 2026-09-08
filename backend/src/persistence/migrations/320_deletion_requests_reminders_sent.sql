@@ -1,5 +1,5 @@
--- BE-BLOCKER-19 / Wave 0.5 Agent 5
--- Scheduled-deletion reminder cron support + public view/cancel email templates.
+-- BE-BLOCKER-19 / Wave 0.5 — scheduled-deletion public endpoints + reminder cron.
+-- File: 320_deletion_requests_reminders_sent.sql
 --
 -- Idempotent: safe to re-run. Creates deletion_requests if a prior wave
 -- migration has not landed yet, then ensures reminders_sent exists for
