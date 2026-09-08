@@ -10,7 +10,8 @@
  *
  *   * ~50 bits of entropy each, from a crypto RNG.
  *   * Only bcrypt hashes are persisted; plaintext is returned exactly once at
- *     enrolment and is unrecoverable afterwards.
+ *     enrolment (and once more on regenerate, which invalidates the previous
+ *     set) and is unrecoverable afterwards.
  *   * Redemption is single-use — the row is stamped `used_at` inside the same
  *     transaction that consumes the challenge.
  *
