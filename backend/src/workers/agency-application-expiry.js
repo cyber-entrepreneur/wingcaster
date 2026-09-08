@@ -27,7 +27,7 @@ export function agencyApplicationExpiresAt(from = new Date()) {
 }
 
 async function agencyApplicationsTableExists() {
-  const { rows } = await query(
+  const rows = await query(
     `SELECT 1
        FROM information_schema.tables
       WHERE table_schema = 'public'
@@ -49,14 +49,14 @@ async function expireTypedTable(nowIso) {
 
   let expired = 0
   let skipped = 0
-  for (const row of due.rows) {
+  for (const row of due) {
     if (row.status === 'expired') {
       skipped += 1
       continue
     }
   }
 
-  if (due.rows.some((r) => r.status === 'pending')) {
+  if (due.some((r) => r.status === 'pending')) {
     const updated = await query(
       `UPDATE public.agency_applications
           SET status = 'expired',
@@ -71,10 +71,10 @@ async function expireTypedTable(nowIso) {
         RETURNING id`,
       [nowIso],
     )
-    expired = updated.rows.length
+    expired = updated.length
   }
 
-  return { expired, skipped, scanned: due.rows.length }
+  return { expired, skipped, scanned: due.length }
 }
 
 async function expireLegacyCollections(nowIso) {
@@ -97,14 +97,14 @@ async function expireLegacyCollections(nowIso) {
 
   let expired = 0
   let skipped = 0
-  for (const row of due.rows) {
+  for (const row of due) {
     if (row.status === 'expired') {
       skipped += 1
       continue
     }
   }
 
-  if (due.rows.some((r) => r.status === 'pending')) {
+  if (due.some((r) => r.status === 'pending')) {
     const updated = await query(
       `UPDATE public.legacy_collections
           SET data = data
@@ -127,10 +127,10 @@ async function expireLegacyCollections(nowIso) {
         RETURNING id`,
       [nowIso],
     )
-    expired = updated.rows.length
+    expired = updated.length
   }
 
-  return { expired, skipped, scanned: due.rows.length }
+  return { expired, skipped, scanned: due.length }
 }
 
 /**
