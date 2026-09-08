@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
-import { AgentRegisterPage } from '@/pages/AgentRegisterPage'
+import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
@@ -99,7 +99,7 @@ function AppRoutes() {
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
-      <Route path="/register" element={<AgentRegisterPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
