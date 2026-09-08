@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-10 / AGT-PUB-003 â€” publishing_jobs fan-out grouping +
+-- BE-BLOCKER-10 / AGT-PUB-003 â€” publishing_jobs fan-out grouping +
 -- publishing_job.completed push templates.
 --
 -- Idempotent. Migration number 328 (325=agency invitations, 326=tracker indexes, 327=status_changed templates).
