@@ -2,17 +2,19 @@ import { randomUUID } from 'node:crypto'
 import express from 'express'
 import request from 'supertest'
 import { expect, it } from 'vitest'
-import { finPostgresSuite } from '../fin/testing/suite.js'
-import { createAgentAccount } from '../identity.js'
-import { signToken } from '../auth.js'
-import { query } from '../db.js'
-import { patchOnboardingState } from './onboarding-state.js'
-import { registerOnboardingStateRoutes } from './onboarding-state-routes.js'
+import { finPostgresSuite } from '../../fin/testing/suite.js'
+import { createAgentAccount } from '../../identity.js'
+import { signToken } from '../../auth.js'
+import { query } from '../../db.js'
+import {
+  patchAgentOnboardingState,
+  registerRoutes,
+} from './agent-state.js'
 
 function buildApp() {
   const app = express()
   app.use(express.json())
-  registerOnboardingStateRoutes(app)
+  registerRoutes(app)
   return app
 }
 
@@ -59,10 +61,18 @@ finPostgresSuite('agent onboarding state', { seed: false }, ({ pool }) => {
     expect(byName.checklist.data_type).toBe('jsonb')
     expect(byName.dismissed_forever).toBeTruthy()
     expect(byName.updated_at).toBeTruthy()
+    const pk = await pool().query(`
+      SELECT a.attname
+        FROM pg_index i
+        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
+       WHERE i.indrelid = 'public.agent_onboarding_state'::regclass
+         AND i.indisprimary
+    `)
+    expect(pk.rows.map((r) => r.attname)).toEqual(['user_id'])
   })
 
-  it('GET before write returns default state', async () => {
-    const { token } = await agentSession()
+  it('GET before write returns default and does not insert a row', async () => {
+    const { userId, token } = await agentSession()
     const app = buildApp()
     const res = await request(app)
       .get('/api/user/onboarding-state')
@@ -74,6 +84,11 @@ finPostgresSuite('agent onboarding state', { seed: false }, ({ pool }) => {
       checklist: {},
       dismissed_forever: false,
     })
+    const rows = await query(
+      'SELECT user_id FROM public.agent_onboarding_state WHERE user_id = $1',
+      [userId],
+    )
+    expect(rows).toHaveLength(0)
   })
 
   it('PATCH persists and GET returns stored state', async () => {
@@ -108,25 +123,56 @@ finPostgresSuite('agent onboarding state', { seed: false }, ({ pool }) => {
     )
     expect(row[0].step).toBe('choose_path')
     expect(row[0].checklist).toEqual({ profile: true })
+
+    const second = await request(app)
+      .patch('/api/user/onboarding-state')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ checklist_delta: { notifications: true } })
+    expect(second.status).toBe(200)
+    expect(second.body.step).toBe('choose_path')
+    expect(second.body.path).toBe('seller')
+    expect(second.body.checklist).toEqual({ profile: true, notifications: true })
   })
 
   it('concurrent PATCHes merge checklist_delta safely', async () => {
-    const { userId } = await agentSession()
-    await patchOnboardingState(userId, { step: 'tour', checklist_delta: { base: true } })
+    const { userId, token } = await agentSession()
+    const app = buildApp()
+    await request(app)
+      .patch('/api/user/onboarding-state')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ step: 'tour', checklist_delta: { base: true } })
+
+    const [httpA, httpB, httpC] = await Promise.all([
+      request(app).patch('/api/user/onboarding-state')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ checklist_delta: { a: 1 } }),
+      request(app).patch('/api/user/onboarding-state')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ checklist_delta: { b: 2 } }),
+      request(app).patch('/api/user/onboarding-state')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ step: 'done', checklist_delta: { c: 3 } }),
+    ])
+    expect([httpA.status, httpB.status, httpC.status]).toEqual([200, 200, 200])
 
     await Promise.all([
-      patchOnboardingState(userId, { checklist_delta: { a: 1 } }),
-      patchOnboardingState(userId, { checklist_delta: { b: 2 } }),
-      patchOnboardingState(userId, { checklist_delta: { c: 3 } }),
-      patchOnboardingState(userId, { step: 'done' }),
+      patchAgentOnboardingState(userId, { checklist_delta: { d: 4 } }),
+      patchAgentOnboardingState(userId, { checklist_delta: { e: 5 } }),
     ])
 
-    const rows = await query(
-      `SELECT step, checklist FROM public.agent_onboarding_state WHERE user_id = $1`,
-      [userId],
-    )
-    expect(rows[0].checklist).toMatchObject({ base: true, a: 1, b: 2, c: 3 })
-    expect(rows[0].step).toBe('done')
+    const got = await request(app)
+      .get('/api/user/onboarding-state')
+      .set('Authorization', `Bearer ${token}`)
+    expect(got.status).toBe(200)
+    expect(got.body.checklist).toMatchObject({
+      base: true,
+      a: 1,
+      b: 2,
+      c: 3,
+      d: 4,
+      e: 5,
+    })
+    expect(got.body.step).toBe('done')
   })
 
   it('rejects unauthenticated requests', async () => {
@@ -135,5 +181,20 @@ finPostgresSuite('agent onboarding state', { seed: false }, ({ pool }) => {
     expect(get.status).toBe(401)
     const patch = await request(app).patch('/api/user/onboarding-state').send({ step: 'x' })
     expect(patch.status).toBe(401)
+  })
+
+  it('rejects invalid PATCH bodies', async () => {
+    const { token } = await agentSession()
+    const app = buildApp()
+    const asArray = await request(app)
+      .patch('/api/user/onboarding-state')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ checklist_delta: ['not-an-object'] })
+    expect(asArray.status).toBe(400)
+    const empty = await request(app)
+      .patch('/api/user/onboarding-state')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+    expect(empty.status).toBe(400)
   })
 })

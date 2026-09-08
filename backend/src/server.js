@@ -148,7 +148,7 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
-import { registerOnboardingStateRoutes } from './lib/onboarding-state-routes.js'
+import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -658,7 +658,7 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
-registerOnboardingStateRoutes(app)
+registerAgentOnboardingStateRoutes(app)
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({

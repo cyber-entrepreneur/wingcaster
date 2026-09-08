@@ -1,5 +1,7 @@
 -- Agent product-tour onboarding progress (welcome / path / checklist).
--- Distinct from agents.onboarding_stage (account activation).
+-- Distinct from agents.onboarding_stage (account activation) and from
+-- AGT-ONB WhatsApp binding (314/315). agency_onboarding_state is a
+-- separate workstream.
 --
 -- Numbering: 315 is whatsapp_activation_codes; 321 reserved for Wave 0.5
 -- BE-BLOCKER-20 so parallel agents can land 316–320 without collision.
@@ -10,5 +12,7 @@ CREATE TABLE IF NOT EXISTS public.agent_onboarding_state (
   path TEXT,
   checklist JSONB NOT NULL DEFAULT '{}'::jsonb,
   dismissed_forever BOOLEAN NOT NULL DEFAULT false,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT agent_onboarding_state_checklist_object
+    CHECK (jsonb_typeof(checklist) = 'object')
 );

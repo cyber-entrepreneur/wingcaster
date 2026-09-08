@@ -1,9 +1,18 @@
 /**
- * Agent product-tour onboarding state (welcome / path / checklist).
- * Persisted per user; concurrent checklist_delta merges via JSONB ||.
+ * Agent onboarding checklist / step persistence (BE-BLOCKER-20).
+ *
+ * GET  /api/user/onboarding-state  — caller's row, or a default if none exists
+ * PATCH /api/user/onboarding-state — upsert; checklist_delta shallow-merges
+ *
+ * Concurrent PATCHes merge checklist keys in SQL via JSONB `||` so two
+ * clients ticking different items cannot clobber each other.
  */
 
-import { query } from '../db.js'
+import { z } from 'zod'
+import { authMiddleware } from '../../auth.js'
+import { query } from '../../db.js'
+import { validate } from '../validation.js'
+import logger from '../logger.js'
 
 export const DEFAULT_ONBOARDING_STATE = Object.freeze({
   step: 'welcome',
@@ -11,6 +20,19 @@ export const DEFAULT_ONBOARDING_STATE = Object.freeze({
   checklist: Object.freeze({}),
   dismissed_forever: false,
 })
+
+export const patchAgentOnboardingStateSchema = z.object({
+  step: z.string().min(1).max(120).trim().optional(),
+  path: z.string().max(500).trim().nullable().optional(),
+  checklist_delta: z.record(z.string().min(1).max(120), z.unknown()).optional(),
+  dismissed_forever: z.boolean().optional(),
+}).strict().refine(
+  (body) => body.step !== undefined
+    || body.path !== undefined
+    || body.checklist_delta !== undefined
+    || body.dismissed_forever !== undefined,
+  { message: 'At least one of step, path, checklist_delta, dismissed_forever is required' },
+)
 
 export function serializeOnboardingState(row) {
   if (!row) {
@@ -31,7 +53,7 @@ export function serializeOnboardingState(row) {
   }
 }
 
-export async function getOnboardingState(userId) {
+export async function getAgentOnboardingState(userId) {
   if (!userId) throw new Error('userId is required')
   const rows = await query(
     `SELECT user_id, step, path, checklist, dismissed_forever, updated_at
@@ -47,7 +69,7 @@ export async function getOnboardingState(userId) {
  * checklist_delta is merged with Postgres JSONB || under the row lock so
  * concurrent PATCHes composing different keys do not clobber each other.
  */
-export async function patchOnboardingState(userId, {
+export async function patchAgentOnboardingState(userId, {
   step,
   path,
   checklist_delta,
@@ -92,4 +114,31 @@ export async function patchOnboardingState(userId, {
     ],
   )
   return serializeOnboardingState(rows[0])
+}
+
+export function registerRoutes(app, { auth = authMiddleware } = {}) {
+  app.get('/api/user/onboarding-state', auth, async (req, res) => {
+    try {
+      const state = await getAgentOnboardingState(req.user.id)
+      res.json(state)
+    } catch (err) {
+      logger.error({ err: err.message, user_id: req.user?.id }, 'get agent onboarding state failed')
+      res.status(500).json({ error: 'Failed to load onboarding state' })
+    }
+  })
+
+  app.patch(
+    '/api/user/onboarding-state',
+    auth,
+    validate(patchAgentOnboardingStateSchema),
+    async (req, res) => {
+      try {
+        const state = await patchAgentOnboardingState(req.user.id, req.validated)
+        res.json(state)
+      } catch (err) {
+        logger.error({ err: err.message, user_id: req.user?.id }, 'patch agent onboarding state failed')
+        res.status(500).json({ error: 'Failed to save onboarding state' })
+      }
+    },
+  )
 }
