@@ -21,6 +21,7 @@ import { createBenchmarkService } from './application/benchmark-service.js'
 import { createAgentPriceReportAdminService } from './application/agent-price-report-admin-service.js'
 import { createMarketImpactService } from './application/market-impact-service.js'
 import { createComparableReportReadService } from './application/comparable-report-read-service.js'
+import { createComparableReportDecisionService } from './application/comparable-report-decisions.js'
 import { createWhatsAppContextBuilder } from './application/whatsapp-context.js'
 import { createAiAdapter } from './infrastructure/ai-adapter.js'
 import { createRecalculationWorker } from './infrastructure/recalculation-worker.js'
@@ -87,6 +88,13 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
     marketImpactService,
     logger,
   })
+  const decisionService = createComparableReportDecisionService({
+    dal,
+    adapter,
+    recalculationJobService,
+    marketImpactService,
+    logger,
+  })
   const whatsAppContext = createWhatsAppContextBuilder({ analysisService, config, logger })
 
   const recalculationWorker = createRecalculationWorker({
@@ -136,6 +144,7 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
       benchmarkService,
       marketImpactService,
       comparableReportReadService,
+      decisionService,
       dal,
       adapter,
       config,
@@ -179,6 +188,7 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
       agentPriceReportAdminService,
       marketImpactService,
       comparableReportReadService,
+      decisionService,
       whatsAppContext,
     },
   }
@@ -186,3 +196,16 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
 
 export { createDefaultPlatformAdapter } from './platform-adapter.js'
 export { getConfig } from './config.js'
+
+export {
+  createMarketImpactService,
+  tierFromImpact,
+  MARKET_IMPACT_TIERS,
+} from './application/market-impact-service.js'
+export {
+  createComparableReportDecisionService,
+  goneReviewBody,
+  WF05_DECISION_STATUS,
+  COMPARABLE_REMOVE_ACTION_KIND,
+} from './application/comparable-report-decisions.js'
+

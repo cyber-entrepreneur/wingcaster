@@ -309,3 +309,72 @@ export function createMarketImpactService({ dal, logger } = {}) {
     marketImpactTierRank,
   }
 }
+
+
+/** Thresholds consumed by decision scoring / Agent-5 tests. */
+export const MARKET_IMPACT_THRESHOLDS = Object.freeze({
+  HIGH_VALUATIONS: 25,
+  HIGH_MEDIAN_ABS_PCT: 10,
+  HIGH_MAX_ABS_PCT: 15,
+  MEDIUM_VALUATIONS: 10,
+  MEDIUM_MEDIAN_ABS_PCT: 5,
+})
+
+/**
+ * Decision-facing alias over classifyMarketImpactTier (camelCase inputs).
+ * Prefer this from WF-05 decision code; list/detail keep snake_case helper.
+ */
+export function tierFromImpact({
+  valuationsAffected = 0,
+  pctMoveMedian = 0,
+  pctMoveMax = 0,
+  thresholds = MARKET_IMPACT_THRESHOLDS,
+} = {}) {
+  const n = Number(valuationsAffected) || 0
+  const med = Math.abs(Number(pctMoveMedian) || 0)
+  const max = Math.abs(Number(pctMoveMax) || 0)
+  if (n <= 0) return MARKET_IMPACT_TIERS.NONE
+  if (
+    n >= thresholds.HIGH_VALUATIONS
+    || med >= thresholds.HIGH_MEDIAN_ABS_PCT
+    || max >= thresholds.HIGH_MAX_ABS_PCT
+  ) {
+    return MARKET_IMPACT_TIERS.HIGH
+  }
+  if (
+    n >= thresholds.MEDIUM_VALUATIONS
+    || med >= thresholds.MEDIUM_MEDIAN_ABS_PCT
+  ) {
+    return MARKET_IMPACT_TIERS.MEDIUM
+  }
+  return MARKET_IMPACT_TIERS.LOW
+}
+
+function round1(n) {
+  return Math.round(Number(n) * 10) / 10
+}
+
+/**
+ * Estimate % move if a weighted comparable were removed from a run.
+ * Shared by decision endpoints / bulk undo (Agents 5–6).
+ */
+export function estimateRemovalMovePct({
+  weight,
+  totalWeight,
+  medianPrice,
+  comparablePrice,
+} = {}) {
+  const w = Number(weight) || 0
+  const tw = Number(totalWeight) || 0
+  if (tw <= 0 || w <= 0) return 0
+  const share = Math.min(1, w / tw)
+  const price = Number(comparablePrice)
+  const med = Number(medianPrice)
+  if (Number.isFinite(price) && Number.isFinite(med) && med !== 0) {
+    const direction = price >= med ? -1 : 1
+    return round1(direction * share * Math.abs((price - med) / med) * 100)
+  }
+  return round1(share * 5)
+}
+
+export { emptyImpact as emptyMarketImpact }

@@ -143,6 +143,10 @@ describe('Admin Route Registration', () => {
     expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/reporter-history')
     expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/audit-trail')
     expect(paths).toContain('POST /api/admin/pricing/reports/:id/review')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/confirm-remove')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/confirm-quarantine')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/reject-as-invalid')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/request-info')
   })
 
   it('CSV import route imports valid rows and logs failures', async () => {

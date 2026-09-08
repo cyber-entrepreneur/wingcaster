@@ -3,6 +3,7 @@ import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { resolveSessionEnv, WINGCASTER_ENV_HEADER } from '../../../lib/session-env.js'
 import { createComparableReportReadService } from '../application/comparable-report-read-service.js'
 import { createMarketImpactService } from '../application/market-impact-service.js'
+import { createComparableReportDecisionService } from '../application/comparable-report-decisions.js'
 
 export function parseCsv(text) {
   if (!text || typeof text !== 'string') return { headers: [], rows: [] }
@@ -87,6 +88,7 @@ export function registerAdminRoutes(app, services) {
     benchmarkService,
     comparableReportReadService: injectedReadService,
     marketImpactService: injectedImpactService,
+    decisionService: injectedDecisionService,
     dal,
     logger,
   } = services
@@ -112,6 +114,18 @@ export function registerAdminRoutes(app, services) {
     || (dal
       ? createComparableReportReadService({ dal, marketImpactService, logger })
       : null)
+
+  const decisionService = injectedDecisionService
+    || (dal
+      ? createComparableReportDecisionService({
+          dal,
+          adapter: services.adapter,
+          recalculationJobService,
+          marketImpactService,
+          logger,
+        })
+      : null)
+
 
   function stampEnv(req, res, env) {
     const resolved = env || resolveSessionEnv(req)
@@ -610,6 +624,65 @@ export function registerAdminRoutes(app, services) {
     } catch (err) { next(err) }
   })
 
+  app.post('/api/admin/pricing/reports/:reportId/confirm-remove', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      const result = await decisionService.confirmRemove({
+        req,
+        reportId: req.params.reportId,
+        notes: req.body?.notes,
+      })
+      return res.status(result.httpStatus).json(result.body)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/:reportId/confirm-quarantine', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      const result = await decisionService.confirmQuarantine({
+        req,
+        reportId: req.params.reportId,
+        notes: req.body?.notes,
+        quarantineHours: req.body?.quarantine_hours ?? req.body?.quarantineHours,
+      })
+      return res.status(result.httpStatus).json(result.body)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/:reportId/reject-as-invalid', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      const result = await decisionService.rejectAsInvalid({
+        req,
+        reportId: req.params.reportId,
+        reasonCode: req.body?.reason_code ?? req.body?.reasonCode,
+        notes: req.body?.notes,
+      })
+      return res.status(result.httpStatus).json(result.body)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/:reportId/request-info', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      const result = await decisionService.requestInfo({
+        req,
+        reportId: req.params.reportId,
+        reasonCode: req.body?.reason_code ?? req.body?.reasonCode,
+        notes: req.body?.notes,
+        requestedEvidence: req.body?.requested_evidence ?? req.body?.requestedEvidence,
+      })
+      return res.status(result.httpStatus).json(result.body)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
   app.post('/api/admin/pricing/reports/:id/review', admin, async (req, res, next) => {
     try {
       const { status, notes } = req.body
