@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-export function usePageTitle(title: string, suffix = 'Real Estate Bazaar') {
+export function usePageTitle(title: string, suffix = 'WingCaster') {
   useEffect(() => {
     const previous = document.title
     document.title = title ? `${title} | ${suffix}` : suffix
