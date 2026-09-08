@@ -1,6 +1,8 @@
 import { authMiddleware } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
-import { resolveSessionEnv } from '../../../lib/session-env.js'
+import { resolveSessionEnv, WINGCASTER_ENV_HEADER } from '../../../lib/session-env.js'
+import { createComparableReportReadService } from '../application/comparable-report-read-service.js'
+import { createMarketImpactService } from '../application/market-impact-service.js'
 
 export function parseCsv(text) {
   if (!text || typeof text !== 'string') return { headers: [], rows: [] }
@@ -83,6 +85,8 @@ export function registerAdminRoutes(app, services) {
     recalculationJobService,
     agentPriceReportAdminService,
     benchmarkService,
+    comparableReportReadService: injectedReadService,
+    marketImpactService: injectedImpactService,
     dal,
     logger,
   } = services
@@ -101,6 +105,24 @@ export function registerAdminRoutes(app, services) {
       code: err.code || undefined,
     })
   }
+
+  const marketImpactService = injectedImpactService
+    || (dal ? createMarketImpactService({ dal, logger }) : null)
+  const comparableReportReadService = injectedReadService
+    || (dal
+      ? createComparableReportReadService({ dal, marketImpactService, logger })
+      : null)
+
+  function stampEnv(req, res, env) {
+    const resolved = env || resolveSessionEnv(req)
+    try {
+      res.setHeader(WINGCASTER_ENV_HEADER, resolved)
+    } catch {
+      // Headers may already be sent.
+    }
+    return resolved
+  }
+
 
   // Match configs
   app.get('/api/admin/pricing/configs', admin, async (_req, res, next) => {
@@ -502,11 +524,89 @@ export function registerAdminRoutes(app, services) {
     } catch (err) { next(err) }
   })
 
-  // Comparable reports
-  app.get('/api/admin/pricing/reports', admin, async (_req, res, next) => {
+  // Comparable reports — READ surfaces [BE-CMR-01/10/11/13/14]
+  // Decision writes (/confirm-*, bulk, undo, affected) belong to Agents 5–6.
+  // Keep legacy POST /:id/review until Agent 5 replaces it.
+
+  app.get('/api/admin/pricing/reports.csv', admin, async (req, res, next) => {
     try {
-      const reports = await dal.findAll('comparable_reports', () => true)
-      res.json(reports)
+      if (!comparableReportReadService) {
+        return res.status(503).json({ error: 'Comparable report read service unavailable' })
+      }
+      const { csv, env, filename } = await comparableReportReadService.exportCsv(req.query, {
+        viewerId: req.user?.id,
+        req,
+      })
+      stampEnv(req, res, env)
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.send(csv)
+    } catch (err) { next(err) }
+  })
+
+  app.get('/api/admin/pricing/reports', admin, async (req, res, next) => {
+    try {
+      if (!comparableReportReadService) {
+        const reports = await dal.findAll('comparable_reports', () => true)
+        stampEnv(req, res)
+        return res.json(reports)
+      }
+      const payload = await comparableReportReadService.listReports(req.query, {
+        viewerId: req.user?.id,
+        req,
+      })
+      stampEnv(req, res, payload.env)
+      res.json({
+        reports: payload.reports,
+        pagination: payload.pagination,
+        counts: payload.counts,
+      })
+    } catch (err) { next(err) }
+  })
+
+  app.get('/api/admin/pricing/reports/:reportId/reporter-history', admin, async (req, res, next) => {
+    try {
+      if (!comparableReportReadService) {
+        return res.status(503).json({ error: 'Comparable report read service unavailable' })
+      }
+      const payload = await comparableReportReadService.getReporterHistory(req.params.reportId, {
+        limit: req.query.limit,
+        viewerId: req.user?.id,
+        req,
+      })
+      if (!payload) return res.status(404).json({ error: 'Report not found' })
+      stampEnv(req, res, payload.env)
+      res.json(payload)
+    } catch (err) { next(err) }
+  })
+
+  app.get('/api/admin/pricing/reports/:reportId/audit-trail', admin, async (req, res, next) => {
+    try {
+      if (!comparableReportReadService) {
+        return res.status(503).json({ error: 'Comparable report read service unavailable' })
+      }
+      const payload = await comparableReportReadService.getAuditTrail(req.params.reportId, {
+        viewerId: req.user?.id,
+        req,
+      })
+      if (!payload) return res.status(404).json({ error: 'Report not found' })
+      stampEnv(req, res, payload.env)
+      res.json(payload)
+    } catch (err) { next(err) }
+  })
+
+  app.get('/api/admin/pricing/reports/:reportId', admin, async (req, res, next) => {
+    try {
+      if (!comparableReportReadService) {
+        return res.status(503).json({ error: 'Comparable report read service unavailable' })
+      }
+      const report = await comparableReportReadService.getReport(req.params.reportId, {
+        viewerId: req.user?.id,
+        req,
+      })
+      if (!report) return res.status(404).json({ error: 'Report not found' })
+      stampEnv(req, res, report.env)
+      res.json(report)
     } catch (err) { next(err) }
   })
 
@@ -526,6 +626,7 @@ export function registerAdminRoutes(app, services) {
         reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }))
+      stampEnv(req, res)
       res.json({ success: true })
     } catch (err) { next(err) }
   })
