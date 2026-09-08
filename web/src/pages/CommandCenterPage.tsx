@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { readChannel } from '@/lib/channel-source'
 
 const PLATFORM_LABEL: Record<string, string> = {
   instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
@@ -283,12 +284,14 @@ export function CommandCenterPage() {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {data.testimonials.map((t) => (
+                  {data.testimonials.map((t) => {
+                    const channelKey = readChannel(t)
+                    return (
                     <li key={t.id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{t.author_name || 'Anonymous'}</span>
-                          <ChannelMark channel={t.source_channel} label={PLATFORM_LABEL[t.source_channel] || t.source_channel} />
+                          <ChannelMark channel={channelKey} label={PLATFORM_LABEL[channelKey] || channelKey} />
                         </div>
                         <ConsentBadge status={t.consent_status} />
                       </div>
@@ -305,7 +308,8 @@ export function CommandCenterPage() {
                         </a>
                       )}
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </CardContent>
