@@ -87,12 +87,18 @@ describe('7f/3 — auth surfaces on server.js', () => {
     }
   })
 
-  it('auth-2fa.js gates POST /api/auth/2fa/totp/disable', async () => {
+  it('auth-2fa.js gates POST /api/auth/2fa/totp/disable and backup-codes/regenerate', async () => {
     const fs = await import('node:fs/promises')
     const src = await fs.readFile('src/auth-2fa.js', 'utf8')
-    const line = src.split('\n').find((l) => l.includes("app.post('/api/auth/2fa/totp/disable'"))
-    expect(line).toBeDefined()
-    expect(line).toMatch(/requireElevated\(\)/)
+    const lines = src.split('\n')
+    for (const needle of [
+      "app.post('/api/auth/2fa/totp/disable'",
+      "app.post('/api/auth/2fa/backup-codes/regenerate'",
+    ]) {
+      const line = lines.find((l) => l.includes(needle))
+      expect(line, `route not found: ${needle}`).toBeDefined()
+      expect(line, `route missing requireElevated: ${needle}\n  actual: ${line}`).toMatch(/requireElevated\(\)/)
+    }
   })
 })
 

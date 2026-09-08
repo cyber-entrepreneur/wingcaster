@@ -14,7 +14,7 @@ export async function findAgentForUser(userId) {
   return findOne('agents', (agent) => agent.user_id === userId)
 }
 
-export async function createAgentAccount({ user, agent }) {
+export async function createAgentAccount({ user, agent, agency = null }) {
   const now = new Date().toISOString()
   const principal = {
     ...user,
@@ -167,6 +167,14 @@ export async function createAgentAccount({ user, agent }) {
       actorId: principal.id,
       now: principal.created_at || now,
     })
+
+    if (agency) {
+      const { createAgencyWithOwner } = await import('./tenant-authorization.js')
+      await createAgencyWithOwner({
+        agency,
+        ownerUserId: principal.id,
+      })
+    }
   })
 
   return { user: principal, agent: profile }

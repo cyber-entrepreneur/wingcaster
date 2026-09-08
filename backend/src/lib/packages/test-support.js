@@ -3,6 +3,8 @@ import { getFeatureByCode } from './registry.js'
 
 export const FREE_PACKAGE_ID = '30400000-0000-4000-8000-000000000001'
 export const FREE_VERSION_ID = '30400000-0000-4000-8000-000000000002'
+export const FREE_AGENCY_PACKAGE_ID = '31900000-0000-4000-8000-000000000001'
+export const FREE_AGENCY_VERSION_ID = '31900000-0000-4000-8000-000000000002'
 
 export async function withTx(pool, fn) {
   const client = await pool.connect()

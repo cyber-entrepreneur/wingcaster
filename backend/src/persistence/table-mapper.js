@@ -7,6 +7,8 @@
  * flexibility and backwards compatibility.
  */
 
+import { decorateDistributionAttempt } from '../lib/publishing/error-classifier.js'
+
 const ID_COLUMNS = ['id', 'created_at', 'updated_at']
 
 const TABLE_MAP = {
@@ -205,7 +207,7 @@ const TABLE_MAP = {
   marketplace_connections: { schema: 'public', table: 'marketplace_connections', columns: ['agent_id', 'agency_id', 'platform', 'credentials', 'status'] },
   distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
   distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
-  distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'attempted_at'] },
+  distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at'] },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
@@ -521,8 +523,11 @@ function pick(item, keys) {
 
 export function toRow(collection, item) {
   const mapping = resolveTable(collection)
-  const typed = pick(item, mapping.columns)
-  const row = { ...typed, data: item }
+  const source = collection === 'distribution_attempts'
+    ? decorateDistributionAttempt(item)
+    : item
+  const typed = pick(source, mapping.columns)
+  const row = { ...typed, data: source }
   if (mapping.table === 'legacy_collections') {
     row.collection = collection
   }
