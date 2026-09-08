@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
-import { closeDb, configure, findOne } from './db.js'
+import { closeDb, configure, findOne, query } from './db.js'
 import { skipIfNoPostgres, withTestDb } from './testing/postgres.js'
+import { creditTenantIdForScope } from './lib/credits/tenant-context.js'
+import { FREE_AGENCY_VERSION_ID } from './lib/packages/test-support.js'
 
 const otpTransport = vi.hoisted(() => ({ sendOtp: vi.fn() }))
 vi.mock('./lib/otp.js', () => otpTransport)
@@ -129,6 +131,37 @@ skipIfNoPostgres()('registration verification boundary', () => {
         const seededAgent = await findOne('agents', (agent) => agent.user_id === seededUser.id)
         expect(seededUser).toMatchObject({ platform_role: 'platform_admin', verified: true })
         expect(seededAgent).toMatchObject({ platform_role: 'platform_admin', verified: true })
+
+      const agencyEmail = `agency-owner-${randomUUID()}@example.test`
+      const agencyName = `Acme Realty ${randomUUID().slice(0, 8)}`
+      const agencyRegistration = await request(app).post('/api/auth/register').send({
+        name: 'Agency Owner',
+        email: agencyEmail,
+        password: 'secret123',
+        agency_mode: 'new',
+        agency_name: agencyName,
+        agency_license: 'LIC-319',
+      })
+      expect(agencyRegistration.status).toBe(202)
+      expect(agencyRegistration.body).toMatchObject({ status: 'otp_sent' })
+
+      const agencyOwner = await findOne('users', (row) => row.email === agencyEmail)
+      expect(agencyOwner).toBeTruthy()
+      const agency = await findOne('agencies', (row) => row.owner_id === agencyOwner.id)
+      expect(agency).toMatchObject({ name: agencyName })
+
+      const tenantId = creditTenantIdForScope('agency', agency.id)
+      const sub = await query(
+        `SELECT s.package_version_id, p.code, p.target_audience
+           FROM public.tenant_subscriptions s
+           JOIN public.product_package_versions v ON v.id = s.package_version_id
+           JOIN public.product_packages p ON p.id = v.package_id
+          WHERE s.tenant_id = $1`,
+        [tenantId],
+      )
+      expect(sub[0].package_version_id).toBe(FREE_AGENCY_VERSION_ID)
+      expect(sub[0].code).toBe('free-agency')
+      expect(sub[0].target_audience).toBe('agency')
       } finally {
         await closeDb()
         delete process.env.ADMIN_EMAIL
