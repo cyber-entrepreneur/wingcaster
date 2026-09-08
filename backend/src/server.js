@@ -68,6 +68,7 @@ import { createPropertyWithCanonical } from './lib/property-write.js'
 import { escapeXml } from './lib/xml.js'
 import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
+import { recordDistributionAttempt } from './lib/publishing/record-attempt.js'
 import {
   NotFoundError,
   assertAssignableConversationAgent,
@@ -150,6 +151,8 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
+import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
+import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -662,6 +665,8 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
+registerSettingsIndexRoutes(app, { authMiddleware })
+registerAgentOnboardingStateRoutes(app)
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -1010,6 +1015,10 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
   if (await findUserByEmail(body.email) || await findOne('agents', a => a.email === body.email)) {
     return res.status(409).json({ error: 'Email already registered' })
   }
+  const pathCAgency = body.agency_mode === 'new'
+  if (pathCAgency && await findOne('agencies', a => a.name === body.agency_name.trim())) {
+    return res.status(409).json({ error: 'Agency name exists' })
+  }
   const contactVerified = false
   const profileCompleted = Boolean(body.specialization || body.bio || body.office_address)
   const hasAgencyPath = body.agency_mode === 'existing' || body.agency_mode === 'new'
@@ -1070,8 +1079,15 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
     created_at: createdAt,
     updated_at: createdAt,
   }
+  const agency = pathCAgency
+    ? {
+        id: uuidv4(),
+        name: body.agency_name.trim(),
+        license_number: body.agency_license || '',
+      }
+    : null
   try {
-    await createAgentAccount({ user, agent })
+    await createAgentAccount({ user, agent, agency })
   } catch (err) {
     if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
       return res.status(409).json(freeTrialClaimedHttpBody(err))
@@ -4631,6 +4647,19 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
     meta,
   }))
 
+  await recordDistributionAttempt({
+    distributionJobId: row.id,
+    status,
+    error: error ? { message: error, details: meta.details || null } : null,
+    errorMessage: error,
+    response: externalId ? { external_id: externalId } : null,
+    extra: {
+      source,
+      retry_attempts: retryAttempts,
+      platform: row.platform,
+    },
+  })
+
   const updated = await findOne('distributions', d => d.id === row.id)
   await logActivity({
     type: status === 'published' ? 'distribution_retry_published' : 'distribution_retry_failed',
@@ -5372,6 +5401,19 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    // Record an attempt when we actually hit a provider (WhatsApp live send)
+    // or permanently failed before queueing. Pure draft / pending_retry queue
+    // rows are not attempts yet — the retry worker records those.
+    if (platform === 'whatsapp' && status !== 'draft') {
+      await recordDistributionAttempt({
+        distributionJobId: row.id,
+        status,
+        error: error ? { message: error, details: meta.details || null } : null,
+        errorMessage: error,
+        response: externalId ? { external_id: externalId, ...meta } : meta,
+        extra: { platform, source: 'distribute_own' },
+      })
+    }
     await logActivity({
       type: status === 'published'
         ? 'distribution_published'
@@ -5610,6 +5652,14 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    await recordDistributionAttempt({
+      distributionJobId: row.id,
+      status,
+      error: publishError || null,
+      errorMessage: publishError?.message || null,
+      response: publishResult || (externalId ? { external_id: externalId, external_url: externalUrl } : null),
+      extra: { platform, source: 'publish_social', format: format || null },
+    })
     await logActivity({
       type: status === 'published' ? 'distribution_published' : 'distribution_failed',
       property_id: property.id,
@@ -7258,6 +7308,10 @@ app.post('/api/agencies/:id/applications/:appId/reject', authMiddleware, async (
   res.json({ success: true })
 })
 
+// Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
+// creates the agency tenant in the same transaction as the personal tenant.
+// POST /api/agencies remains the post-auth path; createAgencyWithOwner provisions
+// the agency free-tier subscription (migration 319) in that transaction.
 app.post('/api/agencies', authMiddleware, validate(agencyCreateSchema), async (req, res) => {
   const body = req.validated
   const existingAff = await getActiveAffiliation(req.user.id)

@@ -2,9 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { finPostgresSuite } from '../../fin/testing/suite.js'
 import { startSubscription, changePlan, cancelAtPeriodEnd, cancelImmediate } from './lifecycle.js'
-import { FREE_PACKAGE_ID, FREE_VERSION_ID, seedPublishedPackage, withTx } from './test-support.js'
+import {
+  FREE_PACKAGE_ID,
+  FREE_VERSION_ID,
+  FREE_AGENCY_PACKAGE_ID,
+  FREE_AGENCY_VERSION_ID,
+  seedPublishedPackage,
+  withTx,
+} from './test-support.js'
 
-finPostgresSuite('packages migrations 302–304', {}, ({ pool }) => {
+finPostgresSuite('packages migrations 302–304 + 319', {}, ({ pool }) => {
   it('applies schema, seeds free-tier, and supports start → paid → cancel-end → ended', async () => {
     const tables = await pool().query(
       `SELECT to_regclass('public.metered_features') AS features,
@@ -69,6 +76,36 @@ finPostgresSuite('packages migrations 302–304', {}, ({ pool }) => {
     expect(paidSub.package_version_id).not.toBe(FREE_VERSION_ID)
     expect(canceled.status).toBe('CANCELED_AT_PERIOD_END')
     expect(ended.status).toBe('ENDED')
+  })
+
+  it('seeds agency free-tier package (migration 319) distinct from agent free-tier', async () => {
+    const free = await pool().query(
+      `SELECT p.code, p.tier, p.target_audience, p.active, v.state,
+              v.properties_covered, v.monthly_price_minor
+         FROM public.product_packages p
+         JOIN public.product_package_versions v ON v.package_id = p.id
+        WHERE p.id = $1 AND v.id = $2`,
+      [FREE_AGENCY_PACKAGE_ID, FREE_AGENCY_VERSION_ID],
+    )
+    expect(free.rows[0].code).toBe('free-agency')
+    expect(free.rows[0].tier).toBe('free')
+    expect(free.rows[0].target_audience).toBe('agency')
+    expect(free.rows[0].active).toBe(true)
+    expect(free.rows[0].state).toBe('PUBLISHED')
+    expect(Number(free.rows[0].properties_covered)).toBe(0)
+    expect(Number(free.rows[0].monthly_price_minor)).toBe(0)
+
+    const flags = await pool().query(
+      `SELECT feature_code FROM public.package_feature_flags
+        WHERE package_version_id = $1 ORDER BY feature_code`,
+      [FREE_AGENCY_VERSION_ID],
+    )
+    expect(flags.rows.map((r) => r.feature_code)).toEqual([
+      'crm.contacts',
+      'crm.opportunities',
+      'crm.tasks',
+      'listings.crud',
+    ])
   })
 
   it('blocks UPDATE of properties_covered on a PUBLISHED version', async () => {

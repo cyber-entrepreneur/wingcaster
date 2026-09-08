@@ -10,7 +10,7 @@
 import { CREDIT_ERROR, CreditEngineError } from '../credits/errors.js'
 import { lookupFinTenantId, syntheticTenantId, ensureWallet } from '../credits/wallets.js'
 import { startSubscription } from './lifecycle.js'
-import { getFreeTierPackage } from './registry.js'
+import { freeTierAudienceForScope, getFreeTierPackage } from './registry.js'
 
 const OPEN_STATUSES = ['PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END']
 
@@ -23,11 +23,14 @@ export async function provisionFreeTier(client, {
   if (!scope || !scopeId) {
     throw new CreditEngineError(CREDIT_ERROR.INVALID_AMOUNT, 'scope and scopeId are required for free-tier provisioning')
   }
-  const free = await getFreeTierPackage(client)
+  const audience = freeTierAudienceForScope(scope)
+  const free = await getFreeTierPackage(client, { audience })
   if (!free?.version_id) {
     throw new CreditEngineError(
       CREDIT_ERROR.FREE_TIER_PACKAGE_MISSING,
-      'Free-tier package seed missing — restore from migration 304',
+      audience === 'agency'
+        ? 'Agency free-tier package seed missing — restore from migration 319'
+        : 'Free-tier package seed missing — restore from migration 304',
     )
   }
   const finTenantId = await lookupFinTenantId(client, scope, String(scopeId))

@@ -4,7 +4,7 @@ import { finPostgresSuite } from '../../fin/testing/suite.js'
 import { compileSubscriptionCycleGrant } from './compiler.js'
 import { startSubscription } from './lifecycle.js'
 import { FREE_TIER_FLAG_CODES, SEEDED_FEATURE_CODES } from './registry.js'
-import { FREE_VERSION_ID, seedPublishedPackage, withTx } from './test-support.js'
+import { FREE_VERSION_ID, FREE_AGENCY_VERSION_ID, seedPublishedPackage, withTx } from './test-support.js'
 
 finPostgresSuite('packages compiler (postgres)', {}, ({ pool }) => {
   it('DB compiler matches snapshot totals for a seeded paid package', async () => {
@@ -51,6 +51,13 @@ finPostgresSuite('packages compiler (postgres)', {}, ({ pool }) => {
       [FREE_VERSION_ID],
     )
     expect(flags.rows.map((r) => r.feature_code).sort()).toEqual([...FREE_TIER_FLAG_CODES].sort())
+    const agencyFlags = await pool().query(
+      `SELECT feature_code FROM public.package_feature_flags
+        WHERE package_version_id = $1
+        ORDER BY feature_code`,
+      [FREE_AGENCY_VERSION_ID],
+    )
+    expect(agencyFlags.rows.map((r) => r.feature_code).sort()).toEqual([...FREE_TIER_FLAG_CODES].sort())
     const quotas = await pool().query(
       `SELECT COUNT(*)::int AS n FROM public.package_feature_quotas
         WHERE package_version_id = $1`,
