@@ -43,6 +43,14 @@ export const registerSchema = z.object({
   territories: z.array(z.string().max(120)).max(100).optional().default([]),
   property_types: z.array(z.string().max(120)).max(100).optional().default([]),
   terms_accepted: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+  if (data.agency_mode === 'new' && !String(data.agency_name || '').trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['agency_name'],
+      message: 'Agency name is required',
+    })
+  }
 })
 
 export const loginSchema = z.object({

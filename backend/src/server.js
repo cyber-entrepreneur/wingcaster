@@ -1000,6 +1000,10 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
   if (await findUserByEmail(body.email) || await findOne('agents', a => a.email === body.email)) {
     return res.status(409).json({ error: 'Email already registered' })
   }
+  const pathCAgency = body.agency_mode === 'new'
+  if (pathCAgency && await findOne('agencies', a => a.name === body.agency_name.trim())) {
+    return res.status(409).json({ error: 'Agency name exists' })
+  }
   const contactVerified = false
   const profileCompleted = Boolean(body.specialization || body.bio || body.office_address)
   const hasAgencyPath = body.agency_mode === 'existing' || body.agency_mode === 'new'
@@ -1060,8 +1064,15 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
     created_at: createdAt,
     updated_at: createdAt,
   }
+  const agency = pathCAgency
+    ? {
+        id: uuidv4(),
+        name: body.agency_name.trim(),
+        license_number: body.agency_license || '',
+      }
+    : null
   try {
-    await createAgentAccount({ user, agent })
+    await createAgentAccount({ user, agent, agency })
   } catch (err) {
     if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
       return res.status(409).json(freeTrialClaimedHttpBody(err))
@@ -7282,6 +7293,10 @@ app.post('/api/agencies/:id/applications/:appId/reject', authMiddleware, async (
   res.json({ success: true })
 })
 
+// Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
+// creates the agency tenant in the same transaction as the personal tenant.
+// POST /api/agencies remains the post-auth path; createAgencyWithOwner provisions
+// the agency free-tier subscription (migration 319) in that transaction.
 app.post('/api/agencies', authMiddleware, validate(agencyCreateSchema), async (req, res) => {
   const body = req.validated
   const existingAff = await getActiveAffiliation(req.user.id)

@@ -19,16 +19,36 @@ export async function getFeatureByCode(client, code) {
   return rows[0] || null
 }
 
-export async function getFreeTierPackage(client) {
+export const FREE_TIER_PACKAGE_CODES = Object.freeze({
+  agent: 'free-agent',
+  agency: 'free-agency',
+})
+
+export function freeTierPackageCode(audience = 'agent') {
+  return audience === 'agency' ? FREE_TIER_PACKAGE_CODES.agency : FREE_TIER_PACKAGE_CODES.agent
+}
+
+export function freeTierAudienceForScope(scope) {
+  return scope === 'agency' ? 'agency' : 'agent'
+}
+
+/**
+ * Resolve the published free-tier package for an audience.
+ * Agent personal tenants use `free-agent` (migration 304).
+ * Agency tenants use `free-agency` (migration 319).
+ */
+export async function getFreeTierPackage(client, { audience = 'agent' } = {}) {
+  const code = freeTierPackageCode(audience)
   const { rows } = await client.query(
     `SELECT p.*, v.id AS version_id, v.version_number, v.state AS version_state,
             v.properties_covered, v.monthly_price_minor, v.effective_from, v.effective_to
        FROM public.product_packages p
        JOIN public.product_package_versions v ON v.package_id = p.id
-      WHERE p.code = 'free-agent'
+      WHERE p.code = $1
         AND v.state = 'PUBLISHED'
       ORDER BY v.version_number DESC
       LIMIT 1`,
+    [code],
   )
   return rows[0] || null
 }
