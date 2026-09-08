@@ -3,7 +3,7 @@ import { query } from '../../../db.js'
 import { getIntakeConfig } from './config.js'
 import { sharedNumberIndex } from './round-robin.js'
 import { CODE_ALPHABET, formatDisplayCode } from './codes.js'
-import { toE164 } from './phone.js'
+import { digitsOnly, toE164 } from './phone.js'
 
 function generateCode() {
   let code = ''
@@ -130,6 +130,98 @@ export async function getBindingStatus(userId) {
     bound: true,
     phone_e164: row.phone_e164,
     bound_at: rowDate(row.active_from),
+  }
+}
+
+/**
+ * Poll target for AGT-WLB-003 (BE-BLOCKER-14): has inbound listing content
+ * arrived after this binding's activation?
+ *
+ * Ownership: bindingId must belong to userId, else null (caller → 404).
+ * Signals (real data only — never invented):
+ *   - wa_listings.processed_messages.user_id stamped on content path
+ *   - wa_listings.sessions for agent+phone after active_from
+ *   - binding.last_used_at only when strictly after active_from
+ *     (createBinding sets both to the same NOW())
+ */
+export async function getInboundStatus({ bindingId, userId }) {
+  const bindings = await query(
+    `SELECT id, user_id, phone_e164, active_from, deactivated_at, last_used_at
+       FROM public.user_whatsapp_bindings
+      WHERE id = $1
+        AND user_id = $2
+      LIMIT 1`,
+    [bindingId, userId],
+  )
+  const binding = bindings[0]
+  if (!binding) return null
+
+  const activeFrom = binding.active_from
+  const bound = binding.deactivated_at == null
+
+  const stamped = await query(
+    `SELECT processed_at
+       FROM wa_listings.processed_messages
+      WHERE user_id = $1
+        AND processed_at >= $2::timestamptz
+      ORDER BY processed_at DESC
+      LIMIT 1`,
+    [userId, activeFrom],
+  )
+
+  let draftSessionId = null
+  let sessionActivityAt = null
+  const agent = await getAgentForBindingUser(userId)
+  if (agent?.id) {
+    const phoneDigits = digitsOnly(binding.phone_e164)
+    const sessions = await query(
+      `SELECT id, created_at, last_activity_at
+         FROM wa_listings.sessions
+        WHERE agent_id = $1
+          AND regexp_replace(COALESCE(phone_number, ''), '[^0-9]', '', 'g') = $2
+          AND (
+            created_at >= $3::timestamptz
+            OR COALESCE(last_activity_at, created_at) >= $3::timestamptz
+          )
+        ORDER BY COALESCE(last_activity_at, created_at) DESC NULLS LAST
+        LIMIT 1`,
+      [agent.id, phoneDigits, activeFrom],
+    )
+    const session = sessions[0]
+    if (session) {
+      draftSessionId = session.id
+      sessionActivityAt = session.last_activity_at || session.created_at
+    }
+  }
+
+  const candidates = []
+  if (stamped[0]?.processed_at) candidates.push(stamped[0].processed_at)
+  if (sessionActivityAt) candidates.push(sessionActivityAt)
+
+  // last_used_at is set equal to active_from at bind time; only treat a
+  // later touch (content path → touchBinding) as an inbound signal.
+  if (binding.last_used_at) {
+    const lastUsedMs = new Date(binding.last_used_at).getTime()
+    const activeFromMs = new Date(activeFrom).getTime()
+    if (Number.isFinite(lastUsedMs) && Number.isFinite(activeFromMs) && lastUsedMs > activeFromMs) {
+      candidates.push(binding.last_used_at)
+    }
+  }
+
+  let latestMessageAt = null
+  for (const value of candidates) {
+    const ms = new Date(value).getTime()
+    if (!Number.isFinite(ms)) continue
+    if (!latestMessageAt || ms > new Date(latestMessageAt).getTime()) {
+      latestMessageAt = value
+    }
+  }
+
+  return {
+    bound,
+    binding_id: binding.id,
+    latest_message_at: rowDate(latestMessageAt),
+    draft_session_id: draftSessionId,
   }
 }
 

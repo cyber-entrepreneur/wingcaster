@@ -3,6 +3,7 @@ import {
   deactivateBinding,
   generateActivationCode,
   getBindingStatus,
+  getInboundStatus,
   listActiveBindingsForUser,
 } from './service.js'
 
@@ -29,6 +30,20 @@ export function registerBindingRoutes(app, { auth = authMiddleware } = {}) {
   app.get('/api/auth/whatsapp/binding-status', auth, async (req, res) => {
     try {
       res.json(await getBindingStatus(req.user.id))
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  // BE-BLOCKER-14 / AGT-WLB-003 — ~3s client poll for first inbound content.
+  app.get('/api/intake/inbound-status/:bindingId', auth, async (req, res) => {
+    try {
+      const status = await getInboundStatus({
+        bindingId: req.params.bindingId,
+        userId: req.user.id,
+      })
+      if (!status) return res.status(404).json({ error: 'Binding not found' })
+      res.json(status)
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
