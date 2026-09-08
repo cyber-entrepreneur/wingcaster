@@ -169,6 +169,12 @@ export async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Session expired. Please sign in again.' })
   }
 
+  const sessionEnv = (() => {
+    const claim = decoded.env || decoded.fin_environment || user.env || user.fin_environment
+    if (claim === 'TEST' || claim === 'test') return 'test'
+    return 'live'
+  })()
+
   req.user = {
     ...decoded,
     id: user.id,
@@ -177,11 +183,15 @@ export async function authMiddleware(req, res, next) {
     name: user.name,
     role: user.role || 'agent',
     platform_role: user.platform_role || null,
-    // PA-NAV-001 / fin admin session env (LIVE|TEST). Prefer DB-backed values
-    // over any claim that might have been stuffed into the JWT.
-    fin_environment: user.fin_environment || user.environment || decoded.fin_environment || null,
-    environment: user.environment || user.fin_environment || decoded.environment || null,
+    active_tenant_id: decoded.active_tenant_id || user.active_tenant_id || null,
+    preferred_locale: user.preferred_locale || 'en',
+    // PA-NAV-001 / fin admin session env (LIVE|TEST). Session claim wins;
+    // account-recovery env scoping reads fin_environment / environment.
+    env: sessionEnv,
+    fin_environment: sessionEnv === 'test' ? 'TEST' : 'LIVE',
+    environment: sessionEnv === 'test' ? 'TEST' : 'LIVE',
   }
+  req.sessionEnv = sessionEnv
   req.agent = agent
   next()
 }

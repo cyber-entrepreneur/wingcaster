@@ -218,6 +218,18 @@ export function clearElevatedToken() {
   }
 }
 
+/** Mirrors PA session env (PA-NAV-001). Same key as hooks/useEnv ENV_STORAGE_KEY.
+ * Inline read avoids a circular import (useEnv imports this module). */
+function readWingcasterEnvHeader(): 'live' | 'test' {
+  try {
+    const raw = sessionStorage.getItem('wingcaster.env') ?? localStorage.getItem('wingcaster.env')
+    if (raw === 'test' || raw === 'TEST') return 'test'
+  } catch {
+    /* private mode */
+  }
+  return 'live'
+}
+
 function headers() {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = getToken()
@@ -227,6 +239,8 @@ function headers() {
   // the header entirely.
   const elevated = getElevatedToken()
   if (elevated) h['X-Elevated-Token'] = elevated
+  // PA LIVE/TEST binding — server verifies against session GUC (Wave 0).
+  h['X-Wingcaster-Env'] = readWingcasterEnvHeader()
   return h
 }
 
@@ -358,9 +372,13 @@ export const api = {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
     const token = localStorage.getItem('fi_token') || localStorage.getItem('sa_token')
+    const uploadHeaders: Record<string, string> = {
+      'X-Wingcaster-Env': readWingcasterEnvHeader(),
+    }
+    if (token) uploadHeaders.Authorization = `Bearer ${token}`
     const res = await fetch(`${API_BASE}/uploads`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: uploadHeaders,
       body: form,
     })
     const bodyText = await res.text()
