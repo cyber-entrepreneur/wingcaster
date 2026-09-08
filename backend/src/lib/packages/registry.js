@@ -84,3 +84,11 @@ export const FREE_TIER_FLAG_CODES = [
   'crm.opportunities',
   'listings.crud',
 ]
+
+/** Boolean Pro-tier gate for AGT-APR-005 (migration 330 / BE-BLOCKER-27). */
+export const PRICE_REPORTS_SUBMIT_FEATURE_CODE = 'valuation.price_reports.submit'
+
+export const PRO_AGENT_PACKAGE_CODES = Object.freeze({
+  pro: 'pro-agent',
+  proElite: 'pro-elite-agent',
+})

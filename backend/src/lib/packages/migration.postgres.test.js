@@ -2,16 +2,21 @@ import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { finPostgresSuite } from '../../fin/testing/suite.js'
 import { startSubscription, changePlan, cancelAtPeriodEnd, cancelImmediate } from './lifecycle.js'
+import { PRICE_REPORTS_SUBMIT_FEATURE_CODE } from './registry.js'
 import {
   FREE_PACKAGE_ID,
   FREE_VERSION_ID,
   FREE_AGENCY_PACKAGE_ID,
   FREE_AGENCY_VERSION_ID,
+  PRO_PACKAGE_ID,
+  PRO_VERSION_ID,
+  PRO_ELITE_PACKAGE_ID,
+  PRO_ELITE_VERSION_ID,
   seedPublishedPackage,
   withTx,
 } from './test-support.js'
 
-finPostgresSuite('packages migrations 302–304 + 319', {}, ({ pool }) => {
+finPostgresSuite('packages migrations 302–304 + 319 + 330', {}, ({ pool }) => {
   it('applies schema, seeds free-tier, and supports start → paid → cancel-end → ended', async () => {
     const tables = await pool().query(
       `SELECT to_regclass('public.metered_features') AS features,
@@ -115,5 +120,58 @@ finPostgresSuite('packages migrations 302–304 + 319', {}, ({ pool }) => {
         WHERE id = $1`,
       [FREE_VERSION_ID],
     )).rejects.toThrow(/PACKAGE_VERSION_IMMUTABLE/)
+  })
+
+  it('seeds valuation.price_reports.submit on Pro + Pro Elite only (migration 330)', async () => {
+    const proRows = await pool().query(
+      `SELECT p.id AS package_id, p.code, p.tier, p.target_audience, p.active,
+              v.id AS version_id, v.state
+         FROM public.product_packages p
+         JOIN public.product_package_versions v ON v.package_id = p.id
+        WHERE p.id IN ($1, $2)
+        ORDER BY p.code`,
+      [PRO_PACKAGE_ID, PRO_ELITE_PACKAGE_ID],
+    )
+    expect(proRows.rows).toHaveLength(2)
+    expect(proRows.rows.map((r) => r.code)).toEqual(['pro-agent', 'pro-elite-agent'])
+    for (const row of proRows.rows) {
+      expect(row.tier).toBe('pro')
+      expect(row.target_audience).toBe('agent')
+      expect(row.active).toBe(true)
+      expect(row.state).toBe('PUBLISHED')
+    }
+    expect(proRows.rows.find((r) => r.code === 'pro-agent').version_id).toBe(PRO_VERSION_ID)
+    expect(proRows.rows.find((r) => r.code === 'pro-elite-agent').version_id).toBe(PRO_ELITE_VERSION_ID)
+
+    const flagged = await pool().query(
+      `SELECT f.package_version_id, f.enabled, p.code
+         FROM public.package_feature_flags f
+         JOIN public.product_package_versions v ON v.id = f.package_version_id
+         JOIN public.product_packages p ON p.id = v.package_id
+        WHERE f.feature_code = $1
+        ORDER BY p.code`,
+      [PRICE_REPORTS_SUBMIT_FEATURE_CODE],
+    )
+    expect(flagged.rows.length).toBeGreaterThanOrEqual(2)
+    expect(flagged.rows.every((r) => r.enabled === true)).toBe(true)
+    const flaggedCodes = flagged.rows.map((r) => r.code)
+    expect(flaggedCodes).toContain('pro-agent')
+    expect(flaggedCodes).toContain('pro-elite-agent')
+    expect(flaggedCodes).not.toContain('free-agent')
+    expect(flaggedCodes).not.toContain('free-agency')
+
+    const freeHasFlag = await pool().query(
+      `SELECT COUNT(*)::int AS n FROM public.package_feature_flags
+        WHERE feature_code = $1
+          AND package_version_id IN ($2, $3)`,
+      [PRICE_REPORTS_SUBMIT_FEATURE_CODE, FREE_VERSION_ID, FREE_AGENCY_VERSION_ID],
+    )
+    expect(freeHasFlag.rows[0].n).toBe(0)
+
+    const metered = await pool().query(
+      `SELECT COUNT(*)::int AS n FROM public.metered_features WHERE code = $1`,
+      [PRICE_REPORTS_SUBMIT_FEATURE_CODE],
+    )
+    expect(metered.rows[0].n).toBe(0)
   })
 })
