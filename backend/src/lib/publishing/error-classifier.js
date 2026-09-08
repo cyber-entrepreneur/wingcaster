@@ -33,7 +33,6 @@ const AUTH_CODES = new Set([
   'X_UNCONFIGURED',
   'TIKTOK_UNCONFIGURED',
   'UNAUTHORIZED',
-  'FORBIDDEN',
 ])
 
 const QUOTA_CODES = new Set([
@@ -63,6 +62,7 @@ const RULES_CODES = new Set([
   'COMMUNITY_STANDARDS',
   'CONTENT_VIOLATION',
   'SPAM',
+  'FORBIDDEN',
 ])
 
 const DOWN_CODES = new Set([
@@ -201,20 +201,23 @@ export function classifyProviderError(rawError) {
     return ERROR_CLASS.QUOTA_EXCEEDED
   }
 
-  // Portal down — 5xx, network
+  // Portal down — 5xx, 408, timeout / network
   if (
-    nums.some((n) => n >= 500 && n <= 599) ||
-    codes.some((c) => DOWN_CODES.has(c) || c.endsWith('_UNAVAILABLE')) ||
-    /\b(service unavailable|temporarily unavailable|bad gateway|gateway timeout|econnrefused|etimedout|econnreset|enotfound|network error|connection reset|portal.?down|try again later)\b/i.test(text)
+    nums.includes(408)
+    || nums.some((n) => n >= 500 && n <= 599)
+    || codes.some((c) => DOWN_CODES.has(c) || c.endsWith('_UNAVAILABLE'))
+    || /\b(service unavailable|temporarily unavailable|bad gateway|gateway timeout|econnrefused|etimedout|econnreset|enotfound|network error|connection reset|portal.?down|try again later|timed? out|timeout)\b/i.test(text)
   ) {
     return ERROR_CLASS.PORTAL_DOWN
   }
 
-  // Portal rules / policy
+  // Portal rules / policy — HTTP 403 is the spec's portal-rules signal
   if (
-    nums.includes(368) ||
-    codes.some((c) => RULES_CODES.has(c) || c.includes('POLICY') || c.includes('COMMUNITY')) ||
-    /\b(community standards|violat(es|ion)|content.?policy|policy.?viol|not allowed|restricted|spam|disallowed|terms of (service|use)|prohibited)\b/i.test(text)
+    nums.includes(403)
+    || nums.includes(368)
+    || codes.some((c) => RULES_CODES.has(c) || c.includes('POLICY') || c.includes('COMMUNITY'))
+    || /\b(community standards|community guideline|violat(es|ion)|content.?policy|policy.?viol|not allowed|restricted|spam|disallowed|terms of (service|use)|prohibited|forbidden)\b/i.test(text)
+    || /\b403\b/.test(text)
   ) {
     return ERROR_CLASS.PORTAL_RULES_VIOLATION
   }
@@ -235,4 +238,27 @@ export function classifyProviderError(rawError) {
 /** @deprecated Use classifyProviderError — alias for call-site clarity */
 export function classifyError(rawError) {
   return classifyProviderError(rawError)
+}
+
+/**
+ * Fill error_class on a distribution_attempts write when the caller omitted it.
+ * Successful attempts with no error signal stay NULL. Used by the DAL toRow
+ * path so a raw insert('distribution_attempts', …) cannot skip classification.
+ */
+export function decorateDistributionAttempt(item) {
+  if (!item || typeof item !== 'object') return item
+  if (item.error_class && ERROR_CLASSES.includes(item.error_class)) return item
+  const message = item.error_message || item.errorMessage || null
+  const hasError = (item.error != null && item.error !== '')
+    || (item.provider_error != null && item.provider_error !== '')
+    || (message != null && String(message).trim() !== '')
+  const failed = String(item.status || '').toLowerCase() === 'failed'
+    || String(item.status || '').toLowerCase() === 'error'
+  if (!hasError && !failed) return item
+  return {
+    ...item,
+    error_class: classifyProviderError(
+      item.error || item.provider_error || { message, details: item.response, code: item.error_code },
+    ),
+  }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifyProviderError,
+  decorateDistributionAttempt,
   ERROR_CLASS,
   ERROR_CLASSES,
 } from './error-classifier.js'
@@ -51,11 +52,17 @@ describe('classifyProviderError', () => {
       .toBe(ERROR_CLASS.PORTAL_DOWN)
     expect(classifyProviderError(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })))
       .toBe(ERROR_CLASS.PORTAL_DOWN)
-    expect(classifyProviderError('gateway timeout from upstream'))
+    expect(classifyProviderError({ status: 504, message: 'gateway timeout from upstream' }))
+      .toBe(ERROR_CLASS.PORTAL_DOWN)
+    expect(classifyProviderError({ message: 'upstream timeout' }))
       .toBe(ERROR_CLASS.PORTAL_DOWN)
   })
 
-  it('classifies portal_rules_violation from policy language', () => {
+  it('classifies portal_rules_violation from HTTP 403 and policy language', () => {
+    expect(classifyProviderError({
+      status: 403,
+      message: 'Forbidden: this content violates Instagram community standards',
+    })).toBe(ERROR_CLASS.PORTAL_RULES_VIOLATION)
     expect(classifyProviderError({
       message: 'This content violates Community Standards',
       code: 'POLICY_VIOLATION',
@@ -78,5 +85,25 @@ describe('classifyProviderError', () => {
   it('honours an already-normalized error_class code', () => {
     expect(classifyProviderError({ code: 'auth_expired' })).toBe(ERROR_CLASS.AUTH_EXPIRED)
     expect(classifyProviderError({ code: 'PORTAL_DOWN' })).toBe(ERROR_CLASS.PORTAL_DOWN)
+  })
+})
+
+describe('decorateDistributionAttempt', () => {
+  it('leaves successful attempts unclassified', () => {
+    const row = decorateDistributionAttempt({
+      distribution_job_id: 'job-1',
+      status: 'published',
+      response: { id: 'ig_123' },
+    })
+    expect(row.error_class).toBeUndefined()
+  })
+
+  it('classifies from error_message when error_class is missing', () => {
+    const row = decorateDistributionAttempt({
+      distribution_job_id: 'job-1',
+      status: 'failed',
+      error_message: 'token expired',
+    })
+    expect(row.error_class).toBe(ERROR_CLASS.AUTH_EXPIRED)
   })
 })

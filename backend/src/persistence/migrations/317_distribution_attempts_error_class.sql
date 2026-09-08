@@ -43,3 +43,43 @@ CREATE INDEX IF NOT EXISTS idx_distribution_attempts_error_class
 
 COMMENT ON COLUMN public.distribution_attempts.error_class IS
   'Normalized publish failure class: auth_expired | portal_rules_violation | portal_down | quota_exceeded | invalid_content | unknown_error';
+
+-- Best-effort backfill from error_message. First match wins; keep aligned with
+-- classifyProviderError() in backend/src/lib/publishing/error-classifier.js.
+-- Leftover NULL rows (no message) are filled by the JS pass:
+--   backend/src/lib/publishing/backfill-error-class.js
+-- invoked from backend/scripts/start.js after migrate.
+UPDATE public.distribution_attempts
+   SET error_class = CASE
+     WHEN error_message ~* '(token (is )?expired|expired token|session has expired|invalid (oauth |access )?token|oauthexception|unauthorized|unauthorised|\m401\M|authentication failed|access token)'
+       THEN 'auth_expired'
+     WHEN error_message ~* '(rate[- ]?limit|too many requests|\m429\M|quota|throttl|usage limit)'
+       THEN 'quota_exceeded'
+     WHEN error_message ~* '(timed? out|timeout|\m503\M|\m502\M|\m504\M|\m408\M|econnreset|econnrefused|etimedout|enotfound|service unavailable|bad gateway|temporarily unavailable)'
+       THEN 'portal_down'
+     WHEN error_message ~* '(\m403\M|forbidden|community standard|community guideline|policy violat|permission denied|not allowed|restricted)'
+       THEN 'portal_rules_violation'
+     WHEN error_message ~* '(invalid (parameter|content|media|image|video|caption)|validation|content rejected|unsupported (format|media)|caption too long|\m422\M|\m400\M)'
+       THEN 'invalid_content'
+     ELSE 'unknown_error'
+   END
+ WHERE error_class IS NULL
+   AND error_message IS NOT NULL
+   AND btrim(error_message) <> '';
+
+DO $$
+DECLARE
+  classified int;
+  unknown_count int;
+BEGIN
+  SELECT COUNT(*)::int INTO classified
+    FROM public.distribution_attempts
+   WHERE error_class IS NOT NULL;
+
+  SELECT COUNT(*)::int INTO unknown_count
+    FROM public.distribution_attempts
+   WHERE error_class = 'unknown_error';
+
+  RAISE NOTICE 'distribution_attempts error_class backfill: classified=% unknown_error=% (unclassified)',
+    classified, unknown_count;
+END $$;

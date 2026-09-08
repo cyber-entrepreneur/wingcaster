@@ -129,4 +129,40 @@ finPostgresSuite('distribution_attempts.error_class', { seed: false }, ({ pool }
     })
     expect(stored.error_class).toBe(ERROR_CLASS.QUOTA_EXCEEDED)
   })
+
+  it('DAL insert auto-classifies when error_class is omitted', async () => {
+    const jobId = await seedJob(pool())
+    const stored = await insert('distribution_attempts', {
+      distribution_job_id: jobId,
+      status: 'failed',
+      error_message: 'HTTP 403 Forbidden',
+    })
+    expect(stored.error_class).toBe(ERROR_CLASS.PORTAL_RULES_VIOLATION)
+  })
+
+  it('migration 317 is idempotent and SQL-backfills leftover error_message rows', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const { dirname, join } = await import('node:path')
+    const { fileURLToPath } = await import('node:url')
+    const sql = await readFile(
+      join(dirname(fileURLToPath(import.meta.url)), '../../persistence/migrations/317_distribution_attempts_error_class.sql'),
+      'utf8',
+    )
+    await pool().query(sql)
+    await pool().query(sql)
+
+    const jobId = await seedJob(pool())
+    const id = randomUUID()
+    await pool().query(
+      `INSERT INTO public.distribution_attempts (id, distribution_job_id, status, error_message, error_class)
+       VALUES ($1, $2, 'failed', 'OAuth token expired', NULL)`,
+      [id, jobId],
+    )
+    await pool().query(sql)
+    const { rows } = await pool().query(
+      `SELECT error_class FROM public.distribution_attempts WHERE id = $1`,
+      [id],
+    )
+    expect(rows[0].error_class).toBe(ERROR_CLASS.AUTH_EXPIRED)
+  })
 })

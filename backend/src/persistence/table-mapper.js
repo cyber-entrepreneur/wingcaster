@@ -7,6 +7,8 @@
  * flexibility and backwards compatibility.
  */
 
+import { decorateDistributionAttempt } from '../lib/publishing/error-classifier.js'
+
 const ID_COLUMNS = ['id', 'created_at', 'updated_at']
 
 const TABLE_MAP = {
@@ -521,8 +523,11 @@ function pick(item, keys) {
 
 export function toRow(collection, item) {
   const mapping = resolveTable(collection)
-  const typed = pick(item, mapping.columns)
-  const row = { ...typed, data: item }
+  const source = collection === 'distribution_attempts'
+    ? decorateDistributionAttempt(item)
+    : item
+  const typed = pick(source, mapping.columns)
+  const row = { ...typed, data: source }
   if (mapping.table === 'legacy_collections') {
     row.collection = collection
   }
