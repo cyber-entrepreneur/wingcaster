@@ -1,7 +1,6 @@
 import express from 'express'
 import request from 'supertest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { authMiddleware } from '../../auth.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   buildSettingsIndex,
   isOauthOnlyUser,
@@ -242,10 +241,12 @@ describe('buildSettingsIndex — menu contains/excludes expected items', () => {
 
 describe('GET /api/settings/index', () => {
   it('unauthenticated → 401', async () => {
+    const { authMiddleware } = await import('../../auth.js')
     const app = express()
     registerRoutes(app, { authMiddleware })
     const res = await request(app).get('/api/settings/index')
     expect(res.status).toBe(401)
+    expect(res.body).toMatchObject({ error: expect.any(String) })
   })
 
   it('solo agent → no team group', async () => {
@@ -314,14 +315,12 @@ describe('GET /api/settings/index', () => {
   })
 
   it('defensive fallback returns Account + Security + Danger when lookup fails', async () => {
-    const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await request(createApp({
       user: { id: 'user-1' },
       loadCallerContext: async () => {
         throw new Error('membership lookup exploded')
       },
     })).get('/api/settings/index')
-    warnSpy.mockRestore()
 
     expect(res.status).toBe(200)
     expect(groupIds(res.body)).toEqual(['account', 'security', 'danger'])
