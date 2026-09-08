@@ -622,6 +622,17 @@ export const api = {
 
   getActivityLog: () => fetchJson('/activity-log'),
 
+  // Publishing tracker (AGT-PUB-006 / BE-BLOCKER-11)
+  getPublishingTracker: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker${qs}`)
+  },
+  getPublishingTrackerSummary: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker/summary${qs}`)
+  },
+  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
+
   // Distribution Hub
   getPlatforms: () => fetchJson('/platforms'),
   getFiAccounts: () => fetchJson('/fi-accounts'),

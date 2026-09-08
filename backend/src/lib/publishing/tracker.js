@@ -324,6 +324,9 @@ export function toTrackerRow(row) {
   const errorClass = failed ? (row.error_class || null) : null
   return {
     distribution_attempt_id: row.distribution_attempt_id,
+    // Receipt deep-link: prefer publishing_jobs.id, fall back to distribution_jobs.id
+    // (GET /api/publishing/jobs/:jobId accepts either — BE-BLOCKER-10).
+    job_id: row.publishing_job_id || row.job_id || null,
     listing: {
       id: row.listing_id || row.property_id || null,
       address_line: row.address_line || null,
@@ -389,6 +392,7 @@ function scopedSelectSql() {
       ${SUBMITTED_AT_SQL} AS submitted_at,
       ${UPDATED_AT_SQL} AS updated_at,
       j.id AS job_id,
+      j.publishing_job_id AS publishing_job_id,
       j.property_id,
       j.platform,
       COALESCE(p.id, j.property_id) AS listing_id,
