@@ -148,7 +148,7 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
-import { registerSettingsRoutes } from './settings/routes.js'
+import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -658,7 +658,7 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
-registerSettingsRoutes(app, { auth: authMiddleware })
+registerSettingsIndexRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
