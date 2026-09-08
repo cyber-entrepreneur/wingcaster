@@ -46,8 +46,26 @@ export const registerSchema = z.object({
 })
 
 export const loginSchema = z.object({
-  email: emailSchema,
   password: z.string().min(1).max(128),
+  // Wave 0 — identifier_type + identifier (email | username | phone).
+  // Legacy clients may still send `email` alone.
+  identifier_type: z.enum(['email', 'username', 'phone']).optional(),
+  identifier: z.string().min(1).max(255).optional(),
+  email: emailSchema.optional(),
+}).superRefine((data, ctx) => {
+  const hasIdentifierPair = Boolean(data.identifier_type || data.identifier)
+  if (hasIdentifierPair) {
+    if (!data.identifier_type) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier_type'], message: 'identifier_type is required when identifier is provided' })
+    }
+    if (!data.identifier) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: 'identifier is required when identifier_type is provided' })
+    }
+    return
+  }
+  if (!data.email) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['email'], message: 'email or identifier is required' })
+  }
 })
 
 export const passwordForgotSchema = z.object({

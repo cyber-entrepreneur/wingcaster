@@ -22,7 +22,13 @@ const TABLE_MAP = {
     columns: [
       'email', 'phone', 'name', 'password_hash', 'role', 'platform_role', 'verified', 'verified_at',
       'totp_enabled', 'totp_enrolled_at', 'preferred_2fa',
+      'active_tenant_id', 'preferred_locale', 'username',
     ],
+  },
+  auth_oauth_identities: {
+    schema: 'public',
+    table: 'auth_oauth_identities',
+    columns: ['provider', 'provider_user_id', 'user_id', 'email'],
   },
   user_backup_codes: { schema: 'public', table: 'user_backup_codes', columns: ['user_id', 'code_hash', 'used_at'] },
   auth_challenges: {
