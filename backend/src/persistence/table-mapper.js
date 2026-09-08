@@ -53,6 +53,15 @@ const TABLE_MAP = {
       'accepting_applications',
     ],
   },
+  agency_invitations: {
+    schema: 'public',
+    table: 'agency_invitations',
+    columns: [
+      'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
+    ],
+  },
+    ],
+  },
   agency_members: {
     schema: 'public',
     table: 'agency_members',
