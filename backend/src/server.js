@@ -27,6 +27,7 @@ import {
   undoApprove,
   PaActionError,
 } from './account-recovery/pa-actions.js'
+import { registerAccountRecoveryEvidenceRoutes } from './account-recovery/evidence-routes.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -7326,6 +7327,9 @@ app.post('/api/admin/account-recovery/:caseId/withdraw-vote', authMiddleware, as
     throw err
   }
 })
+
+// BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
+registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
 
 app.get('/api/properties/:id/share', async (req, res) => {
   const prop = await findOne('properties', p => p.id === req.params.id)
