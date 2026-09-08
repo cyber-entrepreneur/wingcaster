@@ -45,23 +45,36 @@ const TABLE_MAP = {
     table: 'agents',
     columns: ['user_id', 'email', 'phone', 'name', 'slug', 'agency_id', 'role', 'verified', 'subscription_features', 'cta_config'],
   },
-  agencies: { schema: 'public', table: 'agencies', columns: ['owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config'] },
-  agency_members: {
+  agencies: {
     schema: 'public',
-    table: 'agency_members',
-    columns: ['agency_id', 'user_id', 'agent_id', 'role', 'status', 'joined_at', 'ended_at', 'end_reason'],
+    table: 'agencies',
+    columns: [
+      'owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config',
+      'accepting_applications',
+    ],
   },
-  // BE-BLOCKER-09 / BE-06: first-class agency_applications (was legacy_collections).
-  // expires_at is required for the daily expiry cron; remaining uplift columns
-  // may arrive via migration 324 — keep this list additive-compatible.
   agency_applications: {
     schema: 'public',
     table: 'agency_applications',
     columns: [
-      'agency_id', 'agent_email', 'agent_name', 'agent_phone', 'message', 'status',
+      'agency_id', 'applicant_user_id', 'agent_email', 'agent_name', 'agent_phone', 'message',
+      'current_listings_count', 'portfolio_url', 'availability', 'referral_source',
+      'profile_share_consent', 'invitation_code', 'expected_response_by', 'status',
       'expires_at', 'approved_at', 'approved_by', 'approved_role', 'affiliation_mode',
       'rejected_at', 'rejected_by',
     ],
+  },
+  agency_invitations: {
+    schema: 'public',
+    table: 'agency_invitations',
+    columns: [
+      'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
+    ],
+  },
+  agency_members: {
+    schema: 'public',
+    table: 'agency_members',
+    columns: ['agency_id', 'user_id', 'agent_id', 'role', 'status', 'joined_at', 'ended_at', 'end_reason'],
   },
   tenants: {
     schema: 'public',
