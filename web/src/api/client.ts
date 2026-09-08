@@ -915,12 +915,12 @@ export const api = {
       by_platform: Record<string, { reactions: number; referrals: number; mentions: number }>
     }
     ai_watching: Array<{
-      conversation_id: string; channel: string; contact_name: string | null;
+      conversation_id: string; channel: string; source?: string; source_channel?: string; contact_name: string | null;
       last_message_preview: string; last_message_at: string | null;
       ai_watch_started_at: string | null
     }>
     testimonials: Array<{
-      id: string; content: string; author_name: string; source_channel: string;
+      id: string; content: string; author_name: string; source_channel?: string; channel?: string; source?: string;
       source_post_url: string | null; consent_status: string;
       published_status: string; created_at: string
     }>

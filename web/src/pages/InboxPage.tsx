@@ -24,6 +24,7 @@ import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { cn } from '@/lib/utils'
+import { readChannel } from '@/lib/channel-source'
 import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
@@ -34,7 +35,9 @@ interface Conversation {
   contact_name: string
   contact_email: string
   contact_phone: string
-  source_channel: string
+  source_channel?: string
+  channel?: string
+  source?: string
   status: 'open' | 'closed'
   priority: string
   subject?: string
@@ -90,6 +93,8 @@ const CHANNEL_LABELS: Record<string, string> = {
   facebook_comment: 'Facebook Comment',
   linkedin: 'LinkedIn',
   linkedin_comment: 'LinkedIn Comment',
+  telegram: 'Telegram',
+  direct: 'Direct',
 }
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
@@ -312,6 +317,7 @@ export function InboxPage() {
     .slice(0, 2)
     .join('')
     .toUpperCase()
+  const activeChannelKey = activeConversation ? readChannel(activeConversation) : ''
 
   return (
     <CrmShell badges={{ inbox: unreadCount }}>
@@ -376,6 +382,7 @@ export function InboxPage() {
               <div className="divide-y divide-[var(--lc-surface-sunken)]">
                 {filteredConversations.map((c) => {
                   const selected = c.id === selectedId
+                  const channelKey = readChannel(c)
                   return (
                     <button
                       key={c.id}
@@ -401,8 +408,8 @@ export function InboxPage() {
                         </div>
                         <div className="mt-0.5 flex items-center gap-1.5">
                           <Badge variant="outline" className="h-4 gap-0.5 px-1 text-[10px]">
-                            {CHANNEL_ICONS[c.source_channel] ?? null}
-                            {CHANNEL_LABELS[c.source_channel] || c.source_channel}
+                            {CHANNEL_ICONS[channelKey] ?? null}
+                            {CHANNEL_LABELS[channelKey] || channelKey}
                           </Badge>
                           <span className="truncate text-[11px] text-muted-foreground">
                             {c.last_message_preview || 'No messages'}
@@ -446,7 +453,7 @@ export function InboxPage() {
                     <Badge variant="outline" className={cn('h-4 px-1 text-[10px]', STATUS_COLORS[activeConversation.status])}>
                       {activeConversation.status}
                     </Badge>
-                    <span>{CHANNEL_LABELS[activeConversation.source_channel] || activeConversation.source_channel}</span>
+                    <span>{CHANNEL_LABELS[activeChannelKey] || activeChannelKey}</span>
                     {activeConversation.contact_phone && (
                       <span className="flex items-center gap-0.5">
                         <Phone className="h-3 w-3" />{activeConversation.contact_phone}
