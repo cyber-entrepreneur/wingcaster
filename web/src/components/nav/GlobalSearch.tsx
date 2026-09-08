@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
 import { Search } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { API_BASE } from '@/api/client'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useHotkey } from '@/hooks/useHotkey'
 import { cn } from '@/lib/utils'
@@ -95,6 +96,71 @@ export function useSearchHotkeyLabel(locale: NavLocale = 'en') {
   return isMacPlatform() ? SEARCH_COPY[locale].hotkeyMac : SEARCH_COPY[locale].hotkeyWin
 }
 
+type SearchApiItem = {
+  id?: string
+  label?: string
+  title?: string
+  href?: string
+  group?: string
+}
+
+type SearchApiResponse = {
+  groups?:
+    | Array<{
+        heading?: string
+        id?: string
+        items?: SearchApiItem[]
+      }>
+    | Record<string, SearchApiItem[]>
+  results?: SearchApiItem[]
+}
+
+function mapSearchItems(items: SearchApiItem[], prefix: string): SearchResultGroup['items'] {
+  return items
+    .map((item, itemIndex) => ({
+      id: String(item.id ?? `${prefix}-${itemIndex}`),
+      label: String(item.label ?? item.title ?? ''),
+      href: item.href,
+    }))
+    .filter((item) => item.label)
+}
+
+function mapSearchResponse(body: SearchApiResponse): SearchResultGroup[] {
+  if (Array.isArray(body.groups) && body.groups.length > 0) {
+    return body.groups
+      .map((group, index) => {
+        const rawHeading = String(group.heading || group.id || 'suggestions').toLowerCase()
+        const heading: SearchResultGroup['heading'] =
+          rawHeading === 'recent' || rawHeading === 'actions' ? rawHeading : 'suggestions'
+        return {
+          heading,
+          items: mapSearchItems(group.items ?? [], `${heading}-${index}`),
+        }
+      })
+      .filter((group) => group.items.length > 0)
+  }
+
+  if (body.groups && !Array.isArray(body.groups) && typeof body.groups === 'object') {
+    const items = Object.entries(body.groups).flatMap(([key, rows]) =>
+      mapSearchItems(Array.isArray(rows) ? rows : [], key),
+    )
+    if (items.length > 0) {
+      return [{ heading: 'suggestions', items }]
+    }
+  }
+
+  if (Array.isArray(body.results) && body.results.length > 0) {
+    return [
+      {
+        heading: 'suggestions',
+        items: mapSearchItems(body.results, 'result'),
+      },
+    ]
+  }
+
+  return []
+}
+
 export function GlobalSearch({
   persona = 'agent',
   locale = 'en',
@@ -112,8 +178,9 @@ export function GlobalSearch({
   const open = controlledOpen ?? uncontrolledOpen
   const setOpen = onOpenChange ?? setUncontrolledOpen
   const [query, setQuery] = useState('')
+  const [remoteGroups, setRemoteGroups] = useState<SearchResultGroup[] | null>(null)
 
-  const resultGroups = groups ?? DEFAULT_GROUPS[persona]
+  const resultGroups = groups ?? remoteGroups ?? DEFAULT_GROUPS[persona]
   const hotkeyLabel = useSearchHotkeyLabel(locale)
   const placeholder = copy.placeholder[persona]
 
@@ -127,8 +194,50 @@ export function GlobalSearch({
       prevPathRef.current = location.pathname
       setOpen(false)
       setQuery('')
+      setRemoteGroups(null)
     }
   }, [location.pathname, setOpen])
+
+  // Wire POST /api/search when the parent does not supply groups.
+  useEffect(() => {
+    if (groups) return
+    const trimmed = query.trim()
+    if (!open || trimmed.length < 2) {
+      setRemoteGroups(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('fi_token') || localStorage.getItem('sa_token')
+        const res = await fetch(`${API_BASE}/search`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ query: trimmed, persona }),
+        })
+        if (!res.ok) {
+          setRemoteGroups(null)
+          return
+        }
+        const body = (await res.json()) as SearchApiResponse
+        const mapped = mapSearchResponse(body)
+        setRemoteGroups(mapped.length > 0 ? mapped : null)
+      } catch (err) {
+        if ((err as { name?: string })?.name === 'AbortError') return
+        setRemoteGroups(null)
+      }
+    }, 220)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [groups, open, persona, query])
 
   const headingLabel = useMemo(
     () =>
