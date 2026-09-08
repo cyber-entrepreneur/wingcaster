@@ -83,6 +83,11 @@ export const accountRecoveryReviewSchema = z.object({
   notes: z.string().max(2000).optional().default(''),
 })
 
+export const accountRecoveryCastVoteSchema = z.object({
+  vote: z.enum(['approve', 'reject']),
+  notes: z.string().max(2000).optional().default(''),
+})
+
 export const accountRecoveryCompleteSchema = z.object({
   case_id: z.string().min(8).max(120),
   token: z.string().min(24).max(512),

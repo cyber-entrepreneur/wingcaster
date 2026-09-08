@@ -301,7 +301,17 @@ const TABLE_MAP = {
 
   // Auth / support
   auth_recovery_tokens: { schema: 'public', table: 'auth_recovery_tokens', columns: ['user_id', 'email', 'type', 'token_hash', 'status', 'case_id', 'expires_at', 'attempts', 'ip', 'user_agent'] },
-  account_recovery_cases: { schema: 'public', table: 'account_recovery_cases', columns: ['user_id', 'email', 'status', 'requested_at', 'reviewed_at', 'reviewed_by', 'ip', 'user_agent'] },
+  account_recovery_cases: {
+    schema: 'public',
+    table: 'account_recovery_cases',
+    columns: [
+      'user_id', 'email', 'status', 'requested_at', 'reviewed_at', 'reviewed_by', 'ip', 'user_agent',
+      'first_vote_reviewer_id', 'first_vote', 'first_vote_at', 'first_vote_notes',
+      'second_vote_reviewer_id', 'second_vote', 'second_vote_at', 'second_vote_notes',
+      'approval_request_id', 'escalation_approval_request_id',
+      'account_value_tier', 'requires_two_person',
+    ],
+  },
   otp_verifications: { schema: 'public', table: 'otp_verifications', columns: ['user_id', 'channel', 'value_hash', 'code_hash', 'expires_at', 'verified', 'attempts', 'last_attempt_at', 'locked_at'] },
 
   // Profile / reviews

@@ -15,6 +15,11 @@ import { getPool, query } from './persistence/postgres-adapter.js'
 import { seedData } from './seed.js'
 import { signToken, authMiddleware, requireElevated } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
+import {
+  castVote,
+  CastVoteError,
+  goneApproveRejectBody,
+} from './account-recovery/cast-vote.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -101,6 +106,7 @@ import {
   passwordChangeSchema,
   accountRecoveryRequestSchema,
   accountRecoveryReviewSchema,
+  accountRecoveryCastVoteSchema,
   accountRecoveryCompleteSchema,
   otpVerifySchema,
   otpRequestSchema,
@@ -7127,75 +7133,37 @@ app.get('/api/admin/account-recovery', authMiddleware, async (req, res) => {
   res.json(rows)
 })
 
-app.post('/api/admin/account-recovery/:caseId/approve', authMiddleware, validate(accountRecoveryReviewSchema), async (req, res) => {
+app.post('/api/admin/account-recovery/:caseId/approve', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const recoveryCase = await findOne('account_recovery_cases', (c) => c.id === req.params.caseId)
-  if (!recoveryCase) return res.status(404).json({ error: 'Recovery case not found' })
-  if (recoveryCase.status !== 'pending_review') {
-    return res.status(400).json({ error: 'Recovery case is not pending review' })
-  }
-
-  const { token } = await issueRecoveryToken({
-    userId: recoveryCase.user_id,
-    email: recoveryCase.email,
-    type: 'account_recovery',
-    caseId: recoveryCase.id,
-    ttlMinutes: 30,
-    ip: req.ip,
-    userAgent: req.get('user-agent') || null,
-  })
-
-  await update('account_recovery_cases', (c) => c.id === recoveryCase.id, (c) => ({
-    ...c,
-    status: 'approved',
-    approved_at: new Date().toISOString(),
-    approved_by: req.user.id,
-    review_notes: req.validated.notes || '',
-  }))
-
-  await logActivity({
-    type: 'account_recovery_approved',
-    agent_id: recoveryCase.user_id,
-    meta: { case_id: recoveryCase.id, reviewer_id: req.user.id },
-  })
-
-  res.json({
-    success: true,
-    case_id: recoveryCase.id,
-    message: 'Recovery case approved and token issued.',
-    ...(!isProduction ? {
-      _dev_recovery_token: token,
-      _dev_recovery_reset_payload: {
-        case_id: recoveryCase.id,
-        token,
-      },
-    } : {}),
-  })
+  return res.status(410).json(goneApproveRejectBody('approve'))
 })
 
-app.post('/api/admin/account-recovery/:caseId/reject', authMiddleware, validate(accountRecoveryReviewSchema), async (req, res) => {
+app.post('/api/admin/account-recovery/:caseId/reject', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const recoveryCase = await findOne('account_recovery_cases', (c) => c.id === req.params.caseId)
-  if (!recoveryCase) return res.status(404).json({ error: 'Recovery case not found' })
-  if (recoveryCase.status !== 'pending_review') {
-    return res.status(400).json({ error: 'Recovery case is not pending review' })
+  return res.status(410).json(goneApproveRejectBody('reject'))
+})
+
+app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, validate(accountRecoveryCastVoteSchema), async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await castVote({
+      caseId: req.params.caseId,
+      voterId: req.user.id,
+      vote: req.validated.vote,
+      notes: req.validated.notes || '',
+      ip: req.ip,
+      userAgent: req.get('user-agent') || null,
+      isProduction,
+      issueRecoveryToken,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof CastVoteError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
   }
-
-  await update('account_recovery_cases', (c) => c.id === recoveryCase.id, (c) => ({
-    ...c,
-    status: 'rejected',
-    rejected_at: new Date().toISOString(),
-    rejected_by: req.user.id,
-    review_notes: req.validated.notes || '',
-  }))
-
-  await logActivity({
-    type: 'account_recovery_rejected',
-    agent_id: recoveryCase.user_id,
-    meta: { case_id: recoveryCase.id, reviewer_id: req.user.id },
-  })
-
-  res.json({ success: true, case_id: recoveryCase.id })
 })
 
 app.get('/api/properties/:id/share', async (req, res) => {
