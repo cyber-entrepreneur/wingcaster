@@ -17,6 +17,7 @@ import { signToken, authMiddleware, requireElevated } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import {
   castVote,
+  withdrawVote,
   CastVoteError,
   goneApproveRejectBody,
 } from './account-recovery/cast-vote.js'
@@ -24,6 +25,12 @@ import {
   buildAccountRecoveryCsv,
   writeBulkRevealAudit,
 } from './account-recovery/csv-export.js'
+import {
+  requestInfo,
+  cancelInfoRequest,
+  undoApprove,
+  PaActionError,
+} from './account-recovery/pa-actions.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -117,6 +124,7 @@ import {
   accountRecoveryRequestSchema,
   accountRecoveryReviewSchema,
   accountRecoveryCastVoteSchema,
+  accountRecoveryRequestInfoSchema,
   accountRecoveryCompleteSchema,
   otpVerifySchema,
   otpRequestSchema,
@@ -7242,6 +7250,126 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
       userAgent: req.get('user-agent') || null,
       isProduction,
       issueRecoveryToken,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof CastVoteError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+async function notifyAccountRecoveryApplicant({
+  recoveryCase,
+  reasonCode,
+  notes = '',
+  requestedEvidence = [],
+  canceled = false,
+  channel = 'email',
+}) {
+  const evidenceList = Array.isArray(requestedEvidence) && requestedEvidence.length
+    ? requestedEvidence.join(', ')
+    : 'additional documents'
+  const title = canceled
+    ? 'Account recovery info request canceled'
+    : 'More information needed for account recovery'
+  const body = canceled
+    ? 'A Platform Admin canceled the request for more information. Your recovery case is back in review.'
+    : `A Platform Admin requested more information (${reasonCode}). Please provide: ${evidenceList}.${notes ? ` Notes: ${notes}` : ''}`
+
+  try {
+    const notification = await createNotification({
+      userId: recoveryCase.user_id,
+      type: canceled ? 'account_recovery_info_canceled' : 'account_recovery_info_requested',
+      title,
+      body,
+      severity: 'info',
+      meta: {
+        case_id: recoveryCase.id,
+        preferred_channel: channel,
+        reason_code: reasonCode || null,
+        requested_evidence: requestedEvidence,
+        alert_channel: channel === 'whatsapp' ? 'whatsapp' : (channel === 'email' ? 'email' : 'inapp'),
+      },
+    })
+    // Preferred-channel delivery may be heavy (WhatsApp/SMS); in-app + log is enough for this agent.
+    console.info('[account-recovery] applicant notify', {
+      case_id: recoveryCase.id,
+      channel,
+      canceled: Boolean(canceled),
+      notification_id: notification?.id || null,
+    })
+    return notification
+  } catch (err) {
+    console.warn('[account-recovery] applicant notify failed (persisted on case)', err?.message || err)
+    return null
+  }
+}
+
+app.post('/api/admin/account-recovery/:caseId/request-info', authMiddleware, validate(accountRecoveryRequestInfoSchema), async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await requestInfo({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      reasonCode: req.validated.reason_code,
+      notes: req.validated.notes || '',
+      requestedEvidence: req.validated.requested_evidence,
+      notifyApplicant: notifyAccountRecoveryApplicant,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/cancel-info-request', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await cancelInfoRequest({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      notifyApplicant: notifyAccountRecoveryApplicant,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/undo-approve', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await undoApprove({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/withdraw-vote', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await withdrawVote({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
       logActivity,
     })
     return res.status(result.httpStatus).json(result.body)

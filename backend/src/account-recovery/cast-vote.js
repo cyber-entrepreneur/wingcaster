@@ -21,6 +21,10 @@ export const CAST_VOTE_ERROR = Object.freeze({
   SAME_REVIEWER: 'SAME_REVIEWER',
   VOTE_DISAGREEMENT: 'VOTE_DISAGREEMENT',
   ALREADY_ESCALATED: 'ALREADY_ESCALATED',
+  NOT_FIRST_VOTER: 'NOT_FIRST_VOTER',
+  SECOND_VOTE_CAST: 'SECOND_VOTE_CAST',
+  NO_FIRST_VOTE: 'NO_FIRST_VOTE',
+  CASE_FINALIZED: 'CASE_FINALIZED',
 })
 
 const MIGRATE_TO = 'POST /api/admin/account-recovery/:caseId/cast-vote'
@@ -716,6 +720,140 @@ export async function castVote({
       account_value_tier: tierInfo.tier,
       approval_request_id: approvalRequestId,
       message: 'Second matching reject recorded; recovery case rejected.',
+    },
+  }
+}
+
+/**
+ * First reviewer withdraws their vote before a second vote is cast.
+ * Clears first_vote fields and cancels the related fin.approval_request.
+ *
+ * @returns {Promise<{ httpStatus: number, body: object }>}
+ */
+export async function withdrawVote({
+  caseId,
+  actorId,
+  logActivity,
+} = {}) {
+  const recoveryCase = await findOne('account_recovery_cases', (c) => c.id === caseId)
+  if (!recoveryCase) {
+    throw new CastVoteError(CAST_VOTE_ERROR.NOT_FOUND, 'Recovery case not found', { httpStatus: 404 })
+  }
+
+  if (String(recoveryCase.user_id) === String(actorId)) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.OWN_CASE,
+      'Cannot withdraw a vote on your own recovery case',
+      { httpStatus: 403 },
+    )
+  }
+
+  const finalized = ['approved', 'rejected', 'completed', 'expired'].includes(recoveryCase.status)
+  if (finalized) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.CASE_FINALIZED,
+      'Cannot withdraw vote on a finalized recovery case',
+      { httpStatus: 409 },
+    )
+  }
+
+  if (recoveryCase.escalation_approval_request_id) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.ALREADY_ESCALATED,
+      'Recovery case is escalated; vote cannot be withdrawn',
+      { httpStatus: 409 },
+    )
+  }
+
+  if (!recoveryCase.first_vote_reviewer_id) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.NO_FIRST_VOTE,
+      'No first vote to withdraw',
+      { httpStatus: 400 },
+    )
+  }
+
+  if (String(recoveryCase.first_vote_reviewer_id) !== String(actorId)) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.NOT_FIRST_VOTER,
+      'Only the first reviewer can withdraw their vote',
+      { httpStatus: 403 },
+    )
+  }
+
+  if (recoveryCase.second_vote_reviewer_id || recoveryCase.second_vote) {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.SECOND_VOTE_CAST,
+      'Cannot withdraw — second vote has already been cast',
+      { httpStatus: 409 },
+    )
+  }
+
+  if (recoveryCase.status !== 'pending_review') {
+    throw new CastVoteError(
+      CAST_VOTE_ERROR.NOT_PENDING,
+      'Recovery case is not pending review',
+      { httpStatus: 400 },
+    )
+  }
+
+  const now = new Date().toISOString()
+  const approvalId = recoveryCase.approval_request_id
+
+  await transaction(async (client) => {
+    if (approvalId) {
+      await client.query(
+        `SELECT * FROM fin.approval_requests WHERE id = $1 FOR UPDATE`,
+        [approvalId],
+      )
+      // Cancel the open request; leave approval_actions for audit.
+      await client.query(
+        `UPDATE fin.approval_requests
+            SET status = 'CANCELED',
+                updated_at = $2::timestamptz,
+                updated_by_actor_id = $3
+          WHERE id = $1 AND status = 'REQUESTED'`,
+        [approvalId, now, asUuidOrNull(actorId)],
+      )
+    }
+
+    await client.query(
+      `UPDATE public.account_recovery_cases
+          SET first_vote_reviewer_id = NULL,
+              first_vote = NULL,
+              first_vote_at = NULL,
+              first_vote_notes = NULL,
+              second_vote_reviewer_id = NULL,
+              second_vote = NULL,
+              second_vote_at = NULL,
+              second_vote_notes = NULL,
+              approval_request_id = NULL,
+              updated_at = $2::timestamptz
+        WHERE id = $1`,
+      [recoveryCase.id, now],
+    )
+  })
+
+  if (typeof logActivity === 'function') {
+    await logActivity({
+      type: 'account_recovery_vote_withdrawn',
+      agent_id: recoveryCase.user_id,
+      meta: {
+        case_id: recoveryCase.id,
+        reviewer_id: actorId,
+        previous_vote: recoveryCase.first_vote,
+        previous_approval_request_id: approvalId,
+      },
+    })
+  }
+
+  return {
+    httpStatus: 200,
+    body: {
+      success: true,
+      case_id: recoveryCase.id,
+      status: 'pending_review',
+      message: 'Vote withdrawn. Case returned to pending review with no first vote recorded.',
     },
   }
 }
