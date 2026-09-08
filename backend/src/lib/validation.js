@@ -106,6 +106,31 @@ export const accountRecoveryCastVoteSchema = z.object({
   notes: z.string().max(2000).optional().default(''),
 })
 
+export const ACCOUNT_RECOVERY_INFO_REASON_CODES = [
+  'missing_government_id',
+  'selfie_required',
+  'tenancy_record_required',
+  'agency_letterhead_required',
+  'contact_unreachable',
+  'other',
+]
+
+export const ACCOUNT_RECOVERY_REQUESTED_EVIDENCE = [
+  'id_front',
+  'id_back',
+  'selfie_holding_id',
+  'tenancy_record',
+  'agency_letterhead',
+  'utility_bill',
+  'other',
+]
+
+export const accountRecoveryRequestInfoSchema = z.object({
+  reason_code: z.enum(ACCOUNT_RECOVERY_INFO_REASON_CODES),
+  notes: z.string().max(2000).optional().default(''),
+  requested_evidence: z.array(z.enum(ACCOUNT_RECOVERY_REQUESTED_EVIDENCE)).min(1).max(20),
+})
+
 export const accountRecoveryCompleteSchema = z.object({
   case_id: z.string().min(8).max(120),
   token: z.string().min(24).max(512),
