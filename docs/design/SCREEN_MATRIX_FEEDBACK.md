@@ -8,11 +8,16 @@ Running log of user feedback on the Screen Matrix docs. Not yet applied to the m
 
 | Item | Type | Owner | Deadline | Blocks |
 |---|---|---|---|---|
-| `AGT-ONB-BLOCKER-01` — WhatsApp Business number provisioning model (dedicated-per-agent vs shared-with-activation-code) | Product + Backend decision | **TBD (user to assign)** | Before AGT-ONB dispatch can start | D4 all-5-ONB ship |
+| ~~`AGT-ONB-BLOCKER-01` — WhatsApp Business number provisioning model~~ | ~~Product + Backend decision~~ | ~~TBD~~ | ~~Before AGT-ONB dispatch~~ | ~~D4 all-5-ONB ship~~ |
 | **Portal list confirmation** — top 3 portals per market for LB / KSA / AE / EG | User input | **User** | 2026-09-11 (5 business days from 2026-09-04) | AGT-PUB-005, AGT-CHN-001, PA-CFG-005, PA-MOD-001/002, `credits/features.js` registry |
-| **`conversations.source_channel` schema decomposition** — add `channel` + `source` as separate columns | Backend workstream | **TBD (user to assign)** | Before AGT-INB-005 ship | AGT-INB-001/002/005, AGN-ROU-002, AGT-CTC-002, AGT-LST-006, AGN-REP-002/003 |
+| **`conversations.source_channel` schema decomposition** | Backend workstream | **SCHEDULED via [BE-BLOCKER-04] in Wave 0.5 backend dispatch (2026-09-08)** | Before AGT-INB-005 ship | AGT-INB-001/002/005, AGN-ROU-002, AGT-CTC-002, AGT-LST-006, AGN-REP-002/003, AGT-ONB-004 |
 | **Follow-up per-entry rewrites** — Tasks #2, #3, #4, #5 | Architect (me) | Assistant | End of THIS session per D9 (a) | Any Cursor dispatch on affected screens |
 | **Path B → Path A migration** — extend `tenant_memberships.role` CHECK when time permits (post-PMF) | Backend workstream | Deferred | Post-PMF | Nothing blocking; tech debt marker |
+
+### RESOLVED items (moved out of open — Rev 2026-09-06)
+
+- **`AGT-ONB-BLOCKER-01`** — CLOSED. Model B (shared WhatsApp Business number + activation-code binding) was chosen and shipped as **PR #50 (`92b9add`)** in the 2026-09-06 session. Onboarding cluster is unblocked. Log entry retained above for traceability; no further action.
+- **Portal list draft in this log (§ 2026-09-04 "Portal list per market — draft")** — SUPERSEDED. Authoritative list is [PORTAL_LIST_RESEARCH_2026-09-04.md](PORTAL_LIST_RESEARCH_2026-09-04.md), which was Rev-2 restructured per D19 (user confirmed 2026-09-04) around Property Finder Group as the Phase-1 critical path covering 9 MENA countries. The stale draft below (§L205-229) has three ordering discrepancies vs. the research doc (UAE Zoom/Just top-3 vs. correct top-3 stop at Dubizzle; KSA Aqar-4th vs. correct Aqar-1st; Egypt Aqarmap-1st vs. correct PF-Egypt-1st). Do not use the log draft; use the research doc.
 
 ## TECH DEBT REGISTER
 

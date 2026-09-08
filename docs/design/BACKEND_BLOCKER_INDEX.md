@@ -3,7 +3,7 @@
 **Purpose:** flat, reviewable catalog of every `[BE-BLOCKER-*]`, `[BE-VERIFY-*]`, `[BE-DESIGN-*]` item surfaced during Phase-1 brief authoring (2026-09-06..08). Companion to [SCREEN_MATRIX_IMPLEMENTATION_KICKOFF.md](SCREEN_MATRIX_IMPLEMENTATION_KICKOFF.md) §5a — this doc is the reviewable index; the kickoff has the narrative.
 
 **Author:** Architect-owner
-**Rev 2 — 2026-09-08** — Week 1 BE-06/07/08/09 marked RESOLVED
+**Rev 1 — 2026-09-08**
 
 ---
 
@@ -71,26 +71,26 @@ Bundled in [CURSOR_WAVE_0_5_BACKEND_PREREQS.md](../prompts/CURSOR_WAVE_0_5_BACKE
 
 ### BE-BLOCKER-06 — Agency application route rename + schema uplift
 
-**Slot:** Week 1 · **Est:** 1 day · **Status:** RESOLVED · **Merge:** `c2cf54ce15e1ba8453cdf21bb529de36ef8471b5` (#69)
+**Slot:** Week 1 · **Est:** 1 day
 **Unblocks:** AGN-MEM-005
 **File(s):** `backend/src/server.js:7152` rename + `agency_applications` migration
 **Change:** rename `POST /api/agencies/apply` → `POST /api/agencies/:slug/applications`. Add columns: applicant_user_id, current_listings_count, portfolio_url, availability, referral_source, profile_share_consent, invitation_code, expected_response_by.
 
 ### BE-BLOCKER-07 — `agency_invitations` table + endpoints
 
-**Slot:** Week 1 · **Est:** 1-1.5 days · **Status:** RESOLVED · **Merge:** `cde78a71acadf816024ca73496aaeda613d96527` (#65)
+**Slot:** Week 1 · **Est:** 1-1.5 days
 **Unblocks:** AGN-MEM-005 shareable-link path + SHR-AUT-006 path (b) invitation-code prefill
 **File(s):** new migration + `GET /api/invitations/:code` + `POST /api/invitations/:code/accept`
 
 ### BE-BLOCKER-08 — `agencies.accepting_applications` boolean
 
-**Slot:** Week 1 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `410cba4709af596b0a98b79c9ad4a80d72fdaf5b` (#67)
+**Slot:** Week 1 · **Est:** 0.5 day
 **Unblocks:** AGN-MEM-005 (gate)
 **File(s):** migration + owner toggle exposed on AGN-SET-001
 
 ### BE-BLOCKER-09 — `agency_applications.expires_at` + 30-day auto-expire cron
 
-**Slot:** Week 1 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `4701e3be324a18d2a725ac421757da4a9a18d51a` (#66)
+**Slot:** Week 1 · **Est:** 0.5 day
 **Unblocks:** AGT-REC-004 EXPIRED state
 **File(s):** migration + cron worker
 
