@@ -47,6 +47,7 @@ import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
+import { PublishReceiptPage } from '@/pages/agent/PublishReceiptPage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -180,6 +181,7 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      <Route path="/publish/receipts/:jobId" element={<PublishReceiptPage />} />
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
