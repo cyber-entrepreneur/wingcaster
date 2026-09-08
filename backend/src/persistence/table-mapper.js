@@ -46,6 +46,13 @@ const TABLE_MAP = {
     columns: ['user_id', 'email', 'phone', 'name', 'slug', 'agency_id', 'role', 'verified', 'subscription_features', 'cta_config'],
   },
   agencies: { schema: 'public', table: 'agencies', columns: ['owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config'] },
+  agency_invitations: {
+    schema: 'public',
+    table: 'agency_invitations',
+    columns: [
+      'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
+    ],
+  },
   agency_members: {
     schema: 'public',
     table: 'agency_members',
