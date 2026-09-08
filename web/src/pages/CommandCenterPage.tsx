@@ -288,7 +288,7 @@ export function CommandCenterPage() {
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{t.author_name || 'Anonymous'}</span>
-                          <ChannelMark channel={t.source_channel} label={PLATFORM_LABEL[t.source_channel] || t.source_channel} />
+                          <ChannelMark channel={t.channel || t.source_channel} label={PLATFORM_LABEL[t.channel || t.source_channel] || t.channel || t.source_channel} />
                         </div>
                         <ConsentBadge status={t.consent_status} />
                       </div>

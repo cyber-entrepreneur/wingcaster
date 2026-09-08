@@ -186,7 +186,7 @@ const TABLE_MAP = {
   conversations: {
     schema: 'public',
     table: 'conversations',
-    columns: ['contact_id', 'contact_email', 'contact_phone', 'contact_name', 'assigned_agent_id', 'source_channel', 'visibility', 'status', 'priority', 'subject', 'last_message_at', 'last_message_preview', 'unread_count', 'is_unread_by_agent'],
+    columns: ['contact_id', 'contact_email', 'contact_phone', 'contact_name', 'assigned_agent_id', 'source_channel', 'channel', 'source', 'visibility', 'status', 'priority', 'subject', 'last_message_at', 'last_message_preview', 'unread_count', 'is_unread_by_agent'],
   },
   conversation_messages: {
     schema: 'public',

@@ -217,7 +217,10 @@ async function handleTestimonial(ctx) {
         property_id: ctx.listing?.id || null,
         content: ctx.message.content || '',
         author_name: ctx.author_name || ctx.contact?.name || '',
+        // Dual-write: keep source_channel for existing readers; also stamp channel
+        // so Command Center can dual-read during the conversations split window.
         source_channel: ctx.message.channel,
+        channel: ctx.message.channel,
         source_post_url: ctx.distribution?.landing_page || null,
         consent_status: ctx.routeConfig.consent_required ? 'pending' : 'implicit',
         published_status: 'draft',

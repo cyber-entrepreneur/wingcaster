@@ -173,7 +173,7 @@ export async function resolveListingPerformance(listingId, agentId, { days = DEF
     engagements: c.engagements,
     clicks: c.clicks,
     inquiries: c.inquiries,
-    viewings_scheduled: viewings.filter((v) => (v.source_channel || v.channel || '') === c.platform).length,
+    viewings_scheduled: viewings.filter((v) => (v.channel || v.source_channel || '') === c.platform).length,
     closes: closedTransactions.filter((t) => (t.attribution_source || '').includes(c.platform)).length,
   }))
 

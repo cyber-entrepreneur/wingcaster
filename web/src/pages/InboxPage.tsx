@@ -34,6 +34,11 @@ interface Conversation {
   contact_name: string
   contact_email: string
   contact_phone: string
+  /** Transport channel (preferred). Falls back to source_channel during migration. */
+  channel?: string
+  /** Origin marketplace / direct. */
+  source?: string
+  /** @deprecated Prefer channel; kept for dual-read during migration window. */
   source_channel: string
   status: 'open' | 'closed'
   priority: string
@@ -104,6 +109,11 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 const STATUS_COLORS: Record<string, string> = {
   open: 'bg-[var(--lc-status-published-bg)] text-[var(--lc-status-published-fg)] border-transparent',
   closed: 'bg-[var(--lc-status-archived-bg)] text-[var(--lc-status-archived-fg)] border-transparent',
+}
+
+/** Dual-read: prefer channel column, else legacy source_channel. */
+function conversationChannel(c: Pick<Conversation, 'channel' | 'source_channel'>) {
+  return c.channel || c.source_channel
 }
 
 function formatMessageTime(iso: string | null) {
@@ -401,8 +411,8 @@ export function InboxPage() {
                         </div>
                         <div className="mt-0.5 flex items-center gap-1.5">
                           <Badge variant="outline" className="h-4 gap-0.5 px-1 text-[10px]">
-                            {CHANNEL_ICONS[c.source_channel] ?? null}
-                            {CHANNEL_LABELS[c.source_channel] || c.source_channel}
+                            {CHANNEL_ICONS[conversationChannel(c)] ?? null}
+                            {CHANNEL_LABELS[conversationChannel(c)] || conversationChannel(c)}
                           </Badge>
                           <span className="truncate text-[11px] text-muted-foreground">
                             {c.last_message_preview || 'No messages'}
@@ -446,7 +456,7 @@ export function InboxPage() {
                     <Badge variant="outline" className={cn('h-4 px-1 text-[10px]', STATUS_COLORS[activeConversation.status])}>
                       {activeConversation.status}
                     </Badge>
-                    <span>{CHANNEL_LABELS[activeConversation.source_channel] || activeConversation.source_channel}</span>
+                    <span>{CHANNEL_LABELS[conversationChannel(activeConversation)] || conversationChannel(activeConversation)}</span>
                     {activeConversation.contact_phone && (
                       <span className="flex items-center gap-0.5">
                         <Phone className="h-3 w-3" />{activeConversation.contact_phone}
