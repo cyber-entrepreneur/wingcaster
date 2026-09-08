@@ -13,9 +13,15 @@
 
 import { randomUUID } from 'node:crypto'
 import { authMiddleware } from '../../auth.js'
+import { signToken } from '../../auth.js'
 import { findAll, findOne, insert, query, update } from '../../db.js'
 import { assertCanJoinAgency } from '../../platformModel.js'
-import { addAgencyMembership, getAgencyMembership } from '../../tenant-authorization.js'
+import {
+  addAgencyMembership,
+  agencyTenantId,
+  getAgencyMembership,
+} from '../../tenant-authorization.js'
+import { updateUser, findUserById, findAgentForUser } from '../../identity.js'
 import logger from '../logger.js'
 import { agencyApplicationCreateSchema, validate } from '../validation.js'
 import { agencyApplicationExpiresAt } from '../../workers/agency-application-expiry.js'
@@ -67,6 +73,107 @@ function pendingMatch({ agencyId, userId, email }) {
     if (userId && row.applicant_user_id && row.applicant_user_id === userId) return true
     if (email && row.agent_email && String(row.agent_email).toLowerCase() === email) return true
     return false
+  }
+}
+
+function applicationBelongsToCaller(row, user) {
+  if (!row || !user) return false
+  if (row.applicant_user_id && row.applicant_user_id === user.id) return true
+  const email = String(user.email || '').trim().toLowerCase()
+  if (email && row.agent_email && String(row.agent_email).toLowerCase() === email) return true
+  return false
+}
+
+function normalizeRejectedBy(row) {
+  if (row.status !== 'rejected') return null
+  if (row.rejected_by === 'applicant' || row.rejected_by_role === 'applicant') return 'applicant'
+  if (row.rejected_by === 'agency') return 'agency'
+  // Legacy: rejected_by stored the agency admin user id
+  if (row.rejected_by && row.rejected_by === row.applicant_user_id) return 'applicant'
+  if (row.rejected_by) return 'agency'
+  return 'agency'
+}
+
+function slaDaysFromRow(row) {
+  const raw = row.sla_days ?? row.data?.sla_days ?? row.data?.review_sla_days
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 3
+}
+
+async function buildApplicantOutcomePayload(appRecord) {
+  const agency = await findOne('agencies', (a) => a.id === appRecord.agency_id)
+  if (!agency) return null
+
+  const data = appRecord.data && typeof appRecord.data === 'object' ? appRecord.data : {}
+  const agencyData = agency.data && typeof agency.data === 'object' ? agency.data : {}
+  const submittedAt = appRecord.created_at || appRecord.submitted_at
+  const decidedAt =
+    appRecord.decided_at
+    || appRecord.approved_at
+    || appRecord.rejected_at
+    || data.decided_at
+    || null
+  const resolvedAt =
+    appRecord.resolved_at
+    || (appRecord.status !== 'pending' ? decidedAt : null)
+    || null
+  const viewedAt = appRecord.viewed_at || data.viewed_at || null
+  const expiresAt =
+    appRecord.expires_at
+    || agencyApplicationExpiresAt(new Date(submittedAt || Date.now()))
+
+  let resolver = null
+  const resolverId = appRecord.approved_by || (normalizeRejectedBy(appRecord) === 'agency' ? appRecord.rejected_by : null)
+  if (resolverId && resolverId !== 'agency' && resolverId !== 'applicant') {
+    const resolverUser = await findUserById(resolverId)
+    if (resolverUser) {
+      const member = await getAgencyMembership(agency.id, resolverId)
+      resolver = {
+        user_id: resolverUser.id,
+        display_name: resolverUser.name || resolverUser.email || 'Agency reviewer',
+        role_label: member?.role === 'admin' ? 'Admin' : 'Owner',
+        avatar_url: resolverUser.avatar_url || resolverUser.photo_url || null,
+      }
+    }
+  }
+  if (!resolver && data.decision_resolver) {
+    resolver = data.decision_resolver
+  }
+
+  const slug = agency.slug || agency.id
+  return {
+    application: {
+      id: appRecord.id,
+      status: appRecord.status,
+      rejected_by: normalizeRejectedBy(appRecord),
+      submitted_at: submittedAt,
+      viewed_at: viewedAt,
+      decided_at: decidedAt,
+      resolved_at: resolvedAt,
+      expires_at: expiresAt,
+      sla_days: slaDaysFromRow(appRecord),
+    },
+    agency: {
+      tenant_id: agencyTenantId(agency.id),
+      slug,
+      display_name: agency.name,
+      logo_url: agency.logo_url || agencyData.logo_url || null,
+      primary_market_label:
+        agency.primary_market_label
+        || agencyData.primary_market_label
+        || agencyData.market_label
+        || null,
+      suspended_at: agency.suspended_at || agencyData.suspended_at || null,
+      deleted_at: agency.deleted_at || agencyData.deleted_at || null,
+      public_profile_url: `/agencies/${slug}`,
+    },
+    decision: {
+      resolver,
+      message: data.decision_message ?? data.resolver_message ?? appRecord.decision_message ?? null,
+      role_offered: appRecord.approved_role || data.role_offered || null,
+      capability_pack: data.capability_pack || (appRecord.status === 'approved' ? 'standard' : null),
+      affiliation_mode: appRecord.affiliation_mode || data.affiliation_mode || null,
+    },
   }
 }
 
@@ -289,6 +396,120 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
       }
 
       return res.json({ success: true })
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  // ── Applicant-facing outcome surface (AGT-REC-004) ─────────────────────────
+  // Scoped to caller's user_id — other users' applications return 404 (not 403).
+
+  app.get('/api/users/me/agency-applications/:id', auth, async (req, res, next) => {
+    try {
+      const appRecord = await findOne('agency_applications', (a) => a.id === req.params.id)
+      if (!appRecord || !applicationBelongsToCaller(appRecord, req.user)) {
+        return res.status(404).json({ error: 'Not found' })
+      }
+      const payload = await buildApplicantOutcomePayload(appRecord)
+      if (!payload) return res.status(404).json({ error: 'Not found' })
+      return res.json(payload)
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  app.post('/api/users/me/agency-applications/:id/accept', auth, async (req, res, next) => {
+    try {
+      const appRecord = await findOne('agency_applications', (a) => a.id === req.params.id)
+      if (!appRecord || !applicationBelongsToCaller(appRecord, req.user)) {
+        return res.status(404).json({ error: 'Not found' })
+      }
+      if (appRecord.status !== 'approved') {
+        return res.status(409).json({ error: 'Application is not awaiting acceptance' })
+      }
+
+      const tenantId = agencyTenantId(appRecord.agency_id)
+      await updateUser(req.user.id, { active_tenant_id: tenantId })
+      const user = await findUserById(req.user.id)
+      const agent = await findAgentForUser(req.user.id)
+      const token = signToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        token_version: user.token_version || 0,
+        verified_at: user.verified_at || null,
+        active_tenant_id: tenantId,
+      })
+
+      const payload = await buildApplicantOutcomePayload(appRecord)
+      return res.json({
+        success: true,
+        application: payload?.application,
+        token,
+        active_tenant_id: tenantId,
+        activeTenantId: tenantId,
+        agent: agent || undefined,
+      })
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  app.post('/api/users/me/agency-applications/:id/decline', auth, async (req, res, next) => {
+    try {
+      const appRecord = await findOne('agency_applications', (a) => a.id === req.params.id)
+      if (!appRecord || !applicationBelongsToCaller(appRecord, req.user)) {
+        return res.status(404).json({ error: 'Not found' })
+      }
+      if (appRecord.status !== 'approved') {
+        return res.status(409).json({ error: 'Only an approved offer can be declined' })
+      }
+      const now = new Date().toISOString()
+      const updated = await update(
+        'agency_applications',
+        (a) => a.id === appRecord.id,
+        (a) => ({
+          ...a,
+          status: 'rejected',
+          rejected_at: now,
+          rejected_by: 'applicant',
+          decided_at: now,
+          resolved_at: now,
+          data: {
+            ...(a.data && typeof a.data === 'object' ? a.data : {}),
+            rejected_by_role: 'applicant',
+          },
+        }),
+      )
+      const payload = updated ? await buildApplicantOutcomePayload(updated) : null
+      return res.json({ success: true, application: payload?.application })
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  app.post('/api/users/me/agency-applications/:id/withdraw', auth, async (req, res, next) => {
+    try {
+      const appRecord = await findOne('agency_applications', (a) => a.id === req.params.id)
+      if (!appRecord || !applicationBelongsToCaller(appRecord, req.user)) {
+        return res.status(404).json({ error: 'Not found' })
+      }
+      if (appRecord.status !== 'pending') {
+        return res.status(409).json({ error: 'Only a pending application can be withdrawn' })
+      }
+      const now = new Date().toISOString()
+      const updated = await update(
+        'agency_applications',
+        (a) => a.id === appRecord.id,
+        (a) => ({
+          ...a,
+          status: 'withdrawn',
+          decided_at: now,
+          resolved_at: now,
+        }),
+      )
+      const payload = updated ? await buildApplicantOutcomePayload(updated) : null
+      return res.json({ success: true, application: payload?.application })
     } catch (err) {
       return next(err)
     }

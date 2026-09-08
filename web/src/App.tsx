@@ -44,6 +44,7 @@ import { TemplateEditPage as PlatformTemplateEditPage } from '@/pages/admin/plat
 import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/AdminWhatsAppListingsPage'
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
+import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -104,6 +105,10 @@ function AppRoutes() {
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />

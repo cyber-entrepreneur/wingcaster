@@ -1,4 +1,5 @@
 import { Numeric } from '@/components/ui/numeric'
+import { formatAbsoluteTimestamp } from './formatRelativeAbsolute'
 
 /**
  * One node on the REC-family outcome timeline rail.
@@ -10,8 +11,13 @@ export type OutcomeTimelineEvent = {
   key: string
   /** e.g. "Submitted", "Viewed by agency", "Decided". */
   label: string
-  /** ISO 8601; omit → "Pending" muted. */
+  /** ISO 8601; omit → emptyLabel / "Pending" muted. */
   timestamp?: string
+  /**
+   * Muted copy when `timestamp` is absent (e.g. "Not yet viewed", "Awaiting decision").
+   * Defaults to "Pending".
+   */
+  emptyLabel?: string
   state: 'complete' | 'current' | 'pending' | 'skipped'
 }
 
@@ -26,18 +32,7 @@ export type OutcomeTimelineEvent = {
 export type OutcomeTimelineProps = {
   /** Ordered top → bottom. */
   events: OutcomeTimelineEvent[]
-}
-
-function formatTimestampStub(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  className?: string
 }
 
 function Dot({ state }: { state: OutcomeTimelineEvent['state'] }) {
@@ -86,7 +81,7 @@ function ruleColorBetween(
   return 'var(--lc-border)'
 }
 
-export function OutcomeTimeline({ events }: OutcomeTimelineProps) {
+export function OutcomeTimeline({ events, className }: OutcomeTimelineProps) {
   return (
     <>
       <style>{`
@@ -101,7 +96,9 @@ export function OutcomeTimeline({ events }: OutcomeTimelineProps) {
           .lc-rec-signal-dot { animation: none; }
         }
       `}</style>
-      <ol className="relative ms-[var(--lc-space-md)] list-none p-0 pe-[var(--lc-space-md)] ps-0">
+      <ol
+        className={`relative ms-[var(--lc-space-md)] list-none p-0 pe-[var(--lc-space-md)] ps-0${className ? ` ${className}` : ''}`}
+      >
         {events.map((event, index) => {
           const isLast = index === events.length - 1
           const next = events[index + 1]
@@ -114,6 +111,7 @@ export function OutcomeTimeline({ events }: OutcomeTimelineProps) {
               key={event.key}
               className="relative flex min-h-[var(--lc-space-2xl)] gap-[var(--lc-space-md)] pb-[var(--lc-space-md)] last:pb-0"
               aria-current={event.state === 'current' ? 'step' : undefined}
+              data-rec-timeline-state={event.state}
             >
               <div className="relative flex w-3 shrink-0 flex-col items-center">
                 <Dot state={event.state} />
@@ -137,14 +135,14 @@ export function OutcomeTimeline({ events }: OutcomeTimelineProps) {
                     className="mt-0.5 block text-[var(--lc-text-muted)]"
                     style={{ font: 'var(--lc-type-caption)' }}
                   >
-                    {formatTimestampStub(event.timestamp)}
+                    {formatAbsoluteTimestamp(event.timestamp)}
                   </Numeric>
                 ) : (
                   <p
                     className="mt-0.5 text-[var(--lc-text-muted)]"
                     style={{ font: 'var(--lc-type-caption)' }}
                   >
-                    Pending
+                    {event.emptyLabel ?? 'Pending'}
                   </p>
                 )}
               </div>
