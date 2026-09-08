@@ -78,6 +78,10 @@ export async function withCredits(opts = {}, workFn) {
     work: namedWork,
     skipMetering = false,
     consumeOnFailure = null,
+    countryCode = null,
+    portal = null,
+    eventType = null,
+    meterData = null,
   } = opts
   const work = workFn || namedWork
   if (typeof work !== 'function') {
@@ -115,6 +119,18 @@ export async function withCredits(opts = {}, workFn) {
       feature,
       relatedEntityId: relatedEntityId || requestId,
     })
+    const data = {
+      feature,
+      call_type: callType,
+      related_entity_id: relatedEntityId,
+      related_entity_type: relatedEntityType,
+      cost_estimate_micro_usd: actualCostMicroUsd,
+    }
+    // PORTAL_LIST_RESEARCH Option 2 — one feature code per portal; country on payload.
+    if (countryCode) data.country_code = String(countryCode).toUpperCase()
+    if (portal) data.portal = String(portal)
+    if (eventType) data.event_type = String(eventType)
+    if (meterData && typeof meterData === 'object') Object.assign(data, meterData)
     await consume({
       tenantId,
       feature,
@@ -124,13 +140,7 @@ export async function withCredits(opts = {}, workFn) {
       actualCostMicroUsd,
       relatedEntityType,
       relatedEntityId,
-      data: {
-        feature,
-        call_type: callType,
-        related_entity_id: relatedEntityId,
-        related_entity_type: relatedEntityType,
-        cost_estimate_micro_usd: actualCostMicroUsd,
-      },
+      data,
     })
   }
 
