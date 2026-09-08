@@ -63,6 +63,7 @@ import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
 import { PublicAgentPortfolioPage } from '@/pages/PublicAgentPortfolioPage'
 import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
 import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPage'
+import { PublicAgencyApplyPage } from '@/pages/PublicAgencyApplyPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { PlansPage } from '@/pages/PlansPage'
@@ -81,6 +82,8 @@ const BARE_CHROME_PREFIXES = [
   '/register',
   '/site/',
   '/public/',
+  '/agencies/',
+  '/join/',
   '/terms',
   '/privacy',
 ] as const
@@ -174,6 +177,8 @@ function AppRoutes() {
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
+      <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />

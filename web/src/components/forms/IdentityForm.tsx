@@ -77,6 +77,13 @@ export type IdentityFormProps = {
   privacy_href?: string
   /** Hide the Continue button when parent renders it outside (rare). */
   hideSubmit?: boolean
+  /**
+   * When true, render fields without a wrapping `<form>` so AGN-MEM-005 can
+   * nest the compact guest block inside the application form (additive).
+   */
+  embedded?: boolean
+  /** Auto-focus the first field (compact: “Your name”). */
+  autoFocusFirst?: boolean
   /** SHR-AUT-006 copy locale; defaults to English when used outside RegisterPage. */
   locale?: RegisterLocale
   className?: string
@@ -248,6 +255,8 @@ export function IdentityForm({
   terms_href = '/terms',
   privacy_href = '/privacy',
   hideSubmit = false,
+  embedded = false,
+  autoFocusFirst = false,
   locale = 'en',
   className,
 }: IdentityFormProps) {
@@ -304,6 +313,10 @@ export function IdentityForm({
       : fieldErrors?.password
 
   const dial = values.phone_dial || '+971'
+  const Root = embedded ? 'div' : 'form'
+  const rootProps = embedded
+    ? {}
+    : { onSubmit: handleSubmit, noValidate: true as const }
 
   const identifierField =
     variant === 'compact'
@@ -375,12 +388,11 @@ export function IdentityForm({
             }
 
   return (
-    <form
+    <Root
       className={cn('flex flex-col gap-[var(--lc-space-md)]', className)}
-      onSubmit={handleSubmit}
-      noValidate
       data-testid="identity-form"
       data-variant={variant}
+      {...rootProps}
     >
       {variant === 'compact' ? (
         <div className="flex flex-col gap-[var(--lc-space-sm)]">
@@ -393,6 +405,7 @@ export function IdentityForm({
               placeholder="Your name"
               value={values.display_name}
               disabled={locked}
+              autoFocus={autoFocusFirst}
               aria-invalid={Boolean(fieldErrors?.display_name)}
               onChange={(e) => patch({ display_name: e.target.value })}
             />
@@ -674,7 +687,7 @@ export function IdentityForm({
           )}
         </Button>
       ) : null}
-    </form>
+    </Root>
   )
 }
 

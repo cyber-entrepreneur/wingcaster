@@ -272,7 +272,7 @@ async function fetchJson(path: string, options?: RequestInit) {
       url,
     }
     const error = new Error((err as any).error || `HTTP ${res.status}`) as Error & Record<string, unknown>
-    Object.assign(error, err as Record<string, unknown>)
+    Object.assign(error, err as Record<string, unknown>, { status: res.status, url })
     throw error
   }
 
@@ -339,6 +339,11 @@ export const api = {
 
   // Agencies
   searchAgencies: (q: string) => fetchJson(`/agencies/search?q=${encodeURIComponent(q)}`),
+  /**
+   * Legacy body-only apply — retired on the server (410). Prefer
+   * {@link api.applyToAgencyBySlug}. Kept for AgentRegisterPage until Wave 1
+   * signup lands.
+   */
   applyToAgency: (agencyId: string, data: Record<string, string>) =>
     fetchJson('/agencies/apply', { method: 'POST', body: JSON.stringify({ agency_id: agencyId, ...data }) }),
   /** AGT-REC-004 — applicant-scoped outcome payload (404 if not caller’s). */
@@ -358,6 +363,26 @@ export const api = {
     fetchJson(`/users/me/agency-applications/${encodeURIComponent(applicationId)}/withdraw`, {
       method: 'POST',
       body: '{}',
+    }),
+  /** AGN-MEM-005 — public card for apply / invite landing (id or slug). */
+  getAgencyPublic: (slugOrId: string) =>
+    fetchJson(`/agencies/${encodeURIComponent(slugOrId)}/public`),
+  /** AGN-MEM-005 — POST /api/agencies/:slug/applications (auth or guest_signup). */
+  applyToAgencyBySlug: (slug: string, body: Record<string, unknown>, init?: RequestInit) =>
+    fetchJson(`/agencies/${encodeURIComponent(slug)}/applications`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...init,
+    }),
+  /** AGN-MEM-005 — GET /api/invitations/:code (public resolve). */
+  resolveInvitation: (code: string) =>
+    fetchJson(`/invitations/${encodeURIComponent(code)}`),
+  /** AGN-MEM-005 — POST /api/invitations/:code/accept (auth or guest_signup). */
+  acceptInvitation: (code: string, body: Record<string, unknown>, init?: RequestInit) =>
+    fetchJson(`/invitations/${encodeURIComponent(code)}/accept`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...init,
     }),
   createAgency: (data: Record<string, unknown>) =>
     fetchJson('/agencies', { method: 'POST', body: JSON.stringify(data) }),
