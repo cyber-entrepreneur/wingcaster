@@ -43,6 +43,9 @@ export async function createAgentAccount({ user, agent, agency = null }) {
   await transaction(async (client) => {
     await assertNoPriorClaim({ ...claimIdentity, client })
 
+    // Insert user with active_tenant_id NULL first — the FK references tenants(id),
+    // and the personal tenant is created below. Setting the pointer before the
+    // tenant row exists violates users_active_tenant_id_fkey (Wave 0 nav prefs).
     await client.query(
       `INSERT INTO users (
         id, email, phone, name, password_hash, role, platform_role, verified, verified_at,
@@ -50,8 +53,8 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         created_at, updated_at, data
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz,
-        $10, COALESCE($11, 'en'), $12,
-        $13::timestamptz, $14::timestamptz, $15::jsonb
+        $10, COALESCE($11, 'en'), NULL,
+        $12::timestamptz, $13::timestamptz, $14::jsonb
       )`,
       [
         principal.id,
@@ -65,7 +68,6 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         principal.verified_at || null,
         principal.username || claimIdentity.username || null,
         principal.preferred_locale || 'en',
-        principal.active_tenant_id || `personal:${principal.id}`,
         principal.created_at,
         principal.updated_at,
         JSON.stringify(principal),
@@ -143,6 +145,10 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         principal.updated_at,
         JSON.stringify(tenant),
       ],
+    )
+    await client.query(
+      `UPDATE users SET active_tenant_id = $2 WHERE id = $1`,
+      [principal.id, principal.active_tenant_id || tenantId],
     )
     await client.query(
       `INSERT INTO tenant_memberships (
