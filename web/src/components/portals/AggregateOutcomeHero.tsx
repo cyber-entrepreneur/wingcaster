@@ -9,9 +9,9 @@ import { Numeric } from '@/components/ui/numeric'
  * Used by: AGT-PUB-003 (publish outcome / receipt).
  *
  * Adapter around REC-family `<StatusHero>` semantics + a 3-pill counter row.
- * Self-contained stub — does NOT import `recipient/` during shared-components
- * prep (avoids cross-agent race). Downstream waves may recompose onto
- * `<StatusHero>` once both families are merged.
+ * Surfaces follow AGT-PUB-003 §Broadcast callouts (ALL_SUCCEEDED loud orange;
+ * MIXED/PARTIAL warning rail; ALL_FAILED closed rail; IN_REVIEW_ONLY accent-bold).
+ * `emphasis="loud"` is legal ONLY when `aggregate === 'all_succeeded'`.
  */
 export type AggregateOutcome =
   | 'all_succeeded'
