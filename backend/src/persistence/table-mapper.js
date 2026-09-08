@@ -312,6 +312,14 @@ const TABLE_MAP = {
       'account_value_tier', 'requires_two_person',
     ],
   },
+  account_recovery_evidence_files: {
+    schema: 'public',
+    table: 'account_recovery_evidence_files',
+    columns: [
+      'case_id', 'filename', 'content_type', 'size_bytes', 'storage_key',
+      'uploaded_at', 'uploaded_by_kind',
+    ],
+  },
   otp_verifications: { schema: 'public', table: 'otp_verifications', columns: ['user_id', 'channel', 'value_hash', 'code_hash', 'expires_at', 'verified', 'attempts', 'last_attempt_at', 'locked_at'] },
 
   // Profile / reviews
