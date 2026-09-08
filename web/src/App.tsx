@@ -68,6 +68,7 @@ import { MySubscriptionPage } from '@/pages/MySubscriptionPage'
 import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
+import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
 
 function AppShell() {
   const location = useLocation()
@@ -156,6 +157,9 @@ function AppShell() {
           <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          {import.meta.env.DEV ? (
+            <Route path="/dev/components" element={<ComponentInventoryPage />} />
+          ) : null}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
