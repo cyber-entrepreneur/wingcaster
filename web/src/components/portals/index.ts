@@ -12,7 +12,6 @@
 
 export { PortalReceiptCard } from './PortalReceiptCard'
 export type {
-  PortalErrorClass,
   PortalReceiptCardProps,
   PortalReceiptDestination,
   PortalReceiptTimelineEvent,
@@ -26,6 +25,20 @@ export type {
 
 export { CreditsSummary } from './CreditsSummary'
 export type { CreditsSummaryProps } from './CreditsSummary'
+
+export {
+  BULK_RETRYABLE_ERROR_CLASSES,
+  ERROR_CLASS_FIX_COPY,
+  ERROR_CLASS_HELPER,
+  ERROR_CLASS_ICON,
+  ERROR_CLASS_LABEL,
+  ERROR_CLASS_SECONDARY_FIX,
+  PORTAL_ERROR_CLASSES,
+  defaultFixDeepLink,
+  isBulkRetryable,
+  isPortalErrorClass,
+} from './failureClasses'
+export type { PortalErrorClass } from './failureClasses'
 
 export {
   PortalStatusPill,

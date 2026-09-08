@@ -1,3 +1,4 @@
+import { useId, useState } from 'react'
 import { Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Numeric } from '@/components/ui/numeric'
@@ -41,6 +42,8 @@ export function CreditsSummary({
 }: CreditsSummaryProps) {
   const released = Math.max(0, total_reserved - total_charged)
   const showRelease = total_charged < total_reserved
+  const tipId = useId()
+  const [tipOpen, setTipOpen] = useState(false)
 
   return (
     <section
@@ -52,7 +55,7 @@ export function CreditsSummary({
         className,
       )}
     >
-      <div className="min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1">
         <div className="flex items-start justify-between gap-[var(--lc-space-sm)]">
           <div>
             <p
@@ -76,12 +79,43 @@ export function CreditsSummary({
               'rounded-[var(--lc-radius-md)] text-[var(--lc-text-muted)]',
               'hover:bg-[var(--lc-surface-raised)] hover:text-[var(--lc-text-primary)]',
             )}
-            title={`${TOOLTIP_TITLE}. ${TOOLTIP_BODY}`}
             aria-label={TOOLTIP_TITLE}
+            aria-expanded={tipOpen}
+            aria-controls={tipId}
+            onClick={() => setTipOpen((v) => !v)}
+            onBlur={(e) => {
+              if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) {
+                setTipOpen(false)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setTipOpen(false)
+            }}
           >
             <Info className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
+
+        {tipOpen ? (
+          <div
+            id={tipId}
+            role="tooltip"
+            className={cn(
+              'absolute end-0 top-[calc(100%+var(--lc-space-2xs))] z-10',
+              'max-w-xs rounded-[var(--lc-radius-lg)] p-[var(--lc-space-md)]',
+              'bg-[var(--lc-surface-raised)] text-[var(--lc-text-primary)]',
+              'shadow-[var(--lc-elevation-md)] border border-[var(--lc-border)]',
+            )}
+          >
+            <p style={{ font: 'var(--lc-type-heading-3)' }}>{TOOLTIP_TITLE}</p>
+            <p
+              className="mt-[var(--lc-space-2xs)] text-[var(--lc-text-secondary)]"
+              style={{ font: 'var(--lc-type-body-sm)' }}
+            >
+              {TOOLTIP_BODY}
+            </p>
+          </div>
+        ) : null}
 
         {showRelease ? (
           <p
@@ -108,7 +142,7 @@ export function CreditsSummary({
       <a
         href={credits_history_deep_link}
         className={cn(
-          'mt-[var(--lc-space-md)] inline-flex text-[var(--lc-text-brand)]',
+          'mt-[var(--lc-space-md)] inline-flex min-h-tap items-center text-[var(--lc-text-brand)]',
           'underline-offset-4 hover:underline',
           variant === 'horizontal' && 'md:mt-0 md:shrink-0',
         )}
