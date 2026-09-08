@@ -1,7 +1,7 @@
 -- BE-BLOCKER-05 / Wave 0.5 Agent 3 — agency free-tier package seed.
 -- Mirrors 304_packages_free_tier_seed.sql for target_audience='agency'.
--- Used when an agency owner registers a new agency (path c): createAgencyWithOwner
--- provisions a PENDING_START/ACTIVE subscription at this version.
+-- Path (c) agency owner signup (POST /api/auth/register agency_mode=new and
+-- POST /api/agencies) provisions a PENDING_START/ACTIVE subscription at this version.
 --
 -- Zero metered quotas. Gate-lifted flags match agent free-tier baseline:
 -- CRM contacts/tasks/opportunities and listing CRUD.

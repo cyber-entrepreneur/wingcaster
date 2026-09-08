@@ -10,7 +10,7 @@
 import { CREDIT_ERROR, CreditEngineError } from '../credits/errors.js'
 import { lookupFinTenantId, syntheticTenantId, ensureWallet } from '../credits/wallets.js'
 import { startSubscription } from './lifecycle.js'
-import { getFreeTierPackage } from './registry.js'
+import { freeTierAudienceForScope, getFreeTierPackage } from './registry.js'
 
 const OPEN_STATUSES = ['PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END']
 
@@ -23,8 +23,7 @@ export async function provisionFreeTier(client, {
   if (!scope || !scopeId) {
     throw new CreditEngineError(CREDIT_ERROR.INVALID_AMOUNT, 'scope and scopeId are required for free-tier provisioning')
   }
-  // path (c) agency owner signup → agency free-tier; personal/agent → free-agent
-  const audience = scope === 'agency' ? 'agency' : 'agent'
+  const audience = freeTierAudienceForScope(scope)
   const free = await getFreeTierPackage(client, { audience })
   if (!free?.version_id) {
     throw new CreditEngineError(
