@@ -151,6 +151,7 @@ import {
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
+import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -668,6 +669,7 @@ registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
 registerSettingsIndexRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
+registerAgencyOnboardingStateRoutes(app)
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
