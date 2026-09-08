@@ -207,5 +207,14 @@ export {
   goneReviewBody,
   WF05_DECISION_STATUS,
   COMPARABLE_REMOVE_ACTION_KIND,
+  buildDecisionSnapshot,
+  summarizeReport,
+  OPEN_DECISION_STATUSES,
+  DECIDED_STATUSES,
+  UNDO_GRACE_MS,
+  REPORT_ERROR,
+  DECISION_ERROR,
+  REJECT_REASON_CODES,
+  REQUEST_INFO_REASON_CODES,
 } from './application/comparable-report-decisions.js'
 

@@ -4,6 +4,10 @@
  * Replaces the generic POST .../review tri-state with four decision endpoints.
  * High market-impact confirm-remove records REMOVE_PROPOSED via fin.approval_requests
  * and defers tombstone + recalculation until second approval.
+ *
+ * Agent 6 (bulk / undo / affected-valuations) should import shared helpers from this
+ * module (`buildDecisionSnapshot`, `OPEN_DECISION_STATUSES`, `UNDO_GRACE_MS`, …).
+ * Single-row confirm-remove / quarantine / reject / request-info live here as SoT.
  */
 
 import { randomUUID, createHash } from 'node:crypto'
@@ -40,7 +44,33 @@ export const DECISION_ERROR = Object.freeze({
   INVALID_INPUT: 'INVALID_INPUT',
   STEP_UP_REQUIRED: 'STEP_UP_REQUIRED',
   ENV_REQUIRED: 'ENV_REQUIRED',
+  RECALC_COMMITTED: 'RECALC_COMMITTED',
+  UNDO_WINDOW_EXPIRED: 'UNDO_WINDOW_EXPIRED',
+  NO_DECISION: 'NO_DECISION',
 })
+
+/** Alias for Agent 6 bulk/undo imports (PR #92). */
+export const REPORT_ERROR = DECISION_ERROR
+
+/** 5s queue-family undo grace (PA-MOD-001 / BE-CMR-09). */
+export const UNDO_GRACE_MS = 5_000
+
+/** Statuses that still accept PA decisions (single + bulk). */
+export const OPEN_DECISION_STATUSES = new Set(['pending'])
+
+/** Terminal / in-flight decision statuses (cannot decide again). */
+export const DECIDED_STATUSES = new Set([
+  WF05_DECISION_STATUS.CONFIRMED_REMOVED,
+  WF05_DECISION_STATUS.CONFIRMED_QUARANTINED,
+  WF05_DECISION_STATUS.REJECTED,
+  WF05_DECISION_STATUS.AWAITING_INFO,
+  WF05_DECISION_STATUS.EXPIRED,
+  WF05_DECISION_STATUS.REMOVE_PROPOSED,
+  // legacy /review statuses
+  'reviewed',
+  'dismissed',
+  'actioned',
+])
 
 export const REJECT_REASON_CODES = Object.freeze([
   'comparable_correct',
@@ -59,6 +89,64 @@ export const REQUEST_INFO_REASON_CODES = Object.freeze([
   'need_price_evidence',
   'other',
 ])
+
+/**
+ * Undo-compatible decision snapshot stored under `report.data.decision`.
+ * Shared with Agent 6 undo / bulk so merge can keep one writer.
+ */
+export function buildDecisionSnapshot(report, {
+  action,
+  reason_code = null,
+  notes = null,
+  requested_evidence = null,
+  actorId,
+  decidedAt,
+  recalc_job_id = null,
+  extra = {},
+} = {}) {
+  return {
+    action,
+    reason_code,
+    notes,
+    requested_evidence: Array.isArray(requested_evidence) ? requested_evidence : null,
+    previous_status: report.status,
+    previous_notes: report.notes ?? report.decision_notes ?? null,
+    previous_reviewed_by: report.reviewed_by ?? null,
+    previous_reviewed_at: report.reviewed_at ?? null,
+    previous_data: { ...(report.data || {}) },
+    decided_by: actorId,
+    decided_at: decidedAt,
+    recalc_job_id,
+    ...extra,
+  }
+}
+
+export function summarizeReport(report) {
+  const decision = report?.data?.decision && typeof report.data.decision === 'object'
+    ? report.data.decision
+    : null
+  return {
+    id: report.id,
+    status: report.status,
+    reason_code: decision?.reason_code || report.decision_reason_code || null,
+    notes: report.notes ?? report.decision_notes ?? null,
+    reviewed_by: report.reviewed_by ?? null,
+    reviewed_at: report.reviewed_at ?? null,
+    requested_evidence: decision?.requested_evidence
+      || report.requested_evidence
+      || null,
+  }
+}
+
+export function decisionError(code, message, httpStatus) {
+  const status = httpStatus
+    || (code === DECISION_ERROR.NOT_FOUND ? 404
+      : code === DECISION_ERROR.OWN_CASE ? 403
+        : code === DECISION_ERROR.INVALID_INPUT || code === DECISION_ERROR.ENV_REQUIRED ? 400
+          : code === DECISION_ERROR.STEP_UP_REQUIRED ? 401
+            : 409)
+  return new DecisionError(code, message || code, { httpStatus: status })
+}
 
 const MIGRATE_TO_ENDPOINTS = [
   'POST /api/admin/pricing/reports/:reportId/confirm-remove',
@@ -496,13 +584,19 @@ export function createComparableReportDecisionService({
         reviewed_at: nowIso(),
         approval_request_id: approval.id,
         data: {
-          decision: 'REMOVE_PROPOSED',
-          decision_at: nowIso(),
-          decision_by: req.user.id,
-          env,
-          market_impact: marketImpact,
-          approval_request_id: approval.id,
-          recalc_deferred: true,
+          decision: buildDecisionSnapshot(report, {
+            action: 'remove_proposed',
+            notes: notes ?? null,
+            actorId: req.user.id,
+            decidedAt: nowIso(),
+            extra: {
+              env,
+              market_impact: marketImpact,
+              approval_request_id: approval.id,
+              recalc_deferred: true,
+              decision_label: 'REMOVE_PROPOSED',
+            },
+          }),
         },
       })
       await writeDecisionAudit({
@@ -552,13 +646,20 @@ export function createComparableReportDecisionService({
       reviewed_by: req.user.id,
       reviewed_at: nowIso(),
       data: {
-        decision: 'CONFIRM_REMOVE',
-        decision_at: nowIso(),
-        decision_by: req.user.id,
-        env,
-        market_impact: marketImpact,
-        tombstone,
-        recalculation_job_ids: jobs.map((j) => j.id),
+        decision: buildDecisionSnapshot(report, {
+          action: 'confirm_remove',
+          notes: notes ?? null,
+          actorId: req.user.id,
+          decidedAt: nowIso(),
+          recalc_job_id: jobs[0]?.id || null,
+          extra: {
+            env,
+            market_impact: marketImpact,
+            tombstone,
+            recalculation_job_ids: jobs.map((j) => j.id),
+            decision_label: 'CONFIRM_REMOVE',
+          },
+        }),
       },
     })
     await writeDecisionAudit({
@@ -633,13 +734,19 @@ export function createComparableReportDecisionService({
       reviewed_by: req.user.id,
       reviewed_at: nowIso(),
       data: {
-        decision: 'CONFIRM_QUARANTINE',
-        decision_at: nowIso(),
-        decision_by: req.user.id,
-        env,
-        quarantine_hours: hours,
-        quarantine_until: quarantineUntil,
-        tombstone,
+        decision: buildDecisionSnapshot(report, {
+          action: 'confirm_quarantine',
+          notes: notes ?? null,
+          actorId: req.user.id,
+          decidedAt: nowIso(),
+          extra: {
+            env,
+            quarantine_hours: hours,
+            quarantine_until: quarantineUntil,
+            tombstone,
+            decision_label: 'CONFIRM_QUARANTINE',
+          },
+        }),
       },
     })
     await writeDecisionAudit({
@@ -695,11 +802,14 @@ export function createComparableReportDecisionService({
       reviewed_by: req.user.id,
       reviewed_at: nowIso(),
       data: {
-        decision: 'REJECT_AS_INVALID',
-        decision_at: nowIso(),
-        decision_by: req.user.id,
-        env,
-        reason_code: code,
+        decision: buildDecisionSnapshot(report, {
+          action: 'reject_as_invalid',
+          reason_code: code,
+          notes: String(notes).trim(),
+          actorId: req.user.id,
+          decidedAt: nowIso(),
+          extra: { env, decision_label: 'REJECT_AS_INVALID' },
+        }),
       },
     })
     await writeDecisionAudit({
@@ -758,12 +868,15 @@ export function createComparableReportDecisionService({
       reviewed_by: req.user.id,
       reviewed_at: nowIso(),
       data: {
-        decision: 'REQUEST_INFO',
-        decision_at: nowIso(),
-        decision_by: req.user.id,
-        env,
-        reason_code: code,
-        requested_evidence: evidence,
+        decision: buildDecisionSnapshot(report, {
+          action: 'request_info',
+          reason_code: code,
+          notes: String(notes).trim(),
+          requested_evidence: evidence,
+          actorId: req.user.id,
+          decidedAt: nowIso(),
+          extra: { env, decision_label: 'REQUEST_INFO' },
+        }),
       },
     })
     await writeDecisionAudit({
@@ -791,10 +904,45 @@ export function createComparableReportDecisionService({
 
   return {
     detectIsOwn,
+    isOwnCase: detectIsOwn,
     confirmRemove,
     confirmQuarantine,
     rejectAsInvalid,
     requestInfo,
+    // Agent 6 bulk/undo shared entry points (same writers as single-row routes)
+    applyRejectAsInvalid: async (report, { reason_code, notes, actorId, req }) => {
+      const syntheticReq = req || {
+        user: { id: actorId, env: 'live' },
+        get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
+        headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
+        sessionEnv: 'live',
+      }
+      return rejectAsInvalid({
+        req: syntheticReq,
+        reportId: report.id,
+        reasonCode: reason_code,
+        notes,
+      })
+    },
+    applyRequestInfo: async (report, {
+      reason_code, notes, requested_evidence = [], actorId, req,
+    }) => {
+      const syntheticReq = req || {
+        user: { id: actorId, env: 'live' },
+        get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
+        headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
+        sessionEnv: 'live',
+      }
+      return requestInfo({
+        req: syntheticReq,
+        reportId: report.id,
+        reasonCode: reason_code,
+        notes,
+        requestedEvidence: requested_evidence,
+      })
+    },
+    buildDecisionSnapshot,
+    summarizeReport,
     tombstoneComparable,
     enqueueRecalcForProperties,
   }
