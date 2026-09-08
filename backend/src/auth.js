@@ -177,6 +177,10 @@ export async function authMiddleware(req, res, next) {
     name: user.name,
     role: user.role || 'agent',
     platform_role: user.platform_role || null,
+    // PA-NAV-001 / fin admin session env (LIVE|TEST). Prefer DB-backed values
+    // over any claim that might have been stuffed into the JWT.
+    fin_environment: user.fin_environment || user.environment || decoded.fin_environment || null,
+    environment: user.environment || user.fin_environment || decoded.environment || null,
   }
   req.agent = agent
   next()
