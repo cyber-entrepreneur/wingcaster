@@ -1,5 +1,6 @@
 import { authMiddleware } from '../../../auth.js'
 import { assertOwnsProperty, NotFoundError } from '../../../lib/authz.js'
+import { reportExpiresAt } from '../../../workers/report-expiry-worker.js'
 
 export function registerPublicRoutes(app, services) {
   const { analysisService, comparableService, trendService, configService, dal, logger } = services
@@ -64,6 +65,7 @@ export function registerPublicRoutes(app, services) {
       if (!['fake_listing', 'incorrect_price', 'already_sold', 'wrong_details', 'other'].includes(reason)) {
         return res.status(400).json({ error: 'Invalid report reason' })
       }
+      const createdAt = new Date().toISOString()
       const report = await dal.insert('comparable_reports', {
         id: crypto.randomUUID(),
         reporter_id: req.user?.id || null,
@@ -72,8 +74,9 @@ export function registerPublicRoutes(app, services) {
         reason,
         notes: notes || null,
         status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        expires_at: reportExpiresAt(createdAt),
+        created_at: createdAt,
+        updated_at: createdAt,
         data: {},
       })
       res.status(201).json(report)
@@ -121,6 +124,7 @@ export function registerPublicRoutes(app, services) {
           throw err
         }
       }
+      const createdAt = new Date().toISOString()
       const report = await dal.insert('agent_price_reports', {
         id: crypto.randomUUID(),
         reporter_id: req.user?.id || null,
@@ -138,8 +142,9 @@ export function registerPublicRoutes(app, services) {
         notes: notes || null,
         supporting_document_url: supporting_document_url || null,
         status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        expires_at: reportExpiresAt(createdAt),
+        created_at: createdAt,
+        updated_at: createdAt,
         data: {},
       })
       res.status(201).json(report)

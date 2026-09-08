@@ -53,6 +53,9 @@ import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-r
 import {
   runAgencyApplicationExpiryTick,
 } from './workers/agency-application-expiry.js'
+import {
+  runReportExpiryTick,
+} from './workers/report-expiry-worker.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -779,11 +782,17 @@ const AGENCY_APPLICATION_EXPIRY_INTERVAL_MS = Math.max(
   60_000,
   Number(process.env.AGENCY_APPLICATION_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
 )
+const REPORT_EXPIRY_ENABLED = process.env.REPORT_EXPIRY_ENABLED !== 'false'
+const REPORT_EXPIRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.REPORT_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
 let scheduledDeletionReminderTimer = null
 let agencyApplicationExpiryTimer = null
+let reportExpiryTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8522,6 +8531,24 @@ const startServer = async () => {
       }, AGENCY_APPLICATION_EXPIRY_INTERVAL_MS)
       if (typeof agencyApplicationExpiryTimer.unref === 'function') {
         agencyApplicationExpiryTimer.unref()
+      }
+    }
+
+    // Shared daily cron for comparable_reports + agent_price_reports (BE-24/25).
+    // Default interval: 24h. Override with REPORT_EXPIRY_INTERVAL_MS / REPORT_EXPIRY_ENABLED=false.
+    if (REPORT_EXPIRY_ENABLED) {
+      reportExpiryTimer = setInterval(async () => {
+        try {
+          const result = await runReportExpiryTick({ pool: getPool() })
+          if ((result.expired || 0) > 0) {
+            logger.info(result, 'Report expiry worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Report expiry worker failed')
+        }
+      }, REPORT_EXPIRY_INTERVAL_MS)
+      if (typeof reportExpiryTimer.unref === 'function') {
+        reportExpiryTimer.unref()
       }
     }
   })
