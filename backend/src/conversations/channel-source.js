@@ -1,115 +1,150 @@
 /**
  * Dual-read / dual-write helpers for conversations.channel + conversations.source
- * while source_channel remains during the migration window (BE-BLOCKER-04).
+ * while `source_channel` remains the compatibility column (30-day window).
  *
- * channel = transport (whatsapp, email, sms, instagram_dm, …)
- * source  = origin marketplace / direct (bazaar, bayut, property_finder, …)
+ * Read: prefer `channel` / `source` when present, else derive from `source_channel`.
+ * Write: always populate `channel`, `source`, AND `source_channel`.
  *
- * Derivation mirrors migration 318_conversations_channel_source_split.sql.
+ * `source_channel` keeps the historical messaging discriminator (e.g.
+ * `instagram_comment`) so outbound dispatch still routes comment vs DM
+ * threads. Coarse `channel` is the transport used for dual-badge UI.
  */
 
+const COARSE_CHANNELS = new Set([
+  'whatsapp',
+  'email',
+  'sms',
+  'instagram_dm',
+  'facebook_messenger',
+  'tiktok',
+  'x_dm',
+  'linkedin',
+  'telegram',
+  'direct',
+])
+
+export function present(value) {
+  return value != null && String(value).trim() !== ''
+}
+
+function firstPresent(...values) {
+  for (const value of values) {
+    if (present(value)) return String(value)
+  }
+  return null
+}
+
+/** Mirror of migration 318 channel CASE (ILIKE). */
 export function deriveChannelFromSourceChannel(sourceChannel) {
-  const raw = String(sourceChannel || '').trim()
-  if (!raw) return 'direct'
-  const sc = raw.toLowerCase()
-  if (sc.startsWith('whatsapp')) return 'whatsapp'
-  if (sc.startsWith('email')) return 'email'
-  if (sc.startsWith('sms')) return 'sms'
-  if (sc.startsWith('instagram') || sc.startsWith('ig_dm')) return 'instagram_dm'
-  if (sc.startsWith('facebook') || sc.startsWith('fb_')) return 'facebook_messenger'
-  if (sc.startsWith('tiktok')) return 'tiktok'
-  if (sc.startsWith('x_dm') || sc.startsWith('twitter')) return 'x_dm'
-  if (sc.startsWith('linkedin')) return 'linkedin'
-  if (sc.startsWith('telegram')) return 'telegram'
+  const value = String(sourceChannel || '').toLowerCase()
+  if (value.startsWith('whatsapp')) return 'whatsapp'
+  if (value.startsWith('email')) return 'email'
+  if (value.startsWith('sms')) return 'sms'
+  if (value.startsWith('instagram') || value.startsWith('ig_dm')) return 'instagram_dm'
+  if (value.startsWith('facebook') || value.startsWith('fb_')) return 'facebook_messenger'
+  if (value.startsWith('tiktok')) return 'tiktok'
+  if (value.startsWith('x_dm') || value.startsWith('twitter')) return 'x_dm'
+  if (value.startsWith('linkedin')) return 'linkedin'
+  if (value.startsWith('telegram')) return 'telegram'
   return 'direct'
 }
 
+/** Mirror of migration 318 source CASE (ILIKE). */
 export function deriveSourceFromSourceChannel(sourceChannel) {
-  const sc = String(sourceChannel || '').toLowerCase()
-  if (!sc) return 'direct'
-  if (sc.includes('bazaar')) return 'bazaar'
-  if (sc.includes('bayut')) return 'bayut'
-  if (sc.includes('property_finder')) return 'property_finder'
-  if (sc.includes('dubizzle')) return 'dubizzle'
-  if (sc.includes('olx')) return 'olx'
+  const value = String(sourceChannel || '').toLowerCase()
+  if (value.includes('bazaar')) return 'bazaar'
+  if (value.includes('bayut')) return 'bayut'
+  if (value.includes('property_finder')) return 'property_finder'
+  if (value.includes('dubizzle')) return 'dubizzle'
+  if (value.includes('olx')) return 'olx'
   return 'direct'
 }
 
-/** Dual-read: prefer typed channel column, else derive from legacy source_channel. */
-export function conversationChannel(conversation) {
-  if (!conversation) return 'direct'
-  if (conversation.channel != null && String(conversation.channel).trim() !== '') {
-    return String(conversation.channel)
-  }
-  return deriveChannelFromSourceChannel(conversation.source_channel)
+export function isCoarseChannel(value) {
+  return COARSE_CHANNELS.has(String(value || '').toLowerCase())
 }
 
-/** Dual-read: prefer typed source column, else derive from legacy source_channel. */
-export function conversationSource(conversation) {
-  if (!conversation) return 'direct'
-  if (conversation.source != null && String(conversation.source).trim() !== '') {
-    return String(conversation.source)
-  }
-  return deriveSourceFromSourceChannel(conversation.source_channel)
+/** Prefer `channel` if present, else derive from `source_channel`. */
+export function readChannel(row) {
+  if (present(row?.channel)) return String(row.channel)
+  return deriveChannelFromSourceChannel(row?.source_channel)
+}
+
+/** Prefer `source` if present, else derive from `source_channel`. */
+export function readSource(row) {
+  if (present(row?.source)) return String(row.source)
+  return deriveSourceFromSourceChannel(row?.source_channel)
 }
 
 /**
- * Dual-write fields for INSERT/UPDATE. Always sets source_channel (legacy),
- * channel, and source. Optional explicit channel/source override the derived values.
- *
- * When callers pass an orchestrator transport key (e.g. `instagram_comment`),
- * that exact key is kept on `channel` / `source_channel` so dispatch routing
- * continues to work; marketplace origin still lands in `source`.
+ * Messaging / compatibility key used by orchestrator dispatch and
+ * one-thread-per-(contact, source_channel) identity.
+ * Prefer historical `source_channel`, else compose from channel+source.
  */
-export function dualWriteChannelSource({
-  source_channel: sourceChannelInput,
-  channel: channelInput,
-  source: sourceInput,
-} = {}) {
-  const legacyOrTransport = sourceChannelInput != null && String(sourceChannelInput).trim() !== ''
-    ? String(sourceChannelInput)
-    : (channelInput != null && String(channelInput).trim() !== '' ? String(channelInput) : null)
+export function readSourceChannel(row) {
+  if (present(row?.source_channel)) return String(row.source_channel)
+  const channel = readChannel(row)
+  const source = readSource(row)
+  if (source && source !== 'direct') return `${channel}:${source}`
+  return channel
+}
 
-  // Prefer explicit channel; else keep the transport key as-is when it is a
-  // known orchestrator channel; else derive via the migration CASE mapping.
-  let channel
-  if (channelInput != null && String(channelInput).trim() !== '') {
-    channel = String(channelInput)
-  } else if (legacyOrTransport) {
-    channel = String(legacyOrTransport)
+/**
+ * Dual-write payload for conversations inserts/updates.
+ * Always returns channel, source, and source_channel.
+ *
+ * `channel` on input may be a coarse transport (`whatsapp`) or a historical
+ * messaging value (`instagram_comment`). Historical values are preserved on
+ * `source_channel` and mapped onto the coarse `channel` column.
+ */
+export function conversationChannelSourceFields(input = {}) {
+  const historical = firstPresent(input.source_channel, input.sourceChannel)
+  const requestedChannel = firstPresent(input.channel)
+  const requestedSource = firstPresent(input.source)
+
+  const deriveFrom = historical || requestedChannel
+  const channel = requestedChannel && isCoarseChannel(requestedChannel)
+    ? requestedChannel
+    : deriveChannelFromSourceChannel(deriveFrom)
+  const source = requestedSource || deriveSourceFromSourceChannel(deriveFrom)
+
+  let source_channel
+  if (historical) {
+    source_channel = historical
+  } else if (requestedChannel && !isCoarseChannel(requestedChannel)) {
+    source_channel = requestedChannel
+  } else if (source && source !== 'direct') {
+    source_channel = `${channel}:${source}`
   } else {
-    channel = 'direct'
+    source_channel = requestedChannel || channel
   }
 
-  const source = sourceInput != null && String(sourceInput).trim() !== ''
-    ? String(sourceInput)
-    : deriveSourceFromSourceChannel(legacyOrTransport || channel)
-
-  return {
-    source_channel: legacyOrTransport || channel,
-    channel,
-    source,
-  }
+  return { channel, source, source_channel }
 }
 
-/** Present a conversation with channel/source always populated (dual-read). */
-export function presentConversation(conversation) {
-  if (!conversation) return conversation
-  const channel = conversationChannel(conversation)
-  const source = conversationSource(conversation)
-  return {
-    ...conversation,
-    channel,
-    source,
-    source_channel: conversation.source_channel || channel,
+/** Match a conversation to a messaging-channel lookup key during the dual-read window. */
+export function matchesConversationChannel(row, messagingChannel) {
+  if (!present(messagingChannel)) return false
+  const key = String(messagingChannel)
+  const storedCompat = firstPresent(row?.source_channel)
+  if (storedCompat) {
+    if (storedCompat === key) return true
+    const prefix = `${key}:`
+    if (storedCompat.startsWith(prefix)) return true
+    return false
   }
+  const storedChannel = firstPresent(row?.channel)
+  if (!storedChannel) return false
+  return storedChannel === key || storedChannel === deriveChannelFromSourceChannel(key)
 }
 
-/** Match helper for (contact_id, transport-channel) lookup during dual-read window. */
-export function conversationMatchesChannel(conversation, channel) {
-  if (!conversation || channel == null) return false
-  const key = String(channel)
-  if (conversation.source_channel === key) return true
-  if (conversation.channel === key) return true
-  return conversationChannel(conversation) === key
+/** Hydrate a conversation (or source_channel-bearing row) so all three fields are present. */
+export function withChannelSource(row) {
+  if (!row || typeof row !== 'object') return row
+  return {
+    ...row,
+    channel: readChannel(row),
+    source: readSource(row),
+    source_channel: readSourceChannel(row),
+  }
 }

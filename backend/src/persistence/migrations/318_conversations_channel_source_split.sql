@@ -1,10 +1,15 @@
--- Split conversations.source_channel into orthogonal channel (transport) + source (origin).
--- Keep source_channel during the dual-read/write migration window; do not DROP it here.
+-- BE-BLOCKER-04: decompose conversations.source_channel into channel + source.
+-- Dual-write window: source_channel is kept populated for 30 days; this
+-- migration MUST NOT drop it.
+--
+-- conversation_messages already has a `channel` column — this file only
+-- splits `conversations`.
 
 ALTER TABLE conversations
   ADD COLUMN IF NOT EXISTS channel TEXT,
   ADD COLUMN IF NOT EXISTS source TEXT;
 
+-- Backfill from existing source_channel. Re-runs skip rows already filled.
 UPDATE conversations SET
   channel = CASE
     WHEN source_channel ILIKE 'whatsapp%' THEN 'whatsapp'

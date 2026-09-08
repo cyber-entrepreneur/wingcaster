@@ -12,12 +12,12 @@ import { resolveConnectionCredentials } from '../lib/credentials.js'
 import { classifyByRules } from '../lib/comment-classifier.js'
 import { emitUsageEventAsync } from '../billing/index.js'
 import {
-  conversationChannel,
-  conversationMatchesChannel,
-  dualWriteChannelSource,
+  conversationChannelSourceFields,
+  matchesConversationChannel,
+  readSourceChannel,
 } from './channel-source.js'
 
-// Map orchestrator source_channel → §6 usage-event action_key.
+// Map orchestrator messaging channel → §6 usage-event action_key.
 const IN_ACTION_KEY = {
   whatsapp:            'message.in.whatsapp',
   instagram_dm:        'message.in.meta_dm',
@@ -176,8 +176,9 @@ export async function getOrCreateConversation({ contactId, channel, source, visi
   const contact = await findOne('contacts', (c) => c.id === contactId)
   if (!contact) throw new Error('Contact not found')
 
+  const channelSource = conversationChannelSourceFields({ channel, source })
   const existing = await findOne('conversations', (c) =>
-    c.contact_id === contactId && conversationMatchesChannel(c, channel),
+    c.contact_id === contactId && matchesConversationChannel(c, channel),
   )
   const now = new Date().toISOString()
 
@@ -185,7 +186,6 @@ export async function getOrCreateConversation({ contactId, channel, source, visi
     return { conversation: existing, created: false }
   }
 
-  const channelSource = dualWriteChannelSource({ channel, source, source_channel: channel })
   const conversation = {
     id: uuidv4(),
     contact_id: contactId,
@@ -374,7 +374,7 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     await update('conversations', (c) => c.id === conversation.id, (c) => ({ ...c, status: 'open', updated_at: new Date().toISOString() }))
   }
 
-  const channel = conversationChannel(conversation)
+  const channel = readSourceChannel(conversation)
   const now = new Date().toISOString()
 
   let dispatch = { ok: false, status: 'pending', provider: null, provider_message_id: null, error: null }

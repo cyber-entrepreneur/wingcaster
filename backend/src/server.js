@@ -258,7 +258,12 @@ import {
   markConversationReadByAgent,
   mergeContacts,
 } from './conversations/orchestrator.js'
-import { conversationChannel, presentConversation } from './conversations/channel-source.js'
+import {
+  readChannel,
+  readSource,
+  readSourceChannel,
+  withChannelSource,
+} from './conversations/channel-source.js'
 import {
   createTask,
   getTaskById,
@@ -3615,7 +3620,8 @@ app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
   const inquiries = await findAll('inquiries', (i) => i.contact_id === contact.id)
   const viewings = await findAll('viewings', (v) => v.contact_id === contact.id)
-  const conversations = await findAll('conversations', (c) => c.contact_id === contact.id)
+  const conversations = (await findAll('conversations', (c) => c.contact_id === contact.id))
+    .map(withChannelSource)
   res.json({ ...contact, inquiries, viewings, conversations })
 })
 
@@ -3935,7 +3941,7 @@ app.post('/api/message-templates/:id/render', authMiddleware, validate(messageTe
 app.get('/api/conversations', authMiddleware, async (req, res) => {
   const mine = (await findAll('conversations', (c) => c.assigned_agent_id === req.user.id))
     .sort((a, b) => new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime())
-    .map(presentConversation)
+    .map(withChannelSource)
   res.json(mine)
 })
 
@@ -3944,7 +3950,7 @@ app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
   const messages = (await findAll('conversation_messages', (m) => m.conversation_id === conversation.id))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const contact = await findOne('contacts', (c) => c.id === conversation.contact_id)
-  res.json({ ...presentConversation(conversation), messages, contact })
+  res.json({ ...withChannelSource(conversation), messages, contact })
 })
 
 app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
@@ -3964,7 +3970,7 @@ app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => 
     await logActivity({
       type: 'conversation_message_sent',
       agent_id: req.user.id,
-      meta: { conversation_id: conversation.id, message_id: message.id, channel: conversationChannel(conversation) },
+      meta: { conversation_id: conversation.id, message_id: message.id, channel: readSourceChannel(conversation) },
     })
     res.json({ message, dispatch })
   } catch (e) {
@@ -3984,7 +3990,7 @@ app.post('/api/conversations/:id/assign', authMiddleware, async (req, res) => {
     agent_id: req.user.id,
     meta: { conversation_id: conversation.id, assigned_to: agentId },
   })
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
@@ -3995,7 +4001,7 @@ app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
     if (req.body[key] !== undefined) patch[key] = req.body[key]
   }
   await update('conversations', (c) => c.id === conversation.id, (c) => ({ ...c, ...patch, updated_at: new Date().toISOString() }))
-  res.json(presentConversation(await findOne('conversations', (c) => c.id === conversation.id)))
+  res.json(withChannelSource(await findOne('conversations', (c) => c.id === conversation.id)))
 })
 
 app.post('/api/conversations/:id/close', authMiddleware, async (req, res) => {
@@ -4006,13 +4012,13 @@ app.post('/api/conversations/:id/close', authMiddleware, async (req, res) => {
     agent_id: req.user.id,
     meta: { conversation_id: conversation.id },
   })
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 app.post('/api/conversations/:id/read', authMiddleware, async (req, res) => {
   const conversation = await assertOwnsConversation(req.user.id, req.params.id)
   const updated = await markConversationReadByAgent(conversation.id)
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 // ==================== TASKS ====================
@@ -6649,8 +6655,9 @@ app.get('/api/command-center', authMiddleware, async (req, res) => {
     if (contact?.assigned_agent_id !== agentId) continue
     aiWatching.push({
       conversation_id: c.id,
-      channel: conversationChannel(c),
-      source: c.source || undefined,
+      channel: readChannel(c),
+      source: readSource(c),
+      source_channel: readSourceChannel(c),
       contact_name: contact?.name || null,
       last_message_preview: c.last_message_preview || '',
       last_message_at: c.last_message_at,
@@ -6661,6 +6668,7 @@ app.get('/api/command-center', authMiddleware, async (req, res) => {
   // Testimonials queue.
   const testimonials = (await findAll('testimonials_queue', (t) => t.agent_id === agentId))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map(withChannelSource)
 
   // Recent routing activity for the caller.
   const myRoutings = (await findAll('comment_routings', (r) => r.agent_id === agentId))
