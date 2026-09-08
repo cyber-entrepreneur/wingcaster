@@ -110,7 +110,6 @@ import {
   savedSearchCreateSchema,
   savedSearchUpdateSchema,
   agencyCreateSchema,
-  agencyApplySchema,
   propertyQuerySchema,
   notificationPrefsUpdateSchema,
   notificationQuerySchema,
@@ -154,6 +153,7 @@ import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
+import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -7223,103 +7223,9 @@ app.get('/api/agencies/search', async (req, res) => {
   })))
 })
 
-app.post('/api/agencies/apply', validate(agencyApplySchema), async (req, res) => {
-  const body = req.validated
-  const agency = await findOne('agencies', a => a.id === body.agency_id)
-  if (!agency) return res.status(404).json({ error: 'Agency not found' })
-
-  const existing = await findOne('agency_applications', a =>
-    a.agency_id === body.agency_id && a.agent_email === body.agent_email && a.status === 'pending'
-  )
-  if (existing) return res.status(409).json({ error: 'You already have a pending application to this agency' })
-
-  const application = {
-    id: uuidv4(),
-    agency_id: body.agency_id,
-    agent_email: body.agent_email,
-    agent_name: body.agent_name,
-    agent_phone: body.agent_phone,
-    message: body.message,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-  }
-  await insert('agency_applications', application)
-
-  // In production: send email to agency owner/admin
-  logger.info({ application_id: application.id, agency: agency.name, agent_email: body.agent_email, agent_name: body.agent_name }, 'Agency application received')
-
-  res.json({ success: true, application, message: `Application sent to ${agency.name}. They will review and approve your request.` })
-})
-
-app.get('/api/agencies/:id/applications', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  res.json((await findAll('agency_applications', a => a.agency_id === agency.id)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
-})
-
-app.post('/api/agencies/:id/applications/:appId/approve', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  const appRecord = await findOne('agency_applications', a => a.id === req.params.appId && a.agency_id === agency.id)
-  if (!appRecord) return res.status(404).json({ error: 'Application not found' })
-
-  const role = req.body?.role
-  const affiliationMode = req.body?.affiliation_mode
-  if (!role || !affiliationMode) {
-    return res.status(400).json({
-      error: 'role and affiliation_mode are required; Tenant Admin must explicitly classify the relationship',
-    })
-  }
-  if (role === 'owner') return res.status(400).json({ error: 'Ownership requires the ownership transfer workflow' })
-  if (role === 'admin' && member.role !== 'owner') {
-    return res.status(403).json({ error: 'Only a tenant owner can grant the admin role' })
-  }
-
-  const agent = await findOne('agents', a => a.email === appRecord.agent_email)
-  if (!agent) return res.status(409).json({ error: 'Applicant must create an account before approval' })
-  const check = await assertCanJoinAgency(agent.id, agency.id, { role, affiliationMode })
-  if (!check.ok) return res.status(409).json({ error: check.error })
-
-  await addAgencyMembership({
-    agencyId: agency.id,
-    userId: agent.id,
-    role,
-    affiliationMode,
-    invitedBy: req.user.id,
-  })
-  await update('agency_applications', a => a.id === appRecord.id, a => ({
-    ...a,
-    status: 'approved',
-    approved_at: new Date().toISOString(),
-    approved_by: req.user.id,
-    approved_role: role,
-    affiliation_mode: affiliationMode,
-  }))
-  if (affiliationMode === 'exclusive') {
-    await update('agents', a => a.id === agent.id, a => ({ ...a, agency_name: agency.name }))
-  }
-
-  res.json({ success: true })
-})
-
-app.post('/api/agencies/:id/applications/:appId/reject', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  await update('agency_applications', a => a.id === req.params.appId && a.agency_id === agency.id, a => ({ ...a, status: 'rejected', rejected_at: new Date().toISOString(), rejected_by: req.user.id }))
-  res.json({ success: true })
-})
+// BE-BLOCKER-06 — slug apply + promoted agency_applications (after /search so
+// :id/:slug params cannot shadow the static search path).
+registerAgencyApplicationRoutes(app)
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
