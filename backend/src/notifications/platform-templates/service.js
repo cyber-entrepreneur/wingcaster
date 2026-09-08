@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto'
 import { insert, query, transaction } from '../../db.js'
 import { assertRequiredVariablesPresent } from './variables.js'
 
-const CHANNELS = new Set(['email', 'whatsapp', 'sms'])
+const CHANNELS = new Set(['email', 'whatsapp', 'sms', 'push'])
 const EDITOR_MODES = new Set(['unlayer', 'mjml', 'raw'])
 const CATEGORIES = new Set(['auth', 'onboarding', 'billing', 'notification', 'marketing'])
 
