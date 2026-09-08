@@ -1,10 +1,10 @@
--- BE-BLOCKER-10 / AGT-PUB-003 â€” publishing_jobs fan-out grouping +
+-- BE-BLOCKER-10 / AGT-PUB-003 -- publishing_jobs fan-out grouping +
 -- publishing_job.completed push templates.
 --
 -- Idempotent. Migration number 328 (325=agency invitations, 326=tracker indexes, 327=status_changed templates).
 
 -- ---------------------------------------------------------------------------
--- publishing_jobs â€” one row per fan-out publish (listing Ã— N portals)
+-- publishing_jobs -- one row per fan-out publish (listing x N portals)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.publishing_jobs (
@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_distribution_jobs_agent_id_created
 
 -- ---------------------------------------------------------------------------
 -- platform_message_templates: extend channel CHECK to include push
--- (Agent 4 will do the same for a different template â€” both idempotent.)
+-- (Agent 4 will do the same for a different template -- both idempotent.)
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE public.platform_message_templates
@@ -69,7 +69,7 @@ INSERT INTO public.platform_message_templates (
 SELECT
   gen_random_uuid()::text,
   'publishing_job.completed.all_succeeded',
-  'Publish receipt â€” all succeeded',
+  'Publish receipt -- all succeeded',
   'Push when every destination in a publishing job succeeded.',
   'push',
   'notification',
@@ -107,7 +107,7 @@ INSERT INTO public.platform_message_templates (
 SELECT
   gen_random_uuid()::text,
   'publishing_job.completed.mixed',
-  'Publish receipt â€” mixed',
+  'Publish receipt -- mixed',
   'Push when a publishing job has both successes and failures.',
   'push',
   'notification',
@@ -145,7 +145,7 @@ INSERT INTO public.platform_message_templates (
 SELECT
   gen_random_uuid()::text,
   'publishing_job.completed.all_failed',
-  'Publish receipt â€” all failed',
+  'Publish receipt -- all failed',
   'Push when every destination in a publishing job failed.',
   'push',
   'notification',
@@ -183,7 +183,7 @@ INSERT INTO public.platform_message_templates (
 SELECT
   gen_random_uuid()::text,
   'publishing_job.completed.in_review_only',
-  'Publish receipt â€” in review',
+  'Publish receipt -- in review',
   'Push when every destination is awaiting portal/PA review.',
   'push',
   'notification',
@@ -221,13 +221,13 @@ INSERT INTO public.platform_message_templates (
 SELECT
   gen_random_uuid()::text,
   'publishing_job.completed.partial',
-  'Publish receipt â€” partial (no failures)',
+  'Publish receipt -- partial (no failures)',
   'Push when some destinations succeeded and others are still in review (no failures).',
   'push',
   'notification',
   'en',
   NULL,
-  'Published to {{succeeded}} of {{total}} â€” {{in_review}} still in review',
+  'Published to {{succeeded}} of {{total}} -- {{in_review}} still in review',
   NULL,
   '{{succeeded}} live, {{in_review}} awaiting review. Open your receipt for details.',
   'raw',
@@ -247,4 +247,3 @@ WHERE NOT EXISTS (
      AND language = 'en'
      AND territory_id IS NULL
 );
-
