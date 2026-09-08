@@ -34,6 +34,11 @@ import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
+import { wingcasterEnvMiddleware, fromAnyEnv, normalizeClientEnv } from './lib/session-env.js'
+import {
+  registerWave0NavRoutes,
+  resolveLoginUser,
+} from './lib/wave0-nav-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
@@ -59,6 +64,7 @@ import {
   createAgencyWithOwner,
   getAgencyMembership,
   listUserAgencyMemberships,
+  personalTenantId,
   updateAgencyMembership,
 } from './tenant-authorization.js'
 import logger from './lib/logger.js'
@@ -486,6 +492,7 @@ app.use(cors({
     callback(err)
   },
   credentials: true,
+  exposedHeaders: ['X-Wingcaster-Env'],
 }))
 
 // Rate limiting
@@ -541,6 +548,7 @@ app.use('/api/webhooks', express.json({ verify: captureRawBody, limit: '1mb' }))
 app.use('/api/webhooks/sms', express.urlencoded({ extended: false, verify: captureRawBody, limit: '1mb' }))
 app.use('/webhooks/stripe', express.json({ verify: captureRawBody, limit: '1mb' }))
 app.use(express.json({ limit: '12mb' }))
+app.use(wingcasterEnvMiddleware)
 
 app.post('/webhooks/stripe', async (req, res, next) => {
   try {
@@ -653,6 +661,13 @@ registerTwoFactorRoutes(app, {
   buildAuthSession,
   findAgentForUser,
   logActivity,
+})
+
+registerWave0NavRoutes(app, {
+  authMiddleware,
+  requirePlatformAdmin,
+  buildAuthSession,
+  startSigninChallengeIfRequired,
 })
 
 // BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).
@@ -1078,6 +1093,8 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
     password_hash: bcrypt.hashSync(body.password, 10),
     role,
     platform_role: null,
+    preferred_locale: 'en',
+    active_tenant_id: `personal:${id}`,
     verified: false,
     verified_at: null,
     token_version: 0,
@@ -1136,17 +1153,33 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
  * identical response shape to /api/auth/login — the frontend must not care
  * which of the two produced its session.
  */
-async function buildAuthSession(user, agent) {
+async function buildAuthSession(user, agent, { activeTenantId = null, env = null } = {}) {
   const affiliation = await getActiveAffiliation(user.id)
   const agency = affiliation ? await findOne('agencies', a => a.id === affiliation.agency_id) : null
   const affiliations = await listUserAgencyMemberships(user.id)
   const tokenVersion = Number(user.token_version ?? 0)
+  const resolvedTenantId = activeTenantId
+    || user.active_tenant_id
+    || personalTenantId(user.id)
+  const resolvedEnv = normalizeClientEnv(env ?? fromAnyEnv(user.env || user.fin_environment))
   return {
-    token: signToken({ id: user.id, email: user.email, name: user.name, token_version: tokenVersion, verified_at: user.verified_at }),
+    token: signToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      token_version: tokenVersion,
+      verified_at: user.verified_at,
+      active_tenant_id: resolvedTenantId,
+      env: resolvedEnv,
+      fin_environment: resolvedEnv === 'test' ? 'TEST' : 'LIVE',
+    }),
     agent: {
       ...serializeAgent(agent),
       role: user.role,
       platform_role: user.platform_role || null,
+      preferred_locale: user.preferred_locale || 'en',
+      active_tenant_id: resolvedTenantId,
+      env: resolvedEnv,
       affiliation: affiliation ? { agency_id: affiliation.agency_id, role: affiliation.role, agency_name: agency?.name } : null,
       affiliations: affiliations.map((membership) => ({
         tenant_id: membership.tenant_id,
@@ -1156,14 +1189,14 @@ async function buildAuthSession(user, agent) {
         affiliation_mode: membership.affiliation_mode,
         status: membership.status,
       })),
-      personal_tenant_id: `personal:${user.id}`,
+      personal_tenant_id: personalTenantId(user.id),
     },
   }
 }
 
 app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
-  const { email, password } = req.validated
-  const user = await findUserByEmail(email)
+  const { email, password, identifier_type, identifier } = req.validated
+  const user = await resolveLoginUser({ identifier_type, identifier, email })
   if (!user?.password_hash || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid credentials' })
   if (!user.verified || !user.verified_at) {
     const otp = await latestUserOtp(user.id)

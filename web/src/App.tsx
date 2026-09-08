@@ -1,9 +1,10 @@
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { AuthProvider } from '@/context/AuthContext'
+import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { StepUpProvider } from '@/context/StepUpContext'
 import { BrandProvider } from '@/context/BrandContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
@@ -70,100 +71,139 @@ import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
 
+/** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
+const BARE_CHROME_PREFIXES = [
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/account-recovery',
+  '/register',
+  '/site/',
+  '/public/',
+  '/terms',
+  '/privacy',
+] as const
+
+function usesBareChrome(pathname: string): boolean {
+  return BARE_CHROME_PREFIXES.some((prefix) =>
+    prefix.endsWith('/') ? pathname.startsWith(prefix) : pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<AgentDashboardPage />} />
+      <Route path="/listings" element={<ListingsPage />} />
+      <Route path="/listings/:id" element={<ListingProfilePage />} />
+      <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
+      <Route path="/agent/:id" element={<AgentProfilePage />} />
+      <Route path="/register" element={<AgentRegisterPage />} />
+      <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
+      <Route path="/inbox" element={<InboxPage />} />
+      <Route path="/dashboard/inbox" element={<InboxPage />} />
+      <Route path="/tasks" element={<TasksPage />} />
+      <Route path="/contacts" element={<ContactsPage />} />
+      <Route path="/contacts/:id" element={<ContactDetailPage />} />
+      <Route path="/opportunities" element={<OpportunitiesPage />} />
+      <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
+      <Route path="/campaigns" element={<CampaignsPage />} />
+      <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+      <Route path="/message-templates" element={<MessageTemplatesPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/account-recovery" element={<AccountRecoveryPage />} />
+      <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
+      <Route path="/agency" element={<AgencyManagementPage />} />
+      <Route path="/agency/pricing" element={<AgencyPricingPage />} />
+      <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
+      <Route path="/widgets" element={<WidgetBuilderPage />} />
+      <Route path="/plans" element={<PlansPage />} />
+      <Route path="/my-subscription" element={<MySubscriptionPage />} />
+      <Route path="/my-credits" element={<MyCreditsPage />} />
+      <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
+      <Route path="/my-invoices" element={<MyInvoicesPage />} />
+      <Route path="/integrations" element={<IntegrationSettingsPage />} />
+      <Route path="/settings/2fa" element={<TotpSettingsPage />} />
+      <Route path="/settings/channels" element={<SocialChannelsPage />} />
+      <Route path="/settings/routing" element={<RoutingSettingsPage />} />
+      <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
+      <Route path="/command-center" element={<CommandCenterPage />} />
+      <Route path="/operations" element={<CommandCenterPage />} />
+      <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
+      <Route path="/admin/message-templates" element={<PlatformMessageTemplatesPage />} />
+      <Route path="/admin/message-templates/new" element={<PlatformTemplateEditPage />} />
+      <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
+      <Route path="/admin/areas" element={<AdminAreasPage />} />
+      <Route path="/admin/scoring" element={<AdminScoringPage />} />
+      <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
+      <Route path="/admin/fin/overview" element={<OverviewPage />} />
+      <Route path="/admin/fin/tenants" element={<TenantsPage />} />
+      <Route path="/admin/fin/usage" element={<UsagePage />} />
+      <Route path="/admin/fin/credits" element={<CreditsPage />} />
+      <Route path="/admin/fin/holds" element={<HoldsPage />} />
+      <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
+      <Route path="/admin/fin/contracts" element={<ContractsPage />} />
+      <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
+      <Route path="/admin/fin/packages" element={<PackagesPage />} />
+      <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
+      <Route path="/admin/fin/packages/:id/versions/:vid" element={<PackageVersionEditor />} />
+      <Route path="/admin/fin/package-approvals" element={<PackageApprovalPage />} />
+      <Route path="/admin/fin/subscriptions" element={<SubscriptionsPage />} />
+      <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
+      <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
+      <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
+      <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
+      <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
+      <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
+      <Route path="/admin/fin/audit" element={<AuditPage />} />
+      <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
+      <Route path="/notifications" element={<NotificationPreferencesPage />} />
+      <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
+      <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      <Route path="/areas/:slug" element={<AreaProfilePage />} />
+      <Route path="/inspector" element={<InspectorPage />} />
+      <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
+      <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
+      <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  )
+}
+
 function AppShell() {
   const location = useLocation()
-  const isBrandedSite = location.pathname.startsWith('/site/')
+  const { agent, loading } = useAuth()
+  const bare = usesBareChrome(location.pathname)
 
+  if (bare) {
+    return <AppRoutes />
+  }
+
+  // Signed-in: Wave 0 persona chrome (agent / agency / pa).
+  if (!loading && agent) {
+    return (
+      <PersonaAppShell>
+        <AppRoutes />
+      </PersonaAppShell>
+    )
+  }
+
+  // Guest / auth-loading: legacy public Navbar + Footer.
   return (
     <div className="flex min-h-screen flex-col">
-      {!isBrandedSite && <Navbar />}
+      <Navbar />
       <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<AgentDashboardPage />} />
-          <Route path="/listings" element={<ListingsPage />} />
-          <Route path="/listings/:id" element={<ListingProfilePage />} />
-          <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
-          <Route path="/agent/:id" element={<AgentProfilePage />} />
-          <Route path="/register" element={<AgentRegisterPage />} />
-          <Route path="/agent/pricing" element={<AgentPricingPage />} />
-          <Route path="/dashboard/inbox" element={<InboxPage />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/contacts/:id" element={<ContactDetailPage />} />
-          <Route path="/opportunities" element={<OpportunitiesPage />} />
-          <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
-          <Route path="/campaigns" element={<CampaignsPage />} />
-          <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
-          <Route path="/message-templates" element={<MessageTemplatesPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/account-recovery" element={<AccountRecoveryPage />} />
-          <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
-          <Route path="/agency" element={<AgencyManagementPage />} />
-          <Route path="/agency/pricing" element={<AgencyPricingPage />} />
-          <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
-          <Route path="/widgets" element={<WidgetBuilderPage />} />
-          <Route path="/plans" element={<PlansPage />} />
-          <Route path="/my-subscription" element={<MySubscriptionPage />} />
-          <Route path="/my-credits" element={<MyCreditsPage />} />
-          <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
-          <Route path="/my-invoices" element={<MyInvoicesPage />} />
-          <Route path="/integrations" element={<IntegrationSettingsPage />} />
-          <Route path="/settings/2fa" element={<TotpSettingsPage />} />
-          <Route path="/settings/channels" element={<SocialChannelsPage />} />
-          <Route path="/settings/routing" element={<RoutingSettingsPage />} />
-          <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
-          <Route path="/command-center" element={<CommandCenterPage />} />
-          <Route path="/operations" element={<CommandCenterPage />} />
-          <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
-          <Route path="/admin/message-templates" element={<PlatformMessageTemplatesPage />} />
-          <Route path="/admin/message-templates/new" element={<PlatformTemplateEditPage />} />
-          <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
-          <Route path="/admin/areas" element={<AdminAreasPage />} />
-          <Route path="/admin/scoring" element={<AdminScoringPage />} />
-          <Route path="/admin/pricing" element={<PricingAdminPage />} />
-          <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
-          <Route path="/admin/fin/overview" element={<OverviewPage />} />
-          <Route path="/admin/fin/tenants" element={<TenantsPage />} />
-          <Route path="/admin/fin/usage" element={<UsagePage />} />
-          <Route path="/admin/fin/credits" element={<CreditsPage />} />
-          <Route path="/admin/fin/holds" element={<HoldsPage />} />
-          <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
-          <Route path="/admin/fin/contracts" element={<ContractsPage />} />
-          <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
-          <Route path="/admin/fin/packages" element={<PackagesPage />} />
-          <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
-          <Route path="/admin/fin/packages/:id/versions/:vid" element={<PackageVersionEditor />} />
-          <Route path="/admin/fin/package-approvals" element={<PackageApprovalPage />} />
-          <Route path="/admin/fin/subscriptions" element={<SubscriptionsPage />} />
-          <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
-          <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
-          <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
-          <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
-          <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
-          <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
-          <Route path="/admin/fin/audit" element={<AuditPage />} />
-          <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
-          <Route path="/notifications" element={<NotificationPreferencesPage />} />
-          <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
-          <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
-          <Route path="/areas/:slug" element={<AreaProfilePage />} />
-          <Route path="/inspector" element={<InspectorPage />} />
-          <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
-          <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
-          <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
-          <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          {import.meta.env.DEV ? (
-            <Route path="/dev/components" element={<ComponentInventoryPage />} />
-          ) : null}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <AppRoutes />
       </main>
-      {!isBrandedSite && <Footer />}
+      <Footer />
     </div>
   )
 }
