@@ -18,6 +18,10 @@ import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
+import {
+  agencyApplicationExpiresAt,
+  runAgencyApplicationExpiryTick,
+} from './workers/agency-application-expiry.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -713,10 +717,16 @@ const SCHEDULED_DELETION_REMINDER_INTERVAL_MS = Math.max(
   60_000,
   Number(process.env.SCHEDULED_DELETION_REMINDER_INTERVAL_MS || 24 * 60 * 60 * 1000),
 )
+const AGENCY_APPLICATION_EXPIRY_ENABLED = process.env.AGENCY_APPLICATION_EXPIRY_ENABLED !== 'false'
+const AGENCY_APPLICATION_EXPIRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AGENCY_APPLICATION_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
 let scheduledDeletionReminderTimer = null
+let agencyApplicationExpiryTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -7233,6 +7243,7 @@ app.post('/api/agencies/apply', validate(agencyApplySchema), async (req, res) =>
   )
   if (existing) return res.status(409).json({ error: 'You already have a pending application to this agency' })
 
+  const createdAt = new Date()
   const application = {
     id: uuidv4(),
     agency_id: body.agency_id,
@@ -7241,7 +7252,10 @@ app.post('/api/agencies/apply', validate(agencyApplySchema), async (req, res) =>
     agent_phone: body.agent_phone,
     message: body.message,
     status: 'pending',
-    created_at: new Date().toISOString(),
+    created_at: createdAt.toISOString(),
+    // BE-BLOCKER-09: 30-day pending window. BE-06 may also set this on insert;
+    // migration 327 DEFAULT + this helper are the source of truth for expiry.
+    expires_at: agencyApplicationExpiresAt(createdAt),
   }
   await insert('agency_applications', application)
 
@@ -8302,6 +8316,22 @@ const startServer = async () => {
       }, SCHEDULED_DELETION_REMINDER_INTERVAL_MS)
       if (typeof scheduledDeletionReminderTimer.unref === 'function') {
         scheduledDeletionReminderTimer.unref()
+      }
+    }
+
+    if (AGENCY_APPLICATION_EXPIRY_ENABLED) {
+      agencyApplicationExpiryTimer = setInterval(async () => {
+        try {
+          const result = await runAgencyApplicationExpiryTick()
+          if ((result.expired || 0) > 0) {
+            logger.info(result, 'Agency application expiry worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Agency application expiry worker failed')
+        }
+      }, AGENCY_APPLICATION_EXPIRY_INTERVAL_MS)
+      if (typeof agencyApplicationExpiryTimer.unref === 'function') {
+        agencyApplicationExpiryTimer.unref()
       }
     }
   })

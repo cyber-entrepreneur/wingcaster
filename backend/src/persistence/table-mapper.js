@@ -51,6 +51,18 @@ const TABLE_MAP = {
     table: 'agency_members',
     columns: ['agency_id', 'user_id', 'agent_id', 'role', 'status', 'joined_at', 'ended_at', 'end_reason'],
   },
+  // BE-BLOCKER-09 / BE-06: first-class agency_applications (was legacy_collections).
+  // expires_at is required for the daily expiry cron; remaining uplift columns
+  // may arrive via migration 324 — keep this list additive-compatible.
+  agency_applications: {
+    schema: 'public',
+    table: 'agency_applications',
+    columns: [
+      'agency_id', 'agent_email', 'agent_name', 'agent_phone', 'message', 'status',
+      'expires_at', 'approved_at', 'approved_by', 'approved_role', 'affiliation_mode',
+      'rejected_at', 'rejected_by',
+    ],
+  },
   tenants: {
     schema: 'public',
     table: 'tenants',
