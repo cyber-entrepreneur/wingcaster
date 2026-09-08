@@ -10,8 +10,10 @@ export const LIVE = 'LIVE'
 export function sessionEnvironment(req) {
   const fromSession = req.user?.fin_environment
     || req.user?.environment
+    || req.user?.env
     || req.finEnvironment
-  if (fromSession === 'TEST' || fromSession === 'LIVE') return fromSession
+  if (fromSession === 'TEST' || fromSession === 'test') return 'TEST'
+  if (fromSession === 'LIVE' || fromSession === 'live') return LIVE
   return LIVE
 }
 
