@@ -66,6 +66,7 @@ import { createPropertyWithCanonical } from './lib/property-write.js'
 import { escapeXml } from './lib/xml.js'
 import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
+import { recordDistributionAttempt } from './lib/publishing/record-attempt.js'
 import {
   NotFoundError,
   assertAssignableConversationAgent,
@@ -4620,6 +4621,19 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
     meta,
   }))
 
+  await recordDistributionAttempt({
+    distributionJobId: row.id,
+    status,
+    error: error ? { message: error, details: meta.details || null } : null,
+    errorMessage: error,
+    response: externalId ? { external_id: externalId } : null,
+    extra: {
+      source,
+      retry_attempts: retryAttempts,
+      platform: row.platform,
+    },
+  })
+
   const updated = await findOne('distributions', d => d.id === row.id)
   await logActivity({
     type: status === 'published' ? 'distribution_retry_published' : 'distribution_retry_failed',
@@ -5361,6 +5375,19 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    // Record an attempt when we actually hit a provider (WhatsApp live send)
+    // or permanently failed before queueing. Pure draft / pending_retry queue
+    // rows are not attempts yet — the retry worker records those.
+    if (platform === 'whatsapp' && status !== 'draft') {
+      await recordDistributionAttempt({
+        distributionJobId: row.id,
+        status,
+        error: error ? { message: error, details: meta.details || null } : null,
+        errorMessage: error,
+        response: externalId ? { external_id: externalId, ...meta } : meta,
+        extra: { platform, source: 'distribute_own' },
+      })
+    }
     await logActivity({
       type: status === 'published'
         ? 'distribution_published'
@@ -5599,6 +5626,14 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    await recordDistributionAttempt({
+      distributionJobId: row.id,
+      status,
+      error: publishError || null,
+      errorMessage: publishError?.message || null,
+      response: publishResult || (externalId ? { external_id: externalId, external_url: externalUrl } : null),
+      extra: { platform, source: 'publish_social', format: format || null },
+    })
     await logActivity({
       type: status === 'published' ? 'distribution_published' : 'distribution_failed',
       property_id: property.id,
