@@ -220,8 +220,9 @@ const TABLE_MAP = {
   // Distribution
   platform_accounts: { schema: 'public', table: 'platform_accounts', columns: ['agent_id', 'agency_id', 'platform', 'account_handle', 'access_token', 'refresh_token', 'expires_at', 'status'] },
   marketplace_connections: { schema: 'public', table: 'marketplace_connections', columns: ['agent_id', 'agency_id', 'platform', 'credentials', 'status'] },
-  distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
-  distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
+  distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
+  distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
+  publishing_jobs: { schema: 'public', table: 'publishing_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'submitted_at', 'completed_at'] },
   distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at'] },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
