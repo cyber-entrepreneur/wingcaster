@@ -7,6 +7,8 @@
  * flexibility and backwards compatibility.
  */
 
+import { decorateDistributionAttempt } from '../lib/publishing/error-classifier.js'
+
 const ID_COLUMNS = ['id', 'created_at', 'updated_at']
 
 const TABLE_MAP = {
@@ -31,6 +33,14 @@ const TABLE_MAP = {
     columns: ['provider', 'provider_user_id', 'user_id', 'email'],
   },
   user_backup_codes: { schema: 'public', table: 'user_backup_codes', columns: ['user_id', 'code_hash', 'used_at'] },
+  deletion_requests: {
+    schema: 'public',
+    table: 'deletion_requests',
+    columns: [
+      'user_id', 'status', 'reason', 'reason_notes', 'liveness_word',
+      'scheduled_for', 'confirmed_at', 'cancelled_at', 'completed_at', 'reminders_sent',
+    ],
+  },
   auth_challenges: {
     schema: 'public',
     table: 'auth_challenges',
@@ -41,7 +51,32 @@ const TABLE_MAP = {
     table: 'agents',
     columns: ['user_id', 'email', 'phone', 'name', 'slug', 'agency_id', 'role', 'verified', 'subscription_features', 'cta_config'],
   },
-  agencies: { schema: 'public', table: 'agencies', columns: ['owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config'] },
+  agencies: {
+    schema: 'public',
+    table: 'agencies',
+    columns: [
+      'owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config',
+      'accepting_applications',
+    ],
+  },
+  agency_applications: {
+    schema: 'public',
+    table: 'agency_applications',
+    columns: [
+      'agency_id', 'applicant_user_id', 'agent_email', 'agent_name', 'agent_phone', 'message',
+      'current_listings_count', 'portfolio_url', 'availability', 'referral_source',
+      'profile_share_consent', 'invitation_code', 'expected_response_by', 'status',
+      'expires_at', 'approved_at', 'approved_by', 'approved_role', 'affiliation_mode',
+      'rejected_at', 'rejected_by',
+    ],
+  },
+  agency_invitations: {
+    schema: 'public',
+    table: 'agency_invitations',
+    columns: [
+      'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
+    ],
+  },
   agency_members: {
     schema: 'public',
     table: 'agency_members',
@@ -192,7 +227,7 @@ const TABLE_MAP = {
   conversations: {
     schema: 'public',
     table: 'conversations',
-    columns: ['contact_id', 'contact_email', 'contact_phone', 'contact_name', 'assigned_agent_id', 'source_channel', 'visibility', 'status', 'priority', 'subject', 'last_message_at', 'last_message_preview', 'unread_count', 'is_unread_by_agent'],
+    columns: ['contact_id', 'contact_email', 'contact_phone', 'contact_name', 'assigned_agent_id', 'source_channel', 'channel', 'source', 'visibility', 'status', 'priority', 'subject', 'last_message_at', 'last_message_preview', 'unread_count', 'is_unread_by_agent'],
   },
   conversation_messages: {
     schema: 'public',
@@ -209,9 +244,10 @@ const TABLE_MAP = {
   // Distribution
   platform_accounts: { schema: 'public', table: 'platform_accounts', columns: ['agent_id', 'agency_id', 'platform', 'account_handle', 'access_token', 'refresh_token', 'expires_at', 'status'] },
   marketplace_connections: { schema: 'public', table: 'marketplace_connections', columns: ['agent_id', 'agency_id', 'platform', 'credentials', 'status'] },
-  distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
-  distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count'] },
-  distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'attempted_at'] },
+  distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
+  distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
+  publishing_jobs: { schema: 'public', table: 'publishing_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'submitted_at', 'completed_at'] },
+  distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at'] },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
@@ -527,8 +563,11 @@ function pick(item, keys) {
 
 export function toRow(collection, item) {
   const mapping = resolveTable(collection)
-  const typed = pick(item, mapping.columns)
-  const row = { ...typed, data: item }
+  const source = collection === 'distribution_attempts'
+    ? decorateDistributionAttempt(item)
+    : item
+  const typed = pick(source, mapping.columns)
+  const row = { ...typed, data: source }
   if (mapping.table === 'legacy_collections') {
     row.collection = collection
   }

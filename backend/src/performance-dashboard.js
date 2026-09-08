@@ -23,6 +23,7 @@
  */
 
 import { findAll, findOne } from './db.js'
+import { readChannel } from './conversations/channel-source.js'
 
 const DEFAULT_TIME_SERIES_DAYS = 30
 
@@ -173,7 +174,7 @@ export async function resolveListingPerformance(listingId, agentId, { days = DEF
     engagements: c.engagements,
     clicks: c.clicks,
     inquiries: c.inquiries,
-    viewings_scheduled: viewings.filter((v) => (v.source_channel || v.channel || '') === c.platform).length,
+    viewings_scheduled: viewings.filter((v) => readChannel(v) === c.platform).length,
     closes: closedTransactions.filter((t) => (t.attribution_source || '').includes(c.platform)).length,
   }))
 

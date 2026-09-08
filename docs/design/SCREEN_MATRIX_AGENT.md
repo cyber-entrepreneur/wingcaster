@@ -120,6 +120,12 @@ Each of these needs the individual screen entry below to be edited (not just thi
 
 ---
 
+## Backend prerequisite discipline (added 2026-09-08 per D-S-09)
+
+Every high-complexity screen entry below carries an explicit `Backend prerequisites:` line immediately after `Current state:` — a one-liner that names the `[BE-BLOCKER-*]` / `[BE-VERIFY-*]` / `[BE-DESIGN-*]` items from `BACKEND_BLOCKER_INDEX.md` the frontend must not be dispatched without. This mirrors the AGN-REP / AGN-AUD-001 pattern in `SCREEN_MATRIX_AGENCY.md` and closes the gap that surfaced during Phase-1 brief authoring, when Cursor prompts for Waves 3-8+ kept discovering schema/route gaps mid-implementation. Entries prefixed `⚠ BLOCKED —` indicate the backend item does NOT exist today and the UI cannot be built until it lands; the rest are cross-references so the Cursor agent can grep the blocker index before touching a route. See `SCREEN_MATRIX_IMPLEMENTATION_KICKOFF.md` §5a for the narrative and `BACKEND_BLOCKER_INDEX.md` for the flat catalog.
+
+---
+
 ## CORRECTIONS APPLIED 2026-09-04 (after full code read)
 
 The following corrections apply platform-wide across every Agent screen. Cited from actual code, not docs.
@@ -228,6 +234,7 @@ Guided mode principles: one decision per screen, ≥ 48px touch targets, plain l
 Purpose: The just-signed-up agent lands here. Sets the "why Wingcaster" moment and offers three intake paths.
 Route: `/onboarding`   Persona: Agent (new)   Device: mobile 375px primary   Mode: guided
 Current state: MISSING (currently sign-up dumps to dashboard).
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` table + endpoints (Wave 0.5 dispatched); [BE-BLOCKER-15] `onboarding_events` schema + `POST /events` + `GET /state` for step-defer / step-complete tracking.
 Workflow role: n/a
 Key components: Hero (name + welcome), 3 large intake cards ("Send a WhatsApp voice memo → we draft your first listing" → AGT-ONB-002, "Add a listing manually" → AGT-LST-004, "Import from a spreadsheet" → AGT-SYN-002 equivalent), skip link.
 Primary actions: Choose intake path.
@@ -242,6 +249,7 @@ Notes: Language selector persistent top-right. Illustrations must feel warm and 
 Purpose: Walk the new agent through the WhatsApp intake path with a live demo.
 Route: `/onboarding/whatsapp`   Persona: Agent (new)   Device: mobile 375px   Mode: guided
 Current state: MISSING.
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` (Wave 0.5); [BE-BLOCKER-16] `GET /activation-code` idempotency check for stable code across visits; [BE-VERIFY-02] confirm PR #50 shared-number WhatsApp binding hooks are grep-compatible before Week 4 dispatch.
 Workflow role: n/a
 Key components: Big QR / Save Number card ("Save +971 XX XXX WXXX as 'Wingcaster'"), step-by-step animated illustration (Send photos → Send voice → We draft → You approve), Start Chat button (opens `wa.me` deep-link), "I've sent something" button → AGT-ONB-003.
 Primary actions: Add number to contacts; Start Chat; Continue.
@@ -256,6 +264,7 @@ Notes: Deep-link opens WhatsApp with pre-filled greeting message ("Hi! I'd like 
 Purpose: The AI-drafted listing appears; agent reviews.
 Route: `/onboarding/first-listing/:draftId`   Persona: Agent (new)   Device: mobile 375px   Mode: guided
 Current state: MISSING dedicated onboarding version (AGT-WLA-002 covers the recurring version).
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` (Wave 0.5); [BE-BLOCKER-14] `GET /intake/inbound-status/:bindingId` inbound-message poll endpoint; [BE-VERIFY-19] partial-PATCH for AGT-ONB-003 draft fields (nice-to-have).
 Workflow role: WF-01 role=Composition (WhatsApp AI-draft review, onboarding variant).
 Key components: Same as AGT-WLA-002 but wrapped in a celebration frame ("Look at this! We drafted your first listing from a voice memo"), Approve button (large, primary), Edit button, Discard.
 Primary actions: Approve → AGT-ONB-004; Edit → AGT-LST-005; Discard → AGT-ONB-001.
@@ -270,6 +279,7 @@ Notes: Copy: "You've turned a voice memo into a published-ready listing. Approve
 Purpose: Positive reinforcement after first listing is live; offers next best actions.
 Route: `/onboarding/first-listing/published`   Persona: Agent (new)   Device: mobile 375px   Mode: guided
 Current state: MISSING.
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` (Wave 0.5); [BE-BLOCKER-15] `onboarding_events` for auto-complete tracking; [BE-BLOCKER-04] `conversations.source_channel` decomposition (Wave 0.5) so the celebratory "your first inquiry arrived" state renders correct source badge.
 Workflow role: n/a
 Key components: Confetti / hero, listing thumbnail, 3 next-action cards ("Share on your Instagram" → AGT-PUB-002, "Connect your other channels" → AGT-CHN-001, "Explore your dashboard" → AGT-DSH-001).
 Primary actions: Choose next action; Later.
@@ -284,6 +294,7 @@ Notes: Skip goes to dashboard. Onboarding progress persisted server-side so late
 Purpose: While onboarding is < 100%, show a checklist card on the dashboard.
 Route: card embedded in AGT-DSH-001   Persona: Agent (new-ish)   Device: mobile   Mode: guided
 Current state: MISSING.
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` table + endpoints (Wave 0.5) is the shared source of truth for progress %; [BE-BLOCKER-15] `onboarding_events` for step-defer / step-complete tracking; this is the checklist mount consumed by AGT-DSH-001 as well.
 Workflow role: n/a
 Key components: Progress ring, remaining steps (Connect channels / Enable notifications / Set up your public profile / Upgrade to paid), Dismiss forever link.
 Primary actions: Tap step; Dismiss.
@@ -303,6 +314,7 @@ Notes: In Pro mode, checklist collapses to a compact status pill.
 Purpose: "What matters today" — greeting, urgent items, quota status, quick add.
 Route: `/dashboard`   Persona: Agent   Device: mobile 375px   Mode: guided
 Current state: EXISTS — `web/src/pages/AgentDashboardPage.tsx`. Needs mobile-first redesign + Guided vs Pro split + RTL.
+Backend prerequisites: [BE-BLOCKER-20] `agent_onboarding_state` (Wave 0.5) is the checklist mount source for the empty-state AGT-ONB-005 card; [BE-BLOCKER-04] `conversations.source_channel` decomposition (Wave 0.5) for the recent-activity feed source badges.
 Workflow role: n/a
 Key components: Greeting ("Morning, Sara"), Urgent card (top 1-2 items: new lead, price-drop alert, expiring listing), Quota strip (visual "42 of 50 Instagram posts left"), Quick Add FAB (Add listing / New contact / Add task), Recent activity feed (last 5).
 Primary actions: Tap urgent → context; Tap FAB; Tap activity item.
@@ -426,6 +438,7 @@ Notes: Direct-edit fields visible in Pro; inline validation on blur.
 Purpose: One listing's performance metrics.
 Route: `/listings/:id?tab=analytics`   Persona: Agent (owner) + Agency roles for their agents   Device: mobile + desktop   Mode: both
 Current state: PARTIAL — `components/performance/PerformanceTab.tsx` exists.
+Backend prerequisites: [BE-BLOCKER-04] `conversations.source_channel` decomposition (Wave 0.5) — per-channel inquiry breakdown depends on the split, 14-file blast radius so land this before the analytics UI is dispatched.
 Workflow role: n/a
 Key components: KPI strip (views, saves, inquiries, viewings, conversion), funnel chart, per-channel breakdown, geographic map of viewers, price history, comparable delta.
 Primary actions: Date range; Export PDF (Pro).
@@ -585,6 +598,7 @@ Notes: Instagram carousel requires 3+ photos; surface as validation. TikTok requ
 Purpose: The confirmation surface after every publish action. Without this, agents pay credits and don't know what actually happened — the number-one revenue leak in the platform.
 Route: drawer from AGT-PUB-001 / AGT-PUB-002   Persona: Agent   Device: mobile + desktop   Mode: both (Guided simplifies to "success / try again" one-liner; Pro shows the full per-channel grid with retry actions inline)
 Current state: MISSING — must ship as P0 with the AGT-PUB cluster.
+Backend prerequisites: ⚠ BLOCKED — [BE-BLOCKER-03] `distribution_attempts.error_class` schema + classifier (Wave 0.5) is what powers the 6-failure-class render + resolution deep links; [BE-BLOCKER-10] `GET /api/publishing/jobs/:id` aggregation endpoint + retry POSTs + `publishing_job.completed` push template; [BE-BLOCKER-01] portal publisher adapters (PF Group critical path per D19) — without adapters the "success" state cannot be reached for portals.
 Workflow role: WF-33 role=Action outcome.
 Key components:
 - Header: "Published to N of M channels" with visual success/failure ratio
@@ -624,6 +638,7 @@ Notes: Also handles auto-retry-worker triggered items with manual override.
 Purpose: Submit a listing to OLX / Property Finder / Bayut / Dubizzle for PA moderation.
 Route: modal from AGT-PUB-002 when a real-estate portal is picked   Persona: Agent   Device: mobile + desktop   Mode: both
 Current state: PARTIAL — backend `POST /api/properties/:id/submit-to-fi` exists.
+Backend prerequisites: ⚠ BLOCKED — [BE-DESIGN-01] dynamic `portal_registry` schema + adapter pattern + feature auto-registration (Wave 0.5) drives the portal picker + per-portal required-field set; [BE-BLOCKER-17] per-portal validator modules (~8 days, one per portal — Bayut / PF / Dubizzle / OLX / Aqar / Wasalt / Aqarmap / 3akarat) provide the client-side lint before submit.
 Workflow role: WF-03 role=Initiator (portal submission awaiting PA moderation).
 Key components: Portal picker, portal-specific required fields (per portal), preview of formatted listing, Submit for Review button.
 Primary actions: Submit → goes to PA-MOD-001 queue; user sees "Submitted for review" status.
@@ -638,6 +653,7 @@ Notes: Different portals have different required extras (Bayut wants trakheesi, 
 Purpose: The transparency surface for portal submissions. Without this, agents submit to Bayut/PF/OLX/Dubizzle and never see what happened — silent black hole, trust broken.
 Route: `/listings/:id/submissions/:subId` (per-submission deep link) + list-view section on AGT-LST-011 (publications tab, filtered by source=portal)   Persona: Agent (submitter)   Device: mobile + desktop   Mode: both
 Current state: MISSING — must ship as P0 with the WF-03 cluster.
+Backend prerequisites: ⚠ BLOCKED — [BE-BLOCKER-11] tracker endpoints `GET /api/publishing/tracker` (list, cursor-paginated) + `GET /api/publishing/tracker/summary` (KPI); [BE-BLOCKER-12] `portal_submission.status_changed` push template (5 status-transition variants) for live-row updates; [BE-DESIGN-01] `portal_registry` for the portal metadata (logos, SLA, links).
 Workflow role: WF-03 role=Recipient.
 Key components:
 - Status pill (with color): `Pending PA review` (amber), `Under PA review` (blue), `Approved` (green + live portal link), `Rejected` (red + reason), `Changes requested` (amber + fixable-fields list), `Escalated` (orange), `Withdrawn` (gray)
@@ -758,6 +774,7 @@ Notes: AI-cost metric is a soft signal; not a hard bill (metered via features.js
 Purpose: Trigger AI to write a listing description from structured fields.
 Route: modal from AGT-LST-004/005 description field   Persona: Agent   Device: responsive   Mode: both
 Current state: PARTIAL — backend `POST /api/listings-ai/describe` exists.
+Backend prerequisites: verify existing route's response contract carries streaming-vs-non-streaming flag + credit-metering hooks (`AI_LISTINGS_DESCRIBE`) + explicit error-class enumeration (insufficient-credits, rate-limited, provider-throttled, content-policy-refused) — grep before Cursor dispatch; align with AGT-LAI-002 refinement session contract.
 Workflow role: n/a
 Key components: Tone picker (Warm / Professional / Concise / Luxury), Language (en / ar), Length (Short / Medium / Long), Include-highlights checkboxes, Generate button.
 Primary actions: Generate → shows draft → Apply / Refine / Discard.
@@ -772,6 +789,7 @@ Notes: Cost preview before generate ("Uses 1 AI credit").
 Purpose: The iteration loop for AI-generated content. Without this, an agent generates ONCE and is stuck with the output — "typewriter with no backspace." Refinement is the difference between AI-as-gimmick and AI-as-tool.
 Route: modal from AGT-LAI-001 (auto-opens with the generated draft)   Persona: Agent   Device: responsive   Mode: both
 Current state: MISSING — must ship with AGT-LAI-001 (currently PARTIAL). Together they are the AI-content-generation loop.
+Backend prerequisites: ⚠ BLOCKED — a new `ai_refinement_sessions` table (or JSONB blob on the calling entity) is required to persist the last 5 variants for revert-without-recharge; refinement contract must decide streaming-vs-non-streaming, credit-metering per Regenerate / Refine-with-instruction (not Revert / Apply), and error-class enumeration (insufficient-credits, rate-limited, provider-throttled, content-policy-refused). Not currently in the blocker index — treat as a new [BE-BLOCKER] to be raised during Wave 3+ dispatch.
 Workflow role: n/a (in-place refinement, no workflow chain)
 Key components:
 - Generated text panel (editable rich-text — agent can hand-edit any generated word inline; changes preserved even if they Regenerate)
@@ -888,6 +906,7 @@ Notes: GDPR-compliant — includes data-subject metadata.
 Purpose: Manage the formal representation / mandate / affinity relationships between this contact and the current tenant's agents. Multi-tenant: same contact may be represented by different agents in different agencies.
 Route: tab on AGT-CTC-002   Persona: Agent (agents can manage their own relationships; agency admin can see all)   Device: responsive   Mode: pro (Guided shows just "I represent this contact as: [buyer/seller/landlord/tenant]" toggle)
 Current state: MISSING — schema exists in `migration 028` (`contact_relationships` table), no UI.
+Backend prerequisites: ⚠ BLOCKED — [BE-BLOCKER-36] `contact_relationships` CRUD routes: 7 endpoints (list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing `GET /public/relationships/consent?token=…`); consent link piggybacks HMAC-token infra (`backend/src/lib/webhook-verify.js`) with new `type='relationship_consent'`. Week 8+ slot.
 Workflow role: n/a
 Key components: My relationships (this tenant) section — cards per relationship (party_type: buyer/seller/landlord/tenant; relationship_type: representation/mandate/affinity; exclusivity: exclusive/non_exclusive; scope: geo + property_type + price range; status; start/end dates; consent evidence). Other tenants' relationships (visible-only, redacted) — visibility gated by contact's cross-tenant consent settings.
 Primary actions: Create relationship; Update; End; Attach consent evidence.
@@ -1043,6 +1062,7 @@ Notes: Guided mode uses template-first "Choose a goal" pattern; Pro shows full b
 Purpose: Multi-step wizard to build a campaign.
 Route: `/campaigns/new`   Persona: Agent   Device: responsive   Mode: guided
 Current state: EXISTS — `web/src/pages/CampaignBuilderPage.tsx`. Wizard vs single-page split TBD.
+Backend prerequisites: verify scheduling-worker + `POST /api/campaigns/:id/enrollments` persistence + notification-template resolution per channel (WA / SMS / Email) exist and expose delivery-attempt rows for AGT-CMP-004 performance; if any is stub, raise as a new [BE-BLOCKER] pre-dispatch.
 Workflow role: n/a
 Key components: Step 1 Goal (New listing announcement / Price drop / Open house / Custom), Step 2 Audience (Saved-search / Tag / Manual), Step 3 Content (template pick + edit), Step 4 Channels (WhatsApp / Email / SMS), Step 5 Schedule (Now / Later), Step 6 Review + Launch.
 Primary actions: Next / Back; Launch → AGT-CMP-004.
@@ -1057,6 +1077,7 @@ Notes: Cost preview at Review step per channel × enrollees.
 Purpose: Everything on one screen for power users.
 Route: `/campaigns/new?mode=pro`   Persona: Agent (Pro)   Device: desktop   Mode: pro
 Current state: MISSING dedicated variant.
+Backend prerequisites: same as AGT-CMP-002 (scheduling worker + delivery-attempt persistence + notification-template resolution); reuse the AGT-CMP-002 audience-preview endpoint so saved-search + tag + manual audience sources share one path (avoid divergent contracts between Guided wizard and Pro single-page).
 Workflow role: n/a
 Key components: 3-column (goal + audience / content / channels + schedule), inline preview, Launch button.
 Primary actions: Save Draft; Launch.
@@ -1071,6 +1092,7 @@ Notes: Reuse fields from Guided wizard; different layout.
 Purpose: One campaign's live status + analytics.
 Route: `/campaigns/:id`   Persona: Agent   Device: responsive   Mode: both
 Current state: PARTIAL.
+Backend prerequisites: verify `campaign_delivery_attempts` (or equivalent) persistence carries per-channel outcome + timestamp + error-class so the KPI strip renders truthfully; without it the "delivered" and "replied" columns are estimates. Same notification-template resolution as AGT-CMP-002 governs the sent counts.
 Workflow role: n/a
 Key components: Header (name, status, target size), KPI strip (sent, delivered, opened, replied, converted), per-channel breakdown, enrollment table, Pause / Resume / Cancel.
 Primary actions: Pause; Resume; Duplicate; Cancel.
@@ -1137,6 +1159,7 @@ Notes: RTL editor for Arabic content; character counter for SMS (segment-aware).
 Purpose: All conversations across channels in one feed.
 Route: `/dashboard/inbox`   Persona: Agent   Device: mobile + desktop   Mode: both
 Current state: EXISTS — `web/src/pages/InboxPage.tsx`.
+Backend prerequisites: ⚠ BLOCKED — [BE-BLOCKER-04] `conversations.source_channel` decomposition into `channel` (transport) + `source` (origin) — Wave 0.5 dispatched, 14-file blast radius with dual-read fallback. Every AGT-INB / AGT-INB-005 badge treatment depends on this; do NOT dispatch the inbox UI for the new dual-badge layout before the migration lands.
 Workflow role: n/a
 Key components: Filter tabs (Unread / Assigned to me / All), search, conversation rows (contact avatar, last-message preview, channel badge, timestamp, unread dot), Compose FAB.
 Primary actions: Row → AGT-INB-002; Compose → AGT-INB-003.
@@ -1151,6 +1174,7 @@ Notes: Unread count on bottom-tab badge. Long-press → Assign / Close / Mark re
 Purpose: One conversation with message thread and reply composer.
 Route: `/dashboard/inbox/:id`   Persona: Agent   Device: mobile + desktop   Mode: both
 Current state: PARTIAL.
+Backend prerequisites: ⚠ BLOCKED — [BE-BLOCKER-04] `conversations.source_channel` decomposition (Wave 0.5, 14-file blast radius) is the same prereq as AGT-INB-001; the conversation header dual-badge and the reply composer's channel-lock both depend on the split.
 Workflow role: n/a
 Key components: Header (contact card, channel badge, related listing), message list (bubbles left/right), reply composer (multi-line, insert-template, insert-listing-card, attachments), suggested-reply chips (AI, Pro).
 Primary actions: Send; Insert template; Attach; Assign; Close.
@@ -1182,7 +1206,7 @@ Current state: PARTIAL — `conversations.source_channel` exists but is one-dime
 Workflow role: role=Recipient (applies to every recipient-side inbox item)
 Key components:
 - `channel` badge (leftmost): icon + short label — WhatsApp / Email / SMS / Instagram / Facebook / TikTok / X / LinkedIn / Telegram — tells the agent HOW to reply (which transport)
-- `source` badge (rightmost): logo + short label — Direct / Agent profile / Agency profile / White-label site / Widget / Bazaar / OLX / Bayut / Property Finder / Dubizzle / Blue Door / others per market — tells the agent WHERE the inquiry originated
+- `source` badge (rightmost): logo + short label — Direct / Agent profile / Agency profile / White-label site / Widget / Bazaar / OLX / Bayut / Property Finder / Dubizzle / Aqar / Wasalt / Aqarmap / 3akarat / others per market — tells the agent WHERE the inquiry originated. (Blue Door removed per D-S-07 approval 2026-09-06 pending user reconfirmation as a real integrated Lebanese channel.)
 - Composite tooltip: "Arrived via WhatsApp from your Bayut listing" — plain-language combination
 Primary actions: Tap channel badge → filter inbox to just this channel; tap source badge → filter to just this source.
 State variants: source-unknown (fallback: `Direct`), channel-inferred (badge shows dotted border indicating best-guess).
@@ -1304,6 +1328,7 @@ Notes: Report goes to PA-PVA-008 queue.
 Purpose: Submit a report about an incorrect comparable.
 Route: modal from AGT-APR-003   Persona: Agent   Device: responsive   Mode: both
 Current state: MISSING dedicated agent variant.
+Backend prerequisites: verify `POST /api/pricing/comparable-reports` and evidence-upload endpoint exist and tier-gate via `package_feature_flags` (all tiers can submit — free-tier included per D-S-01); cross-referenced with PA-PVA-008 backend bundle [BE-BLOCKER-28] which owns the review side.
 Workflow role: WF-05 role=Initiator.
 Key components: Reason radio (Wrong price / Duplicate / Not comparable / Removed / Other), notes, evidence upload, Submit.
 Primary actions: Submit → PA queue.
@@ -1318,6 +1343,7 @@ Notes: Cross-links to WF-05 recipient screen.
 Purpose: Submit a market analysis report about pricing decisions (compensated / for public consumption).
 Route: `/agent/pricing/reports/new`   Persona: Agent (Pro)   Device: desktop preferred   Mode: pro
 Current state: PARTIAL — backend `POST /api/pricing/agent-price-reports` exists.
+Backend prerequisites: [BE-BLOCKER-27] seed `valuation.price_reports.submit` feature code on Pro tiers (Week 5) — without it the tier gate silently passes on free agents; cross-referenced with PA-PVA-009 backend bundle [BE-BLOCKER-26] for the review side.
 Workflow role: WF-06 role=Initiator.
 Key components: Report editor (rich text), attached listings + comps, thesis, publish target (private / agency / public), Submit.
 Primary actions: Submit → PA-PVA-009 queue.
@@ -1654,6 +1680,7 @@ Fulfilled by: AGT-PUB-006. Workflow role WF-03=Recipient handled there.
 Purpose: Agent sees PA's decision on a bad-comparable report they submitted. Closes the feedback loop for the WF-05 chain (Agent reports bad comparable → PA reviews at PA-PVA-008/008b → Agent sees outcome here).
 Route: `/agent/comparable-reports/:id` + notification deep-link + list section on AGT-APR-006 (my submitted reports)   Persona: Agent (submitter)   Device: responsive   Mode: both
 Current state: MISSING — must ship with WF-05 cluster (per D5).
+Backend prerequisites: [BE-BLOCKER-24] `comparable_reports.expires_at` + auto-expire cron (Week 5) for the EXPIRED state; verify `/api/users/me/comparable-reports/:id` alias endpoint exists (or add one) so recipient deep-links resolve without knowing tenant scope; cross-referenced with [BE-BLOCKER-28] PA-PVA-008 bundle which owns the decision writer.
 Workflow role: WF-05 role=Recipient.
 Key components:
 - Header: "Your comparable report was reviewed"
@@ -1676,6 +1703,7 @@ Notes: **Copy tone matters.** Rejection is not a slight — "We reviewed your re
 Purpose: Agent sees PA's decision on an agent-price report they submitted. WF-06 recipient closure.
 Route: `/agent/pricing/reports/:id/outcome` + notification deep-link + status column on AGT-APR-006   Persona: Agent (Pro)   Device: responsive   Mode: pro
 Current state: MISSING — must ship with WF-06 cluster.
+Backend prerequisites: [BE-BLOCKER-25] `agent_price_reports.expires_at` + auto-expire cron (Week 5) for the EXPIRED state; verify `/api/users/me/agent-price-reports/:id` alias endpoint exists (or add one) so recipient deep-links resolve without knowing tenant scope; cross-referenced with [BE-BLOCKER-26] PA-PVA-009 bundle which owns the decision writer.
 Workflow role: WF-06 role=Recipient.
 Key components:
 - Report title + submitted-at

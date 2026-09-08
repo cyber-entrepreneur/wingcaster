@@ -69,6 +69,7 @@ import { MySubscriptionPage } from '@/pages/MySubscriptionPage'
 import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
+import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [

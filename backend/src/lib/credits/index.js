@@ -1,7 +1,7 @@
 export { createCreditService } from './compat.js'
 export { consume, getWallet, grant, release, reserve, upsertSpendCap } from './engine.js'
 export { createEntitlementService } from './entitlements.js'
-export { FEATURES } from './features.js'
+export { FEATURES, FEATURE_LIST, refreshPortalFeatures, portalFeatureCode, portalFeatureKey } from './features.js'
 export { runCreditJanitorTick } from './janitor.js'
 export { runCreditFinMirrorTick } from './fin-mirror-worker.js'
 export { withCredits } from './with-credits.js'

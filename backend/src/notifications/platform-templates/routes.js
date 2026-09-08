@@ -36,7 +36,7 @@ import {
 } from './index.js'
 import { sendEmail } from '../../lib/notifications/email.js'
 
-const CHANNELS = ['email', 'whatsapp', 'sms']
+const CHANNELS = ['email', 'whatsapp', 'sms', 'push']
 const CATEGORIES = ['auth', 'onboarding', 'billing', 'notification', 'marketing']
 const EDITOR_MODES = ['unlayer', 'mjml', 'raw']
 

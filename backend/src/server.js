@@ -16,6 +16,11 @@ import { seedData } from './seed.js'
 import { signToken, authMiddleware, requireElevated } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
+import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
+import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
+import {
+  runAgencyApplicationExpiryTick,
+} from './workers/agency-application-expiry.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -72,6 +77,7 @@ import { createPropertyWithCanonical } from './lib/property-write.js'
 import { escapeXml } from './lib/xml.js'
 import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
+import { recordDistributionAttempt } from './lib/publishing/record-attempt.js'
 import {
   NotFoundError,
   assertAssignableConversationAgent,
@@ -113,7 +119,6 @@ import {
   savedSearchCreateSchema,
   savedSearchUpdateSchema,
   agencyCreateSchema,
-  agencyApplySchema,
   propertyQuerySchema,
   notificationPrefsUpdateSchema,
   notificationQuerySchema,
@@ -154,6 +159,13 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
+import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
+import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
+import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
+import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
+import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
+import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
+import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -264,6 +276,12 @@ import {
   markConversationReadByAgent,
   mergeContacts,
 } from './conversations/orchestrator.js'
+import {
+  readChannel,
+  readSource,
+  readSourceChannel,
+  withChannelSource,
+} from './conversations/channel-source.js'
 import {
   createTask,
   getTaskById,
@@ -645,6 +663,9 @@ registerWave0NavRoutes(app, {
   startSigninChallengeIfRequired,
 })
 
+// BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).
+registerScheduledDeletionRoutes(app)
+
 // Platform notifications — admin CRUD for message templates the platform
 // sends TO tenants (signup OTP, welcome, WhatsApp guide, …). Distinct
 // from the tenant-owned message_templates surface. WRITE routes are
@@ -672,6 +693,12 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
+registerSettingsIndexRoutes(app, { authMiddleware })
+registerPublishingTrackerRoutes(app, { authMiddleware })
+registerAgentOnboardingStateRoutes(app)
+registerAgencyOnboardingStateRoutes(app)
+registerAgencyInvitationRoutes(app)
+registerPublishingJobRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -705,9 +732,21 @@ const CREDITS_MIRROR_ENABLED = process.env.CREDITS_FIN_MIRROR_ENABLED !== 'false
 const CREDITS_MIRROR_INTERVAL_MS = Math.max(10_000, Number(process.env.CREDITS_FIN_MIRROR_INTERVAL_MS || 30_000))
 const CREDITS_BILLING_CYCLE_ENABLED = process.env.CREDITS_BILLING_CYCLE_ENABLED !== 'false'
 const CREDITS_BILLING_CYCLE_INTERVAL_MS = Math.max(15_000, Number(process.env.CREDITS_BILLING_CYCLE_INTERVAL_MS || 60_000))
+const SCHEDULED_DELETION_REMINDER_ENABLED = process.env.SCHEDULED_DELETION_REMINDER_ENABLED !== 'false'
+const SCHEDULED_DELETION_REMINDER_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.SCHEDULED_DELETION_REMINDER_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
+const AGENCY_APPLICATION_EXPIRY_ENABLED = process.env.AGENCY_APPLICATION_EXPIRY_ENABLED !== 'false'
+const AGENCY_APPLICATION_EXPIRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AGENCY_APPLICATION_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
+let scheduledDeletionReminderTimer = null
+let agencyApplicationExpiryTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -1014,6 +1053,10 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
   if (await findUserByEmail(body.email) || await findOne('agents', a => a.email === body.email)) {
     return res.status(409).json({ error: 'Email already registered' })
   }
+  const pathCAgency = body.agency_mode === 'new'
+  if (pathCAgency && await findOne('agencies', a => a.name === body.agency_name.trim())) {
+    return res.status(409).json({ error: 'Agency name exists' })
+  }
   const contactVerified = false
   const profileCompleted = Boolean(body.specialization || body.bio || body.office_address)
   const hasAgencyPath = body.agency_mode === 'existing' || body.agency_mode === 'new'
@@ -1076,8 +1119,15 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
     created_at: createdAt,
     updated_at: createdAt,
   }
+  const agency = pathCAgency
+    ? {
+        id: uuidv4(),
+        name: body.agency_name.trim(),
+        license_number: body.agency_license || '',
+      }
+    : null
   try {
-    await createAgentAccount({ user, agent })
+    await createAgentAccount({ user, agent, agency })
   } catch (err) {
     if (err instanceof FreeTrialAlreadyClaimedError || err?.code === 'FREE_TRIAL_ALREADY_CLAIMED') {
       return res.status(409).json(freeTrialClaimedHttpBody(err))
@@ -3647,7 +3697,8 @@ app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
   const inquiries = await findAll('inquiries', (i) => i.contact_id === contact.id)
   const viewings = await findAll('viewings', (v) => v.contact_id === contact.id)
-  const conversations = await findAll('conversations', (c) => c.contact_id === contact.id)
+  const conversations = (await findAll('conversations', (c) => c.contact_id === contact.id))
+    .map(withChannelSource)
   res.json({ ...contact, inquiries, viewings, conversations })
 })
 
@@ -3967,6 +4018,7 @@ app.post('/api/message-templates/:id/render', authMiddleware, validate(messageTe
 app.get('/api/conversations', authMiddleware, async (req, res) => {
   const mine = (await findAll('conversations', (c) => c.assigned_agent_id === req.user.id))
     .sort((a, b) => new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime())
+    .map(withChannelSource)
   res.json(mine)
 })
 
@@ -3975,7 +4027,7 @@ app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
   const messages = (await findAll('conversation_messages', (m) => m.conversation_id === conversation.id))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const contact = await findOne('contacts', (c) => c.id === conversation.contact_id)
-  res.json({ ...conversation, messages, contact })
+  res.json({ ...withChannelSource(conversation), messages, contact })
 })
 
 app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
@@ -3995,7 +4047,7 @@ app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => 
     await logActivity({
       type: 'conversation_message_sent',
       agent_id: req.user.id,
-      meta: { conversation_id: conversation.id, message_id: message.id, channel: conversation.source_channel },
+      meta: { conversation_id: conversation.id, message_id: message.id, channel: readSourceChannel(conversation) },
     })
     res.json({ message, dispatch })
   } catch (e) {
@@ -4015,7 +4067,7 @@ app.post('/api/conversations/:id/assign', authMiddleware, async (req, res) => {
     agent_id: req.user.id,
     meta: { conversation_id: conversation.id, assigned_to: agentId },
   })
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
@@ -4026,7 +4078,7 @@ app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
     if (req.body[key] !== undefined) patch[key] = req.body[key]
   }
   await update('conversations', (c) => c.id === conversation.id, (c) => ({ ...c, ...patch, updated_at: new Date().toISOString() }))
-  res.json(await findOne('conversations', (c) => c.id === conversation.id))
+  res.json(withChannelSource(await findOne('conversations', (c) => c.id === conversation.id)))
 })
 
 app.post('/api/conversations/:id/close', authMiddleware, async (req, res) => {
@@ -4037,13 +4089,13 @@ app.post('/api/conversations/:id/close', authMiddleware, async (req, res) => {
     agent_id: req.user.id,
     meta: { conversation_id: conversation.id },
   })
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 app.post('/api/conversations/:id/read', authMiddleware, async (req, res) => {
   const conversation = await assertOwnsConversation(req.user.id, req.params.id)
   const updated = await markConversationReadByAgent(conversation.id)
-  res.json(updated)
+  res.json(withChannelSource(updated))
 })
 
 // ==================== TASKS ====================
@@ -4652,6 +4704,19 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
     published_at: publishedAt,
     meta,
   }))
+
+  await recordDistributionAttempt({
+    distributionJobId: row.id,
+    status,
+    error: error ? { message: error, details: meta.details || null } : null,
+    errorMessage: error,
+    response: externalId ? { external_id: externalId } : null,
+    extra: {
+      source,
+      retry_attempts: retryAttempts,
+      platform: row.platform,
+    },
+  })
 
   const updated = await findOne('distributions', d => d.id === row.id)
   await logActivity({
@@ -5394,6 +5459,19 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    // Record an attempt when we actually hit a provider (WhatsApp live send)
+    // or permanently failed before queueing. Pure draft / pending_retry queue
+    // rows are not attempts yet — the retry worker records those.
+    if (platform === 'whatsapp' && status !== 'draft') {
+      await recordDistributionAttempt({
+        distributionJobId: row.id,
+        status,
+        error: error ? { message: error, details: meta.details || null } : null,
+        errorMessage: error,
+        response: externalId ? { external_id: externalId, ...meta } : meta,
+        extra: { platform, source: 'distribute_own' },
+      })
+    }
     await logActivity({
       type: status === 'published'
         ? 'distribution_published'
@@ -5632,6 +5710,14 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
       created_at: new Date().toISOString(),
     }
     await insert('distributions', row)
+    await recordDistributionAttempt({
+      distributionJobId: row.id,
+      status,
+      error: publishError || null,
+      errorMessage: publishError?.message || null,
+      response: publishResult || (externalId ? { external_id: externalId, external_url: externalUrl } : null),
+      extra: { platform, source: 'publish_social', format: format || null },
+    })
     await logActivity({
       type: status === 'published' ? 'distribution_published' : 'distribution_failed',
       property_id: property.id,
@@ -6680,7 +6766,9 @@ app.get('/api/command-center', authMiddleware, async (req, res) => {
     if (contact?.assigned_agent_id !== agentId) continue
     aiWatching.push({
       conversation_id: c.id,
-      channel: c.source_channel,
+      channel: readChannel(c),
+      source: readSource(c),
+      source_channel: readSourceChannel(c),
       contact_name: contact?.name || null,
       last_message_preview: c.last_message_preview || '',
       last_message_at: c.last_message_at,
@@ -6691,6 +6779,7 @@ app.get('/api/command-center', authMiddleware, async (req, res) => {
   // Testimonials queue.
   const testimonials = (await findAll('testimonials_queue', (t) => t.agent_id === agentId))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map(withChannelSource)
 
   // Recent routing activity for the caller.
   const myRoutings = (await findAll('comment_routings', (r) => r.agent_id === agentId))
@@ -7182,104 +7271,14 @@ app.get('/api/agencies/search', async (req, res) => {
   })))
 })
 
-app.post('/api/agencies/apply', validate(agencyApplySchema), async (req, res) => {
-  const body = req.validated
-  const agency = await findOne('agencies', a => a.id === body.agency_id)
-  if (!agency) return res.status(404).json({ error: 'Agency not found' })
+// BE-BLOCKER-06 — slug apply + promoted agency_applications (after /search so
+// :id/:slug params cannot shadow the static search path).
+registerAgencyApplicationRoutes(app)
 
-  const existing = await findOne('agency_applications', a =>
-    a.agency_id === body.agency_id && a.agent_email === body.agent_email && a.status === 'pending'
-  )
-  if (existing) return res.status(409).json({ error: 'You already have a pending application to this agency' })
-
-  const application = {
-    id: uuidv4(),
-    agency_id: body.agency_id,
-    agent_email: body.agent_email,
-    agent_name: body.agent_name,
-    agent_phone: body.agent_phone,
-    message: body.message,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-  }
-  await insert('agency_applications', application)
-
-  // In production: send email to agency owner/admin
-  logger.info({ application_id: application.id, agency: agency.name, agent_email: body.agent_email, agent_name: body.agent_name }, 'Agency application received')
-
-  res.json({ success: true, application, message: `Application sent to ${agency.name}. They will review and approve your request.` })
-})
-
-app.get('/api/agencies/:id/applications', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  res.json((await findAll('agency_applications', a => a.agency_id === agency.id)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
-})
-
-app.post('/api/agencies/:id/applications/:appId/approve', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  const appRecord = await findOne('agency_applications', a => a.id === req.params.appId && a.agency_id === agency.id)
-  if (!appRecord) return res.status(404).json({ error: 'Application not found' })
-
-  const role = req.body?.role
-  const affiliationMode = req.body?.affiliation_mode
-  if (!role || !affiliationMode) {
-    return res.status(400).json({
-      error: 'role and affiliation_mode are required; Tenant Admin must explicitly classify the relationship',
-    })
-  }
-  if (role === 'owner') return res.status(400).json({ error: 'Ownership requires the ownership transfer workflow' })
-  if (role === 'admin' && member.role !== 'owner') {
-    return res.status(403).json({ error: 'Only a tenant owner can grant the admin role' })
-  }
-
-  const agent = await findOne('agents', a => a.email === appRecord.agent_email)
-  if (!agent) return res.status(409).json({ error: 'Applicant must create an account before approval' })
-  const check = await assertCanJoinAgency(agent.id, agency.id, { role, affiliationMode })
-  if (!check.ok) return res.status(409).json({ error: check.error })
-
-  await addAgencyMembership({
-    agencyId: agency.id,
-    userId: agent.id,
-    role,
-    affiliationMode,
-    invitedBy: req.user.id,
-  })
-  await update('agency_applications', a => a.id === appRecord.id, a => ({
-    ...a,
-    status: 'approved',
-    approved_at: new Date().toISOString(),
-    approved_by: req.user.id,
-    approved_role: role,
-    affiliation_mode: affiliationMode,
-  }))
-  if (affiliationMode === 'exclusive') {
-    await update('agents', a => a.id === agent.id, a => ({ ...a, agency_name: agency.name }))
-  }
-
-  res.json({ success: true })
-})
-
-app.post('/api/agencies/:id/applications/:appId/reject', authMiddleware, async (req, res) => {
-  const agency = await findOne('agencies', a => a.id === req.params.id)
-  if (!agency) return res.status(404).json({ error: 'Not found' })
-  const member = await getAgencyMembership(agency.id, req.user.id)
-  if (!member || !['owner', 'admin'].includes(member.role)) {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-  await update('agency_applications', a => a.id === req.params.appId && a.agency_id === agency.id, a => ({ ...a, status: 'rejected', rejected_at: new Date().toISOString(), rejected_by: req.user.id }))
-  res.json({ success: true })
-})
-
+// Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
+// creates the agency tenant in the same transaction as the personal tenant.
+// POST /api/agencies remains the post-auth path; createAgencyWithOwner provisions
+// the agency free-tier subscription (migration 319) in that transaction.
 app.post('/api/agencies', authMiddleware, validate(agencyCreateSchema), async (req, res) => {
   const body = req.validated
   const existingAff = await getActiveAffiliation(req.user.id)
@@ -7318,6 +7317,26 @@ app.get('/api/agencies/my', authMiddleware, async (req, res) => {
   res.json({ ...agency, members, myRole: member.role })
 })
 
+// Safe public card for AGN-MEM-005 apply / invite landing (id or slug).
+app.get('/api/agencies/:idOrSlug/public', async (req, res) => {
+  const key = req.params.idOrSlug
+  const agency = await findOne('agencies', a => a.id === key || a.slug === key)
+  if (!agency) return res.status(404).json({ error: 'Not found' })
+  const members = await findAll('agency_members', m => m.agency_id === agency.id && m.status === 'active')
+  const listings = await findAll('properties', p => p.agency_id === agency.id)
+  res.json({
+    id: agency.id,
+    name: agency.name,
+    slug: agency.slug,
+    logo: agency.logo ?? null,
+    description: agency.description ?? null,
+    city: agency.city ?? null,
+    accepting_applications: agency.accepting_applications !== false,
+    member_count: members.length,
+    listings_count: listings.length,
+  })
+})
+
 app.get('/api/agencies/:id', async (req, res) => {
   const agency = await findOne('agencies', a => a.id === req.params.id)
   if (!agency) return res.status(404).json({ error: 'Not found' })
@@ -7329,17 +7348,27 @@ app.get('/api/agencies/:id', async (req, res) => {
   res.json({ ...agency, members, listings })
 })
 
-app.put('/api/agencies/:id', authMiddleware, async (req, res) => {
+async function updateAgencyHandler(req, res) {
   const member = await getAgencyMembership(req.params.id, req.user.id)
   if (!member || !['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Forbidden' })
-  const allowed = ['name', 'license_number', 'description', 'logo', 'primary_color', 'secondary_color', 'phone', 'email', 'address', 'website', 'site_hosting_type', 'cta_config']
+  const allowed = [
+    'name', 'license_number', 'description', 'logo', 'primary_color', 'secondary_color',
+    'phone', 'email', 'address', 'website', 'site_hosting_type', 'cta_config',
+    'accepting_applications',
+  ]
   const patch = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) patch[key] = req.body[key]
   }
+  if (patch.accepting_applications !== undefined) {
+    patch.accepting_applications = Boolean(patch.accepting_applications)
+  }
   await update('agencies', a => a.id === req.params.id, a => ({ ...a, ...patch }))
   res.json(await findOne('agencies', a => a.id === req.params.id))
-})
+}
+
+app.put('/api/agencies/:id', authMiddleware, updateAgencyHandler)
+app.patch('/api/agencies/:id', authMiddleware, updateAgencyHandler)
 
 // Agency members
 app.post('/api/agencies/:agencyId/members', authMiddleware, requireRole(['owner', 'admin']), async (req, res) => {
@@ -8039,6 +8068,14 @@ app.use((err, req, res, _next) => {
 // ==================== START ====================
 const startServer = async () => {
   const port = await resolveServerPort()
+  try {
+    const { bootPortalRegistry } = await import('./lib/notifications/portals/registry.js')
+    const { refreshRealEstatePortalExport } = await import('./lib/notifications/realestate.js')
+    await bootPortalRegistry({ logger })
+    refreshRealEstatePortalExport()
+  } catch (err) {
+    logger.warn({ err: err?.message || String(err) }, 'portal_registry boot skipped')
+  }
   warnUnavailablePublishChannels(logger)
   const unverifiableWebhookChannels = [
     [!process.env.META_APP_SECRET, 'whatsapp'],
@@ -8234,6 +8271,38 @@ const startServer = async () => {
         }
       }, CREDITS_BILLING_CYCLE_INTERVAL_MS)
       if (typeof creditsBillingCycleTimer.unref === 'function') creditsBillingCycleTimer.unref()
+    }
+
+    if (SCHEDULED_DELETION_REMINDER_ENABLED) {
+      scheduledDeletionReminderTimer = setInterval(async () => {
+        try {
+          const result = await runScheduledDeletionReminderTick()
+          if ((result.sent || 0) > 0 || (result.failed || 0) > 0) {
+            logger.info(result, 'Scheduled deletion reminder worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Scheduled deletion reminder worker failed')
+        }
+      }, SCHEDULED_DELETION_REMINDER_INTERVAL_MS)
+      if (typeof scheduledDeletionReminderTimer.unref === 'function') {
+        scheduledDeletionReminderTimer.unref()
+      }
+    }
+
+    if (AGENCY_APPLICATION_EXPIRY_ENABLED) {
+      agencyApplicationExpiryTimer = setInterval(async () => {
+        try {
+          const result = await runAgencyApplicationExpiryTick()
+          if ((result.expired || 0) > 0) {
+            logger.info(result, 'Agency application expiry worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Agency application expiry worker failed')
+        }
+      }, AGENCY_APPLICATION_EXPIRY_INTERVAL_MS)
+      if (typeof agencyApplicationExpiryTimer.unref === 'function') {
+        agencyApplicationExpiryTimer.unref()
+      }
     }
   })
 }

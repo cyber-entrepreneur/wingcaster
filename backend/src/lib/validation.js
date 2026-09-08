@@ -43,6 +43,14 @@ export const registerSchema = z.object({
   territories: z.array(z.string().max(120)).max(100).optional().default([]),
   property_types: z.array(z.string().max(120)).max(100).optional().default([]),
   terms_accepted: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+  if (data.agency_mode === 'new' && !String(data.agency_name || '').trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['agency_name'],
+      message: 'Agency name is required',
+    })
+  }
 })
 
 export const loginSchema = z.object({
@@ -268,12 +276,40 @@ export const agencyCreateSchema = z.object({
   site_hosting_type: z.enum(['none', 'whitelabel', 'external']).optional().default('none'),
 })
 
+/** @deprecated Legacy POST /api/agencies/apply body — route returns 410. */
 export const agencyApplySchema = z.object({
   agency_id: z.string().max(80),
   agent_email: emailSchema,
   agent_name: z.string().max(120).optional().default(''),
   agent_phone: z.string().max(40).optional().default(''),
   message: z.string().max(2000).optional().default(''),
+})
+
+export const AGENCY_APPLICATION_AVAILABILITY = Object.freeze([
+  'immediately',
+  'within_2_weeks',
+  'within_a_month',
+  'just_exploring',
+])
+
+/**
+ * AGN-MEM-005 public join apply (BE-BLOCKER-06).
+ * Signed-in path: applicant identity comes from the session.
+ * Guest signup embedding is a follow-up (prefer authMiddleware for this blocker).
+ */
+export const agencyApplicationCreateSchema = z.object({
+  message: z.string().trim().min(1).max(500),
+  current_listings_count: z.number().int().min(0).max(500).optional(),
+  portfolio_url: z.string().url().max(1000).optional(),
+  availability: z.enum(AGENCY_APPLICATION_AVAILABILITY).optional(),
+  referral_source: z.string().max(200).optional(),
+  invitation_code: z.string().max(120).optional(),
+  consents: z.object({
+    terms: z.boolean().optional(),
+    profile_share: z.literal(true, {
+      errorMap: () => ({ message: 'profile_share consent is required' }),
+    }),
+  }),
 })
 
 export const propertyQuerySchema = z.object({

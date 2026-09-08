@@ -100,6 +100,7 @@ Every worker has an `_ENABLED` toggle and an `_INTERVAL_MS` cadence. Set `_ENABL
 - `AREA_INTELLIGENCE_SCORING_WORKER_ENABLED`, `AREA_INTELLIGENCE_SCORING_WORKER_INTERVAL_MS`
 - `AREA_INTELLIGENCE_GOOGLE_REFRESH_WORKER_ENABLED`, `AREA_INTELLIGENCE_GOOGLE_REFRESH_WORKER_INTERVAL_MS`
 - `MARKET_PRICING_ENABLED`, `MARKET_PRICING_WORKER_ENABLED`, `MARKET_PRICING_WORKER_INTERVAL_MS`, `MARKET_PRICING_JOB_BATCH_SIZE`, `MARKET_PRICING_JOB_MAX_ATTEMPTS`, `MARKET_PRICING_JOB_POLL_INTERVAL_MS`, `MARKET_PRICING_TREND_WORKER_INTERVAL_MS`, `MARKET_PRICING_ANALYSIS_EXPIRY_DAYS`
+- `SCHEDULED_DELETION_REMINDER_ENABLED`, `SCHEDULED_DELETION_REMINDER_INTERVAL_MS` — daily T-7 / T-1 reminder cron for pending `deletion_requests`. Default enabled; interval default `86400000` (24h). Set `_ENABLED=false` on replicas that should not send mail. Uses the existing Graph / email transport (`AZURE_*` + `MAIL_FROM`, or the OTP fallback). No extra Graph credentials. Cancel links use `PUBLIC_APP_URL` (else `APP_URL`) as `/scheduled-deletion?token=…`. Token HMAC is `JWT_SECRET` (already Tier 0).
 
 `BILLING_MODULE_ENABLED` gates the entire fin.* billing subsystem — leave unset (default false) until you're ready to expose billing endpoints and workers.
 

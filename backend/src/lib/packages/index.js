@@ -8,7 +8,11 @@ export { activateProperty, deactivateProperty, countActive } from './property-tr
 export { syncListingPropertyTracker } from './property-tracker-hook.js'
 export { provisionFreeTier } from './onboarding.js'
 export { previewChangePlan } from './preview.js'
-export { listMeteredFeatures, getFeatureByCode, getFreeTierPackage, SEEDED_FEATURE_CODES, FREE_TIER_FLAG_CODES } from './registry.js'
+export {
+  listMeteredFeatures, getFeatureByCode, getFreeTierPackage,
+  SEEDED_FEATURE_CODES, FREE_TIER_FLAG_CODES,
+  FREE_TIER_PACKAGE_CODES, freeTierPackageCode, freeTierAudienceForScope,
+} from './registry.js'
 export { PackageError, PACKAGE_ERROR, PACKAGE_HTTP_STATUS } from './errors.js'
 export { registerFinPackagesAdminRoutes } from './admin-routes.js'
 export {
