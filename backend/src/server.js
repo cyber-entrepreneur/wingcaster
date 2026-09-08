@@ -7247,6 +7247,9 @@ app.post('/api/agencies/:id/applications/:appId/reject', authMiddleware, async (
   res.json({ success: true })
 })
 
+// Path (c) agency-owner signup: after /api/auth/register (agency_mode=new),
+// the client creates the agency here. createAgencyWithOwner provisions the
+// agency tenant + free-agency subscription (migration 319) in one transaction.
 app.post('/api/agencies', authMiddleware, validate(agencyCreateSchema), async (req, res) => {
   const body = req.validated
   const existingAff = await getActiveAffiliation(req.user.id)

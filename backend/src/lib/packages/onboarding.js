@@ -23,11 +23,15 @@ export async function provisionFreeTier(client, {
   if (!scope || !scopeId) {
     throw new CreditEngineError(CREDIT_ERROR.INVALID_AMOUNT, 'scope and scopeId are required for free-tier provisioning')
   }
-  const free = await getFreeTierPackage(client)
+  // path (c) agency owner signup → agency free-tier; personal/agent → free-agent
+  const audience = scope === 'agency' ? 'agency' : 'agent'
+  const free = await getFreeTierPackage(client, { audience })
   if (!free?.version_id) {
     throw new CreditEngineError(
       CREDIT_ERROR.FREE_TIER_PACKAGE_MISSING,
-      'Free-tier package seed missing — restore from migration 304',
+      audience === 'agency'
+        ? 'Agency free-tier package seed missing — restore from migration 319'
+        : 'Free-tier package seed missing — restore from migration 304',
     )
   }
   const finTenantId = await lookupFinTenantId(client, scope, String(scopeId))

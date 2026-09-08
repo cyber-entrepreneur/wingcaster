@@ -19,16 +19,23 @@ export async function getFeatureByCode(client, code) {
   return rows[0] || null
 }
 
-export async function getFreeTierPackage(client) {
+/**
+ * Resolve the published free-tier package for an audience.
+ * Agent personal tenants use `free-agent` (migration 304).
+ * Agency tenants use `free-agency` (migration 319).
+ */
+export async function getFreeTierPackage(client, { audience = 'agent' } = {}) {
+  const code = audience === 'agency' ? 'free-agency' : 'free-agent'
   const { rows } = await client.query(
     `SELECT p.*, v.id AS version_id, v.version_number, v.state AS version_state,
             v.properties_covered, v.monthly_price_minor, v.effective_from, v.effective_to
        FROM public.product_packages p
        JOIN public.product_package_versions v ON v.package_id = p.id
-      WHERE p.code = 'free-agent'
+      WHERE p.code = $1
         AND v.state = 'PUBLISHED'
       ORDER BY v.version_number DESC
       LIMIT 1`,
+    [code],
   )
   return rows[0] || null
 }
