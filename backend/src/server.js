@@ -156,6 +156,7 @@ import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onbo
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
+import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -679,6 +680,7 @@ registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
 registerAgencyInvitationRoutes(app)
+registerPublishingJobRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({

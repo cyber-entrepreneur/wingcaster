@@ -8,3 +8,27 @@ export {
   IN_REVIEW_ALERT_TYPE,
   submissionReceiptDeepLink,
 } from './notify-submission-status.js'
+export {
+  RETRYABLE_ERROR_CLASSES,
+  PUBLISHING_JOB_AGGREGATION_SQL,
+  computeAggregate,
+  mapDestinationStatus,
+  toApiErrorClass,
+  toDbErrorClass,
+  isRetryAvailable,
+  getPublishingJob,
+  loadPublishingJobRows,
+  buildPublishingJobPayload,
+  retryPublishingDestination,
+  retryAllPublishingDestinations,
+  createPublishingJob,
+  maybeCompletePublishingJob,
+} from './jobs.js'
+export { registerRoutes as registerPublishingJobRoutes } from './jobs-routes.js'
+export {
+  emitPublishingJobCompleted,
+  templateCodeForAggregate,
+  buildDeepLink,
+  buildWebPath,
+  VARIANT_CODES,
+} from './notify-job-completed.js'
