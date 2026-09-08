@@ -16,6 +16,8 @@ import { seedData } from './seed.js'
 import { signToken, authMiddleware, requireElevated } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
+import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
+import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -640,6 +642,9 @@ registerTwoFactorRoutes(app, {
   logActivity,
 })
 
+// BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).
+registerScheduledDeletionRoutes(app)
+
 // Platform notifications — admin CRUD for message templates the platform
 // sends TO tenants (signup OTP, welcome, WhatsApp guide, …). Distinct
 // from the tenant-owned message_templates surface. WRITE routes are
@@ -703,9 +708,15 @@ const CREDITS_MIRROR_ENABLED = process.env.CREDITS_FIN_MIRROR_ENABLED !== 'false
 const CREDITS_MIRROR_INTERVAL_MS = Math.max(10_000, Number(process.env.CREDITS_FIN_MIRROR_INTERVAL_MS || 30_000))
 const CREDITS_BILLING_CYCLE_ENABLED = process.env.CREDITS_BILLING_CYCLE_ENABLED !== 'false'
 const CREDITS_BILLING_CYCLE_INTERVAL_MS = Math.max(15_000, Number(process.env.CREDITS_BILLING_CYCLE_INTERVAL_MS || 60_000))
+const SCHEDULED_DELETION_REMINDER_ENABLED = process.env.SCHEDULED_DELETION_REMINDER_ENABLED !== 'false'
+const SCHEDULED_DELETION_REMINDER_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.SCHEDULED_DELETION_REMINDER_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
+let scheduledDeletionReminderTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8276,6 +8287,22 @@ const startServer = async () => {
         }
       }, CREDITS_BILLING_CYCLE_INTERVAL_MS)
       if (typeof creditsBillingCycleTimer.unref === 'function') creditsBillingCycleTimer.unref()
+    }
+
+    if (SCHEDULED_DELETION_REMINDER_ENABLED) {
+      scheduledDeletionReminderTimer = setInterval(async () => {
+        try {
+          const result = await runScheduledDeletionReminderTick()
+          if ((result.sent || 0) > 0 || (result.failed || 0) > 0) {
+            logger.info(result, 'Scheduled deletion reminder worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Scheduled deletion reminder worker failed')
+        }
+      }, SCHEDULED_DELETION_REMINDER_INTERVAL_MS)
+      if (typeof scheduledDeletionReminderTimer.unref === 'function') {
+        scheduledDeletionReminderTimer.unref()
+      }
     }
   })
 }

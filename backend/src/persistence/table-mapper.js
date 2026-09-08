@@ -27,6 +27,14 @@ const TABLE_MAP = {
     ],
   },
   user_backup_codes: { schema: 'public', table: 'user_backup_codes', columns: ['user_id', 'code_hash', 'used_at'] },
+  deletion_requests: {
+    schema: 'public',
+    table: 'deletion_requests',
+    columns: [
+      'user_id', 'status', 'reason', 'reason_notes', 'liveness_word',
+      'scheduled_for', 'confirmed_at', 'cancelled_at', 'completed_at', 'reminders_sent',
+    ],
+  },
   auth_challenges: {
     schema: 'public',
     table: 'auth_challenges',
