@@ -34,5 +34,21 @@ export function getConfig() {
       captionCost: Number(env('WHATSAPP_LISTINGS_CAPTION_CREDIT_COST', 0.02)),
       socialPublishCost: Number(env('WHATSAPP_LISTINGS_SOCIAL_PUBLISH_CREDIT_COST', 0.03)),
     },
+    // BE-BLOCKER-13 / AGT-WLB-004: prefer SSE; set to `poll` to force polling-only.
+    // Accepts WHATSAPP_DRAFT_PROGRESS_MODE (brief name) or WHATSAPP_LISTINGS_DRAFT_PROGRESS_MODE.
+    draftProgressMode: (() => {
+      const raw = (
+        env('WHATSAPP_DRAFT_PROGRESS_MODE', '') ||
+        env('WHATSAPP_LISTINGS_DRAFT_PROGRESS_MODE', 'sse')
+      ).toLowerCase().trim()
+      return raw === 'poll' || raw === 'polling' ? 'poll' : 'sse'
+    })(),
+    draftProgressPollIntervalMs: Math.max(
+      1000,
+      Number(
+        env('WHATSAPP_DRAFT_PROGRESS_POLL_INTERVAL_MS', '') ||
+          env('WHATSAPP_LISTINGS_DRAFT_PROGRESS_POLL_INTERVAL_MS', 3000),
+      ),
+    ),
   }
 }

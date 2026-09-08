@@ -25,11 +25,19 @@ import { recordAiCall } from '../../../lib/ai-usage-logger.js'
 import { syntheticTenantId } from '../../../lib/credits/wallets.js'
 import { createAiPost } from '../../../lib/credits/ai-stubs.js'
 
-export function createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger }) {
+export function createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger, progress }) {
   const storage = createStorage({ config, logger })
   const sessions = createSessionStore({ config, logger })
   const classifier = createIntentClassifier({ aiAdapter })
   const matcher = createListingMatcher({ adapter })
+  // Optional BE-BLOCKER-13 progress reporter (SSE / poll). No-op when absent.
+  const report = progress || {
+    beginExtraction: async () => {},
+    reportExtractedFields: async () => {},
+    reportPhotos: async () => {},
+    reportDraftReady: async () => {},
+    reportError: async () => {},
+  }
 
   async function ingest({ from, messageId, text, interactiveId, mediaIds, location, messageType, rawPayload }) {
     // NOTE: message_id deduplication happens atomically in the webhook layer
@@ -130,6 +138,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
 
     await sessions.transition(session.id, SessionState.EXTRACTING)
     session = await sessions.getById(session.id)
+    await report.beginExtraction(session.id)
 
     const agent = await adapter.getAgentById(session.agent_id)
     const agencyId = await adapter.getAgentAgencyId(session.agent_id)
@@ -149,6 +158,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
     })
     if (!reserve.ok) {
       await sessions.transition(session.id, SessionState.ERROR)
+      await report.reportError(session.id, 'Insufficient AI credits')
       await sendWhatsAppReply(session.phone_number, 'Your AI credit balance is too low. Please top up via your dashboard.')
       return null
     }
@@ -244,6 +254,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       })
       await sessions.transition(session.id, SessionState.ERROR)
       await sessions.updateSession(session.id, { last_error: err.message })
+      await report.reportError(session.id, err.message || 'Property extraction failed')
       await scheduleRetry(session, sessions)
       await sendWhatsAppReply(session.phone_number, 'Sorry, I had trouble extracting the listing details. Please try again with clearer photos or a text summary.')
       return null
@@ -275,6 +286,8 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
     }
 
     await sessions.updateSession(session.id, { extracted_property: extractedProperty })
+    session = await sessions.getById(session.id)
+    await report.reportExtractedFields(session.id, extractedProperty, session)
 
     // Generate thumbnails.
     let thumbnails = null
@@ -347,6 +360,8 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       generated_thumbnails: thumbnails,
       generated_captions: captions,
     })
+    session = await sessions.getById(session.id)
+    await report.reportPhotos(session.id, session)
 
     // Create draft record.
     const draft = await insertModule(Collections.DRAFTS, {
@@ -377,6 +392,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
 
     await sessions.updateSession(session.id, { draft_id: draft.id })
     await sessions.transition(session.id, SessionState.AWAITING_APPROVAL)
+    await report.reportDraftReady(session.id, draft)
 
     // Deduct actual thumbnail/caption costs, release remainder if none.
     const actualCost = config.credits.extractionCost + (thumbnails ? config.credits.thumbnailCost : 0) + (captions.x ? config.credits.captionCost : 0)
