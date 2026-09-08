@@ -1,0 +1,47 @@
+/**
+ * Print stylesheet for MFA backup-codes (SHR-MFA-005).
+ * Import from the backup-codes viewer page (or app shell) when that screen ships.
+ *
+ * Rules:
+ * - Hide chrome / nav / actions
+ * - Show only the backup-code grid for physical print / PDF
+ */
+
+@media print {
+  /* Hide typical app chrome; keep additive / non-breaking if selectors miss. */
+  header,
+  nav,
+  aside,
+  footer,
+  [data-app-shell-nav],
+  [data-app-shell-sidebar],
+  [data-app-shell-topbar],
+  [data-print-hide],
+  button,
+  [role='button'],
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: var(--lc-bg-page);
+    color: var(--lc-text-primary);
+  }
+
+  [data-backup-codes-grid] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--lc-space-sm);
+    padding: var(--lc-space-lg);
+  }
+
+  [data-backup-codes-grid] li {
+    break-inside: avoid;
+    border: 1px solid var(--lc-border-strong);
+    background: var(--lc-surface-raised);
+    color: var(--lc-text-primary);
+    font-family: var(--lc-font-mono);
+    font-variant-numeric: tabular-nums;
+    padding: var(--lc-space-sm) var(--lc-space-md);
+  }
+}
