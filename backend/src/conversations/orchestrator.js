@@ -11,8 +11,13 @@ import { replyToLinkedInComment, isLinkedInEnabled } from '../lib/notifications/
 import { resolveConnectionCredentials } from '../lib/credentials.js'
 import { classifyByRules } from '../lib/comment-classifier.js'
 import { emitUsageEventAsync } from '../billing/index.js'
+import {
+  conversationChannelSourceFields,
+  matchesConversationChannel,
+  readSourceChannel,
+} from './channel-source.js'
 
-// Map orchestrator source_channel → §6 usage-event action_key.
+// Map orchestrator messaging channel → §6 usage-event action_key.
 const IN_ACTION_KEY = {
   whatsapp:            'message.in.whatsapp',
   instagram_dm:        'message.in.meta_dm',
@@ -167,11 +172,14 @@ export async function updateContactActivity(contactId) {
   return await findOne('contacts', (c) => c.id === contactId)
 }
 
-export async function getOrCreateConversation({ contactId, channel, visibility = 'private', assignedAgentId, subject }) {
+export async function getOrCreateConversation({ contactId, channel, source, visibility = 'private', assignedAgentId, subject }) {
   const contact = await findOne('contacts', (c) => c.id === contactId)
   if (!contact) throw new Error('Contact not found')
 
-  const existing = await findOne('conversations', (c) => c.contact_id === contactId && c.source_channel === channel)
+  const channelSource = conversationChannelSourceFields({ channel, source })
+  const existing = await findOne('conversations', (c) =>
+    c.contact_id === contactId && matchesConversationChannel(c, channel),
+  )
   const now = new Date().toISOString()
 
   if (existing) {
@@ -185,7 +193,7 @@ export async function getOrCreateConversation({ contactId, channel, visibility =
     contact_phone: contact.phone || '',
     contact_name: contact.name || '',
     assigned_agent_id: assignedAgentId || contact.assigned_agent_id || null,
-    source_channel: channel,
+    ...channelSource,
     visibility,
     status: 'open',
     priority: 'normal',
@@ -366,7 +374,7 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     await update('conversations', (c) => c.id === conversation.id, (c) => ({ ...c, status: 'open', updated_at: new Date().toISOString() }))
   }
 
-  const channel = conversation.source_channel
+  const channel = readSourceChannel(conversation)
   const now = new Date().toISOString()
 
   let dispatch = { ok: false, status: 'pending', provider: null, provider_message_id: null, error: null }

@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { renderTemplate, refineWithAi } from './reply-composer.js'
 import { createOpportunity } from '../../opportunities.js'
 import { emitUsageEventAsync } from '../../billing/index.js'
+import { conversationChannelSourceFields } from '../../conversations/channel-source.js'
 
 const NEW_ROUTING_ID = () => uuidv4()
 
@@ -217,7 +218,7 @@ async function handleTestimonial(ctx) {
         property_id: ctx.listing?.id || null,
         content: ctx.message.content || '',
         author_name: ctx.author_name || ctx.contact?.name || '',
-        source_channel: ctx.message.channel,
+        ...conversationChannelSourceFields({ channel: ctx.message.channel }),
         source_post_url: ctx.distribution?.landing_page || null,
         consent_status: ctx.routeConfig.consent_required ? 'pending' : 'implicit',
         published_status: 'draft',
