@@ -21,7 +21,13 @@ export async function meterFeature(feature, opts, work) {
   const ctx = opts?.creditContext || {}
   const tenantId = ctx.tenantId || opts?.tenantId || null
   if (!tenantId || ctx.skipMetering) return work()
-  const countryCode = ctx.countryCode || ctx.country_code || opts?.countryCode || opts?.country_code || null
+  const countryCode = ctx.countryCode
+    || ctx.country_code
+    || opts?.countryCode
+    || opts?.country_code
+    || opts?.listing?.country_code
+    || opts?.listing?.countryCode
+    || null
   const portal = ctx.portal || opts?.portal || null
   const eventType = ctx.eventType || ctx.event_type || opts?.eventType || opts?.event_type || null
   return withCredits({

@@ -3,11 +3,15 @@
  * adapter modules under this directory. Boot-time sync also registers
  * metered feature codes via credits/features.js.
  *
- * Adapter files are keyed by portal `code` (`./<code>.js`). Class names
- * from `adapter_class_name` are preferred when the module exports them;
- * otherwise the module default / first PortalPublisher subclass is used.
+ * Adapter files are keyed by `adapter_class_name` (`portals/olx.js`) with
+ * a filesystem fallback to `./<code>.js` so tests/boot work if the table
+ * is empty.
  */
-import { registerPortalFeaturesFromRows, portalFeatureCode } from '../../credits/features.js'
+import {
+  portalFeatureCode,
+  registerPortalFeaturesFromRows,
+} from '../../credits/features.js'
+import { PortalPublisher } from './base.js'
 
 const ADAPTER_LOADERS = {
   olx: () => import('./olx.js'),
@@ -22,8 +26,8 @@ export const FALLBACK_PORTAL_ROWS = [
     id: '32300000-0000-4000-8000-000000000001',
     code: 'olx',
     display_name: 'OLX',
-    country_codes: ['AE', 'SA', 'EG', 'LB', 'JO'],
-    adapter_class_name: 'OlxPortalPublisher',
+    country_codes: ['EG', 'LB'],
+    adapter_class_name: 'portals/olx.js',
     is_active: false,
   },
   {
@@ -31,15 +35,15 @@ export const FALLBACK_PORTAL_ROWS = [
     code: 'property_finder',
     display_name: 'Property Finder',
     country_codes: ['AE', 'SA', 'EG', 'LB', 'JO', 'QA', 'KW', 'BH', 'OM'],
-    adapter_class_name: 'PropertyFinderPortalPublisher',
+    adapter_class_name: 'portals/property_finder.js',
     is_active: false,
   },
   {
     id: '32300000-0000-4000-8000-000000000003',
     code: 'bayut',
     display_name: 'Bayut',
-    country_codes: ['AE', 'SA', 'EG'],
-    adapter_class_name: 'BayutPortalPublisher',
+    country_codes: ['AE', 'SA'],
+    adapter_class_name: 'portals/bayut.js',
     is_active: false,
   },
   {
@@ -47,7 +51,7 @@ export const FALLBACK_PORTAL_ROWS = [
     code: 'dubizzle',
     display_name: 'dubizzle',
     country_codes: ['AE'],
-    adapter_class_name: 'DubizzlePortalPublisher',
+    adapter_class_name: 'portals/dubizzle.js',
     is_active: false,
   },
 ]
@@ -56,28 +60,53 @@ export const FALLBACK_PORTAL_ROWS = [
 let portalCache = null
 let bootPromise = null
 
-function notImplemented(message) {
-  const err = new Error(message)
-  err.code = 'NOT_IMPLEMENTED'
-  return err
+function adapterFileName(row) {
+  const named = String(row?.adapter_class_name || '')
+    .replace(/^portals\//, '')
+    .replace(/^\.\//, '')
+  if (named.endsWith('.js')) return named
+  if (row?.code) return `${row.code}.js`
+  return null
 }
 
-async function instantiateAdapter(row) {
-  const code = String(row.code)
+export async function loadPortalAdapterClass(code, adapterClassName) {
+  const file = adapterFileName({ code, adapter_class_name: adapterClassName })
   const loader = ADAPTER_LOADERS[code]
-  if (!loader) {
-    // Unknown portal code — stub publisher that still throws NOT_IMPLEMENTED.
-    const { PortalPublisher } = await import('./base.js')
-    return new PortalPublisher(row)
+  let mod
+  if (file) {
+    try {
+      mod = await import(new URL(`./${file}`, import.meta.url).href)
+    } catch (error) {
+      if (!loader) throw error
+      mod = await loader()
+    }
+  } else if (loader) {
+    mod = await loader()
+  } else {
+    const err = new Error(`Cannot resolve adapter for portal ${code}`)
+    err.code = 'ADAPTER_NOT_FOUND'
+    throw err
   }
-  const mod = await loader()
-  const ClassRef = mod[row.adapter_class_name]
+  const ClassRef = (adapterClassName && !String(adapterClassName).includes('/') && mod[adapterClassName])
     || mod.default
-    || Object.values(mod).find((v) => typeof v === 'function' && v.prototype?.publish)
+    || Object.values(mod).find((value) => (
+      typeof value === 'function'
+        && value !== PortalPublisher
+        && value.prototype instanceof PortalPublisher
+    ))
   if (!ClassRef) {
     throw new Error(`Portal adapter module for ${code} has no publisher class`)
   }
-  return new ClassRef(row)
+  return ClassRef
+}
+
+async function instantiateAdapter(row) {
+  try {
+    const ClassRef = await loadPortalAdapterClass(row.code, row.adapter_class_name)
+    return new ClassRef(row)
+  } catch {
+    return new PortalPublisher(row)
+  }
 }
 
 export async function buildPortalEntry(row) {
@@ -90,10 +119,9 @@ export async function buildPortalEntry(row) {
 }
 
 /**
- * Replace the in-memory portal map from rows and register feature codes.
- * Registers every registry row (including inactive stubs) so existing
- * metering feature codes stay wired; `is_active` gates live availability
- * for future publish surfaces, not feature-code presence.
+ * Replace the in-memory portal map from rows.
+ * Inactive stubs still load (so publishOlx keeps working) but only **active**
+ * rows auto-register extra FEATURES keys.
  */
 export async function applyPortalRows(rows, { registerFeatures = true } = {}) {
   const map = new Map()
@@ -103,7 +131,7 @@ export async function applyPortalRows(rows, { registerFeatures = true } = {}) {
   }
   portalCache = map
   if (registerFeatures) {
-    registerPortalFeaturesFromRows(rows)
+    registerPortalFeaturesFromRows(rows.filter((row) => row?.is_active))
   }
   return map
 }
@@ -159,6 +187,12 @@ export async function bootPortalRegistry({ queryFn = null, logger = null } = {})
     }
     if (!rows?.length) rows = FALLBACK_PORTAL_ROWS
     const map = await applyPortalRows(rows, { registerFeatures: true })
+    try {
+      const { refreshPortalFeatures } = await import('../../credits/features.js')
+      await refreshPortalFeatures()
+    } catch {
+      // Offline / unit tests: FEATURES bootstrap constants are enough.
+    }
     logger?.info?.(
       { portals: [...map.keys()], active: [...map.values()].filter((e) => e.row.is_active).map((e) => e.row.code) },
       'portal_registry loaded',
@@ -168,7 +202,6 @@ export async function bootPortalRegistry({ queryFn = null, logger = null } = {})
   try {
     return await bootPromise
   } finally {
-    // Allow a later explicit reload (tests / admin activate).
     bootPromise = null
   }
 }
@@ -179,4 +212,4 @@ export function resetPortalRegistryForTests() {
   bootPromise = null
 }
 
-export { notImplemented, ADAPTER_LOADERS }
+export { ADAPTER_LOADERS, PortalPublisher }

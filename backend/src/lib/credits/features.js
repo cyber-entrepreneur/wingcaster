@@ -65,16 +65,68 @@ export function registerPortalFeature(code) {
 }
 
 /**
- * Sync FEATURES from portal_registry rows.
- * Registers every row so inactive stubs keep their migration-303 feature codes;
- * newly activated portals pick up PUBLISHING_REALESTATE_<CODE> automatically.
+ * Sync FEATURES from active portal_registry rows.
+ * Inactive seed rows keep the four bootstrap constants; a later activate
+ * picks up PUBLISHING_REALESTATE_<CODE> automatically.
  */
 export function registerPortalFeaturesFromRows(rows) {
   const codes = []
   for (const row of rows || []) {
     if (!row?.code) continue
+    if (!row.is_active) continue
     codes.push(registerPortalFeature(row.code))
   }
+  return codes
+}
+
+async function ensureMeteredFeature(row) {
+  const { createHash } = await import('node:crypto')
+  const { query } = await import('../../db.js')
+  const code = portalFeatureCode(row.code)
+  const hex = createHash('md5').update(code).digest('hex')
+  const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+  await query(
+    `INSERT INTO public.metered_features (
+       id, code, display_name, category, meter_unit, cost_source,
+       credits_per_unit, active, data
+     ) VALUES (
+       $1, $2, $3, 'publishing.realestate', 'post', 'platform_bulk',
+       100, true, $4::jsonb
+     )
+     ON CONFLICT (code) DO UPDATE SET
+       data = public.metered_features.data || EXCLUDED.data,
+       updated_at = NOW()`,
+    [
+      id,
+      code,
+      `${row.display_name || row.code} publish`,
+      JSON.stringify({
+        portal: row.code,
+        source: 'portal_registry',
+        regions: Array.isArray(row.country_codes) ? row.country_codes : [],
+      }),
+    ],
+  )
+}
+
+/**
+ * Load active portal_registry rows and register FEATURES + metered_features.
+ * Intended for boot and tests.
+ */
+export async function refreshPortalFeatures() {
+  let rows
+  try {
+    const { listPortalRegistry } = await import('../portals/store.js')
+    rows = await listPortalRegistry({ activeOnly: true })
+  } catch {
+    FEATURE_LIST = rebuildFeatureList()
+    return []
+  }
+  const codes = registerPortalFeaturesFromRows(rows)
+  for (const row of rows) {
+    await ensureMeteredFeature(row)
+  }
+  FEATURE_LIST = rebuildFeatureList()
   return codes
 }
 

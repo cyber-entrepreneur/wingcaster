@@ -23,7 +23,7 @@ export async function getPortalByCode(code) {
 }
 
 export async function upsertPortalRegistry(row) {
-  const id = row.id || randomUUID()
+  const id = row.id || row.code || randomUUID()
   const rows = await query(
     `INSERT INTO public.portal_registry (
        id, code, display_name, description, logo_url, country_codes,
@@ -46,8 +46,7 @@ export async function upsertPortalRegistry(row) {
        validator_ref = EXCLUDED.validator_ref,
        is_active = EXCLUDED.is_active,
        effective_from = EXCLUDED.effective_from,
-       deprecated_at = EXCLUDED.deprecated_at,
-       updated_at = CURRENT_TIMESTAMP
+       deprecated_at = EXCLUDED.deprecated_at
      RETURNING *`,
     [
       id,
@@ -57,7 +56,7 @@ export async function upsertPortalRegistry(row) {
       row.logo_url || null,
       row.country_codes || [],
       row.primary_language || null,
-      row.adapter_class_name,
+      row.adapter_class_name || `portals/${row.code}.js`,
       JSON.stringify(row.publisher_config || {}),
       JSON.stringify(row.inbound_config || {}),
       row.validator_ref || null,
@@ -69,47 +68,80 @@ export async function upsertPortalRegistry(row) {
   return rows[0]
 }
 
+export async function insertPendingActivation(row = {}) {
+  const inserted = await query(
+    `INSERT INTO public.portal_registry_pending_activations (
+       id, portal_code, action, state, submitter_user_id, approver_user_id,
+       submitter_notes, approver_notes, effective_from
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING *`,
+    [
+      row.id || randomUUID(),
+      row.portal_code || row.portalCode,
+      row.action || (row.proposedIsActive === false ? 'deactivate' : 'activate'),
+      row.state || 'pending',
+      row.submitter_user_id || row.submitterUserId || row.requestedBy,
+      row.approver_user_id ?? row.approverUserId ?? null,
+      row.submitter_notes ?? row.submitterNotes ?? row.reason ?? null,
+      row.approver_notes ?? row.approverNotes ?? null,
+      row.effective_from ?? row.effectiveFrom ?? row.proposedEffectiveFrom ?? null,
+    ],
+  )
+  return inserted[0]
+}
+
+export async function appendActivationHistory(row = {}) {
+  const inserted = await query(
+    `INSERT INTO public.portal_activation_history (
+       id, portal_code, event_type, submitter_user_id, approver_user_id,
+       notes, before_json, after_json
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb)
+     RETURNING *`,
+    [
+      row.id || randomUUID(),
+      row.portal_code || row.portalCode,
+      row.event_type || row.eventType || row.action,
+      row.submitter_user_id ?? row.submitterUserId ?? row.actor_id ?? null,
+      row.approver_user_id ?? row.approverUserId ?? null,
+      row.notes ?? row.note ?? null,
+      JSON.stringify(row.before_json ?? row.beforeJson ?? row.from_state ?? null),
+      JSON.stringify(row.after_json ?? row.afterJson ?? row.to_state ?? null),
+    ],
+  )
+  return inserted[0]
+}
+
 export async function requestPortalActivation({
+  portalCode,
   portalId,
   requestedBy,
   reason = null,
   proposedIsActive = true,
-  proposedPublisherConfig = {},
-  proposedInboundConfig = {},
-  proposedCountryCodes = null,
   proposedEffectiveFrom = null,
 }) {
-  const rows = await query(
-    `INSERT INTO public.portal_registry_pending_activations (
-       portal_id, requested_by, reason, proposed_is_active,
-       proposed_publisher_config, proposed_inbound_config,
-       proposed_country_codes, proposed_effective_from
-     ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::text[],$8)
-     RETURNING *`,
-    [
-      portalId,
-      requestedBy,
-      reason,
-      proposedIsActive,
-      JSON.stringify(proposedPublisherConfig),
-      JSON.stringify(proposedInboundConfig),
-      proposedCountryCodes,
-      proposedEffectiveFrom,
-    ],
-  )
-  const pending = rows[0]
-  await query(
-    `INSERT INTO public.portal_activation_history (
-       portal_id, action, actor_id, pending_activation_id, from_state, to_state, note
-     ) VALUES ($1,'activation_requested',$2,$3,'{}'::jsonb,$4::jsonb,$5)`,
-    [
-      portalId,
-      requestedBy,
-      pending.id,
-      JSON.stringify({ pending_id: pending.id, proposed_is_active: proposedIsActive }),
-      reason,
-    ],
-  )
+  const portal = portalCode
+    ? await getPortalByCode(portalCode)
+    : (await query(`SELECT * FROM public.portal_registry WHERE id = $1`, [portalId]))[0]
+  if (!portal) {
+    const err = new Error('portal not found')
+    err.code = 'NOT_FOUND'
+    throw err
+  }
+  const pending = await insertPendingActivation({
+    portal_code: portal.code,
+    action: proposedIsActive ? 'activate' : 'deactivate',
+    submitter_user_id: requestedBy,
+    submitter_notes: reason,
+    effective_from: proposedEffectiveFrom,
+  })
+  await appendActivationHistory({
+    portal_code: portal.code,
+    event_type: 'submitted',
+    submitter_user_id: requestedBy,
+    notes: reason,
+    before_json: { is_active: portal.is_active },
+    after_json: { pending_id: pending.id, action: pending.action },
+  })
   return pending
 }
 
@@ -130,103 +162,69 @@ export async function applyPortalActivationDecision({
       err.code = 'NOT_FOUND'
       throw err
     }
-    if (pending.status !== 'pending') {
-      const err = new Error(`pending activation is ${pending.status}`)
+    if (pending.state !== 'pending') {
+      const err = new Error(`pending activation is ${pending.state}`)
       err.code = 'INVALID_STATE'
       throw err
     }
 
     const portalQ = await client.query(
-      `SELECT * FROM public.portal_registry WHERE id = $1 FOR UPDATE`,
-      [pending.portal_id],
+      `SELECT * FROM public.portal_registry WHERE code = $1 FOR UPDATE`,
+      [pending.portal_code],
     )
     const portal = portalQ.rows[0]
-    const fromState = {
-      is_active: portal.is_active,
-      publisher_config: portal.publisher_config,
-      inbound_config: portal.inbound_config,
-      country_codes: portal.country_codes,
-      effective_from: portal.effective_from,
-    }
-
-    if (!approve) {
-      await client.query(
-        `UPDATE public.portal_registry_pending_activations
-            SET status = 'rejected', reviewed_by = $2, reviewed_at = NOW(),
-                review_note = $3, updated_at = NOW()
-          WHERE id = $1`,
-        [pendingId, reviewerId, reviewNote],
-      )
-      await client.query(
-        `INSERT INTO public.portal_activation_history (
-           portal_id, action, actor_id, pending_activation_id, from_state, to_state, note
-         ) VALUES ($1,'activation_rejected',$2,$3,$4::jsonb,'{}'::jsonb,$5)`,
-        [pending.portal_id, reviewerId, pendingId, JSON.stringify(fromState), reviewNote],
-      )
-      return { pending: { ...pending, status: 'rejected' }, portal }
-    }
-
-    const toState = {
-      is_active: pending.proposed_is_active,
-      publisher_config: pending.proposed_publisher_config,
-      inbound_config: pending.proposed_inbound_config,
-      country_codes: pending.proposed_country_codes || portal.country_codes,
-      effective_from: pending.proposed_effective_from || new Date().toISOString(),
-    }
-
-    const updated = await client.query(
-      `UPDATE public.portal_registry
-          SET is_active = $2,
-              publisher_config = COALESCE($3::jsonb, publisher_config),
-              inbound_config = COALESCE($4::jsonb, inbound_config),
-              country_codes = COALESCE($5::text[], country_codes),
-              effective_from = COALESCE($6::timestamptz, NOW()),
-              updated_at = NOW()
-        WHERE id = $1
-        RETURNING *`,
-      [
-        pending.portal_id,
-        pending.proposed_is_active,
-        JSON.stringify(pending.proposed_publisher_config || {}),
-        JSON.stringify(pending.proposed_inbound_config || {}),
-        pending.proposed_country_codes,
-        pending.proposed_effective_from,
-      ],
-    )
+    const fromState = { is_active: portal.is_active, effective_from: portal.effective_from }
+    const nextState = approve ? 'approved' : 'rejected'
+    const nextActive = pending.action === 'activate'
 
     await client.query(
       `UPDATE public.portal_registry_pending_activations
-          SET status = 'approved', reviewed_by = $2, reviewed_at = NOW(),
-              review_note = $3, updated_at = NOW()
+          SET state = $2, approver_user_id = $3, approver_notes = $4, resolved_at = NOW()
         WHERE id = $1`,
-      [pendingId, reviewerId, reviewNote],
+      [pendingId, nextState, reviewerId, reviewNote],
     )
 
-    const action = pending.proposed_is_active ? 'activate' : 'deactivate'
+    let updatedPortal = portal
+    if (approve) {
+      const updated = await client.query(
+        `UPDATE public.portal_registry
+            SET is_active = $2,
+                effective_from = COALESCE($3::timestamptz, NOW())
+          WHERE code = $1
+          RETURNING *`,
+        [pending.portal_code, nextActive, pending.effective_from],
+      )
+      updatedPortal = updated.rows[0]
+    }
+
     await client.query(
       `INSERT INTO public.portal_activation_history (
-         portal_id, action, actor_id, pending_activation_id, from_state, to_state, note
-       ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)`,
+         portal_code, event_type, submitter_user_id, approver_user_id,
+         notes, before_json, after_json
+       ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)`,
       [
-        pending.portal_id,
-        action,
+        pending.portal_code,
+        nextState,
+        pending.submitter_user_id,
         reviewerId,
-        pendingId,
-        JSON.stringify(fromState),
-        JSON.stringify(toState),
         reviewNote,
+        JSON.stringify(fromState),
+        JSON.stringify({ is_active: approve ? nextActive : portal.is_active, state: nextState }),
       ],
     )
 
-    return { pending: { ...pending, status: 'approved' }, portal: updated.rows[0] }
+    return {
+      pending: { ...pending, state: nextState, approver_user_id: reviewerId },
+      portal: updatedPortal,
+    }
   })
 }
 
-export async function listPortalActivationHistory(portalId) {
+export async function listPortalActivationHistory(portalCode) {
   return query(
     `SELECT * FROM public.portal_activation_history
-      WHERE portal_id = $1
+      WHERE portal_code = $1
       ORDER BY created_at DESC`,
-    [portalId],
+    [portalCode],
   )
 }

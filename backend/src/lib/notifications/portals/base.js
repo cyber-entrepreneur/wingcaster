@@ -7,6 +7,12 @@
  * NOT_IMPLEMENTED so metering + wiring can ship without live partner APIs.
  */
 export class PortalPublisher {
+  static configSchema = {
+    type: 'object',
+    additionalProperties: true,
+    properties: {},
+  }
+
   /**
    * @param {object} [registryRow] row from public.portal_registry
    */
