@@ -20,6 +20,10 @@ import {
   CastVoteError,
   goneApproveRejectBody,
 } from './account-recovery/cast-vote.js'
+import {
+  buildAccountRecoveryCsv,
+  writeBulkRevealAudit,
+} from './account-recovery/csv-export.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -7132,6 +7136,56 @@ app.get('/api/admin/account-recovery', authMiddleware, async (req, res) => {
     }))
   res.json(rows)
 })
+
+/**
+ * [BE-ACR-08] Masked/PII CSV export.
+ * mask=true (default): PA auth only.
+ * mask=false: requires X-Elevated-Token (SHR-MFA-007) + bulk-reveal audit.
+ */
+app.get(
+  '/api/admin/account-recovery.csv',
+  authMiddleware,
+  async (req, res, next) => {
+    if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+    const maskOff = String(req.query.mask || '').toLowerCase() === 'false'
+    if (!maskOff) return next()
+    return requireElevated()(req, res, next)
+  },
+  async (req, res) => {
+    let built
+    try {
+      built = await buildAccountRecoveryCsv({ query: req.query })
+    } catch (err) {
+      if (err.code === 'INVALID_QUERY') {
+        return res.status(400).json({ error: err.message, code: 'INVALID_QUERY', issues: err.issues })
+      }
+      throw err
+    }
+
+    if (!built.mask) {
+      await writeBulkRevealAudit({
+        exportedBy: req.user.id,
+        caseIds: built.caseIds,
+        queryParams: {
+          status: built.filters.status,
+          tier: built.filters.tier,
+          channel: built.filters.channel,
+          within: built.filters.within,
+          q: built.filters.q || undefined,
+          mask: false,
+        },
+        ip: req.ip,
+        userAgent: req.get('user-agent') || null,
+      })
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${built.filename}"`)
+    res.setHeader('X-Account-Recovery-Export-Masked', built.mask ? 'true' : 'false')
+    res.setHeader('X-Account-Recovery-Export-Rows', String(built.caseIds.length))
+    return res.status(200).send(built.csv)
+  },
+)
 
 app.post('/api/admin/account-recovery/:caseId/approve', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })

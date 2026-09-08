@@ -226,20 +226,39 @@ async function createEscalationRequest(client, {
   secondVote,
   firstReviewerId,
   secondReviewerId,
+  tier,
   now,
 }) {
   const escalationId = randomUUID()
+  // PA-APR-005 / approval surfaces key off subject_type + subject_id = recovery case.
   const subjectId = asUuidOrNull(recoveryCase.id)
   const createdBy = asUuidOrNull(recoveryCase.user_id)
   const payload = {
     kind: 'account_recovery_vote_disagreement',
+    is_escalation: true,
     case_id: recoveryCase.id,
+    subject_type: 'account_recovery_case',
+    subject_id: recoveryCase.id,
     parent_approval_request_id: parentRequestId,
+    escalation_reason: 'vote_disagreement',
+    // Maps onto PA-APR-005 reason vocab so escalation UIs can render without a remap.
+    reason_vocab: 'contentious',
+    account_value_tier: tier || recoveryCase.account_value_tier || null,
     first_vote: firstVote,
     first_vote_reviewer_id: firstReviewerId,
     second_vote: secondVote,
     second_vote_reviewer_id: secondReviewerId,
-    workflow: 'WF-07/08-escalation',
+    workflow: 'WF-04/WF-07/08-escalation',
+    escalation_chain: [
+      {
+        from_request_id: parentRequestId,
+        to_request_id: escalationId,
+        at: now,
+        reason: 'vote_disagreement',
+        first_vote: firstVote,
+        second_vote: secondVote,
+      },
+    ],
   }
   await client.query(
     `INSERT INTO fin.approval_requests (
@@ -248,7 +267,7 @@ async function createEscalationRequest(client, {
        created_at, created_by_actor_type, created_by_actor_id, updated_at
      ) VALUES (
        $1, 'LIVE', NULL, 'PLATFORM_ADMIN_RECOVERY', 'REQUESTED',
-       'account_recovery_escalation', $2,
+       'account_recovery_case', $2,
        $3, $4::jsonb, 2,
        $5::timestamptz, 'USER', $6, $5::timestamptz
      )`,
@@ -261,11 +280,23 @@ async function createEscalationRequest(client, {
       createdBy,
     ],
   )
+  // Cancel the parent vote request and stamp a discoverable pointer for PA-APR-005.
   await client.query(
     `UPDATE fin.approval_requests
-        SET status = 'CANCELED', updated_at = $2::timestamptz
+        SET status = 'CANCELED',
+            updated_at = $2::timestamptz,
+            payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb
       WHERE id = $1 AND status = 'REQUESTED'`,
-    [parentRequestId, now],
+    [
+      parentRequestId,
+      now,
+      JSON.stringify({
+        escalated: true,
+        escalated_to_request_id: escalationId,
+        escalation_case_id: escalationId,
+        escalation_reason: 'vote_disagreement',
+      }),
+    ],
   )
   await client.query(
     `UPDATE public.account_recovery_cases
@@ -552,12 +583,16 @@ export async function castVote({
         [recoveryCase.id, voterId, normalizedVote, now, notesText],
       )
       return createEscalationRequest(client, {
-        recoveryCase,
+        recoveryCase: {
+          ...recoveryCase,
+          account_value_tier: tierInfo.tier,
+        },
         parentRequestId: approvalId,
         firstVote,
         secondVote: normalizedVote,
         firstReviewerId: recoveryCase.first_vote_reviewer_id,
         secondReviewerId: voterId,
+        tier: tierInfo.tier,
         now,
       })
     })
@@ -571,6 +606,9 @@ export async function castVote({
           first_vote: firstVote,
           second_vote: normalizedVote,
           escalation_case_id: escalationId,
+          action_kind: 'PLATFORM_ADMIN_RECOVERY',
+          subject_type: 'account_recovery_case',
+          subject_id: recoveryCase.id,
         },
       })
     }
@@ -585,6 +623,9 @@ export async function castVote({
           case_id: recoveryCase.id,
           first_vote: firstVote,
           second_vote: normalizedVote,
+          action_kind: 'PLATFORM_ADMIN_RECOVERY',
+          subject_type: 'account_recovery_case',
+          subject_id: recoveryCase.id,
         },
       },
     )
