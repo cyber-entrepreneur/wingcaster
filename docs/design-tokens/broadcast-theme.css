@@ -24,7 +24,7 @@
   --lc-space-4xl: 48px;
   --lc-space-5xl: 64px;
   --lc-font-display: Archivo, system-ui, sans-serif;
-  --lc-font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --lc-font-ui: "IBM Plex Sans", "IBM Plex Sans Arabic", Tahoma, "Segoe UI", system-ui, sans-serif;
   --lc-font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --lc-display-weight: 800;
   --lc-display-tracking: -0.03em;
