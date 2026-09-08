@@ -60,7 +60,7 @@ const TABLE_MAP = {
       'agency_id', 'applicant_user_id', 'agent_email', 'agent_name', 'agent_phone', 'message',
       'current_listings_count', 'portfolio_url', 'availability', 'referral_source',
       'profile_share_consent', 'invitation_code', 'expected_response_by', 'status',
-      'approved_at', 'approved_by', 'approved_role', 'affiliation_mode',
+      'expires_at', 'approved_at', 'approved_by', 'approved_role', 'affiliation_mode',
       'rejected_at', 'rejected_by',
     ],
   },

@@ -18,6 +18,7 @@ import { assertCanJoinAgency } from '../../platformModel.js'
 import { addAgencyMembership, getAgencyMembership } from '../../tenant-authorization.js'
 import logger from '../logger.js'
 import { agencyApplicationCreateSchema, validate } from '../validation.js'
+import { agencyApplicationExpiresAt } from '../../workers/agency-application-expiry.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
 
@@ -124,6 +125,7 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
           profile_share_consent: true,
           invitation_code: body.invitation_code ?? null,
           expected_response_by: expectedResponseBy(now),
+          expires_at: agencyApplicationExpiresAt(now),
           status: 'pending',
           created_at: createdAt,
           updated_at: createdAt,

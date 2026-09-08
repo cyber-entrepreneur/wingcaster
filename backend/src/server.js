@@ -18,6 +18,9 @@ import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
+import {
+  runAgencyApplicationExpiryTick,
+} from './workers/agency-application-expiry.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -719,10 +722,16 @@ const SCHEDULED_DELETION_REMINDER_INTERVAL_MS = Math.max(
   60_000,
   Number(process.env.SCHEDULED_DELETION_REMINDER_INTERVAL_MS || 24 * 60 * 60 * 1000),
 )
+const AGENCY_APPLICATION_EXPIRY_ENABLED = process.env.AGENCY_APPLICATION_EXPIRY_ENABLED !== 'false'
+const AGENCY_APPLICATION_EXPIRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AGENCY_APPLICATION_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
+)
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
 let scheduledDeletionReminderTimer = null
+let agencyApplicationExpiryTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8244,6 +8253,22 @@ const startServer = async () => {
       }, SCHEDULED_DELETION_REMINDER_INTERVAL_MS)
       if (typeof scheduledDeletionReminderTimer.unref === 'function') {
         scheduledDeletionReminderTimer.unref()
+      }
+    }
+
+    if (AGENCY_APPLICATION_EXPIRY_ENABLED) {
+      agencyApplicationExpiryTimer = setInterval(async () => {
+        try {
+          const result = await runAgencyApplicationExpiryTick()
+          if ((result.expired || 0) > 0) {
+            logger.info(result, 'Agency application expiry worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Agency application expiry worker failed')
+        }
+      }, AGENCY_APPLICATION_EXPIRY_INTERVAL_MS)
+      if (typeof agencyApplicationExpiryTimer.unref === 'function') {
+        agencyApplicationExpiryTimer.unref()
       }
     }
   })

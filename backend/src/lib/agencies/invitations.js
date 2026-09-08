@@ -7,6 +7,7 @@
  */
 
 import { randomBytes, randomUUID } from 'node:crypto'
+import { agencyApplicationExpiresAt } from '../../workers/agency-application-expiry.js'
 import { findOne, insert, query } from '../../db.js'
 
 export const DEFAULT_INVITE_TTL_DAYS = 14
@@ -117,6 +118,7 @@ export async function createApplicationFromInvitation({
     invitation_code: invite.code,
     consents: body.consents ?? null,
     guest_signup: body.guest_signup ?? null,
+    expires_at: agencyApplicationExpiresAt(now),
     status: 'pending',
     created_at: now,
     updated_at: now,
