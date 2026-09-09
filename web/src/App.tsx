@@ -44,6 +44,7 @@ import { TemplateEditPage as PlatformTemplateEditPage } from '@/pages/admin/plat
 import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/AdminWhatsAppListingsPage'
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
+import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -167,6 +168,7 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      {whatsappIntakeRoutes}
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
