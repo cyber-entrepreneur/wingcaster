@@ -92,6 +92,21 @@ export function IntakePathCard({
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onSelect?.()
+          return
+        }
+        // AGT-ONB-001: arrow keys move focus within the parent radiogroup.
+        if (isNextAction) return
+        const group = event.currentTarget.closest('[role="radiogroup"]')
+        if (!group) return
+        const radios = [...group.querySelectorAll<HTMLElement>('[role="radio"]')]
+        const index = radios.indexOf(event.currentTarget)
+        if (index < 0) return
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault()
+          radios[(index + 1) % radios.length]?.focus()
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          radios[(index - 1 + radios.length) % radios.length]?.focus()
         }
       }}
       className={cn(
