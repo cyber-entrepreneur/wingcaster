@@ -75,6 +75,7 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { onboardingRoutes } from '@/pages/agent/onboarding/routes'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -89,6 +90,7 @@ const BARE_CHROME_PREFIXES = [
   '/join/',
   '/terms',
   '/privacy',
+  '/onboarding',
 ] as const
 
 function usesBareChrome(pathname: string): boolean {
@@ -192,6 +194,7 @@ function AppRoutes() {
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      {onboardingRoutes}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
