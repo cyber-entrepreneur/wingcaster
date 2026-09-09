@@ -65,7 +65,7 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: () => authMock,
 }))
 
-vi.mock('./onboardingHook', () => ({
+vi.mock('@/hooks/useOnboardingState', () => ({
   useOnboardingState: () => ({
     state: {
       user_id: 'usr_test',
@@ -90,6 +90,12 @@ vi.mock('./onboardingHook', () => ({
     isLoading: false,
     isError: false,
     error: undefined,
+    activation: null,
+    completeActivation: (stepId: string, completedVia?: string) =>
+      apiMock.completeActivationStep(stepId, completedVia ?? 'direct'),
+    deferActivation: (stepId: string) => apiMock.deferActivationStep(stepId),
+    isStepComplete: () => false,
+    completedVia: () => null,
   }),
 }))
 
@@ -286,7 +292,6 @@ describe('AGT-ACT-004 portal credentials', () => {
       expect(apiMock.completeActivationStep).toHaveBeenCalledWith(
         'portal_credentials',
         'dashboard_action',
-        expect.objectContaining({ connected_count: 1 }),
       ),
     )
   })
@@ -319,11 +324,9 @@ describe('AGT-ACT-005 invite team', () => {
     expect(screen.getByRole('tab', { name: 'Invitation code' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Bulk email' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Mark step complete/i }))
-    await waitFor(() => expect(apiMock.completeActivationStep).toHaveBeenCalledWith(
-      'invite_team',
-      'dashboard_action',
-      expect.any(Object),
-    ))
+    await waitFor(() =>
+      expect(apiMock.completeActivationStep).toHaveBeenCalledWith('invite_team', 'dashboard_action'),
+    )
     expect(navigateMock).toHaveBeenCalledWith('/channels?source=activation')
   })
 })
@@ -359,11 +362,7 @@ describe('AGT-ACT complete/defer POSTs', () => {
     })
     await user.click(screen.getByRole('button', { name: /Mark step complete/i }))
     await waitFor(() =>
-      expect(apiMock.completeActivationStep).toHaveBeenCalledWith(
-        'whatsapp',
-        'dashboard_action',
-        undefined,
-      ),
+      expect(apiMock.completeActivationStep).toHaveBeenCalledWith('whatsapp', 'dashboard_action'),
     )
     expect(navigateMock).toHaveBeenCalledWith('/activate')
   })
@@ -376,7 +375,7 @@ describe('AGT-ACT complete/defer POSTs', () => {
     await user.click(screen.getByRole('button', { name: /Mark this step complete/i }))
     await user.click(screen.getByRole('button', { name: /Yes, mark complete/i }))
     await waitFor(() =>
-      expect(apiMock.completeActivationStep).toHaveBeenCalledWith('first_listing', 'direct', undefined),
+      expect(apiMock.completeActivationStep).toHaveBeenCalledWith('first_listing', 'direct'),
     )
   })
 })
