@@ -38,7 +38,7 @@ async function seedApplication({
   const expires = expiresAt === undefined
     ? agencyApplicationExpiresAt(created)
     : expiresAt
-  const agencyId = `agency-${id.slice(0, 8)}`
+  const agencyId = `agency-${id}`
   await seedAgency(agencyId)
   await query(
     `INSERT INTO public.agency_applications
@@ -78,7 +78,7 @@ finPostgresSuite('agency application expiry (BE-BLOCKER-09)', { seed: false }, (
 
     const created = '2026-01-01T00:00:00.000Z'
     const id = randomUUID()
-    const agencyId = `ag-${id.slice(0, 8)}`
+    const agencyId = `ag-${id}`
     await seedAgency(agencyId)
     await pool().query(
       `INSERT INTO public.agency_applications

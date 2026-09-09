@@ -281,12 +281,38 @@ finPostgresSuite('account-recovery cast-vote (BE-BLOCKER-22)', { seed: false }, 
     expect(tokens).toHaveLength(0)
 
     const escalation = await pool().query(
-      `SELECT status, action_kind, payload FROM fin.approval_requests WHERE id = $1`,
+      `SELECT status, action_kind, subject_type, subject_id, payload FROM fin.approval_requests WHERE id = $1`,
       [second.body.escalation_case_id],
     )
     expect(escalation.rows[0].status).toBe('REQUESTED')
     expect(escalation.rows[0].action_kind).toBe('PLATFORM_ADMIN_RECOVERY')
+    expect(escalation.rows[0].subject_type).toBe('account_recovery_case')
+    expect(escalation.rows[0].subject_id).toBe(caseId)
     expect(escalation.rows[0].payload?.kind).toBe('account_recovery_vote_disagreement')
+    expect(escalation.rows[0].payload?.is_escalation).toBe(true)
+    expect(escalation.rows[0].payload?.reason_vocab).toBe('contentious')
+    expect(escalation.rows[0].payload?.parent_approval_request_id).toBe(first.body.approval_request_id)
+    expect(second.body.subject_type).toBe('account_recovery_case')
+    expect(second.body.subject_id).toBe(caseId)
+
+    const parent = await pool().query(
+      `SELECT status, payload FROM fin.approval_requests WHERE id = $1`,
+      [first.body.approval_request_id],
+    )
+    expect(parent.rows[0].status).toBe('CANCELED')
+    expect(parent.rows[0].payload?.escalation_case_id).toBe(second.body.escalation_case_id)
+
+    // PA-APR-005 discoverability: escalations findable by action_kind + subject.
+    const bySubject = await pool().query(
+      `SELECT id FROM fin.approval_requests
+        WHERE action_kind = 'PLATFORM_ADMIN_RECOVERY'
+          AND subject_type = 'account_recovery_case'
+          AND subject_id = $1
+          AND status = 'REQUESTED'
+          AND (payload->>'is_escalation')::boolean IS TRUE`,
+      [caseId],
+    )
+    expect(bySubject.rows.map((r) => r.id)).toContain(second.body.escalation_case_id)
   })
 
   it('agency owner without readable plan defaults to requires_two_person', async () => {
