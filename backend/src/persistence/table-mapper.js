@@ -534,6 +534,8 @@ const TABLE_MAP = {
     columns: [
       'reporter_id', 'comparable_id', 'comparable_type', 'reason', 'notes', 'status',
       'reviewed_by', 'reviewed_at', 'expires_at',
+      'decision_reason_code', 'decision_notes',
+      'quarantine_until', 'approval_request_id', 'requested_evidence',
     ],
   },
   agent_price_reports: {
