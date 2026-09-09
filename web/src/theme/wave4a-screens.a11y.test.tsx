@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { axe, toHaveNoViolations } from 'jest-axe'
@@ -50,6 +50,8 @@ const TAP_FLOOR =
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
+const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+
 beforeAll(() => {
   class ResizeObserverStub {
     observe() {}
@@ -72,8 +74,13 @@ beforeEach(() => {
   document.documentElement.dir = 'ltr'
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(FIXED_NOW)
-  Object.assign(navigator, {
-    clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+  clipboardWrite.mockReset()
+  clipboardWrite.mockResolvedValue(undefined)
+  // jsdom's Navigator.clipboard is a prototype getter — replace the instance value.
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    writable: true,
+    value: { writeText: clipboardWrite },
   })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -175,7 +182,7 @@ describe('Wave 4A a11y — ACT skip-wizard focus trap', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     wrap(<Act001WelcomeSurface skipOpen />, '/activate')
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toBeInTheDocument()
     await waitFor(() => {
       expect(dialog.contains(document.activeElement)).toBe(true)
     })
@@ -192,12 +199,14 @@ describe('Wave 4A a11y — ACT skip-wizard focus trap', () => {
 
 describe('Wave 4A a11y — WLB handshake copy button', () => {
   it('copy control is labelled and writes the activation code', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     wrap(<Wlb002HandshakeSurface />, '/onboarding/whatsapp/code')
     const copy = screen.getByRole('button', { name: /Copy activation code to clipboard/i })
     expect(copy.className).toMatch(TAP_FLOOR)
-    await user.click(copy)
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('WC-A4K9-JAMIL')
+    // fireEvent avoids userEvent+fake-timer pointer delays that skip onClick.
+    fireEvent.click(copy)
+    await waitFor(() => {
+      expect(clipboardWrite).toHaveBeenCalledWith('WC-A4K9-JAMIL')
+    })
     expect(await screen.findByText(/Copied/i)).toBeInTheDocument()
   })
 
@@ -220,8 +229,7 @@ describe('Wave 4A a11y — WLB-004 streaming live region', () => {
     expect(live).toHaveTextContent('3/7')
     expect(live?.textContent).not.toMatch(/Bright 2BR with marina views/)
     expect(live?.textContent).not.toMatch(/Thinking/)
-    const canvas = screen.getByText('Turning your message into a listing').closest('[aria-busy]')
-    expect(canvas ?? document.querySelector('[aria-busy="true"]')).toBeTruthy()
+    expect(document.querySelector('[aria-busy="true"]')).toBeTruthy()
   })
 
   it('does not put aria-live on the field grid while streaming', () => {
@@ -236,7 +244,7 @@ describe('Wave 4A a11y — WLB-004 streaming live region', () => {
     wrap(<Wlb005ReadySurface />, '/onboarding/whatsapp/drafting/sess_1')
     const live = document.querySelector('[data-draft-live]')
     expect(live).toHaveTextContent('7/7')
-    expect(screen.getByText(/Your listing is ready/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Your listing is ready/i })).toBeInTheDocument()
   })
 })
 

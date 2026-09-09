@@ -186,7 +186,6 @@ export function OnboardingChecklistCard({
                 <button
                   type="button"
                   disabled={done}
-                  aria-checked={done}
                   onClick={() => onStepTap?.(item.key)}
                   className={cn(
                     'flex w-full min-h-tap items-start gap-3 rounded-[var(--lc-radius-md)]',
@@ -194,6 +193,7 @@ export function OnboardingChecklistCard({
                     !done && 'hover:bg-[var(--lc-surface-sunken)]',
                   )}
                 >
+                  {done ? <span className="sr-only">Completed</span> : null}
                   <span
                     className={cn(
                       'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',

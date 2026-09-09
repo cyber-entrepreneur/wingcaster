@@ -128,7 +128,7 @@ export function Onb001WelcomeSurface({ selected = 'whatsapp' }: { selected?: 'wh
     <div data-wave4a-surface>
       <OnboardingProgressMarker step={1} label="Welcome" />
       <h1>Welcome, Sara</h1>
-      <section role="radiogroup" aria-label="How do you want to add your first listing">
+      <div role="radiogroup" aria-label="How do you want to add your first listing">
         <IntakePathCard
           variant="whatsapp"
           label="Send a WhatsApp voice memo"
@@ -157,7 +157,7 @@ export function Onb001WelcomeSurface({ selected = 'whatsapp' }: { selected?: 'wh
           onSelect={() => setValue('import')}
           onCta={NOOP}
         />
-      </section>
+      </div>
       <Button type="button" variant="ghost">
         Skip for now
       </Button>

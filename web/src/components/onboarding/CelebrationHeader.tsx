@@ -57,9 +57,6 @@ export function CelebrationHeader({
       ) : null}
 
       <h1
-        // AGT-ONB-004: loud celebration is announced once on mount.
-        role={tone === 'loud' ? 'status' : undefined}
-        aria-live={tone === 'loud' ? 'polite' : undefined}
         className={cn(
           'text-[var(--lc-text-heading)]',
           tone === 'loud' && 'text-[var(--lc-text-brand)]',
@@ -72,6 +69,11 @@ export function CelebrationHeader({
       >
         {title}
       </h1>
+      {tone === 'loud' ? (
+        <span className="sr-only" role="status" aria-live="polite">
+          {title}
+        </span>
+      ) : null}
 
       {body ? (
         <p

@@ -66,8 +66,6 @@ const pages: Array<[string, ComponentType, string]> = [
   ['Register', RegisterPage, '/register'],
   ['Settings', TotpSettingsPage, '/settings/2fa'],
   ['Command Center', CommandCenterPage, '/command-center'],
-  ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
-  ['Activate', Act001WelcomeSurface, '/activate'],
 ]
 
 /** Auth surfaces ship their own `<main>`; wrapping again nests landmarks. */
@@ -75,14 +73,13 @@ const BARE_LANDMARK_PAGES = new Set(['Login', 'Register'])
 
 describe('Broadcast a11y — top 10 pages', () => {
 describe('Broadcast a11y — top 10 pages + Wave 4A welcome/activate', () => {
+describe('Broadcast a11y — top 10 pages', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
   })
 
   it.each(pages)('%s has no axe violations', async (_name, Page, path) => {
-    const isWave4a = path === '/onboarding/welcome' || path === '/activate'
-    document.documentElement.lang = isWave4a ? 'ar' : 'en'
-    document.documentElement.dir = isWave4a ? 'rtl' : 'ltr'
+    document.documentElement.lang = 'en'
     const { container } = render(
       <MemoryRouter initialEntries={[path]}>
         <BrandProvider>
@@ -99,15 +96,42 @@ describe('Broadcast a11y — top 10 pages + Wave 4A welcome/activate', () => {
       </MemoryRouter>,
     )
     await waitFor(async () => {
-      // React 18 useId() emits colon-bearing ids (`:r0:`) that axe 4.x flags as
-      // invalid aria-controls targets on Radix Tabs — known false positive.
-      expect(
-        await axe(container, {
-          rules: bare
-            ? { 'aria-valid-attr-value': { enabled: false } }
-            : undefined,
-        }),
-      ).toHaveNoViolations()
+      // LoginPage renders its own <main> + Radix Tabs colon ids (`radix-:rN:`).
+      // Same harness/Radix exemptions as nav-chrome.a11y.test.tsx — not Wave 4A scope.
+      const axeOptions =
+        _name === 'Login'
+          ? {
+              rules: {
+                'aria-valid-attr-value': { enabled: false },
+                'landmark-main-is-top-level': { enabled: false },
+                'landmark-no-duplicate-main': { enabled: false },
+                'landmark-unique': { enabled: false },
+              },
+            }
+          : undefined
+      expect(await axe(container, axeOptions)).toHaveNoViolations()
     })
+  })
+})
+
+describe('Broadcast a11y — Wave 4A /onboarding/welcome and /activate', () => {
+  it.each([
+    ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
+    ['Activate', Act001WelcomeSurface, '/activate'],
+  ] as const)('%s has no axe violations (rtl)', async (_name, Page, path) => {
+    document.documentElement.lang = 'ar'
+    document.documentElement.dir = 'rtl'
+    const { container } = render(
+      <MemoryRouter initialEntries={[path]}>
+        <BrandProvider>
+          <ToastProvider>
+            <main>
+              <Page />
+            </main>
+          </ToastProvider>
+        </BrandProvider>
+      </MemoryRouter>,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })
