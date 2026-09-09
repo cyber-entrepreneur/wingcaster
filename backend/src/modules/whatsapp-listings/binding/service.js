@@ -19,21 +19,37 @@ function rowDate(value) {
   return value
 }
 
-export async function generateActivationCode(userId, { firstName } = {}) {
+function toActivationCodeResult(row, sharedNumberE164) {
+  return {
+    id: row.id,
+    code: row.code,
+    parseable_code: row.code,
+    display_code: row.display_code,
+    shared_number_index: row.shared_number_index,
+    shared_number_e164: sharedNumberE164,
+    expires_at: rowDate(row.expires_at),
+  }
+}
+
+export async function findActiveCodeForUser(userId) {
+  const rows = await query(
+    `SELECT * FROM public.whatsapp_activation_codes
+      WHERE user_id = $1
+        AND claimed_at IS NULL
+        AND invalidated_at IS NULL
+        AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [userId],
+  )
+  return rows[0] || null
+}
+
+async function insertActivationCode(userId, { firstName } = {}) {
   const cfg = await getIntakeConfig()
   const index = sharedNumberIndex(userId, cfg.poolSize)
   const ttlHours = cfg.WHATSAPP_INTAKE_CODE_TTL_HOURS
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString()
-
-  await query(
-    `UPDATE public.whatsapp_activation_codes
-        SET invalidated_at = NOW(),
-            invalidated_reason = 'REGENERATED'
-      WHERE user_id = $1
-        AND claimed_at IS NULL
-        AND invalidated_at IS NULL`,
-    [userId],
-  )
 
   let lastError
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -47,21 +63,38 @@ export async function generateActivationCode(userId, { firstName } = {}) {
          RETURNING *`,
         [userId, code, displayCode, index, expiresAt],
       )
-      const row = rows[0]
-      return {
-        id: row.id,
-        code: row.code,
-        display_code: row.display_code,
-        shared_number_index: row.shared_number_index,
-        shared_number_e164: cfg.sharedNumbers[index].e164,
-        expires_at: rowDate(row.expires_at),
-      }
+      return toActivationCodeResult(rows[0], cfg.sharedNumbers[index].e164)
     } catch (err) {
       lastError = err
       if (err.code !== '23505') throw err
     }
   }
   throw lastError || new Error('Failed to generate a unique activation code')
+}
+
+/** Return the user's current active code, or mint one if none exists (idempotent). */
+export async function getOrCreateActivationCode(userId, { firstName } = {}) {
+  const existing = await findActiveCodeForUser(userId)
+  if (existing) {
+    const cfg = await getIntakeConfig()
+    const index = existing.shared_number_index
+    return toActivationCodeResult(existing, cfg.sharedNumbers[index].e164)
+  }
+  return insertActivationCode(userId, { firstName })
+}
+
+/** Explicit regenerate: invalidate prior unclaimed codes, then mint a new one. */
+export async function generateActivationCode(userId, { firstName } = {}) {
+  await query(
+    `UPDATE public.whatsapp_activation_codes
+        SET invalidated_at = NOW(),
+            invalidated_reason = 'REGENERATED'
+      WHERE user_id = $1
+        AND claimed_at IS NULL
+        AND invalidated_at IS NULL`,
+    [userId],
+  )
+  return insertActivationCode(userId, { firstName })
 }
 
 export async function findActiveCode(code) {

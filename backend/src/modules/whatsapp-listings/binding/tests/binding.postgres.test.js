@@ -278,6 +278,7 @@ skipIfNoPostgres()('WhatsApp Model B binding (postgres)', () => {
 
         const created = await request(app).post('/api/auth/whatsapp/activation-code').expect(200)
         expect(created.body.display_code).toMatch(/^WC-[A-Z0-9]{4}-LINA$/)
+        expect(created.body.parseable_code).toMatch(/^[A-Z0-9]{4}$/)
         expect(created.body.shared_number_e164).toMatch(/^\+/)
         expect(created.body.expires_at).toBeTruthy()
 
@@ -302,6 +303,68 @@ skipIfNoPostgres()('WhatsApp Model B binding (postgres)', () => {
         expect(del.body.success).toBe(true)
         const after = await request(app).get('/api/auth/whatsapp/bindings').expect(200)
         expect(after.body).toEqual([])
+      } finally {
+        await closeDb()
+      }
+    })
+  })
+
+  it('GET activation-code is idempotent; POST regenerates; expired GET mints fresh', async () => {
+    await withTestDb(async (databaseUrl) => {
+      configure({ databaseUrl, force: true })
+      try {
+        const userId = await seedAgent({ name: 'Rami', email: `rami-${randomUUID()}@example.com` })
+        const auth = (req, _res, next) => {
+          req.user = { id: userId, name: 'Rami' }
+          next()
+        }
+        const app = express()
+        app.use(express.json())
+        registerBindingRoutes(app, { auth })
+
+        const first = await request(app).get('/api/auth/whatsapp/activation-code').expect(200)
+        expect(first.body.display_code).toMatch(/^WC-[A-Z0-9]{4}-RAMI$/)
+        expect(first.body.parseable_code).toMatch(/^[A-Z0-9]{4}$/)
+        expect(first.body.shared_number_e164).toMatch(/^\+/)
+        expect(first.body.expires_at).toBeTruthy()
+
+        const second = await request(app).get('/api/auth/whatsapp/activation-code').expect(200)
+        expect(second.body.display_code).toBe(first.body.display_code)
+        expect(second.body.parseable_code).toBe(first.body.parseable_code)
+        expect(second.body.shared_number_e164).toBe(first.body.shared_number_e164)
+
+        const viaAlias = await request(app).get('/api/auth/whatsapp/activation-code/current').expect(200)
+        expect(viaAlias.body.display_code).toBe(first.body.display_code)
+
+        const regenerated = await request(app).post('/api/auth/whatsapp/activation-code').expect(200)
+        expect(regenerated.body.display_code).not.toBe(first.body.display_code)
+        expect(regenerated.body.parseable_code).not.toBe(first.body.parseable_code)
+
+        const prior = await query(
+          `SELECT invalidated_reason, claimed_at
+             FROM public.whatsapp_activation_codes
+            WHERE user_id = $1 AND code = $2`,
+          [userId, first.body.parseable_code],
+        )
+        expect(prior).toHaveLength(1)
+        expect(prior[0].invalidated_reason).toBe('REGENERATED')
+        expect(prior[0].claimed_at).toBeNull()
+
+        const afterRegenGet = await request(app).get('/api/auth/whatsapp/activation-code').expect(200)
+        expect(afterRegenGet.body.display_code).toBe(regenerated.body.display_code)
+
+        await query(
+          `UPDATE public.whatsapp_activation_codes
+              SET expires_at = NOW() - INTERVAL '1 minute'
+            WHERE user_id = $1
+              AND code = $2`,
+          [userId, regenerated.body.parseable_code],
+        )
+
+        const afterExpiry = await request(app).get('/api/auth/whatsapp/activation-code').expect(200)
+        expect(afterExpiry.body.display_code).not.toBe(regenerated.body.display_code)
+        expect(afterExpiry.body.parseable_code).not.toBe(regenerated.body.parseable_code)
+        expect(afterExpiry.body.display_code).toMatch(/^WC-[A-Z0-9]{4}-RAMI$/)
       } finally {
         await closeDb()
       }
