@@ -37,3 +37,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   })
 }
+
+/** Radix Checkbox (and other primitives) call ResizeObserver in layout effects. */
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(globalThis as any).ResizeObserver = ResizeObserverStub
+}

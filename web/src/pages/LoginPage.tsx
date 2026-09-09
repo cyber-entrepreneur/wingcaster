@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Numeric } from '@/components/ui/numeric'
 import { useAuth } from '@/context/AuthContext'
 import { clearElevatedToken } from '@/api/client'
@@ -386,6 +386,10 @@ export function LoginPage() {
               </TabsTrigger>
             ))}
           </TabsList>
+          {/* Radix wires aria-controls to TabsContent ids — keep panels mounted for axe. */}
+          {(['email', 'username', 'phone'] as const).map((tab) => (
+            <TabsContent key={tab} value={tab} forceMount className="m-0 hidden" tabIndex={-1} />
+          ))}
         </Tabs>
 
         <div className="space-y-2 transition-opacity duration-base ease-out">
