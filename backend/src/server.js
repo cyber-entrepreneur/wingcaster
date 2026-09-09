@@ -21,6 +21,7 @@ import {
   CastVoteError,
   goneApproveRejectBody,
 } from './account-recovery/cast-vote.js'
+import { registerAccountRecoveryEvidenceRoutes } from './account-recovery/evidence-routes.js'
 import {
   caseMatchesEnvironment,
   resolveRecoveryRequestEnv,
@@ -7255,6 +7256,9 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
     throw err
   }
 })
+
+// BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
+registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
 
 async function notifyAccountRecoveryApplicant({
   recoveryCase,
