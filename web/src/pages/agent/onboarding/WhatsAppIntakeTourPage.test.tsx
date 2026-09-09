@@ -87,6 +87,12 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => {
+  cleanup()
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
+
 describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
   it('renders the activation code and stepper at step 2', async () => {
     renderPage()

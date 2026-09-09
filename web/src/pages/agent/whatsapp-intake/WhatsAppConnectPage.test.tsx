@@ -20,6 +20,11 @@ vi.mock('@/hooks/useLocale', () => ({
   }),
 }))
 
+vi.mock('./useOnboardingState', () => ({
+  markWhatsAppIntakeProgress: vi.fn(async () => undefined),
+  completedViaCaption: () => null,
+}))
+
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {
