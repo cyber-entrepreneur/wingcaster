@@ -45,10 +45,13 @@ export async function createAgentAccount({ user, agent, agency = null }) {
 
     // Always provision the personal workspace first. active_tenant_id is set
     // after the tenants row exists (users.active_tenant_id → tenants FK).
+    // users.active_tenant_id → tenants(id) and tenants.personal_owner_user_id → users(id)
+    // are circular. Insert user with NULL active_tenant_id, create personal tenant, then set it.
     const tenantId = `personal:${principal.id}`
+    const membershipId = `personal-membership:${principal.id}`
+    const tenantName = principal.name || principal.email || 'Personal workspace'
+    const requestedActiveTenantId = principal.active_tenant_id || tenantId
 
-    // Insert user with active_tenant_id NULL first — migration 316 adds an FK to
-    // tenants(id), so we cannot set the personal tenant id until that row exists.
     await client.query(
       `INSERT INTO users (
         id, email, phone, name, password_hash, role, platform_role, verified, verified_at,
@@ -103,8 +106,6 @@ export async function createAgentAccount({ user, agent, agency = null }) {
       ],
     )
 
-    const membershipId = `personal-membership:${principal.id}`
-    const tenantName = principal.name || principal.email || 'Personal workspace'
     const tenant = {
       id: tenantId,
       tenant_type: 'personal',
@@ -154,8 +155,9 @@ export async function createAgentAccount({ user, agent, agency = null }) {
               updated_at = $3::timestamptz,
               data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('active_tenant_id', $2::text)
         WHERE id = $1`,
-      [principal.id, tenantId, principal.updated_at],
+      [principal.id, requestedActiveTenantId, principal.updated_at],
     )
+    principal.active_tenant_id = requestedActiveTenantId
     await client.query(
       `INSERT INTO tenant_memberships (
         id, tenant_id, user_id, role, affiliation_mode, status, public_profile,

@@ -23,6 +23,12 @@ import {
 } from './account-recovery/cast-vote.js'
 import { registerAccountRecoveryEvidenceRoutes } from './account-recovery/evidence-routes.js'
 import {
+  caseMatchesEnvironment,
+  resolveRecoveryRequestEnv,
+  resolveWingcasterEnv,
+} from './account-recovery/env.js'
+import { deriveAccountValueTier } from './account-recovery/account-value-tier.js'
+import {
   requestInfo,
   cancelInfoRequest,
   undoApprove,
@@ -1453,12 +1459,24 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     return res.json(genericResponse)
   }
 
+  const environment = resolveRecoveryRequestEnv(req)
+
   const existingOpenCase = await findOne('account_recovery_cases', (c) =>
-    c.user_id === user.id && ['pending_review', 'approved'].includes(c.status),
+    c.user_id === user.id
+      && ['pending_review', 'approved'].includes(c.status)
+      && caseMatchesEnvironment(c, environment),
   )
 
   if (existingOpenCase) {
     return res.json(genericResponse)
+  }
+
+  let tierInfo = { tier: 'standard', requires_two_person: false }
+  try {
+    tierInfo = await deriveAccountValueTier(user.id)
+  } catch {
+    // Intake must not fail closed on tier lookup errors — cache best-effort.
+    tierInfo = { tier: 'standard', requires_two_person: false }
   }
 
   const recoveryCase = {
@@ -1469,6 +1487,9 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     contact,
     reason,
     status: 'pending_review',
+    environment,
+    account_value_tier: tierInfo.tier,
+    requires_two_person: Boolean(tierInfo.requires_two_person),
     requested_ip: req.ip,
     requested_user_agent: req.get('user-agent') || null,
     created_at: new Date().toISOString(),
@@ -1478,11 +1499,16 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
   await logActivity({
     type: 'account_recovery_requested',
     agent_id: user.id,
-    meta: { case_id: recoveryCase.id, preferred_channel },
+    meta: {
+      case_id: recoveryCase.id,
+      preferred_channel,
+      environment,
+      account_value_tier: tierInfo.tier,
+    },
   })
 
   res.json(!isProduction
-    ? { ...genericResponse, _dev_case_id: recoveryCase.id }
+    ? { ...genericResponse, _dev_case_id: recoveryCase.id, _dev_environment: environment }
     : genericResponse)
 })
 
@@ -7162,13 +7188,35 @@ app.post('/api/admin/submissions/:id/reject', authMiddleware, async (req, res) =
 
 app.get('/api/admin/account-recovery', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  const environment = resolveWingcasterEnv(req)
   const rows = await Promise.all((await findAll('account_recovery_cases'))
+    .filter((c) => caseMatchesEnvironment(c, environment))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 300)
     .map(async (c) => {
       const agent = await findOne('agents', (a) => a.id === c.user_id)
+      let account_value_tier = c.account_value_tier
+      let requires_two_person = c.requires_two_person
+      if (!account_value_tier || requires_two_person == null) {
+        try {
+          const tierInfo = await deriveAccountValueTier(c.user_id)
+          account_value_tier = tierInfo.tier
+          requires_two_person = Boolean(tierInfo.requires_two_person)
+          await update('account_recovery_cases', (row) => row.id === c.id, (row) => ({
+            ...row,
+            account_value_tier,
+            requires_two_person,
+          }))
+        } catch {
+          account_value_tier = account_value_tier || 'standard'
+          requires_two_person = Boolean(requires_two_person)
+        }
+      }
       return {
         ...c,
+        environment: c.environment || environment,
+        account_value_tier,
+        requires_two_person,
         agent: agent ? serializeAgent(agent) : null,
       }
     }))
@@ -7196,6 +7244,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
       ip: req.ip,
       userAgent: req.get('user-agent') || null,
       isProduction,
+      environment: resolveWingcasterEnv(req),
       issueRecoveryToken,
       logActivity,
     })
