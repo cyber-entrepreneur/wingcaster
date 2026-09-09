@@ -316,7 +316,8 @@ finPostgresSuite('account-recovery tier + env (BE-ACR-04/05)', { seed: false }, 
       .set('Authorization', `Bearer ${paLive.token}`)
       .set('X-Wingcaster-Env', 'live')
     expect(liveList.status).toBe(200)
-    const liveIds = liveList.body.map((c) => c.id)
+    expect(Array.isArray(liveList.body.cases)).toBe(true)
+    const liveIds = liveList.body.cases.map((c) => c.id)
     expect(liveIds).toContain(liveCaseId)
     expect(liveIds).not.toContain(testCaseId)
 
@@ -325,7 +326,8 @@ finPostgresSuite('account-recovery tier + env (BE-ACR-04/05)', { seed: false }, 
       .set('Authorization', `Bearer ${paTest.token}`)
       .set('X-Wingcaster-Env', 'test')
     expect(testList.status).toBe(200)
-    const testIds = testList.body.map((c) => c.id)
+    expect(Array.isArray(testList.body.cases)).toBe(true)
+    const testIds = testList.body.cases.map((c) => c.id)
     expect(testIds).toContain(testCaseId)
     expect(testIds).not.toContain(liveCaseId)
 
@@ -381,7 +383,8 @@ finPostgresSuite('account-recovery tier + env (BE-ACR-04/05)', { seed: false }, 
       .set('Authorization', `Bearer ${pa.token}`)
       .set('X-Wingcaster-Env', 'test') // spoofed — session LIVE wins
     expect(res.status).toBe(200)
-    const ids = res.body.map((c) => c.id)
+    expect(Array.isArray(res.body.cases)).toBe(true)
+    const ids = res.body.cases.map((c) => c.id)
     expect(ids).toContain(liveCaseId)
     expect(ids).not.toContain(testCaseId)
   })

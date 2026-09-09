@@ -322,6 +322,11 @@ const TABLE_MAP = {
       'info_request_canceled_at', 'info_request_canceled_by',
     ],
   },
+  account_recovery_reveal_audit: {
+    schema: 'public',
+    table: 'account_recovery_reveal_audit',
+    columns: ['case_id', 'reviewer_id', 'field', 'ip', 'user_agent'],
+  },
   account_recovery_evidence_files: {
     schema: 'public',
     table: 'account_recovery_evidence_files',
