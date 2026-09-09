@@ -17,6 +17,7 @@ export const PACKAGE_FLAG_CODES = [
   'crm.tasks',
   'crm.opportunities',
   'listings.crud',
+  'valuation.price_reports.submit',
 ]
 
 /** Spec asked for PUBLISH_PACKAGE_VERSION; CHECK constraint has MASS_OPERATION. */

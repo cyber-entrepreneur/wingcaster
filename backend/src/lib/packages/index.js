@@ -11,6 +11,7 @@ export { previewChangePlan } from './preview.js'
 export {
   listMeteredFeatures, getFeatureByCode, getFreeTierPackage,
   SEEDED_FEATURE_CODES, FREE_TIER_FLAG_CODES,
+  PRICE_REPORTS_SUBMIT_FEATURE_CODE, PRO_AGENT_PACKAGE_CODES,
   FREE_TIER_PACKAGE_CODES, freeTierPackageCode, freeTierAudienceForScope,
 } from './registry.js'
 export { PackageError, PACKAGE_ERROR, PACKAGE_HTTP_STATUS } from './errors.js'
