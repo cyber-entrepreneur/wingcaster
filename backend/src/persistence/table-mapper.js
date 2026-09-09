@@ -531,7 +531,10 @@ const TABLE_MAP = {
   comparable_reports: {
     schema: 'market_pricing',
     table: 'comparable_reports',
-    columns: ['reporter_id', 'comparable_id', 'comparable_type', 'reason', 'notes', 'status', 'reviewed_by', 'reviewed_at'],
+    columns: [
+      'reporter_id', 'comparable_id', 'comparable_type', 'reason', 'notes', 'status',
+      'reviewed_by', 'reviewed_at', 'expires_at',
+    ],
   },
   agent_price_reports: {
     schema: 'market_pricing',
@@ -540,7 +543,7 @@ const TABLE_MAP = {
       'reporter_id', 'agent_id', 'property_id', 'external_property_title', 'external_property_location',
       'property_type', 'bedrooms', 'bathrooms', 'area_sqm', 'sold_price', 'currency',
       'sold_price_normalized_usd', 'sold_date', 'source', 'notes', 'supporting_document_url',
-      'status', 'reviewed_by', 'reviewed_at', 'review_notes',
+      'status', 'reviewed_by', 'reviewed_at', 'review_notes', 'expires_at',
     ],
   },
   csv_import_logs: {

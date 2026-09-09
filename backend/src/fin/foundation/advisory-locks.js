@@ -38,6 +38,8 @@ export const FIN_CREDITS_FIN_MIRROR = 1023
 export const FIN_PACKAGE_BILLING_CYCLE = 1024
 /** WhatsApp intake activation-code expiry janitor (H6). 1025–1029 unused. */
 export const WHATSAPP_INTAKE_JANITOR = 1030
+/** Shared comparable_reports + agent_price_reports daily expiry (BE-24/25). */
+export const REPORT_EXPIRY = 1031
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -64,4 +66,5 @@ export const LOCK_CLASSES = {
   FIN_CREDITS_FIN_MIRROR,
   FIN_PACKAGE_BILLING_CYCLE,
   WHATSAPP_INTAKE_JANITOR,
+  REPORT_EXPIRY,
 }

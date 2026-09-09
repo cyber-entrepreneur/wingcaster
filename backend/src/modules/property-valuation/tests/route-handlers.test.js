@@ -290,6 +290,8 @@ describe('Public Route Registration', () => {
 
     expect(res.status).toHaveBeenCalledWith(201)
     expect(inserted[0]).toMatchObject({ comparable_id: 'comp-1', comparable_type: 'external', reason: 'fake_listing', status: 'pending' })
+    expect(inserted[0].expires_at).toBeTruthy()
+    expect(new Date(inserted[0].expires_at).getTime()).toBeGreaterThan(new Date(inserted[0].created_at).getTime())
   })
 
   it('report comparable route rejects missing fields', async () => {
@@ -345,6 +347,8 @@ describe('Public Route Registration', () => {
       sold_date: '2026-01-15',
       status: 'pending',
     })
+    expect(inserted[0].expires_at).toBeTruthy()
+    expect(new Date(inserted[0].expires_at).getTime()).toBeGreaterThan(new Date(inserted[0].created_at).getTime())
   })
 
   it('agent price report route rejects invalid sold price', async () => {
