@@ -59,7 +59,21 @@ All module config is prefixed with `WHATSAPP_LISTINGS_`:
 | `WHATSAPP_LISTINGS_WORKER_BATCH_SIZE` | `20` | Max sessions per worker tick |
 | `WHATSAPP_LISTINGS_DEDUPE_TTL_HOURS` | `24` | Message dedupe TTL |
 | `WHATSAPP_LISTINGS_SESSION_TTL_HOURS` | `24` | Session TTL |
+| `WHATSAPP_DRAFT_PROGRESS_MODE` | `sse` | BE-BLOCKER-13: `sse` (preferred) or `poll`. Alias: `WHATSAPP_LISTINGS_DRAFT_PROGRESS_MODE` |
+| `WHATSAPP_DRAFT_PROGRESS_POLL_INTERVAL_MS` | `3000` | Suggested client poll interval advertised by capability probe |
 | `WHATSAPP_LISTINGS_*_API_KEY` | — | Provider API keys (openai, gemini, claude, deepseek, qwen, kimi) |
+
+## Draft progress streaming (AGT-WLB-004)
+
+Live draft-field progress for the onboarding canvas:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET`/`HEAD` | `/api/whatsapp-listings/drafts/progress-capability` | Cheap capability probe (`mode`, `sse`, `poll`, `poll_interval_ms`) |
+| `GET`/`HEAD` | `/api/whatsapp-listings/drafts/:sessionId/progress` | SSE (`text/event-stream`) — events: `field_start`, `field_complete`, `field_stream`, `draft_ready`, `error` |
+| `GET` | `/api/whatsapp-listings/drafts/:sessionId/state` | Polling snapshot (`fields[]`, `draft_ready`) |
+
+Agent-prefixed aliases under `/api/agent/whatsapp-listings/...` are registered with the same handlers. Auth is Bearer (or `?token=` for EventSource). Client degradation: SSE → 3s polling → determinate spinner (client-only).
 
 ## Feature Gating
 
