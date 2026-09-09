@@ -16,7 +16,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ComponentType, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { renderHook } from '@testing-library/react'
@@ -50,6 +50,18 @@ const PAGE_LOADERS = {
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
+vi.mock('qrcode', () => ({
+  default: { toDataURL: vi.fn(async () => 'data:image/png;base64,xx') },
+}))
+
+vi.mock('@/components/dashboard/KpiAnalyticsPanel', () => ({
+  KpiAnalyticsPanel: () => <div data-testid="kpi-stub" />,
+}))
+
+vi.mock('@/components/ListingFormModal', () => ({
+  ListingFormModal: () => null,
+}))
+
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
     agent: {
@@ -57,6 +69,15 @@ vi.mock('@/context/AuthContext', () => ({
       name: 'Sara',
       email: 'sara@wingcaster.test',
       preferred_locale: 'en',
+      photo: '',
+      agency_name: 'Acme Realty',
+      license_number: 'LIC-1',
+      phone: '+971500000000',
+      rating: 4.8,
+      review_count: 12,
+      ui_mode: 'guided',
+      onboarding_status: 'active',
+      onboarding_stage: 'active',
     },
     loading: false,
     isAdmin: false,
@@ -127,14 +148,43 @@ vi.mock('@/hooks/useContactAttentionCount', () => ({
 
 const fetchMock = vi.fn()
 
-function jsonRes(status: number, body: unknown) {
-  return {
+const ACTIVATION_CODE = {
+  display_code: 'WC-A7K3',
+  shared_number_e164: '+97145550199',
+  expires_at: '2026-09-09T12:15:00.000Z',
+}
+
+const SAMPLE_DRAFT = {
+  id: 'draft_1',
+  status: 'awaiting_approval',
+  title: 'Marina Walk 2BR',
+  price: 1850000,
+  currency: 'AED',
+  beds: 2,
+  baths: 2,
+  address: '42 Marina Walk, Dubai',
+  description: 'Bright 2BR with marina views',
+  photos: ['a.jpg'],
+  property_id: 'prop_1',
+}
+
+function jsonRes(status: number, body: unknown, extraHeaders?: Record<string, string>) {
+  const headers: Record<string, string> = {
+    'content-type': body === '' || body == null ? 'text/plain' : 'application/json',
+  }
+  for (const [key, value] of Object.entries(extraHeaders ?? {})) {
+    headers[key.toLowerCase()] = value
+  }
+  const payload = {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    headers: {
+      get: (name: string) => headers[name.toLowerCase()] ?? null,
+    },
     text: async () => (body === '' || body == null ? '' : JSON.stringify(body)),
     json: async () => body,
   }
+  return { ...payload, clone: () => jsonRes(status, body, extraHeaders) }
 }
 
 function welcomeOnboarding(overrides?: Partial<OnboardingState>): OnboardingState {
@@ -244,9 +294,15 @@ function recountActivation(activation: ActivationState): ActivationState {
   }
 }
 
+function requestUrl(input: unknown): string {
+  if (typeof input === 'string') return input
+  if (input && typeof input === 'object' && 'url' in input) return String((input as { url: string }).url)
+  return String(input)
+}
+
 function installFetch() {
-  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-    const pathUrl = String(url)
+  fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
+    const pathUrl = requestUrl(url)
     const method = (init?.method || 'GET').toUpperCase()
     let body: unknown = null
     if (init?.body && typeof init.body === 'string') {
@@ -345,18 +401,26 @@ function installFetch() {
     if (pathUrl.includes('/marketing/agent-count')) {
       return jsonRes(200, { count: 2400 })
     }
-    if (pathUrl.includes('/auth/whatsapp/activation-code') && method === 'POST') {
-      return jsonRes(200, {
-        display_code: 'WC-A7K3',
-        shared_number_e164: '+97145550199',
-        expires_at: '2026-09-09T12:15:00.000Z',
-      })
+    if (pathUrl.includes('/auth/whatsapp/activation-code')) {
+      return jsonRes(200, ACTIVATION_CODE)
+    }
+    if (pathUrl.includes('/auth/whatsapp/bindings')) {
+      return jsonRes(200, [{ id: 'bind_1', phone_e164: '+971501234567' }])
     }
     if (pathUrl.includes('/auth/whatsapp/binding-status')) {
       return jsonRes(200, {
         status: store.binding,
         bound: store.binding === 'bound',
+        phone_e164: store.binding === 'bound' ? '+971501234567' : undefined,
         masked_number: store.binding === 'bound' ? '+971 5X XXX 0199' : null,
+      })
+    }
+    if (pathUrl.includes('/intake/inbound-status')) {
+      return jsonRes(200, {
+        bound: true,
+        binding_id: 'bind_1',
+        latest_message_at: '2026-09-09T12:00:00.000Z',
+        draft_session_id: 'sess_1',
       })
     }
     if (pathUrl.includes('/whatsapp-listings/drafts') && pathUrl.includes('/approve')) {
@@ -382,14 +446,61 @@ function installFetch() {
             : s,
         ),
       })
-      return jsonRes(200, { ok: true, status: 'published' })
+      return jsonRes(200, { ok: true, status: 'published', result: { id: 'prop_1', property_id: 'prop_1' } })
+    }
+    if (pathUrl.includes('/whatsapp-listings/drafts') && pathUrl.includes('/progress-capability')) {
+      return jsonRes(200, { sse: false, poll: true, mode: 'poll', poll_interval_ms: 50 })
+    }
+    if (pathUrl.includes('/whatsapp-listings/drafts') && (method === 'HEAD' || pathUrl.includes('/progress'))) {
+      return jsonRes(200, '', {
+        'X-Draft-Progress-SSE': '0',
+        'X-Draft-Progress-Poll-Interval-Ms': '50',
+      })
+    }
+    if (pathUrl.includes('/whatsapp-listings/drafts') && pathUrl.includes('/state')) {
+      return jsonRes(200, {
+        session_id: 'sess_1',
+        draft_id: 'draft_1',
+        draft_ready: true,
+        fields: [
+          { key: 'address', label: 'Address', state: 'complete', value: '42 Marina Walk, Dubai' },
+          { key: 'bedrooms', label: 'Bedrooms', state: 'complete', value: 2 },
+          { key: 'description', label: 'Description', state: 'complete', value: 'Bright 2BR with marina views' },
+        ],
+        completed_fields: 3,
+        total_fields: 7,
+      })
+    }
+    if (/\/whatsapp-listings\/drafts\/[^/?]+$/.test(pathUrl) && method === 'GET') {
+      const listed = store.drafts[0] && typeof store.drafts[0] === 'object' ? store.drafts[0] : SAMPLE_DRAFT
+      return jsonRes(200, { ...SAMPLE_DRAFT, ...listed })
     }
     if (pathUrl.includes('/whatsapp-listings/drafts')) {
-      return jsonRes(200, { drafts: store.drafts, items: store.drafts })
+      return jsonRes(200, { drafts: store.drafts.length ? store.drafts : [SAMPLE_DRAFT], items: store.drafts })
+    }
+    if (/\/properties\/[^/?]+/.test(pathUrl) && method === 'GET') {
+      return jsonRes(200, {
+        id: 'prop_1',
+        title: SAMPLE_DRAFT.title,
+        address: SAMPLE_DRAFT.address,
+        photos: SAMPLE_DRAFT.photos,
+      })
+    }
+    if (pathUrl.includes('/properties')) return jsonRes(200, [])
+    if (pathUrl.includes('/inquiries')) return jsonRes(200, { items: [] })
+    if (pathUrl.includes('/viewings')) return jsonRes(200, [])
+    if (pathUrl.includes('/dashboard/stats')) {
+      return jsonRes(200, { listings: 0, totalViews: 0, inquiries: 0 })
+    }
+    if (pathUrl.includes('/dashboard/')) return jsonRes(200, null)
+    if (pathUrl.includes('/conversations')) return jsonRes(200, [])
+    if (pathUrl.includes('/platforms') || pathUrl.includes('/connections') || pathUrl.includes('/submissions')) {
+      return jsonRes(200, [])
     }
     if (pathUrl.endsWith('/api') || /\/api\/?$/.test(pathUrl)) {
       return jsonRes(200, {})
     }
+    if (method === 'GET') return jsonRes(200, [])
     return jsonRes(200, Array.isArray(body) ? [] : {})
   })
 }
@@ -503,7 +614,13 @@ function familyReady(kind: 'onb' | 'wlb' | 'act'): boolean {
 function dashboardMountsChecklist(): boolean {
   if (!existsSync(DASHBOARD_FILE)) return false
   const src = readFileSync(DASHBOARD_FILE, 'utf8')
-  return src.includes('OnboardingChecklistCard') || src.includes('onboarding/welcome_skipped') || src.includes('data-onboarding-checklist')
+  return (
+    src.includes('OnboardingChecklistWidget') ||
+    src.includes('OnboardingChecklistCard') ||
+    src.includes('shouldRenderOnboardingChecklist') ||
+    src.includes('data-onboarding-checklist') ||
+    src.includes('data-dashboard-zone')
+  )
 }
 
 function LocationProbe() {
@@ -535,6 +652,7 @@ function Placeholder({ label }: { label: string }) {
 }
 
 function wrap(ui: ReactElement, initialPath: string, extra?: ReactElement) {
+  cleanup()
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <BrandProvider>
@@ -544,6 +662,10 @@ function wrap(ui: ReactElement, initialPath: string, extra?: ReactElement) {
           <Routes>
             <Route path="/onboarding" element={pages.welcome ? <pages.welcome /> : <Placeholder label="onboarding" />} />
             <Route path="/onboarding/welcome" element={pages.welcome ? <pages.welcome /> : ui} />
+            <Route
+              path="/onboarding/whatsapp/connect"
+              element={pages.wlbConnect ? <pages.wlbConnect /> : <Placeholder label="connect" />}
+            />
             <Route
               path="/onboarding/whatsapp"
               element={
@@ -612,6 +734,7 @@ function wrap(ui: ReactElement, initialPath: string, extra?: ReactElement) {
                 )
               }
             />
+            <Route path="/listings/:listingId" element={<Placeholder label="listing-complete" />} />
             <Route path="*" element={ui} />
           </Routes>
           {extra}
@@ -676,7 +799,7 @@ beforeAll(async () => {
     ),
     wlbWaiting: await loadNamed(
       [/FirstMessage/i, /WhatsAppWaiting/i],
-      ['FirstMessagePage', 'WhatsAppWaitingPage'],
+      ['FirstMessageWaitingPage', 'FirstMessagePage', 'WhatsAppWaitingPage'],
     ),
     wlbDrafting: await loadNamed(
       [/ListingDrafting/i, /WhatsAppDrafting/i],
@@ -692,8 +815,8 @@ beforeAll(async () => {
       ['ActivationWhatsAppPage', 'ActivateWhatsAppPage', 'WhatsAppConnectPage'],
     ),
     actListing: await loadNamed(
-      [/FirstListing/i, /ActivateFirstListing/i],
-      ['FirstListingPage', 'ActivateFirstListingPage', 'ActivationFirstListingPage'],
+      [/ActivationFirstListing/i, /ActivateFirstListing/i],
+      ['ActivationFirstListingPage', 'ActivateFirstListingPage', 'FirstListingPage'],
     ),
     actPortal: await loadNamed(
       [/PortalCredentials/i],
@@ -715,6 +838,7 @@ beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('fi_token', 'tok_sara')
+  Object.defineProperty(window.navigator, 'onLine', { configurable: true, writable: true, value: true })
 })
 
 afterEach(() => {
@@ -902,19 +1026,16 @@ describe.skipIf(!familyReady('onb'))(
       const Page = pages.welcome!
       wrap(<Page />, '/onboarding/welcome')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
+      expect(await screen.findByRole('heading', { name: /Welcome to WingCaster/i })).toBeInTheDocument()
 
-      const whatsapp = screen.getByText(/WhatsApp/i)
-      await user.click(whatsapp)
-      const cta = screen.queryByRole('button', { name: /get started/i })
-      if (cta) await user.click(cta)
+      await user.click(screen.getByText('WhatsApp voice memo'))
+      await user.click(screen.getByRole('button', { name: /get started/i }))
 
       await waitFor(() => {
         const loc = screen.getByTestId('funnel-location').textContent || ''
-        const step = screen.getByTestId('funnel-state').getAttribute('data-step')
-        const onWhatsappRoute = /\/onboarding\/whatsapp/.test(loc)
-        const pending = step === 'whatsapp_intake_pending'
-        expect(onWhatsappRoute || pending).toBe(true)
-      })
+        expect(loc).toMatch(/\/onboarding\/whatsapp/)
+      }, { timeout: 5000 })
+      expect(screen.getByTestId('funnel-state').getAttribute('data-path')).toBe('whatsapp')
     })
   },
 )
@@ -929,44 +1050,56 @@ describe.skipIf(!familyReady('wlb'))(
         path: 'whatsapp',
         checklist: { ...EMPTY_CHECKLIST, welcome_seen: true },
       })
-      const Start = pages.wlbConnect || pages.onbWhatsapp || pages.wlbCode
-      if (!Start) return
-      wrap(<Start />, '/onboarding/whatsapp')
-      await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
+      store.binding = 'unbound'
+      store.drafts = [SAMPLE_DRAFT]
 
-      const setup = screen.queryByRole('button', { name: /set up WhatsApp intake|get code|continue|next/i })
-      if (setup) await user.click(setup)
-
-      store.binding = 'bound'
-      store.drafts = [{ id: 'draft_1', status: 'awaiting_approval' }]
-      store.onboarding = {
-        ...store.onboarding,
-        step: 'draft_review',
-        checklist: { ...store.onboarding.checklist, first_listing_drafted: true },
+      const Connect = pages.wlbConnect
+      if (Connect) {
+        wrap(<Connect />, '/onboarding/whatsapp/connect')
+        await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
+        expect(await screen.findByRole('heading', { name: /Draft listings by chatting/i })).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: /set up WhatsApp intake/i }))
+        await waitFor(() => {
+          expect(screen.getByTestId('funnel-location').textContent).toMatch(/\/onboarding\/whatsapp\/code/)
+        }, { timeout: 5000 })
+        expect(await screen.findByText('WC-A7K3')).toBeInTheDocument()
       }
 
       const Code = pages.wlbCode
-      if (Code) {
+      if (Code && !Connect) {
         wrap(<Code />, '/onboarding/whatsapp/code')
-        expect(await screen.findByText(/WC-|activation|WingCaster/i)).toBeTruthy()
+        expect(await screen.findByText('WC-A7K3')).toBeInTheDocument()
       }
+
       const Waiting = pages.wlbWaiting
       if (Waiting) {
         wrap(<Waiting />, '/onboarding/whatsapp/waiting')
+        expect(await screen.findByRole('heading', { name: /Listening on WhatsApp/i })).toBeInTheDocument()
       }
+
       const Drafting = pages.wlbDrafting
       if (Drafting) {
         wrap(<Drafting />, '/onboarding/whatsapp/drafting/sess_1')
         expect(
-          screen.queryByText(/Turning your message into a listing|Drafting|Review & publish/i),
-        ).not.toBeNull()
+          await screen.findByText(/Turning your message into a listing|Your listing is ready|Review & publish/i),
+        ).toBeTruthy()
       }
 
+      store.onboarding = welcomeOnboarding({
+        step: 'draft_review',
+        path: 'whatsapp',
+        checklist: { ...EMPTY_CHECKLIST, welcome_seen: true, first_listing_drafted: true },
+      })
       const Review = pages.review
       if (Review) {
         wrap(<Review />, '/onboarding/first-listing/draft_1')
-        const publish = screen.queryByRole('button', { name: /publish/i })
-        if (publish) await user.click(publish)
+        const publish = await screen.findByRole('button', { name: /publish my first listing/i })
+        await user.click(publish)
+        await waitFor(() => {
+          expect(screen.getByTestId('funnel-location').textContent).toMatch(
+            /\/onboarding\/first-listing\/published/,
+          )
+        }, { timeout: 5000 })
       }
 
       const Celebration = pages.celebration
@@ -982,9 +1115,7 @@ describe.skipIf(!familyReady('wlb'))(
           },
         })
         wrap(<Celebration />, '/onboarding/first-listing/published')
-        expect(
-          await screen.findByText(/Your first listing is live|live listing|celebration/i),
-        ).toBeTruthy()
+        expect(await screen.findByRole('heading', { name: /Your first listing is live/i })).toBeInTheDocument()
       }
     })
   },
@@ -994,7 +1125,6 @@ describe.skipIf(!familyReady('act'))(
   '3. Wizard path AGT-ACT-001 → step complete → Completed via {source}, not surveillance',
   () => {
     it('shows subdued Completed via caption after a wizard step completes', async () => {
-      const user = userEvent.setup()
       store.activation = activationDoc({
         stepOverrides: {
           whatsapp: {
@@ -1010,12 +1140,10 @@ describe.skipIf(!familyReady('act'))(
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
       expect(screen.queryByText(SURVEILLANCE)).not.toBeInTheDocument()
-      const via = screen.queryByText(/Completed via/i)
+      const via = await screen.findByText(/Completed via onboarding/i)
       expect(via).toBeTruthy()
-      expect(via?.textContent).toMatch(/onboarding|WhatsApp intake/i)
-
-      const start = screen.queryByRole('button', { name: /create a listing|start with WhatsApp|connect a portal/i })
-      if (start) await user.click(start)
+      expect(screen.getByTestId('funnel-state').getAttribute('data-whatsapp-complete')).toBe('1')
+      expect(screen.getByTestId('funnel-state').getAttribute('data-whatsapp-via')).toBe('onboarding')
     })
   },
 )
@@ -1029,17 +1157,27 @@ describe.skipIf(!familyReady('onb'))(
       if (!Welcome) return
       wrap(<Welcome />, '/onboarding/welcome')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
+      expect(await screen.findByRole('heading', { name: /Welcome to WingCaster/i })).toBeInTheDocument()
 
-      const skip = await screen.findByRole('button', { name: /skip for now/i })
-      await user.click(skip)
+      await user.click(await screen.findByRole('button', { name: /skip for now/i }))
 
       await waitFor(() => {
-        const loc = screen.getByTestId('funnel-location').textContent || ''
-        const step = screen.getByTestId('funnel-state').getAttribute('data-step')
-        expect(loc.includes('/dashboard') || step === 'welcome_skipped').toBe(true)
+        expect(screen.getByTestId('funnel-location').textContent).toContain('/dashboard')
+      }, { timeout: 5000 })
+
+      const patchCall = fetchMock.mock.calls.find((call) => {
+        const url = requestUrl(call[0])
+        const init = call[1] as RequestInit | undefined
+        return url.includes('/user/onboarding-state') && String(init?.method || '').toUpperCase() === 'PATCH'
       })
-      expect(screen.getByText('Finish setting up')).toBeInTheDocument()
-      expect(document.querySelector('[data-onboarding-checklist]')).toBeTruthy()
+      expect(patchCall).toBeTruthy()
+      expect(String(patchCall?.[1] && (patchCall[1] as RequestInit).body)).toMatch(/welcome_skipped/)
+
+      expect(await screen.findByText('Finish setting up')).toBeInTheDocument()
+      expect(
+        document.querySelector('[data-onboarding-checklist]') ||
+          document.querySelector('[data-dashboard-zone="3"]'),
+      ).toBeTruthy()
     })
   },
 )
@@ -1056,15 +1194,14 @@ describe.skipIf(!familyReady('onb'))(
       wrap(<Welcome />, '/onboarding/welcome')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
-      const skip = screen.queryByRole('button', { name: /skip for now/i })
-      const cta = screen.queryByRole('button', { name: /get started/i })
-      if (skip) await user.click(skip)
-      else if (cta) await user.click(cta)
+      const skip = await screen.findByRole('button', { name: /skip for now/i })
+      await user.click(skip)
 
       await waitFor(() => {
+        const loc = screen.getByTestId('funnel-location').textContent || ''
         const step = screen.getByTestId('funnel-state').getAttribute('data-step')
-        expect(step === 'complete' || screen.queryByText(/couldn't save/i) === null).toBe(true)
-      })
+        expect(loc.includes('/dashboard') || step === 'complete').toBe(true)
+      }, { timeout: 5000 })
       expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
     })
   },
@@ -1080,8 +1217,9 @@ describe.skipIf(!familyReady('act'))(
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
       expect(screen.getByTestId('funnel-state').getAttribute('data-portal-state')).toBe('locked')
       expect(
-        screen.getByText(/Available soon|portal list|Locked/i),
+        screen.getByText(/Available soon — we're finalizing your country's portal list/i),
       ).toBeInTheDocument()
+      expect(screen.getAllByText(/^Locked$/i).length).toBeGreaterThanOrEqual(1)
     })
   },
 )
