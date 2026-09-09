@@ -54,8 +54,9 @@ beforeEach(() => {
   applyLcMode('light')
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(FIXED_NOW)
-  Object.assign(navigator, {
-    clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
   })
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

@@ -53,8 +53,10 @@ export function TourFrame({
         )}
       >
         <div className="relative flex min-h-12 items-center justify-center px-[var(--lc-space-md)]">
-          <ol
+          {/* AGT-WLB-001: progressbar must be a non-list element (ol+role=progressbar fails axe). */}
+          <div
             role="progressbar"
+            aria-label={`Step ${step} of ${totalSteps}: ${title}`}
             aria-valuenow={step}
             aria-valuemin={1}
             aria-valuemax={totalSteps}
@@ -65,7 +67,7 @@ export function TourFrame({
               const completed = n < step
               const active = n === step
               return (
-                <li
+                <span
                   key={n}
                   aria-current={active ? 'step' : undefined}
                   className={cn(
@@ -82,7 +84,7 @@ export function TourFrame({
                 />
               )
             })}
-          </ol>
+          </div>
 
           <Button
             type="button"
