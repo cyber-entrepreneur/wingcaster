@@ -6,6 +6,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { ListingDraftingPage } from './ListingDraftingPage'
 
+vi.mock('@/hooks/useOnboardingState', async () => {
+  const { mockUseOnboardingState } = await import('./mockUseOnboardingState')
+  return { useOnboardingState: () => mockUseOnboardingState() }
+})
+
 vi.mock('./useDraftProgress', async () => {
   const actual = await vi.importActual<typeof import('./useDraftProgress')>('./useDraftProgress')
   return {

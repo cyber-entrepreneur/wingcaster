@@ -6,6 +6,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { ActivationCodePage } from './ActivationCodePage'
 
+vi.mock('@/hooks/useOnboardingState', async () => {
+  const { mockUseOnboardingState } = await import('./mockUseOnboardingState')
+  return { useOnboardingState: () => mockUseOnboardingState() }
+})
+
 vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn(async () => 'data:image/png;base64,qr') },
 }))
