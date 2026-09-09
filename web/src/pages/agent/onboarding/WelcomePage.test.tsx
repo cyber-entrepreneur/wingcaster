@@ -25,7 +25,7 @@ const hook = vi.hoisted(() => ({
       profile_completed: false,
       subscription_active: false,
     },
-  },
+  } as OnboardingState,
   isLoading: false,
   isError: false,
   patch: vi.fn(async (body: Record<string, unknown>) => body),
@@ -65,7 +65,7 @@ vi.mock('@/components/ui/color-mode-toggle', () => ({
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
-const agentCountMock = vi.hoisted(() => vi.fn(async () => 2499))
+const agentCountMock = vi.hoisted(() => vi.fn(async (): Promise<number | null> => 2499))
 vi.mock('./onboardingApi', () => ({
   getMarketingAgentCount: () => agentCountMock(),
   trackOnboardingEvent: vi.fn(),

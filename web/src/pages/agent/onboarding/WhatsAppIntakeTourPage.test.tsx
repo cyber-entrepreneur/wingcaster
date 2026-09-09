@@ -25,7 +25,7 @@ const hook = vi.hoisted(() => ({
       profile_completed: false,
       subscription_active: false,
     },
-  },
+  } as OnboardingState,
   isLoading: false,
   isError: false,
   patch: vi.fn(async (body: Record<string, unknown>) => body),

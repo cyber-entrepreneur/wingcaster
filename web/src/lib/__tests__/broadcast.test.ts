@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 describe('broadcast session channel', () => {
   let listeners: Set<(event: MessageEvent) => void>
@@ -41,6 +44,11 @@ describe('broadcast session channel', () => {
       writable: true,
       value: MockBroadcastChannel,
     })
+    // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
+    ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
+      MockBroadcastChannel as unknown as typeof BroadcastChannel
+    globalThis.BroadcastChannel = MockBroadcastChannel
+    window.BroadcastChannel = MockBroadcastChannel
   })
 
   afterEach(() => {

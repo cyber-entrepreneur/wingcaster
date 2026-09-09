@@ -37,7 +37,6 @@ function makeState(overrides: Partial<OnboardingState> = {}): OnboardingState {
     updated_at: '2026-09-09T10:00:00.000Z',
     completed_at: null,
     dismissed_forever: false,
-    checklist: { ...INCOMPLETE },
     ...overrides,
     checklist: {
       ...INCOMPLETE,
@@ -77,7 +76,7 @@ const authMock = vi.hoisted(() => ({
 
 const apiMock = vi.hoisted(() => ({
   getProperties: vi.fn(async () => []),
-  getInquiries: vi.fn(async () => ({ items: [] })),
+  getInquiries: vi.fn(async (): Promise<{ items: Array<Record<string, unknown>> }> => ({ items: [] })),
   getViewings: vi.fn(async () => []),
   getDashboardStats: vi.fn(async () => ({ listings: 0, totalViews: 0, inquiries: 0 })),
   getDashboardOperations: vi.fn(async () => null),
