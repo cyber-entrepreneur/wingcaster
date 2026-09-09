@@ -53,6 +53,7 @@ import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import { Act001WelcomeSurface, Onb001WelcomeSurface } from '@/theme/wave4a-fixtures'
 
 const pages: Array<[string, ComponentType, string]> = [
   ['Dashboard', AgentDashboardPage, '/dashboard'],
@@ -65,19 +66,23 @@ const pages: Array<[string, ComponentType, string]> = [
   ['Register', RegisterPage, '/register'],
   ['Settings', TotpSettingsPage, '/settings/2fa'],
   ['Command Center', CommandCenterPage, '/command-center'],
+  ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
+  ['Activate', Act001WelcomeSurface, '/activate'],
 ]
 
 /** Auth surfaces ship their own `<main>`; wrapping again nests landmarks. */
 const BARE_LANDMARK_PAGES = new Set(['Login', 'Register'])
 
 describe('Broadcast a11y — top 10 pages', () => {
+describe('Broadcast a11y — top 10 pages + Wave 4A welcome/activate', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
   })
 
-  it.each(pages)('%s has no axe violations', async (name, Page, path) => {
-    document.documentElement.lang = 'en'
-    const bare = BARE_LANDMARK_PAGES.has(name)
+  it.each(pages)('%s has no axe violations', async (_name, Page, path) => {
+    const isWave4a = path === '/onboarding/welcome' || path === '/activate'
+    document.documentElement.lang = isWave4a ? 'ar' : 'en'
+    document.documentElement.dir = isWave4a ? 'rtl' : 'ltr'
     const { container } = render(
       <MemoryRouter initialEntries={[path]}>
         <BrandProvider>
