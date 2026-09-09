@@ -47,6 +47,7 @@ const PAGE_CANDIDATES = {
     'pages/agent/whatsapp-intake/WhatsAppCodePage.tsx',
   ],
   'WLB-003': [
+    'pages/agent/whatsapp-intake/FirstMessageWaitingPage.tsx',
     'pages/agent/whatsapp-intake/FirstMessagePage.tsx',
     'pages/agent/whatsapp-intake/WhatsAppWaitingPage.tsx',
   ],
