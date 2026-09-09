@@ -6,6 +6,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { WhatsAppConnectPage } from './WhatsAppConnectPage'
 
+vi.mock('@/hooks/useOnboardingState', async () => {
+  const { mockUseOnboardingState } = await import('./mockUseOnboardingState')
+  return { useOnboardingState: () => mockUseOnboardingState() }
+})
+
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {

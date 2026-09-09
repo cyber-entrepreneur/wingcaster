@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { TourFrame, type TourFrameStep } from '@/components/onboarding/whatsapp'
 import { OfflineBanner } from '@/components/onboarding'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
 import { markWhatsAppDeferred } from './tour'
-import { markWhatsAppIntakeProgress, useOnboardingState } from './useOnboardingState'
+import { markWhatsAppIntakeProgress } from './useOnboardingState'
 
 interface WhatsAppTourShellProps {
   step: TourFrameStep

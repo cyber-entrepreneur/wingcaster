@@ -7,8 +7,9 @@ import { ChannelMark } from '@/components/ui/channel-mark'
 import { useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
 import { issueActivationCode, type ActivationCodePayload } from './intakeApi'
-import { completedViaCaption, markWhatsAppIntakeProgress, useOnboardingState } from './useOnboardingState'
+import { completedViaCaption, markWhatsAppIntakeProgress } from './useOnboardingState'
 import { useOnlineStatus } from './useOnlineStatus'
 import { StickyCtaBar, WhatsAppTourShell } from './WhatsAppTourShell'
 
@@ -29,7 +30,7 @@ export function WhatsAppConnectPage() {
 
   const resume = params.get('resume') === '1'
   const title = resume ? 'Resume WhatsApp setup' : 'Set up WhatsApp intake'
-  const already = completedViaCaption(onboarding.state, 'whatsapp')
+  const already = completedViaCaption(onboarding, 'whatsapp')
 
   const benefits = useMemo(
     () =>

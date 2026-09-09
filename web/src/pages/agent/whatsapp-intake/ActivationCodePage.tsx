@@ -13,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { completedViaCaption, markWhatsAppIntakeProgress, useOnboardingState } from './useOnboardingState'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
+import { completedViaCaption, markWhatsAppIntakeProgress } from './useOnboardingState'
 import { getCurrentActivationCode, postActivationCode, type ActivationCodePayload } from './intakeApi'
 import { useBindingStatusPoll } from './useBindingStatusPoll'
 import { useOnlineStatus } from './useOnlineStatus'
@@ -47,7 +48,7 @@ export function ActivationCodePage() {
   const [desktopHint, setDesktopHint] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
-  const already = completedViaCaption(onboarding.state, 'whatsapp')
+  const already = completedViaCaption(onboarding, 'whatsapp')
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000)

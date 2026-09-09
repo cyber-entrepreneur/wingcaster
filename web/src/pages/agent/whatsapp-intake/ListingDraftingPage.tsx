@@ -20,7 +20,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { discardDraft } from './intakeApi'
-import { markWhatsAppIntakeProgress, useOnboardingState } from './useOnboardingState'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
+import { markWhatsAppIntakeProgress } from './useOnboardingState'
 import { useDraftProgress } from './useDraftProgress'
 import { useOnlineStatus } from './useOnlineStatus'
 import { buildWaMeLink } from './waMeLink'
