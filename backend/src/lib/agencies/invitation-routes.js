@@ -91,6 +91,13 @@ export function registerAgencyInvitationRoutes(app, {
     validate(invitationAcceptSchema),
     async (req, res) => {
       try {
+        const guestSignup = req.body?.guest_signup
+        // No session and no guest_signup → 401 before invitation lookup so
+        // unknown codes do not leak as 404 to anonymous callers.
+        if (!req.user && guestSignup == null) {
+          return res.status(401).json({ error: 'Unauthorized' })
+        }
+
         const invite = await findInvitationByCode(req.params.code)
         if (!invite) return res.status(404).json({ error: 'Invitation not found' })
 
@@ -119,11 +126,6 @@ export function registerAgencyInvitationRoutes(app, {
             error: 'AGENCY_NOT_ACCEPTING',
             message: 'This agency is not currently accepting applications.',
           })
-        }
-
-        const guestSignup = req.body?.guest_signup
-        if (!req.user && guestSignup == null) {
-          return res.status(401).json({ error: 'Unauthorized' })
         }
 
         // Authenticated: guest_signup ignored.
@@ -160,12 +162,8 @@ export function registerAgencyInvitationRoutes(app, {
           return res.status(201).json({
             success: true,
             application: {
-              id: application.id,
-              agency_id: agency.id,
+              ...application,
               agency_name: agency.name,
-              status: application.status,
-              created_at: application.created_at,
-              expected_response_by: application.expected_response_by,
             },
             redirect_to: `/applications/${application.id}`,
             message: `Application sent to ${agency.name}. They will review and approve your request.`,
@@ -223,12 +221,8 @@ export function registerAgencyInvitationRoutes(app, {
         return res.status(201).json({
           success: true,
           application: {
-            id: result.application.id,
-            agency_id: agency.id,
+            ...result.application,
             agency_name: agency.name,
-            status: result.application.status,
-            created_at: result.application.created_at,
-            expected_response_by: result.application.expected_response_by,
           },
           session: result.session,
           redirect_to: `/applications/${result.application.id}`,
