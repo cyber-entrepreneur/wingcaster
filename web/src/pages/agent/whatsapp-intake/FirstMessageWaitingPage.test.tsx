@@ -5,6 +5,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { FirstMessageWaitingPage } from './FirstMessageWaitingPage'
 
+vi.mock('@/hooks/useOnboardingState', async () => {
+  const { mockUseOnboardingState } = await import('./mockUseOnboardingState')
+  return { useOnboardingState: () => mockUseOnboardingState() }
+})
+
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {
@@ -72,10 +77,9 @@ describe('FirstMessageWaitingPage', () => {
     renderWaiting()
     expect(screen.queryByText(/Send WC-LIST to check your bindings/i)).not.toBeInTheDocument()
     await act(async () => {
-      vi.advanceTimersByTime(60_000)
+      await vi.advanceTimersByTimeAsync(60_000)
     })
     expect(screen.getByText(/Send WC-LIST to check your bindings/i)).toBeInTheDocument()
-    vi.useRealTimers()
   })
 
   it('navigates to drafting when inbound-status reports a message', async () => {
