@@ -3,7 +3,10 @@ import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { resolveSessionEnv, WINGCASTER_ENV_HEADER } from '../../../lib/session-env.js'
 import { createComparableReportReadService } from '../application/comparable-report-read-service.js'
 import { createMarketImpactService } from '../application/market-impact-service.js'
-import { createComparableReportDecisionService } from '../application/comparable-report-decisions.js'
+import {
+  createComparableReportDecisionService,
+  goneReviewBody,
+} from '../application/comparable-report-decisions.js'
 
 export function parseCsv(text) {
   if (!text || typeof text !== 'string') return { headers: [], rows: [] }
@@ -683,24 +686,9 @@ export function registerAdminRoutes(app, services) {
       try { return sendDecisionError(res, err) } catch (e) { next(e) }
     }
   })
-  app.post('/api/admin/pricing/reports/:id/review', admin, async (req, res, next) => {
-    try {
-      const { status, notes } = req.body
-      if (!['reviewed', 'dismissed', 'actioned'].includes(status)) {
-        return res.status(400).json({ error: 'status must be reviewed, dismissed, or actioned' })
-      }
-      const existing = await dal.findOne('comparable_reports', (r) => r.id === req.params.id)
-      if (!existing) return res.status(404).json({ error: 'Report not found' })
-      await dal.update('comparable_reports', (r) => r.id === req.params.id, (r) => ({
-        ...r,
-        status: status || r.status,
-        notes: notes !== undefined ? notes : r.notes,
-        reviewed_by: req.user.id,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }))
-      stampEnv(req, res)
-      res.json({ success: true })
-    } catch (err) { next(err) }
+  app.post('/api/admin/pricing/reports/:id/review', admin, async (req, res) => {
+    stampEnv(req, res)
+    return res.status(410).json(goneReviewBody())
   })
+
 }

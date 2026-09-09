@@ -302,8 +302,19 @@ export function createMarketImpactService({ dal, logger } = {}) {
     }
   }
 
+  async function scoreComparable(args = {}) {
+    const impact = await scoreComparableImpact(args)
+    return {
+      ...impact,
+      // Agent-5 / decisions tests use affected_property_ids.
+      affected_property_ids: impact.affected_property_ids || [],
+      valuations_affected: impact.valuations_affected ?? 0,
+    }
+  }
+
   return {
     scoreComparableImpact,
+    scoreComparable,
     classifyMarketImpactTier,
     computeValuationMove,
     marketImpactTierRank,
