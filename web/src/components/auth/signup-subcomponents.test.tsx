@@ -62,11 +62,15 @@ describe('HeroPanel', () => {
     render(<HeroPanel variant="full" />)
     expect(screen.getByTestId('hero-value-prop')).toBeInTheDocument()
     expect(screen.getByText(/Trusted by MENA real-estate professionals/i)).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Product highlights' })).toBeInTheDocument()
   })
 
-  it('compact variant hides trusted cluster', () => {
+  it('compact variant hides trusted cluster and uses distinct landmark name', () => {
     render(<HeroPanel variant="compact" />)
     expect(screen.queryByText(/Trusted by MENA/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: 'Product highlights summary' }),
+    ).toBeInTheDocument()
   })
 })
 

@@ -40,9 +40,12 @@ export function HeroPanel({
 
   const valueLine = rt(VALUE_KEYS[index], locale)
   const isCompact = variant === 'compact'
+  // Distinct labels when both variants mount (mobile + desktop columns) — axe landmark-unique.
+  const landmarkLabel = rt(isCompact ? 'hero.landmark.compact' : 'hero.landmark', locale)
 
   return (
     <aside
+      aria-label={landmarkLabel}
       className={cn(
         'relative overflow-hidden text-[var(--lc-text-inverse)]',
         isCompact

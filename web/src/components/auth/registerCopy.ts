@@ -41,8 +41,11 @@ export const REGISTER_COPY = {
   'value.2': { en: 'Cast listings to every portal.', ar: AR },
   'value.3': { en: 'Convert conversations into closings.', ar: AR },
   'hero.trusted': { en: 'Trusted by MENA real-estate professionals', ar: AR },
+  'hero.landmark': { en: 'Product highlights', ar: AR },
+  'hero.landmark.compact': { en: 'Product highlights summary', ar: AR },
   'hero.illustration.alt': { en: 'Hero illustration — 480×640', ar: AR },
   'hero.illustration.fallback': { en: 'WingCaster', ar: 'WingCaster' },
+  'consent.required': { en: 'Required.', ar: AR },
   'pathB.label': { en: 'Agency slug or invitation code', ar: AR },
   'pathB.placeholder': {
     en: 'e.g. elite-real-estate or a code from your agency owner',

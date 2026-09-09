@@ -375,6 +375,7 @@ export function RegisterPage() {
                   submitting_label={rt('submit.creating', locale)}
                   submitDisabled={!pathSpecificValid || !online}
                   fieldErrors={fieldErrors}
+                  locale={locale}
                 />
 
                 {path === 'join' ? (

@@ -12,6 +12,14 @@ import {
   isPasswordAcceptable,
 } from './IdentityForm'
 
+// Radix Checkbox uses ResizeObserver via @radix-ui/react-use-size.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+
 describe('estimatePasswordStrength', () => {
   it('bands weak → fair → strong → excellent', () => {
     expect(estimatePasswordStrength('')).toBe('empty')

@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { rt, type RegisterLocale } from '@/components/auth/registerCopy'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -75,6 +77,8 @@ export type IdentityFormProps = {
   privacy_href?: string
   /** Hide the Continue button when parent renders it outside (rare). */
   hideSubmit?: boolean
+  /** SHR-AUT-006 copy locale; defaults to English when used outside RegisterPage. */
+  locale?: RegisterLocale
   className?: string
 }
 
@@ -87,13 +91,13 @@ const STRENGTH_LABEL: Record<PasswordStrength, string> = {
 }
 
 /**
- * Maps brief danger/warning/success/accent bands onto shipped Broadcast status tokens
- * (`--lc-status-danger` etc. are not in the kit).
+ * SHR-AUT-006 strength bands → brief status tokens.
+ * `--lc-brand-accent` is not in broadcast-theme.css; excellent uses `--lc-accent`.
  */
 const STRENGTH_SEGMENT_TOKEN: Record<Exclude<PasswordStrength, 'empty'>, string> = {
-  weak: 'var(--lc-status-unpublished-dot)',
-  fair: 'var(--lc-status-underOffer-dot)',
-  strong: 'var(--lc-status-published-dot)',
+  weak: 'var(--lc-status-danger)',
+  fair: 'var(--lc-status-warning)',
+  strong: 'var(--lc-status-success)',
   excellent: 'var(--lc-accent)',
 }
 
@@ -244,12 +248,15 @@ export function IdentityForm({
   terms_href = '/terms',
   privacy_href = '/privacy',
   hideSubmit = false,
+  locale = 'en',
   className,
 }: IdentityFormProps) {
   const formId = useId()
   const [showPassword, setShowPassword] = useState(false)
   const revealTimer = useRef<number | null>(null)
   const locked = disabled || submitting
+  const termsCheckboxId = `${formId}-consent-terms`
+  const marketingCheckboxId = `${formId}-consent-marketing`
 
   const patch = (partial: Partial<IdentityFormValues>) => {
     onChange({ ...values, ...partial })
@@ -593,23 +600,22 @@ export function IdentityForm({
 
       <fieldset className="flex flex-col gap-[var(--lc-space-sm)] border-0 p-0">
         <legend className="sr-only">Consents</legend>
-        <label className="flex min-h-tap cursor-pointer items-start gap-2 text-sm text-[var(--lc-text-primary)]">
-          <input
-            type="checkbox"
-            className={cn(
-              'mt-1 h-4 w-4 shrink-0 rounded border border-[var(--lc-border-strong)]',
-              'accent-[var(--lc-action-primary)]',
-            )}
+        <div className="flex min-h-tap items-start gap-2 text-sm text-[var(--lc-text-primary)]">
+          <Checkbox
+            id={termsCheckboxId}
+            className="mt-1"
             checked={values.consent_terms}
             disabled={locked}
-            onChange={(e) => patch({ consent_terms: e.target.checked })}
             required
+            onCheckedChange={(checked) => patch({ consent_terms: checked === true })}
+            aria-invalid={!values.consent_terms}
           />
-          <span>
+          <Label htmlFor={termsCheckboxId} className="cursor-pointer font-normal leading-snug">
             I agree to the{' '}
             <a
               href={terms_href}
               className="text-[var(--lc-action-primary)] underline-offset-2 hover:underline"
+              onClick={(e) => e.stopPropagation()}
             >
               Terms of Service
             </a>{' '}
@@ -617,29 +623,34 @@ export function IdentityForm({
             <a
               href={privacy_href}
               className="text-[var(--lc-action-primary)] underline-offset-2 hover:underline"
+              onClick={(e) => e.stopPropagation()}
             >
               Privacy Policy
             </a>
             .
             {!values.consent_terms ? (
-              <span className="ms-1 text-[var(--lc-status-unpublished-fg)]">Required.</span>
+              <span className="ms-1 text-[var(--lc-status-unpublished-fg)]">
+                {rt('consent.required', locale)}
+              </span>
             ) : null}
-          </span>
-        </label>
+          </Label>
+        </div>
         {variant === 'full' ? (
-          <label className="flex min-h-tap cursor-pointer items-start gap-2 text-sm text-[var(--lc-text-primary)]">
-            <input
-              type="checkbox"
-              className={cn(
-                'mt-1 h-4 w-4 shrink-0 rounded border border-[var(--lc-border-strong)]',
-                'accent-[var(--lc-action-primary)]',
-              )}
+          <div className="flex min-h-tap items-start gap-2 text-sm text-[var(--lc-text-primary)]">
+            <Checkbox
+              id={marketingCheckboxId}
+              className="mt-1"
               checked={values.consent_marketing}
               disabled={locked}
-              onChange={(e) => patch({ consent_marketing: e.target.checked })}
+              onCheckedChange={(checked) => patch({ consent_marketing: checked === true })}
             />
-            <span>Send me product updates and MENA real-estate insights.</span>
-          </label>
+            <Label
+              htmlFor={marketingCheckboxId}
+              className="cursor-pointer font-normal leading-snug"
+            >
+              Send me product updates and MENA real-estate insights.
+            </Label>
+          </div>
         ) : null}
       </fieldset>
 
