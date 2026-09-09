@@ -23,6 +23,9 @@ import { createWebhookHandler } from './application/webhook.js'
 import { registerAdminRoutes } from './interface/admin-routes.js'
 import { registerAgencyRoutes } from './interface/agency-routes.js'
 import { registerAgentRoutes } from './interface/agent-routes.js'
+import { registerProgressRoutes } from './interface/progress-routes.js'
+import { createProgressReporter } from './application/draft-progress.js'
+import { draftProgressBus } from './infrastructure/progress-bus.js'
 import { registerBindingRoutes } from './binding/routes.js'
 import { getSharedNumbersSync } from './binding/config.js'
 import { createQueue } from './infrastructure/queue.js'
@@ -52,7 +55,17 @@ export function createModule({ platformAdapter, config: configOverride }) {
   const credits = createCreditService({ adapter })
   const aiAdapter = createAiAdapter({ config, logger })
   const templateEngine = createTemplateEngine({ config, logger })
-  const pipeline = createPipeline({ adapter, entitlements, credits, aiAdapter, templateEngine, config, logger })
+  const progress = createProgressReporter({ bus: draftProgressBus, logger })
+  const pipeline = createPipeline({
+    adapter,
+    entitlements,
+    credits,
+    aiAdapter,
+    templateEngine,
+    config,
+    logger,
+    progress,
+  })
   const webhook = createWebhookHandler({ adapter, entitlements, credits, pipeline, config, logger })
   const queue = createQueue({ pipeline, config, logger })
 
@@ -60,6 +73,7 @@ export function createModule({ platformAdapter, config: configOverride }) {
     registerAdminRoutes(app, { entitlements, credits, pipeline, config })
     registerAgencyRoutes(app, { entitlements, credits, pipeline, config })
     registerAgentRoutes(app, { entitlements, credits, pipeline, config })
+    registerProgressRoutes(app, { config, bus: draftProgressBus })
     registerBindingRoutes(app)
   }
 
@@ -74,6 +88,7 @@ export function createModule({ platformAdapter, config: configOverride }) {
       instagram_real_publishing: config.instagramRealPublishing,
       queue_running: queue.isRunning(),
       storage_path: config.storagePath,
+      draft_progress_mode: config.draftProgressMode || 'sse',
     }
   }
 
@@ -86,6 +101,8 @@ export function createModule({ platformAdapter, config: configOverride }) {
     // Exposed for tests and diagnostics only.
     pipeline,
     queue,
+    progress,
+    progressBus: draftProgressBus,
   }
 }
 
