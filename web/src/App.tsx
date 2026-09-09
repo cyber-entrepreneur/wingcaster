@@ -75,6 +75,7 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { AccountRecoveryQueuePage } from '@/pages/admin/AccountRecoveryQueuePage'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -161,6 +162,7 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
