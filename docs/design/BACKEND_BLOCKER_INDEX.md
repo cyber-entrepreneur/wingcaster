@@ -4,6 +4,7 @@
 
 **Author:** Architect-owner
 **Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
+**Rev 2.1 — 2026-09-09.** Backend Week 3 (BE-BLOCKER-21/22) marked RESOLVED with merge SHAs.
 
 ---
 
@@ -37,6 +38,13 @@ Bundled in [CURSOR_WAVE_0_5_BACKEND_PREREQS.md](../prompts/CURSOR_WAVE_0_5_BACKE
 - BE-BLOCKER-23 — `GET /api/settings/index` capability-gated menu
 - BE-BLOCKER-30 — `agency_onboarding_state` table + endpoints
 - BE-DESIGN-01 — dynamic `portal_registry` schema + adapter pattern + feature auto-registration
+
+## 2c. Backend Week 3 landed — 2 items
+
+Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.md). All RESOLVED 2026-09-09:
+
+- BE-BLOCKER-22 — two-person cast-vote for account-recovery approve — **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
+- BE-BLOCKER-21 — WF-04 account-recovery backend bundle — **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
 
 ---
 
@@ -160,12 +168,14 @@ Bundled in [CURSOR_WAVE_0_5_BACKEND_PREREQS.md](../prompts/CURSOR_WAVE_0_5_BACKE
 ### BE-BLOCKER-21 — WF-04 account-recovery backend bundle (13 items)
 
 **Slot:** Week 3 · **Est:** ~15-18 days
+**Status:** **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
 **Unblocks:** PA-ACR-001/002
 **Items:** list-response extension, request-info endpoint, evidence upload+storage, account_value_tier derivation, env-scoping audit, reveal-audit endpoint (20/hr rate limit), undo-approve endpoint, masked/PII CSV export, single-case GET, two-person cast-vote + escalation wiring, authenticated evidence image proxy, withdraw-vote, cancel-info-request
 
 ### BE-BLOCKER-22 — Two-person-rule bypass in existing account-recovery approve endpoint (CRITICAL)
 
 **Slot:** Week 3 · **Est:** 1-2 days · **Security-adjacent**
+**Status:** **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
 **Unblocks:** PA-ACR-002 (blocks its ship until fixed)
 **File(s):** refactor `backend/src/server.js:7041` through cast-vote endpoint before PA-ACR-002 UI ships. UI would otherwise expose a security downgrade.
 
@@ -310,7 +320,7 @@ Documented at kickoff §5a + Wave 0.5 prompt §4.9
 
 1. **[BE-DESIGN-01]** Dynamic portal registry → gates every portal-related surface
 2. **[BE-BLOCKER-01]** PF Group publisher → primary metered revenue source
-3. **[BE-BLOCKER-22]** Two-person bypass fix → security fix; blocks PA-ACR-002 ship
+3. **[BE-BLOCKER-22]** Two-person bypass fix → **RESOLVED** (PR #80) — security fix; unblocks PA-ACR-002 ship
 4. **[BE-BLOCKER-34]** Unified `/execute` endpoint → all WF-20 approvals depend on it
 5. **[BE-BLOCKER-04]** `source_channel` decomposition → 14-site blast radius; earlier = safer
 6. **[BE-BLOCKER-31]** WF-31 ownership-transfer bundle → nothing works without it
