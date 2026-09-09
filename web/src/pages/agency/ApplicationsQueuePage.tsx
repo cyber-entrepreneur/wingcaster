@@ -302,7 +302,7 @@ export function ApplicationsQueuePage() {
   const confirmReject = useCallback(async () => {
     if (!agencyId || !rejectTarget) return
     const reason = rejectReason.trim()
-    if (reason.length < 5) return
+    if (reason.length < 20) return
     setActionBusyId(rejectTarget.id)
     try {
       await api.rejectAgencyApplication(agencyId, rejectTarget.id, { reason })
@@ -431,43 +431,19 @@ export function ApplicationsQueuePage() {
     approveRow,
   ])
 
-  const exportCsv = useCallback(() => {
-    const header = [
-      'id',
-      'applicant_name',
-      'applicant_city',
-      'applied_at',
-      'listings_count',
-      'status',
-      'message',
-      'decided_at',
-      'decided_by',
-      'reason',
-    ]
-    const lines = [header.join(',')]
-    for (const row of filtered) {
-      const cells = [
-        row.id,
-        row.applicant.display_name,
-        row.applicant.city || '',
-        row.applied_at,
-        row.applicant.listings_count ?? '',
-        row.status,
-        row.message,
-        row.decision?.decided_at || '',
-        row.decision?.decided_by || '',
-        row.decision?.reason || '',
-      ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-      lines.push(cells.join(','))
+  const exportCsv = useCallback(async () => {
+    if (!agencyId) return
+    try {
+      await api.exportAgencyApplicationsCsv(agencyId, { status, within, q })
+    } catch (err: unknown) {
+      const e = err as { message?: string }
+      addToast({
+        title: "Couldn't export CSV. Try again.",
+        description: e?.message,
+        variant: 'error',
+      })
     }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `agency-applications-${status}-${within}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [filtered, status, within])
+  }, [agencyId, status, within, q, addToast])
 
   const columns: PAQueueColumn<ApplicationRow>[] = useMemo(() => {
     const cols: PAQueueColumn<ApplicationRow>[] = [
@@ -744,7 +720,12 @@ export function ApplicationsQueuePage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" onClick={exportCsv} aria-label="Export CSV">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void exportCsv()}
+              aria-label="Export CSV"
+            >
               <Download className="me-2 h-4 w-4" aria-hidden />
               Export CSV
             </Button>
@@ -922,9 +903,9 @@ export function ApplicationsQueuePage() {
             aria-describedby="reject-reason-helper"
           />
           <p id="reject-reason-helper" className="mt-1 text-xs text-[var(--lc-text-muted)]" aria-live="polite">
-            {rejectReason.trim().length >= 5
+            {rejectReason.trim().length >= 20
               ? 'Ready to submit'
-              : `Minimum 5 characters (${rejectReason.trim().length}/5).`}
+              : `Minimum 20 characters (${rejectReason.trim().length}/20).`}
           </p>
           <div className="mt-4 flex justify-end gap-2">
             <Button
@@ -939,7 +920,7 @@ export function ApplicationsQueuePage() {
             </Button>
             <Button
               type="button"
-              disabled={rejectReason.trim().length < 5 || Boolean(actionBusyId)}
+              disabled={rejectReason.trim().length < 20 || Boolean(actionBusyId)}
               onClick={() => void confirmReject()}
             >
               Reject application

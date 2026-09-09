@@ -19,6 +19,7 @@ const { addToast, apiMock } = vi.hoisted(() => ({
     listAgencyApplications: vi.fn(),
     approveAgencyApplication: vi.fn(),
     rejectAgencyApplication: vi.fn(),
+    exportAgencyApplicationsCsv: vi.fn(),
   },
 }))
 
@@ -133,6 +134,7 @@ describe('ApplicationsQueuePage', () => {
     apiMock.listAgencyApplications.mockResolvedValue(SAMPLE)
     apiMock.approveAgencyApplication.mockResolvedValue({ success: true })
     apiMock.rejectAgencyApplication.mockResolvedValue({ success: true })
+    apiMock.exportAgencyApplicationsCsv.mockResolvedValue({ ok: true, filename: 'x.csv' })
   })
 
   it('renders Applications title, pending rows, and uses PA queue filter strip', async () => {
@@ -168,7 +170,7 @@ describe('ApplicationsQueuePage', () => {
     expect(String(toastArg.description)).toContain('/applications/app_sara')
   })
 
-  it('requires reason before reject confirm', async () => {
+  it('requires ≥20 character reason before reject confirm', async () => {
     renderQueue()
     await waitForQueueLoaded()
     const rejectButtons = screen.getAllByRole('button', { name: /^Reject$/i })
@@ -177,6 +179,11 @@ describe('ApplicationsQueuePage', () => {
     const confirm = within(dialog).getByRole('button', { name: /Reject application/i })
     expect(confirm).toBeDisabled()
     fireEvent.change(within(dialog).getByLabelText(/Reason/i), {
+      target: { value: 'Too short reason' }, // 16 chars
+    })
+    expect(confirm).toBeDisabled()
+    expect(within(dialog).getByText(/Minimum 20 characters/i)).toBeTruthy()
+    fireEvent.change(within(dialog).getByLabelText(/Reason/i), {
       target: { value: 'City not a focus right now' },
     })
     expect(confirm).not.toBeDisabled()
@@ -184,6 +191,19 @@ describe('ApplicationsQueuePage', () => {
     await waitFor(() => {
       expect(apiMock.rejectAgencyApplication).toHaveBeenCalledWith('agc_1', 'app_sara', {
         reason: 'City not a focus right now',
+      })
+    })
+  })
+
+  it('exports CSV via authenticated server endpoint with current filters', async () => {
+    renderQueue('/agency/members/applications?status=pending&within=7d&q=sara')
+    await waitForQueueLoaded()
+    fireEvent.click(screen.getByLabelText('Export CSV'))
+    await waitFor(() => {
+      expect(apiMock.exportAgencyApplicationsCsv).toHaveBeenCalledWith('agc_1', {
+        status: 'pending',
+        within: '7d',
+        q: 'sara',
       })
     })
   })

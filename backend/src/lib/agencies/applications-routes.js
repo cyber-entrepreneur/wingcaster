@@ -1,11 +1,13 @@
 /**
- * Agency application HTTP surface (BE-BLOCKER-06 / AGN-MEM-005).
+ * Agency application HTTP surface (BE-BLOCKER-06 / AGN-MEM-005 / AGN-MEM-002).
  *
  * POST /api/agencies/:slug/applications  — public join apply (auth required)
  * POST /api/agencies/apply               — legacy alias → 410 Gone
  * GET  /api/agencies/:id/applications    — owner/admin queue
+ * GET  /api/agencies/:id/applications.csv — owner/admin CSV export (status/within/q)
  * POST /api/agencies/:id/applications/:appId/approve
  * POST /api/agencies/:id/applications/:appId/reject
+ * POST /api/agencies/:id/applications/:appId/reveal-contact — audited PII reveal
  *
  * Guest signup-on-apply is intentionally deferred; callers must be signed in.
  * expected_response_by uses +2 calendar days (no business-day helper in-repo).
@@ -16,11 +18,7 @@ import { authMiddleware } from '../../auth.js'
 import { signToken } from '../../auth.js'
 import { findAll, findOne, insert, query, update } from '../../db.js'
 import { assertCanJoinAgency } from '../../platformModel.js'
-import {
-  addAgencyMembership,
-  agencyTenantId,
-  getAgencyMembership,
-} from '../../tenant-authorization.js'
+import { addAgencyMembership, agencyTenantId, getAgencyMembership } from '../../tenant-authorization.js'
 import { updateUser, findUserById, findAgentForUser } from '../../identity.js'
 import logger from '../logger.js'
 import { agencyApplicationCreateSchema, validate } from '../validation.js'
@@ -28,6 +26,39 @@ import { agencyApplicationExpiresAt } from '../../workers/agency-application-exp
 import { safeEmitAgencyApplicationResolved } from './notify-application-resolved.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
+
+/** Mirrors account-recovery reveal-audit rate limit (optional soft cap). */
+export const APPLICATION_REVEAL_RATE_LIMIT_PER_HOUR = 20
+
+export const APPLICATION_REVEAL_FIELDS = Object.freeze(['contact', 'email', 'phone'])
+
+/** Stable CSV columns matching the prior client-side queue export. */
+export const APPLICATION_CSV_COLUMNS = Object.freeze([
+  'id',
+  'applicant_name',
+  'applicant_city',
+  'applied_at',
+  'listings_count',
+  'status',
+  'message',
+  'decided_at',
+  'decided_by',
+  'reason',
+])
+
+export class ApplicationRevealError extends Error {
+  constructor(code, message, { httpStatus = 400, extra = {} } = {}) {
+    super(message)
+    this.name = 'ApplicationRevealError'
+    this.code = code
+    this.httpStatus = httpStatus
+    this.extra = extra
+  }
+
+  toJSON() {
+    return { error: this.message, code: this.code, ...this.extra }
+  }
+}
 
 /** Calendar-day SLA until a business-day helper lands. */
 export function expectedResponseBy(from = new Date(), calendarDays = 2) {
@@ -177,6 +208,204 @@ async function buildApplicantOutcomePayload(appRecord) {
   }
 }
 
+async function requireAgencyAdmin(agencyIdOrSlug, userId) {
+  const agency = await findAgencyBySlugOrId(agencyIdOrSlug)
+  if (!agency) return { agency: null, member: null, status: 404, error: 'Not found' }
+  const member = await getAgencyMembership(agency.id, userId)
+  if (!member || !ADMIN_ROLES.has(member.role)) {
+    return { agency, member: null, status: 403, error: 'Forbidden' }
+  }
+  return { agency, member, status: 200 }
+}
+
+function withinCutoffMs(within, now = Date.now()) {
+  switch (String(within || '')) {
+    case '7d':
+      return now - 7 * 86400000
+    case '30d':
+      return now - 30 * 86400000
+    case '90d':
+      return now - 90 * 86400000
+    case 'all':
+      return null
+    default:
+      return now - 30 * 86400000
+  }
+}
+
+function normalizeApplicationStatus(raw) {
+  const s = String(raw || '').toLowerCase()
+  if (s === 'approved' || s === 'rejected' || s === 'expired' || s === 'pending') return s
+  return 'pending'
+}
+
+/**
+ * Filter agency_applications rows the same way the queue UI does (status/within/q).
+ */
+export function filterAgencyApplicationRows(rows, { status = 'pending', within = '30d', q = '' } = {}) {
+  const wantedStatus = normalizeApplicationStatus(status)
+  const cutoff = withinCutoffMs(within)
+  const needle = String(q || '').trim().toLowerCase()
+  return (rows || []).filter((row) => {
+    if (normalizeApplicationStatus(row.status) !== wantedStatus) return false
+    const appliedAt = row.created_at || row.updated_at
+    if (cutoff != null && appliedAt && new Date(appliedAt).getTime() < cutoff) return false
+    if (needle.length >= 1) {
+      const hay = `${row.agent_name || ''} ${row.city || ''} ${row.agent_email || ''}`.toLowerCase()
+      if (!hay.includes(needle)) return false
+    }
+    return true
+  })
+}
+
+function csvEscape(value) {
+  if (value == null) return ''
+  const str = String(value)
+  if (/[",\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`
+  return str
+}
+
+export function rowsToApplicationCsv(columns, rows) {
+  const header = columns.join(',')
+  const lines = rows.map((row) => columns.map((col) => csvEscape(row[col])).join(','))
+  return `${[header, ...lines].join('\n')}\n`
+}
+
+export function applicationToCsvRow(row) {
+  const decidedAt = row.approved_at || row.rejected_at || ''
+  const decidedBy = row.approved_by || row.rejected_by || ''
+  return {
+    id: row.id,
+    applicant_name: row.agent_name || row.agent_email || '',
+    applicant_city: row.city || '',
+    applied_at: row.created_at || row.updated_at || '',
+    listings_count: row.current_listings_count ?? '',
+    status: row.status || '',
+    message: row.message || '',
+    decided_at: decidedAt,
+    decided_by: decidedBy,
+    reason: row.rejection_reason || '',
+  }
+}
+
+export async function buildAgencyApplicationsCsv({
+  agencyId,
+  query: filters = {},
+  findAllFn = findAll,
+} = {}) {
+  const status = normalizeApplicationStatus(filters.status || 'pending')
+  const within = ['7d', '30d', '90d', 'all'].includes(String(filters.within || ''))
+    ? String(filters.within)
+    : '30d'
+  const q = String(filters.q || '')
+  const rows = (await findAllFn('agency_applications', (a) => a.agency_id === agencyId))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const filtered = filterAgencyApplicationRows(rows, { status, within, q })
+  const csvRows = filtered.map(applicationToCsvRow)
+  const filename = `agency-applications-${status}-${within}.csv`
+  return {
+    csv: rowsToApplicationCsv(APPLICATION_CSV_COLUMNS, csvRows),
+    filename,
+    rowCount: csvRows.length,
+    filters: { status, within, q },
+  }
+}
+
+async function countApplicationRevealsInLastHour(reviewerId, now = new Date()) {
+  const since = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+  try {
+    const rowsRaw = await query(
+      `SELECT COUNT(*)::int AS n
+         FROM public.audit_log
+        WHERE agent_id = $1
+          AND action = 'reveal'
+          AND entity_type = 'agency_application'
+          AND created_at >= $2::timestamptz`,
+      [String(reviewerId), since],
+    )
+    const rows = Array.isArray(rowsRaw) ? rowsRaw : (rowsRaw?.rows || [])
+    return Number(rows[0]?.n || 0)
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Write audited contact reveal for an agency application (AGN-MEM-002b).
+ * Mirrors account-recovery/reveal-audit.js patterns: reviewer, field, ip, ua, rate limit.
+ */
+export async function recordApplicationContactReveal({
+  applicationId,
+  agencyId,
+  reviewerId,
+  field = 'contact',
+  ip = null,
+  userAgent = null,
+}) {
+  const normalizedField = String(field || 'contact').trim().toLowerCase()
+  if (!APPLICATION_REVEAL_FIELDS.includes(normalizedField)) {
+    throw new ApplicationRevealError(
+      'INVALID_FIELD',
+      `field must be one of: ${APPLICATION_REVEAL_FIELDS.join(', ')}`,
+      { httpStatus: 400 },
+    )
+  }
+
+  const appRecord = await findOne(
+    'agency_applications',
+    (a) => a.id === applicationId && a.agency_id === agencyId,
+  )
+  if (!appRecord) {
+    throw new ApplicationRevealError('NOT_FOUND', 'Application not found', { httpStatus: 404 })
+  }
+
+  const used = await countApplicationRevealsInLastHour(reviewerId)
+  if (used >= APPLICATION_REVEAL_RATE_LIMIT_PER_HOUR) {
+    throw new ApplicationRevealError(
+      'RATE_LIMITED',
+      'Reveal rate limit reached — try again in an hour.',
+      {
+        httpStatus: 429,
+        extra: {
+          limit: APPLICATION_REVEAL_RATE_LIMIT_PER_HOUR,
+          used,
+          retry_after_seconds: 3600,
+        },
+      },
+    )
+  }
+
+  const nowIso = new Date().toISOString()
+  const id = randomUUID()
+  await insert('audit_log', {
+    id,
+    agent_id: reviewerId,
+    agency_id: agencyId,
+    type: 'agency_application_pii_viewed',
+    action: 'reveal',
+    entity_type: 'agency_application',
+    entity_id: applicationId,
+    ip: ip || null,
+    user_agent: userAgent || null,
+    metadata: {
+      field: normalizedField,
+      application_id: applicationId,
+      agency_id: agencyId,
+      reviewer_id: reviewerId,
+      source: 'agency_application_reveal_contact',
+    },
+    created_at: nowIso,
+  })
+
+  return {
+    success: true,
+    field: normalizedField,
+    application_id: applicationId,
+    remaining: Math.max(0, APPLICATION_REVEAL_RATE_LIMIT_PER_HOUR - used - 1),
+    limit: APPLICATION_REVEAL_RATE_LIMIT_PER_HOUR,
+  }
+}
+
 export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } = {}) {
   app.post('/api/agencies/apply', (_req, res) => {
     res.status(410).json({
@@ -270,16 +499,61 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
 
   app.get('/api/agencies/:id/applications', auth, async (req, res, next) => {
     try {
-      const agency = await findAgencyBySlugOrId(req.params.id)
-      if (!agency) return res.status(404).json({ error: 'Not found' })
-      const member = await getAgencyMembership(agency.id, req.user.id)
-      if (!member || !ADMIN_ROLES.has(member.role)) {
-        return res.status(403).json({ error: 'Forbidden' })
-      }
-      const rows = (await findAll('agency_applications', (a) => a.agency_id === agency.id))
+      const gate = await requireAgencyAdmin(req.params.id, req.user.id)
+      if (gate.status !== 200) return res.status(gate.status).json({ error: gate.error })
+      const rows = (await findAll('agency_applications', (a) => a.agency_id === gate.agency.id))
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       return res.json(rows)
     } catch (err) {
+      return next(err)
+    }
+  })
+
+  /**
+   * AGN-MEM-002 — CSV export with the same query filters as the queue UI.
+   * AuthZ mirrors GET /applications (agency owner/admin only).
+   */
+  app.get('/api/agencies/:id/applications.csv', auth, async (req, res, next) => {
+    try {
+      const gate = await requireAgencyAdmin(req.params.id, req.user.id)
+      if (gate.status !== 200) return res.status(gate.status).json({ error: gate.error })
+
+      const built = await buildAgencyApplicationsCsv({
+        agencyId: gate.agency.id,
+        query: req.query,
+      })
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="${built.filename}"`)
+      res.setHeader('X-Agency-Applications-Export-Rows', String(built.rowCount))
+      return res.status(200).send(built.csv)
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  /**
+   * AGN-MEM-002b — audited contact reveal before UI unmasks applicant PII.
+   * Writes public.audit_log (reviewer, field, ip, user_agent).
+   */
+  app.post('/api/agencies/:id/applications/:appId/reveal-contact', auth, async (req, res, next) => {
+    try {
+      const gate = await requireAgencyAdmin(req.params.id, req.user.id)
+      if (gate.status !== 200) return res.status(gate.status).json({ error: gate.error })
+
+      const payload = await recordApplicationContactReveal({
+        applicationId: req.params.appId,
+        agencyId: gate.agency.id,
+        reviewerId: req.user.id,
+        field: req.body?.field || 'contact',
+        ip: req.ip,
+        userAgent: req.get('user-agent') || null,
+      })
+      return res.json(payload)
+    } catch (err) {
+      if (err instanceof ApplicationRevealError) {
+        return res.status(err.httpStatus).json(err.toJSON())
+      }
       return next(err)
     }
   })
@@ -513,5 +787,4 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
     } catch (err) {
       return next(err)
     }
-  })
-}
+  })}

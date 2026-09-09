@@ -158,6 +158,7 @@ export function ApplicationDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [forbidden, setForbidden] = useState(false)
   const [contactRevealed, setContactRevealed] = useState(false)
+  const [revealBusy, setRevealBusy] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [riskSignals] = useState<RiskSignal[]>([]) // backend has no risk pipeline yet — always hide
   const [role, setRole] = useState<'agent' | 'admin'>('agent')
@@ -752,7 +753,32 @@ export function ApplicationDetailPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setContactRevealed((v) => !v)}
+                      disabled={revealBusy}
+                      onClick={() => {
+                        void (async () => {
+                          if (contactRevealed) {
+                            setContactRevealed(false)
+                            return
+                          }
+                          if (!agencyId || !row) return
+                          setRevealBusy(true)
+                          try {
+                            await api.revealAgencyApplicationContact(agencyId, row.id, {
+                              field: 'contact',
+                            })
+                            setContactRevealed(true)
+                          } catch (err: unknown) {
+                            const e = err as { message?: string }
+                            addToast({
+                              title: "Couldn't reveal contact. Try again.",
+                              description: e?.message,
+                              variant: 'error',
+                            })
+                          } finally {
+                            setRevealBusy(false)
+                          }
+                        })()
+                      }}
                     >
                       {contactRevealed ? (
                         <>

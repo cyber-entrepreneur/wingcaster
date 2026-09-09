@@ -12,6 +12,7 @@ const { addToast, apiMock } = vi.hoisted(() => ({
     listAgencyApplications: vi.fn(),
     approveAgencyApplication: vi.fn(),
     rejectAgencyApplication: vi.fn(),
+    revealAgencyApplicationContact: vi.fn(),
   },
 }))
 
@@ -101,6 +102,7 @@ describe('ApplicationDetailPage', () => {
     apiMock.listAgencyApplications.mockResolvedValue(SAMPLE)
     apiMock.approveAgencyApplication.mockResolvedValue({ success: true })
     apiMock.rejectAgencyApplication.mockResolvedValue({ success: true })
+    apiMock.revealAgencyApplicationContact.mockResolvedValue({ success: true, field: 'contact' })
   })
 
   it('loads applicant as h1 with message and sticky decision panel', async () => {
@@ -157,6 +159,35 @@ describe('ApplicationDetailPage', () => {
       },
     })
     expect(confirm).not.toBeDisabled()
+  })
+
+  it('only unmasks contact after reveal-contact API succeeds', async () => {
+    renderDetail()
+    await waitForDetailLoaded()
+    expect(document.body.textContent).toMatch(/s\*\*\*@example\.com/)
+    expect(document.body.textContent).not.toMatch(/sara@example\.com/)
+
+    fireEvent.click(screen.getByRole('button', { name: /Show contact/i }))
+    await waitFor(() => {
+      expect(apiMock.revealAgencyApplicationContact).toHaveBeenCalledWith('agc_1', 'app_sara', {
+        field: 'contact',
+      })
+    })
+    await waitFor(() => {
+      expect(document.body.textContent).toMatch(/sara@example\.com/)
+    })
+  })
+
+  it('keeps contact masked and toasts when reveal-contact fails', async () => {
+    apiMock.revealAgencyApplicationContact.mockRejectedValueOnce(new Error('Rate limited'))
+    renderDetail()
+    await waitForDetailLoaded()
+    fireEvent.click(screen.getByRole('button', { name: /Show contact/i }))
+    await waitFor(() => {
+      expect(addToast).toHaveBeenCalled()
+    })
+    expect(document.body.textContent).not.toMatch(/sara@example\.com/)
+    expect(screen.getByRole('button', { name: /Show contact/i })).toBeTruthy()
   })
 
   it('shows not-found for unknown application id', async () => {
