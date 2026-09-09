@@ -973,7 +973,6 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/publishing/tracker/summary${qs}`)
   },
-  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
 
   // Distribution Hub
   getPlatforms: () => fetchJson('/platforms'),
@@ -1548,8 +1547,6 @@ export const api = {
         message: message || undefined,
       }),
     }),
-
-  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
 
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),

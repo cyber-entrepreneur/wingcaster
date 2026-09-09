@@ -129,8 +129,25 @@ function sampleSubmission(overrides: Record<string, unknown> = {}) {
     status: 'pending',
     decision: null,
     is_own: false,
+    is_already_decided: false,
     step_up_required: false,
     env: 'live',
+    agent_context: {
+      wingcaster_tenure_month: '2024-01',
+      portfolio_size: 10,
+      prior_decision_summary_30d: { approved: 1, rejected: 0, request_info: 0 },
+    },
+    listing_preview: {
+      hero_image_url: null,
+      gallery: [],
+      price: { amount_minor: 100000, currency: 'AED', basis: 'sale' },
+      specs: { beds: 2, baths: 2, area_m2: 100 },
+      amenities: [],
+      description: 'Fixture',
+      agent_contact: { phone_masked: '+971 *', email_masked: 'a***@***.com' },
+    },
+    portal_payload_preview: {},
+    notification_previews: { approve: '', reject: '', request_info: '' },
     ...overrides,
   }
 }

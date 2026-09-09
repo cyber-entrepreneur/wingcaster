@@ -21,6 +21,8 @@ const sampleSubmission = (overrides: Partial<PortalModerationSubmission> = {}): 
   is_own: false,
   is_already_decided: false,
   step_up_required: false,
+  sla_hours_remaining: 3.5,
+  sla_hours_total: 4,
   decision: null,
   listing: {
     id: 'lst_marina_1204',
