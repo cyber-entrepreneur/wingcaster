@@ -88,7 +88,8 @@ export function IntakePathCard({
       tabIndex={disabled ? -1 : 0}
       onClick={() => {
         if (disabled) return
-        onSelect?.()
+        if (selected && onCta) onCta()
+        else onSelect?.()
       }}
       onKeyDown={(event) => {
         if (disabled) return
