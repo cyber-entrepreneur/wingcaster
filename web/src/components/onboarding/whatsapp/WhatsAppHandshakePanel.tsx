@@ -49,6 +49,13 @@ export function WhatsAppHandshakePanel({
   const [copied, setCopied] = useState(false)
   const [remainingMs, setRemainingMs] = useState(() => Date.parse(expiresAt) - Date.now())
 
+  const remainingMinutes = Math.max(0, Math.ceil(remainingMs / 60_000))
+  // AGT-WLB-002: announce expiry once per minute, not every ticking second.
+  const minuteAnnouncement =
+    remainingMs <= 0
+      ? 'Activation code expired'
+      : `Expires in ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}`
+
   const waMeHref = useMemo(() => {
     const n = digitsOnly(sharedNumberE164)
     return `https://wa.me/${n}?text=${encodeURIComponent(displayCode)}`
@@ -97,12 +104,15 @@ export function WhatsAppHandshakePanel({
             >
               Your activation code
             </p>
-            <Badge variant="outline" aria-live="polite">
+            <Badge variant="outline">
               Expires in{' '}
               <Numeric className="ms-1 font-mono tabular-nums">
                 {formatCountdown(remainingMs)}
               </Numeric>
             </Badge>
+            <span className="sr-only" aria-live="polite" aria-atomic="true" data-handshake-live>
+              {minuteAnnouncement}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

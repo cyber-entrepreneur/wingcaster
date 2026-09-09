@@ -67,6 +67,12 @@ function connectionCaption(
   return null
 }
 
+function formatCompleteValue(field: DraftField): string {
+  if (Array.isArray(field.value)) return `${field.value.length} photos`
+  if (field.value == null) return ''
+  return String(field.value)
+}
+
 function renderValue(field: DraftField): ReactNode {
   switch (field.state) {
     case 'idle':
@@ -130,16 +136,20 @@ export function LiveDraftCanvas({
 }: LiveDraftCanvasProps) {
   const busy = fields.some((f) => f.state === 'thinking' || f.state === 'streaming')
   const caption = connectionCaption(connection)
+  const completeFields = fields.filter((f) => f.state === 'complete')
+  // AGT-WLB-004: announce field-complete values + {N}/{total} only.
+  // Do NOT aria-live streaming tokens — that would spam assistive tech.
+  const liveAnnouncement = [
+    ...completeFields.map((f) => `${f.label}: ${formatCompleteValue(f)}`),
+    `${completeFields.length}/${fields.length}`,
+  ].join('. ')
 
   return (
     <div
       className={cn('flex flex-col gap-[var(--lc-space-md)]', className)}
       aria-busy={busy || undefined}
     >
-      <ol
-        aria-live="polite"
-        className="grid grid-cols-1 gap-[var(--lc-space-sm)] md:grid-cols-2"
-      >
+      <ol className="grid grid-cols-1 gap-[var(--lc-space-sm)] md:grid-cols-2">
         {fields.map((field) => (
           <li
             key={field.key}
@@ -160,13 +170,17 @@ export function LiveDraftCanvas({
                 className={cn(
                   'absolute end-3 top-3 h-4 w-4 text-[var(--lc-accent-bold)]',
                   'opacity-100 transition-opacity duration-[var(--lc-duration-fast)]',
-                  'ease-[var(--lc-easing-emphasis)]',
+                  'ease-[var(--lc-easing-emphasis)] motion-reduce:transition-none',
                 )}
               />
             ) : null}
           </li>
         ))}
       </ol>
+
+      <div className="sr-only" aria-live="polite" aria-atomic="true" data-draft-live>
+        {liveAnnouncement}
+      </div>
 
       {caption ? (
         <p className="text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
