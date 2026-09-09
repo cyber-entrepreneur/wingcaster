@@ -107,7 +107,8 @@ describe('WelcomePage (AGT-ONB-001)', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    expect(screen.getByRole('button', { name: /Get started/i })).toBeInTheDocument()
+    // Radio cards cannot nest a real button (axe nested-interactive); CTA is visual + Enter/second click.
+    expect(screen.getByText(/Get started/i)).toBeInTheDocument()
     const radios = screen.getAllByRole('radio')
     expect(radios[0]).toHaveAttribute('aria-checked', 'true')
     expect(radios[1]).toHaveAttribute('aria-checked', 'false')
@@ -117,7 +118,7 @@ describe('WelcomePage (AGT-ONB-001)', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    await user.click(screen.getByRole('button', { name: /Get started/i }))
+    await user.click(screen.getByText(/Get started/i))
     await waitFor(() =>
       expect(hook.patch).toHaveBeenCalledWith(
         expect.objectContaining({

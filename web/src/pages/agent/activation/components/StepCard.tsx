@@ -197,13 +197,14 @@ export function StepCard({
         <span className="sr-only">{STATE_LABEL[state]}</span>
       </div>
 
-      <h3
+      {/* AGT-ACT-001: h2 after the welcome h1 — h3 skipped heading-order for axe. */}
+      <h2
         id={titleId}
         className="mb-[var(--lc-space-xs)] text-[var(--lc-text-heading)]"
         style={{ font: 'var(--lc-type-heading-3)' }}
       >
         {title}
-      </h3>
+      </h2>
       <p
         className="mb-[var(--lc-space-md)] flex-1 text-[var(--lc-text-muted)]"
         style={{ font: 'var(--lc-type-body-sm)' }}
