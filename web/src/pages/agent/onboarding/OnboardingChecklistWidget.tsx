@@ -244,10 +244,9 @@ export function OnboardingChecklistWidget({
     )
   }
 
+  // Card already exposes role="region" aria-label="Onboarding progress" (AGT-ONB-005).
   return (
     <div
-      role="region"
-      aria-label="Onboarding progress"
       className={cn(reducedMotion ? undefined : 'transition-opacity duration-slow', className)}
     >
       {card}
