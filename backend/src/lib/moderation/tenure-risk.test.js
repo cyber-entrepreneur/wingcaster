@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import scoreTenureRiskDefault, { scoreTenureRisk } from './tenure-risk.js'
+import scoreTenureRiskDefault, {
+  scoreTenureRisk,
+  isStepUpRequired,
+  isTwoPersonRejectRequired,
+  tenureRiskLabel,
+  TENURE_RISK_TIERS,
+} from './tenure-risk.js'
 import { scoreTenureRisk as scoreFromBarrel } from './index.js'
 
 const FULL_AGENT = {
@@ -19,38 +25,46 @@ const FULL_SUBMISSION = {
   anomaly_flags: [],
 }
 
+const STUB = { tier: 'unknown', score: null, signals: [], version: 'v1-stub' }
+
 describe('scoreTenureRisk', () => {
   it('exports named and default as the same function', () => {
     expect(scoreTenureRisk).toBe(scoreTenureRiskDefault)
     expect(scoreFromBarrel).toBe(scoreTenureRisk)
   })
 
+  it('exposes tenure risk helpers', () => {
+    expect(TENURE_RISK_TIERS).toContain('unknown')
+    expect(tenureRiskLabel('unknown')).toBe('Risk unknown')
+    expect(isStepUpRequired(STUB)).toBe(false)
+    expect(isTwoPersonRejectRequired(STUB, { two_person_reject_required: true })).toBe(false)
+  })
+
   it.each([
-    ['empty (no args)', undefined, undefined],
-    ['null agent and submission', null, null],
-    ['partial agent only', { id: 'a1' }, undefined],
-    ['partial submission only', undefined, { id: 's1' }],
-    ['partial both', { id: 'a1' }, { id: 's1', price: 100 }],
-    ['full fixtures', FULL_AGENT, FULL_SUBMISSION],
-  ])('returns tier unknown for %s', (_label, agent, submission) => {
-    expect(() => scoreTenureRisk(agent, submission)).not.toThrow()
-    expect(scoreTenureRisk(agent, submission)).toEqual({ tier: 'unknown' })
+    ['empty (no args)', undefined],
+    ['null input', null],
+    ['partial agent only', { agent: { id: 'a1' } }],
+    ['partial submission only', { submission: { id: 's1' } }],
+    ['full fixtures', { agent: FULL_AGENT, submission: FULL_SUBMISSION }],
+  ])('returns tier unknown for %s', (_label, input) => {
+    expect(() => scoreTenureRisk(input)).not.toThrow()
+    expect(scoreTenureRisk(input)).toEqual(STUB)
   })
 
   it('never throws across a range of malformed inputs', () => {
     const cases = [
-      [null, null],
-      [undefined, undefined],
-      [{}, {}],
-      [[], []],
-      ['agent', 'submission'],
-      [0, false],
-      [FULL_AGENT, null],
-      [null, FULL_SUBMISSION],
+      null,
+      undefined,
+      {},
+      [],
+      'agent',
+      0,
+      { agent: FULL_AGENT, submission: null },
+      { agent: null, submission: FULL_SUBMISSION },
     ]
-    for (const [agent, submission] of cases) {
-      expect(() => scoreTenureRisk(agent, submission)).not.toThrow()
-      expect(scoreTenureRisk(agent, submission).tier).toBe('unknown')
+    for (const input of cases) {
+      expect(() => scoreTenureRisk(input)).not.toThrow()
+      expect(scoreTenureRisk(input).tier).toBe('unknown')
     }
   })
 })

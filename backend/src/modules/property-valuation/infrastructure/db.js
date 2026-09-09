@@ -14,6 +14,8 @@ export const Collections = {
   COMPARABLE_REPORTS: 'comparable_reports',
   AGENT_PRICE_REPORTS: 'agent_price_reports',
   CSV_IMPORT_LOGS: 'csv_import_logs',
+  PRICING_BENCHMARKS: 'pricing_benchmarks',
+  PRICING_BENCHMARK_SNAPSHOTS: 'pricing_benchmark_snapshots',
   RECALCULATION_JOBS: 'pricing_recalculation_jobs',
   RECALCULATION_JOB_ITEMS: 'pricing_recalculation_job_items',
 }

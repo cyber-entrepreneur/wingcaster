@@ -17,6 +17,8 @@ import { createAnalysisService } from './application/analysis-service.js'
 import { createTrendService } from './application/trend-service.js'
 import { createScraperService } from './application/scraper-service.js'
 import { createRecalculationJobService } from './application/recalculation-job-service.js'
+import { createBenchmarkService } from './application/benchmark-service.js'
+import { createAgentPriceReportAdminService } from './application/agent-price-report-admin-service.js'
 import { createWhatsAppContextBuilder } from './application/whatsapp-context.js'
 import { createAiAdapter } from './infrastructure/ai-adapter.js'
 import { createRecalculationWorker } from './infrastructure/recalculation-worker.js'
@@ -70,6 +72,13 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
     config,
     logger,
   })
+  const benchmarkService = createBenchmarkService({ dal, recalculationJobService, logger })
+  const agentPriceReportAdminService = createAgentPriceReportAdminService({
+    dal,
+    benchmarkService,
+    adapter,
+    logger,
+  })
   const whatsAppContext = createWhatsAppContextBuilder({ analysisService, config, logger })
 
   const recalculationWorker = createRecalculationWorker({
@@ -115,6 +124,8 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
       trendService,
       scraperService,
       recalculationJobService,
+      agentPriceReportAdminService,
+      benchmarkService,
       dal,
       adapter,
       config,
@@ -154,6 +165,8 @@ export function createModule({ platformAdapter, config: configOverride, dal: dal
       trendService,
       scraperService,
       recalculationJobService,
+      benchmarkService,
+      agentPriceReportAdminService,
       whatsAppContext,
     },
   }
