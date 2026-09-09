@@ -11,6 +11,7 @@ import {
   deriveAccountValueTier,
   requiresTwoPersonForTier,
 } from './account-value-tier.js'
+import { caseMatchesEnvironment, normalizeWingcasterEnv, WINGCASTER_ENVS } from './env.js'
 
 export const CAST_VOTE_ERROR = Object.freeze({
   FORBIDDEN: 'FORBIDDEN',
@@ -353,6 +354,7 @@ export async function castVote({
   ip = null,
   userAgent = null,
   isProduction = true,
+  environment = null,
   issueRecoveryToken,
   logActivity,
   deriveTier = deriveAccountValueTier,
@@ -367,7 +369,9 @@ export async function castVote({
   }
 
   const recoveryCase = await findOne('account_recovery_cases', (c) => c.id === caseId)
-  if (!recoveryCase) {
+  // Cross-env access returns the same 404 as missing — no existence leak.
+  const scopedEnv = normalizeWingcasterEnv(environment) || WINGCASTER_ENVS.LIVE
+  if (!recoveryCase || !caseMatchesEnvironment(recoveryCase, scopedEnv)) {
     throw new CastVoteError(CAST_VOTE_ERROR.NOT_FOUND, 'Recovery case not found', { httpStatus: 404 })
   }
   if (recoveryCase.status !== 'pending_review') {
