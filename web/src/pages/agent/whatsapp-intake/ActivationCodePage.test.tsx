@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
@@ -8,6 +8,38 @@ import { ActivationCodePage } from './ActivationCodePage'
 
 vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn(async () => 'data:image/png;base64,qr') },
+}))
+
+const bindingPoll = vi.hoisted(() => ({
+  bound: false,
+  status: null as { bound: boolean; phone_e164?: string } | null,
+  pollError: false,
+  capReached: false,
+}))
+
+vi.mock('./useBindingStatusPoll', () => ({
+  useBindingStatusPoll: () => ({
+    bound: bindingPoll.bound,
+    status: bindingPoll.status,
+    pollError: bindingPoll.pollError,
+    capReached: bindingPoll.capReached,
+    consecutiveFailures: 0,
+  }),
+}))
+
+vi.mock('./useOnboardingState', () => ({
+  useOnboardingState: () => ({
+    state: { checklist: {} },
+    patch: vi.fn(async () => ({})),
+    isLoading: false,
+    isError: false,
+  }),
+  markWhatsAppIntakeProgress: vi.fn(async () => undefined),
+  completedViaCaption: () => null,
+}))
+
+vi.mock('./useOnlineStatus', () => ({
+  useOnlineStatus: () => true,
 }))
 
 const fetchMock = vi.fn()
@@ -53,6 +85,10 @@ function renderCode(state?: Record<string, string>) {
 beforeEach(() => {
   fetchMock.mockReset()
   clipboardWrite.mockReset()
+  bindingPoll.bound = false
+  bindingPoll.status = null
+  bindingPoll.pollError = false
+  bindingPoll.capReached = false
   vi.stubGlobal('fetch', fetchMock)
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -67,6 +103,12 @@ beforeEach(() => {
     }
     return jsonResponse({})
   })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllTimers()
+  vi.useRealTimers()
 })
 
 describe('ActivationCodePage', () => {
@@ -110,12 +152,8 @@ describe('ActivationCodePage', () => {
   })
 
   it('navigates to waiting when binding-status reports bound', async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (String(url).includes('binding-status')) {
-        return jsonResponse({ bound: true, phone_e164: '+971501234567' })
-      }
-      return jsonResponse(CODE)
-    })
+    bindingPoll.bound = true
+    bindingPoll.status = { bound: true, phone_e164: '+971501234567' }
     renderCode()
     await waitFor(() => expect(screen.getByText('WAITING_PAGE')).toBeInTheDocument())
   })
