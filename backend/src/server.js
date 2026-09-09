@@ -184,6 +184,7 @@ import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/in
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
+import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
@@ -718,6 +719,7 @@ registerSettingsIndexRoutes(app, { authMiddleware })
 registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
+registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 
