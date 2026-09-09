@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { makeState } from './testState'
@@ -104,6 +104,12 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => {
+  cleanup()
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
+
 describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
   it('renders the activation code and stepper at step 2', async () => {
     renderPage()
@@ -149,8 +155,9 @@ describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
     renderPage()
-    expect(await screen.findByText(/Code expired/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Get a new code/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Get a new code/i })).toBeInTheDocument()
+    expect(document.querySelector('[data-activation-status="expired"]')).toBeInTheDocument()
+    expect(screen.getAllByText(/Code expired/i).length).toBeGreaterThan(0)
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
