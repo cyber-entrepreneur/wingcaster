@@ -929,9 +929,9 @@ describe.skipIf(!familyReady('wlb'))(
         path: 'whatsapp',
         checklist: { ...EMPTY_CHECKLIST, welcome_seen: true },
       })
-      const start =
-        pages.wlbConnect || pages.onbWhatsapp || pages.wlbCode
-      wrap(<start! />, '/onboarding/whatsapp')
+      const Start = pages.wlbConnect || pages.onbWhatsapp || pages.wlbCode
+      if (!Start) return
+      wrap(<Start />, '/onboarding/whatsapp')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
       const setup = screen.queryByRole('button', { name: /set up WhatsApp intake|get code|continue|next/i })
@@ -945,27 +945,32 @@ describe.skipIf(!familyReady('wlb'))(
         checklist: { ...store.onboarding.checklist, first_listing_drafted: true },
       }
 
-      if (pages.wlbCode) {
-        wrap(<pages.wlbCode />, '/onboarding/whatsapp/code')
+      const Code = pages.wlbCode
+      if (Code) {
+        wrap(<Code />, '/onboarding/whatsapp/code')
         expect(await screen.findByText(/WC-|activation|WingCaster/i)).toBeTruthy()
       }
-      if (pages.wlbWaiting) {
-        wrap(<pages.wlbWaiting />, '/onboarding/whatsapp/waiting')
+      const Waiting = pages.wlbWaiting
+      if (Waiting) {
+        wrap(<Waiting />, '/onboarding/whatsapp/waiting')
       }
-      if (pages.wlbDrafting) {
-        wrap(<pages.wlbDrafting />, '/onboarding/whatsapp/drafting/sess_1')
+      const Drafting = pages.wlbDrafting
+      if (Drafting) {
+        wrap(<Drafting />, '/onboarding/whatsapp/drafting/sess_1')
         expect(
           screen.queryByText(/Turning your message into a listing|Drafting|Review & publish/i),
         ).not.toBeNull()
       }
 
-      if (pages.review) {
-        wrap(<pages.review />, '/onboarding/first-listing/draft_1')
+      const Review = pages.review
+      if (Review) {
+        wrap(<Review />, '/onboarding/first-listing/draft_1')
         const publish = screen.queryByRole('button', { name: /publish/i })
         if (publish) await user.click(publish)
       }
 
-      if (pages.celebration) {
+      const Celebration = pages.celebration
+      if (Celebration) {
         store.onboarding = welcomeOnboarding({
           step: 'first_published',
           path: 'whatsapp',
@@ -976,7 +981,7 @@ describe.skipIf(!familyReady('wlb'))(
             first_listing_published: true,
           },
         })
-        wrap(<pages.celebration />, '/onboarding/first-listing/published')
+        wrap(<Celebration />, '/onboarding/first-listing/published')
         expect(
           await screen.findByText(/Your first listing is live|live listing|celebration/i),
         ).toBeTruthy()
@@ -999,7 +1004,9 @@ describe.skipIf(!familyReady('act'))(
           },
         },
       })
-      wrap(<pages.actWelcome! />, '/activate')
+      const ActWelcome = pages.actWelcome
+      if (!ActWelcome) return
+      wrap(<ActWelcome />, '/activate')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
       expect(screen.queryByText(SURVEILLANCE)).not.toBeInTheDocument()
@@ -1018,7 +1025,9 @@ describe.skipIf(!familyReady('onb'))(
   () => {
     it('skip link PATCHes welcome_skipped and keeps the checklist on /dashboard', async () => {
       const user = userEvent.setup()
-      wrap(<pages.welcome! />, '/onboarding/welcome')
+      const Welcome = pages.welcome
+      if (!Welcome) return
+      wrap(<Welcome />, '/onboarding/welcome')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
       const skip = await screen.findByRole('button', { name: /skip for now/i })
@@ -1042,7 +1051,9 @@ describe.skipIf(!familyReady('onb'))(
       const user = userEvent.setup()
       store.patchStatus = 409
       store.patch409CurrentStep = 'complete'
-      wrap(<pages.welcome! />, '/onboarding/welcome')
+      const Welcome = pages.welcome
+      if (!Welcome) return
+      wrap(<Welcome />, '/onboarding/welcome')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
 
       const skip = screen.queryByRole('button', { name: /skip for now/i })
@@ -1063,7 +1074,9 @@ describe.skipIf(!familyReady('act'))(
   '7. AGT-ACT-004 Locked when portal_registry empty',
   () => {
     it('renders the portal credentials card as Locked / Available soon', async () => {
-      wrap(<pages.actWelcome! />, '/activate')
+      const ActWelcome = pages.actWelcome
+      if (!ActWelcome) return
+      wrap(<ActWelcome />, '/activate')
       await waitFor(() => expect(screen.queryByTestId('funnel-loading')).not.toBeInTheDocument())
       expect(screen.getByTestId('funnel-state').getAttribute('data-portal-state')).toBe('locked')
       expect(
