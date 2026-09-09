@@ -316,6 +316,63 @@ export const api = {
   rejectAccountRecoveryCase: (caseId: string, notes = '') =>
     fetchJson(`/admin/account-recovery/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ notes }) }),
 
+  // Portal moderation detail (PA-MOD-002) — env-scoped via X-Wingcaster-Env
+  getPortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}`),
+  getPortalModerationSibling: (
+    submissionId: string,
+    direction: 'next' | 'prev',
+    query: Record<string, string | undefined> = {},
+  ) => {
+    const params = new URLSearchParams({ direction })
+    for (const [k, v] of Object.entries(query)) {
+      if (v != null && v !== '') params.set(k, v)
+    }
+    return fetchJson(
+      `/admin/moderation/portals/${encodeURIComponent(submissionId)}/sibling?${params.toString()}`,
+    )
+  },
+  getPortalModerationHistory: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/history`),
+  getPortalModerationAudit: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/audit`),
+  approvePortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  rejectPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes?: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  requestInfoPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  undoPortalModerationApprove: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  undoPortalModerationReject: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-reject`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  revealPortalModerationContact: (submissionId: string, field: 'phone' | 'email') =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reveal-contact`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
+
   // Two-factor / step-up (Phase 7f)
   twoFactorStatus: (): Promise<TwoFactorStatus> => fetchJson('/auth/2fa/status'),
   totpSetup: (current_password: string): Promise<TotpSetup> =>
