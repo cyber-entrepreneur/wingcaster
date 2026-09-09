@@ -3,7 +3,7 @@
 **Purpose:** flat, reviewable catalog of every `[BE-BLOCKER-*]`, `[BE-VERIFY-*]`, `[BE-DESIGN-*]` item surfaced during Phase-1 brief authoring (2026-09-06..08). Companion to [SCREEN_MATRIX_IMPLEMENTATION_KICKOFF.md](SCREEN_MATRIX_IMPLEMENTATION_KICKOFF.md) §5a — this doc is the reviewable index; the kickoff has the narrative.
 
 **Author:** Architect-owner
-**Rev 1 — 2026-09-08**
+**Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
 
 ---
 
@@ -114,27 +114,27 @@ Bundled in [CURSOR_WAVE_0_5_BACKEND_PREREQS.md](../prompts/CURSOR_WAVE_0_5_BACKE
 
 ### BE-BLOCKER-13 — SSE/WebSocket for AGT-WLB-004 real-time draft streaming
 
-**Slot:** Week 4 · **Est:** 2-3 days (SSE) or 0.5 day (polling fallback)
+**Slot:** Week 4 · **Est:** 2-3 days (SSE) or 0.5 day (polling fallback) · **Status:** RESOLVED · **Merge:** `03d1aebf04d92f46e909ddf587c1849d088c3270` (#96)
 **Unblocks:** AGT-WLB-004 live-draft-canvas
-**File(s):** new SSE endpoint OR polling endpoint fallback
+**File(s):** SSE `/api/whatsapp-listings/drafts/:sessionId/progress` + poll `/state` + `WHATSAPP_DRAFT_PROGRESS_MODE` flag
 
 ### BE-BLOCKER-14 — Inbound-message poll endpoint for AGT-WLB-003
 
-**Slot:** Week 4 · **Est:** 0.5 day
+**Slot:** Week 4 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `5d66c9abc7e1087aaa8ea80aaf325fc3a4e33a05` (#94)
 **Unblocks:** AGT-WLB-003
-**File(s):** `GET /intake/inbound-status/:bindingId`
+**File(s):** `GET /api/intake/inbound-status/:bindingId`
 
 ### BE-BLOCKER-15 — Onboarding events schema + endpoints
 
-**Slot:** Week 4 · **Est:** 1 day
+**Slot:** Week 4 · **Est:** 1 day · **Status:** RESOLVED · **Merge:** `e449e7f3bc979feda65f773668d010e6b404c179` (#100)
 **Unblocks:** step-defer / step-complete / auto-complete tracking for AGT-ONB + AGT-ACT
-**File(s):** `onboarding_events` table + `POST /events` + `GET /state`
+**File(s):** migration `334_onboarding_events.sql` + `GET/POST /api/agent/activation_state*` + `POST /api/users/me/onboarding-events`
 
 ### BE-BLOCKER-16 — `GET /activation-code` idempotency check
 
-**Slot:** Week 4 · **Est:** 0.5 day
+**Slot:** Week 4 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `4ddcaaa3cc2776ee4e3a541be82912981b9d5ce7` (#88)
 **Unblocks:** AGT-WLB-002 stable code across visits
-**File(s):** activation-code service extension
+**File(s):** `GET /api/auth/whatsapp/activation-code` (+ `/current` alias); POST remains regenerate
 
 ### BE-BLOCKER-17 — Per-portal validator modules
 
@@ -259,7 +259,7 @@ Was `distribution_attempts.status` failure-class check. Upgraded to BE-BLOCKER-0
 
 ### BE-VERIFY-02 — AGT-ONB backend hooks work with PR #50 WhatsApp binding
 
-Grep before Week 4 dispatch. Cheap.
+**Status:** RESOLVED — 2026-09-09. Confirmed `POST/GET /api/auth/whatsapp/activation-code`, `binding-status`, and `user_whatsapp_bindings` usable for AGT-ONB/WLB.
 
 ### BE-VERIFY-03..08 — Wave 1 (AGN-MEM-002/002b)
 

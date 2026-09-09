@@ -193,7 +193,7 @@ Slate progression: original 12 → Rev-2 22 → Rev-3 26 → **Rev-4 36**. Timel
 
 **[BE-VERIFY-01] `distribution_attempts.status` failure-class enumeration.** AGT-PUB-003/006 need to render 6 failure classes (auth-expired, portal-rules-violation, portal-down, quota-exceeded, invalid-content, unknown-error). Verify the schema carries these values before Week 2 dispatch. Grep the migrations + `lib/publishing/*` to confirm.
 
-**[BE-VERIFY-02] AGT-ONB-BLOCKER-01 backend decision.** Onboarding flow needs the WhatsApp model (Model B shared-number activation-code already shipped in PR #50). Verify onboarding screens can call the existing binding APIs cleanly before Week 4 dispatch.
+**[BE-VERIFY-02] AGT-ONB-BLOCKER-01 backend decision. RESOLVED 2026-09-09.** Onboarding flow needs the WhatsApp model (Model B shared-number activation-code already shipped in PR #50). Confirmed binding APIs (`activation-code`, `binding-status`, bindings CRUD) are grep-compatible for AGT-ONB/WLB.
 
 **[BE-BLOCKER-02] Agency-scoped audit-log endpoint.** AGN-AUD-001 explicitly flagged that today's audit-log endpoint is PA-scoped only. Needs an agency-scoped variant before AGN-AUD frontend work. Not in Phase 1 slate but noted for Phase 2.
 
@@ -207,13 +207,13 @@ Slate progression: original 12 → Rev-2 22 → Rev-3 26 → **Rev-4 36**. Timel
 
 **[BE-BLOCKER-12] `portal_submission.status_changed` push template.** New template row with 5 status-transition variants (SUBMITTED / IN_REVIEW / LIVE / REJECTED / FAILED / EXPIRED), deep-linking to AGT-PUB-003 in retrospective mode. Piggybacks on existing WF-01/WF-03 push infrastructure. Estimated 0.5 day. **Slot: Week 2.**
 
-**[BE-BLOCKER-13] SSE/WebSocket for AGT-WLB-004 real-time draft streaming.** PR #50 processes intake end-to-end and writes the draft as a single row — no real-time surface for the "live draft canvas" streaming fields as they populate. Three v1 modes graceful-degradation: (a) SSE preferred, (b) 3s polling acceptable, (c) determinate spinner fallback. Estimated 2-3 days for SSE; polling fallback is 0.5 day. **Slot: Week 4 (before WLB dispatch); polling fallback keeps Week 4 unblocked if SSE slips.**
+**[BE-BLOCKER-13] SSE/WebSocket for AGT-WLB-004 real-time draft streaming. RESOLVED — `03d1aeb` (#96) 2026-09-09.** SSE `/progress` + poll `/state` + `WHATSAPP_DRAFT_PROGRESS_MODE` flag. Client degrades SSE → poll → spinner.
 
-**[BE-BLOCKER-14] Inbound-message poll endpoint for AGT-WLB-003.** `GET /intake/inbound-status/:bindingId` — returns whether a message has arrived post-activation. 3s poll. Estimated 0.5 day. **Slot: Week 4.**
+**[BE-BLOCKER-14] Inbound-message poll endpoint for AGT-WLB-003. RESOLVED — `5d66c9a` (#94) 2026-09-09.** `GET /api/intake/inbound-status/:bindingId`.
 
-**[BE-BLOCKER-15] Onboarding events schema + endpoints.** `onboarding_events` table + `POST /events` + `GET /state` for step-defer / step-complete / auto-complete tracking used by both AGT-ONB and AGT-ACT. Estimated 1 day. **Slot: Week 4.**
+**[BE-BLOCKER-15] Onboarding events schema + endpoints. RESOLVED — `e449e7f` (#100) 2026-09-09.** `onboarding_events` + `agent_activation_state` + `GET/POST /api/agent/activation_state*` + tour event POSTs.
 
-**[BE-BLOCKER-16] `GET /activation-code` idempotency check.** Endpoint to return the user's current active activation code (if any) instead of always generating a new one on visits. Prevents multiple codes floating around. Estimated 0.5 day. **Slot: Week 4.**
+**[BE-BLOCKER-16] `GET /activation-code` idempotency check. RESOLVED — `4ddcaaa` (#88) 2026-09-09.** Idempotent GET; POST remains explicit regenerate.
 
 **Wave 4 shared components added:** `<TourFrame>` (5-dot progress + safe-exit chrome), `<StepHero>`, `<BenefitList>`, `<WhatsAppHandshakePanel>` (code + shared-number + QR + copy + tel-link + countdown), `<LiveDraftCanvas>` (SSE/polling-aware streaming field grid), `<SignalLampBadge>`, `<InboundMessageSummary>`, `<ListingPreviewCard>` (reused by AGT-LST-003). Extract under `web/src/components/onboarding/whatsapp/`.
 
@@ -408,7 +408,8 @@ Slate progression: original 12 → Rev-2 22 → Rev-3 26 → **Rev-4 36**. Timel
 
 ### Week 4 — WF-01 Onboarding + AGT-ACT wizard + MFA + Settings shell + [BE-BLOCKER-04]
 - **[BE-BLOCKER-04] `conversations.source_channel` decomposition** — split single column into `channel` + `source`, backfill, update all 14 code sites, dual-read migration window. ~3-5 days. Must land before AGT-INB dispatch in Week 8+; slotted here because AGT-ONB-004 celebration screen already references Bazaar/portal sources.
-- [BE-VERIFY-02] confirm onboarding backend hooks work with PR #50 WhatsApp binding.
+- [BE-VERIFY-02] confirm onboarding backend hooks work with PR #50 WhatsApp binding. **RESOLVED 2026-09-09.**
+- [BE-BLOCKER-13/14/15/16] AGT-ONB + AGT-WLB backend bundle. **RESOLVED 2026-09-09** (#96 / #94 / #100 / #88).
 - AGT-ONB-001..005 + AGT-WLB-001..005 — one PR (bundled per Rev-3 rationale; same funnel). AGT-ONB-BLOCKER-01 was resolved by PR #50 shipping Model B.
 - **AGT-ACT-001..005** activation wizard — one PR. New screen family. AGT-ACT-004 (portal credentials) has a soft dependency on [BE-DESIGN-01] dynamic portal registry from Week 2 — if Week 2 slips, ship AGT-ACT-004 in Wave 8+.
 - SHR-MFA-001..003, 007 (enrollment + step-up) + SHR-MFA-004, 004b, 005, 006 (operational flows) — one PR.
