@@ -54,7 +54,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-01 — Portal publisher adapters (PF Group critical path)
 
-**Slot:** Week 2 · **Est:** 2-3 days per portal · **Depends on:** BE-DESIGN-01 landing first
+**Slot:** Week 2 · **Est:** 2-3 days per portal · **Depends on:** BE-DESIGN-01 landing first · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop e2e)
 **Unblocks:** AGT-PUB-003/006, PA-MOD-001/002
 **File(s):** `backend/src/lib/notifications/portals/*.js` (per portal), extends `PortalPublisher` base
 **Scope:** implement PF Group adapter as Phase-1 critical path (covers UAE + KSA + EG + LB + JO + QA + KW + BH + OM per D19). Other portals stay `NOT_IMPLEMENTED` stubs, added incrementally as BD deals close.
@@ -63,7 +63,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-03 — `distribution_attempts.error_class` schema
 
-**Slot:** Week 2 · **Est:** 0.5-1 day · **Status:** Wave 0.5 dispatched
+**Slot:** Week 2 · **Est:** 0.5-1 day · **Status:** UI-CONSUMED (Wave 2 Agent 6 — AGT-PUB-003 receipt renders all 6 classes + deep links)
 **Unblocks:** AGT-PUB-003 (6 failure classes render + resolution deep links)
 **File(s):** new migration + `backend/src/lib/publishing/error-classifier.js`
 
@@ -106,19 +106,19 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-10 — Publishing-job aggregation endpoint
 
-**Slot:** Week 2 · **Est:** 3-5 days · **Depends on:** BE-BLOCKER-03 + BE-DESIGN-01
+**Slot:** Week 2 · **Est:** 3-5 days · **Depends on:** BE-BLOCKER-03 + BE-DESIGN-01 · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop)
 **Unblocks:** AGT-PUB-003 receipt view + retry endpoints
 **File(s):** `GET /api/publishing/jobs/:id` + retry POST endpoints + `publishing_job.completed` push template
 
 ### BE-BLOCKER-11 — Publishing tracker endpoints
 
-**Slot:** Week 2 · **Est:** 2-3 days
+**Slot:** Week 2 · **Est:** 2-3 days · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop)
 **Unblocks:** AGT-PUB-006
 **File(s):** `GET /api/publishing/tracker` (list, cursor-paginated) + `GET /api/publishing/tracker/summary` (KPI)
 
 ### BE-BLOCKER-12 — `portal_submission.status_changed` push template
 
-**Slot:** Week 2 · **Est:** 0.5 day
+**Slot:** Week 2 · **Est:** 0.5 day · **Status:** UI-CONSUMED (Wave 2 Agent 6 — push hop in cross-loop)
 **Unblocks:** AGT-PUB-006 live-row updates
 **File(s):** template row with 5 status-transition variants
 
@@ -148,7 +148,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-17 — Per-portal validator modules
 
-**Slot:** Week 2 · **Est:** ~8 days (1 day per portal × 8)
+**Slot:** Week 2 · **Est:** ~8 days (1 day per portal × 8) · **Status:** UI-CONSUMED (Wave 2 Agent 6 — PA-MOD lint aggregate in cross-loop)
 **Unblocks:** PA-MOD-001/002 (lint aggregate)
 **File(s):** `backend/src/lib/portal-validators/{bayut,property_finder,dubizzle,olx,aqar,wasalt,aqarmap,3akarat}.js`. Each exports `validate(listing, portalContext) → { checks: [{code, severity, message, expected, actual}] }`. Rules sourced from PORTAL_LIST_RESEARCH §C.
 
@@ -293,13 +293,13 @@ Confirmed intended contract per PR #49 architecture.
 
 ## 5. Design items (require product-level decision + spec)
 
-### BE-DESIGN-01 — Dynamic `portal_registry` — STATUS: Wave 0.5 dispatched
+### BE-DESIGN-01 — Dynamic `portal_registry` — STATUS: UI-CONSUMED (Wave 2 Agent 6)
 
-Documented at kickoff §5a + Wave 0.5 prompt §4.9
+Documented at kickoff §5a + Wave 0.5 prompt §4.9. Consumed by AGT-PUB-003/005/006 + PA-MOD via portal display metadata in job/tracker aggregation.
 
 ### BE-DESIGN-02 — Tenure-risk scoring service
 
-**Slot:** Week 2 · **Est:** 3-5 days · **Can ship stub for v1**
+**Slot:** Week 2 · **Est:** 3-5 days · **Can ship stub for v1** · **Status:** UI-CONSUMED (Wave 2 Agent 6 — PA-MOD two-person gate uses stub `unknown` + high-tier matrix)
 **Unblocks:** PA-MOD-001 risk-tier column (informs two-person-rule gate)
 
 ### BE-DESIGN-04 — Cross-env package clone helper (Phase-1 add-on)

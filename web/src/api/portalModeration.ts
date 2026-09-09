@@ -112,11 +112,20 @@ export interface PortalModerationSubmission {
     notes?: string
     state?: string
   } | null
-  listing: {
-    id: string
-    title: string
-    address_line: string
-    hero_image_url?: string | null
+  agent: PortalModerationAgent
+  agency: PortalModerationAgency
+  listing: PortalModerationListing
+  portal: PortalModerationPortal
+  validator_lint: PortalModerationValidatorLint
+  tenure_risk: PortalModerationTenureRisk
+  agent_context: {
+    wingcaster_tenure_month: string
+    portfolio_size: number
+    prior_decision_summary_30d: {
+      approved: number
+      rejected: number
+      request_info: number
+    }
   }
   listing_preview: {
     hero_image_url?: string | null
