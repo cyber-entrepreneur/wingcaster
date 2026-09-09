@@ -106,6 +106,10 @@ export const accountRecoveryCastVoteSchema = z.object({
   notes: z.string().max(2000).optional().default(''),
 })
 
+export const accountRecoveryRevealAuditSchema = z.object({
+  field: z.enum(['email', 'phone', 'username', 'ip', 'row', 'name', 'contact', 'user_agent']),
+})
+
 export const ACCOUNT_RECOVERY_INFO_REASON_CODES = [
   'missing_government_id',
   'selfie_required',
