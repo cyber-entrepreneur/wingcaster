@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  completeActivationStep,
-  deferActivationStep,
-  fetchActivationState,
-  fetchPortalRegistry,
-} from './api'
-import { useOnboardingState, type UseOnboardingStateResult } from './onboardingHook'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
+import type { ActivationState as HookActivationState } from '@/hooks/useOnboardingState'
+import { fetchActivationState, fetchPortalRegistry } from './api'
 import type {
   ActivationState,
   ActivationStep,
@@ -13,17 +9,8 @@ import type {
   CompletedVia,
   LockReason,
   PortalRegistryEntry,
+  SignupPath,
 } from './types'
-
-type HookWithActivation = UseOnboardingStateResult & {
-  complete?: (
-    stepId: string,
-    completedVia?: string,
-    metadata?: Record<string, unknown>,
-  ) => Promise<ActivationState>
-  defer?: (stepId: string) => Promise<ActivationState>
-  activation?: ActivationState
-}
 
 function checklistDeltaFor(stepId: string): Record<string, boolean> | null {
   if (stepId === 'whatsapp') return { channels_connected: true }
@@ -33,10 +20,32 @@ function checklistDeltaFor(stepId: string): Record<string, boolean> | null {
   return null
 }
 
-function enrichSteps(
-  state: ActivationState,
-  portalRegistryEmpty: boolean,
-): ActivationStep[] {
+function asSignupPath(value: string | undefined): SignupPath {
+  if (value === 'join' || value === 'agency' || value === 'solo') return value
+  return 'solo'
+}
+
+function toLocalState(next: HookActivationState): ActivationState {
+  return {
+    user_id: next.user_id,
+    tenant_id: next.tenant_id,
+    signup_path: asSignupPath(next.signup_path),
+    country_code: next.country_code,
+    completed_count: next.completed_count,
+    total_count: next.total_count,
+    steps: next.steps.map((step) => ({
+      id: step.id,
+      order: step.order,
+      state: step.state,
+      completed_at: step.completed_at,
+      completed_via: step.completed_via,
+      sub_route: step.sub_route || `/activate/${String(step.id).replace(/_/g, '-')}`,
+      lock_reason: step.lock_reason ?? null,
+    })),
+  }
+}
+
+function enrichSteps(state: ActivationState, portalRegistryEmpty: boolean): ActivationStep[] {
   return state.steps.map((step) => {
     if (step.id === 'portal_credentials') {
       if (step.state === 'complete') return step
@@ -58,8 +67,10 @@ function enrichSteps(
 }
 
 export function useActivationState() {
-  const onboarding = useOnboardingState() as HookWithActivation
-  const [state, setState] = useState<ActivationState | null>(onboarding.activation ?? null)
+  const onboarding = useOnboardingState()
+  const [state, setState] = useState<ActivationState | null>(
+    onboarding.activation ? toLocalState(onboarding.activation) : null,
+  )
   const [isLoading, setIsLoading] = useState(!onboarding.activation)
   const [isError, setIsError] = useState(false)
   const [portals, setPortals] = useState<PortalRegistryEntry[]>([])
@@ -106,18 +117,12 @@ export function useActivationState() {
     async (
       stepId: ActivationStepId | string,
       completedVia: CompletedVia | string = 'dashboard_action',
-      metadata?: Record<string, unknown>,
+      _metadata?: Record<string, unknown>,
     ) => {
-      let next: ActivationState
-      if (typeof onboarding.complete === 'function') {
-        next = await onboarding.complete(stepId, completedVia, metadata)
-      } else {
-        next = await completeActivationStep(stepId, completedVia, metadata)
-        const delta = checklistDeltaFor(stepId)
-        if (delta) {
-          await onboarding.patch({ checklist_delta: delta })
-        }
-        await onboarding.mutate()
+      const next = toLocalState(await onboarding.completeActivation(stepId, completedVia))
+      const delta = checklistDeltaFor(stepId)
+      if (delta) {
+        await onboarding.patch({ checklist_delta: delta })
       }
       apply(next)
       return next
@@ -127,13 +132,7 @@ export function useActivationState() {
 
   const defer = useCallback(
     async (stepId: ActivationStepId | string) => {
-      let next: ActivationState
-      if (typeof onboarding.defer === 'function') {
-        next = await onboarding.defer(stepId)
-      } else {
-        next = await deferActivationStep(stepId)
-        await onboarding.mutate()
-      }
+      const next = toLocalState(await onboarding.deferActivation(stepId))
       apply(next)
       return next
     },
