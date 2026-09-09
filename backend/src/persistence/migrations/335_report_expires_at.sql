@@ -1,8 +1,8 @@
 -- BE-BLOCKER-24 + BE-BLOCKER-25 / Week 5 Agent 1
 -- File: 335_report_expires_at.sql
 --
--- Note: migration 316 was already taken on main (316_wave0_nav_user_prefs.sql).
--- This is the next free number ≥316 at branch time.
+-- Numbering: originally drafted as 330; renumbered to 335 after rebase onto
+-- main (330–334 claimed by account-recovery / onboarding migrations).
 --
 -- Adds expires_at to both report tables, backfills pending-like rows to
 -- created_at + 30 days, allows status='expired', and indexes the sweeper path.
