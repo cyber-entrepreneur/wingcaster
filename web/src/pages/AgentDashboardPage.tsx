@@ -27,8 +27,10 @@ import {
   shouldRenderOnboardingChecklist,
 } from '@/pages/agent/onboarding'
 
-function agentUiMode(agent: { ui_mode?: unknown; uiMode?: unknown } | null | undefined): string {
-  const raw = agent?.ui_mode ?? agent?.uiMode
+function agentUiMode(agent: unknown): string {
+  if (!agent || typeof agent !== 'object') return 'guided'
+  const rec = agent as { ui_mode?: unknown; uiMode?: unknown }
+  const raw = rec.ui_mode ?? rec.uiMode
   return typeof raw === 'string' && raw.trim() ? raw.trim() : 'guided'
 }
 

@@ -11,6 +11,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { axe, toHaveNoViolations } from 'jest-axe'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import type { OnboardingState } from '@/components/onboarding/useOnboardingState'
 import { makeState } from '@/pages/agent/onboarding/testState'
 import { makeActivationState, midFlowSolo } from '@/pages/agent/activation/testFixtures'
 
@@ -19,7 +20,7 @@ expect.extend(toHaveNoViolations)
 const navigateMock = vi.hoisted(() => vi.fn())
 
 const onboardingHook = vi.hoisted(() => ({
-  state: {} as Record<string, unknown>,
+  state: {} as OnboardingState,
   isLoading: false,
   isError: false,
   patch: vi.fn(async (body: Record<string, unknown>) => body),
@@ -133,7 +134,7 @@ beforeEach(() => {
   document.documentElement.lang = 'en'
   document.documentElement.dir = 'ltr'
   navigateMock.mockReset()
-  onboardingHook.state = makeState() as typeof onboardingHook.state
+  onboardingHook.state = makeState()
   onboardingHook.isLoading = false
   onboardingHook.isError = false
   Object.values(apiMock).forEach((fn) => fn.mockReset())

@@ -45,7 +45,9 @@ export const DISPLAY_CODE = 'WC-A4K9-JAMIL'
 export const SHARED_NUMBER = '+971 4 XXX XXXX'
 
 export function sampleOnboardingState(
-  partial?: Partial<OnboardingState> & { checklist?: Partial<OnboardingState['checklist']> },
+  partial?: Omit<Partial<OnboardingState>, 'checklist'> & {
+    checklist?: Partial<OnboardingState['checklist']>
+  },
 ): OnboardingState {
   const base: OnboardingState = {
     user_id: 'usr_sara',
