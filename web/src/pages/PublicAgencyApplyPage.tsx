@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, setAuthToken } from '@/api/client'
 import type {
   AgencyApplicationBody,
   AgencyApplicationSuccess,
   AgencyApplyApiError,
   AgencyPublicProfile,
+  GuestSignupPayload,
   InvitationResolvePayload,
 } from '@/api/agencyApply'
 import {
@@ -80,6 +81,17 @@ function ownerAttribution(agency: LoadedAgency): string | null {
   return `${agency.ownerFirstName}${initial}, Owner`
 }
 
+/** Compact IdentityForm → SHR-AUT-006 identity sub-object for guest_signup. */
+export function buildGuestSignupPayload(values: IdentityFormValues): GuestSignupPayload {
+  return {
+    type: 'email',
+    identifier: values.email.trim(),
+    credentials: { password: values.password },
+    recovery: null,
+    name: values.display_name.trim(),
+  }
+}
+
 /**
  * AGN-MEM-005 — Public join / apply to an agency.
  *
@@ -91,7 +103,7 @@ export function PublicAgencyApplyPage() {
   const params = useParams<{ agencySlug?: string; invitationCode?: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { agent, loading: authLoading, register, logout, refreshAgent } = useAuth()
+  const { agent, loading: authLoading, logout, refreshAgent } = useAuth()
   const { addToast } = useToast()
 
   const mode: PageMode = params.invitationCode ? 'invitation' : 'slug'
@@ -291,39 +303,9 @@ export function PublicAgencyApplyPage() {
       setSubmitting(true)
 
       try {
-        if (!agent) {
-          try {
-            await register({
-              name: guestValues.display_name.trim(),
-              email: guestValues.email.trim(),
-              password: guestValues.password,
-              agency_mode: 'none',
-              terms_accepted: guestValues.consent_terms,
-            })
-            await refreshAgent()
-          } catch (regErr) {
-            const status = (regErr as AgencyApplyApiError).status
-            if (status === 401) {
-              addToast({
-                variant: 'error',
-                title: 'Your session expired mid-signup. Please try again.',
-              })
-              setGuestOpen(true)
-              return
-            }
-            addToast({
-              variant: 'error',
-              title:
-                (regErr as Error).message ||
-                'Something went wrong creating your account. Please try again.',
-            })
-            return
-          }
-        }
-
         const payload: AgencyApplicationBody = {
           ...body,
-          guest_signup: null,
+          guest_signup: agent ? null : buildGuestSignupPayload(guestValues),
         }
 
         let result: AgencyApplicationSuccess
@@ -335,6 +317,15 @@ export function PublicAgencyApplyPage() {
           result = (await api.applyToAgencyBySlug(agency.slug, payload, {
             signal: controller.signal,
           })) as AgencyApplicationSuccess
+        }
+
+        if (!agent && result.session?.token) {
+          setAuthToken(result.session.token)
+          try {
+            await refreshAgent()
+          } catch {
+            // Session token is enough for subsequent navigations; /me may lag.
+          }
         }
 
         setSuccess(result)
@@ -385,11 +376,38 @@ export function PublicAgencyApplyPage() {
         }
 
         if (status === 400 && apiErr.field_errors) {
+          const guestKeys = Object.keys(apiErr.field_errors).filter((k) =>
+            k.startsWith('guest_signup'),
+          )
+          if (guestKeys.length) {
+            setGuestOpen(true)
+            const first = guestKeys[0]!
+            addToast({
+              variant: 'error',
+              title: `${first}: ${apiErr.field_errors[first]}`,
+            })
+            return
+          }
           addToast({
             variant: 'error',
             title: 'Please fix the highlighted fields and try again.',
           })
           return
+        }
+
+        if (status === 409 && apiErr.field_errors) {
+          const guestKeys = Object.keys(apiErr.field_errors).filter((k) =>
+            k.startsWith('guest_signup'),
+          )
+          if (guestKeys.length) {
+            setGuestOpen(true)
+            const first = guestKeys[0]!
+            addToast({
+              variant: 'error',
+              title: `${first}: ${apiErr.field_errors[first]}`,
+            })
+            return
+          }
         }
 
         if (!navigator.onLine || /network|fetch/i.test((err as Error).message || '')) {
@@ -413,7 +431,6 @@ export function PublicAgencyApplyPage() {
       agency,
       agent,
       guestValues,
-      register,
       refreshAgent,
       mode,
       invitationCode,

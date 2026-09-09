@@ -2,16 +2,20 @@
  * Agency invitation HTTP surface (BE-BLOCKER-07).
  *
  * GET  /api/invitations/:code              — public resolve
- * POST /api/invitations/:code/accept       — auth; create application
+ * POST /api/invitations/:code/accept       — auth OR guest_signup; create application
  * POST /api/agencies/:id/invitations       — owner/admin create (AGN-MEM-003)
  */
 
 import { z } from 'zod'
-import { authMiddleware } from '../../auth.js'
-import { findOne } from '../../db.js'
+import { authMiddleware, optionalAuthMiddleware } from '../../auth.js'
+import { findOne, transaction } from '../../db.js'
 import { getAgencyMembership } from '../../tenant-authorization.js'
 import { validate } from '../validation.js'
 import logger from '../logger.js'
+import {
+  createGuestUserAndApplication,
+  guestSignupHttpError,
+} from './guest-signup-apply.js'
 import {
   DEFAULT_INVITE_TTL_DAYS,
   buildResolvePayload,
@@ -33,10 +37,11 @@ export const invitationAcceptSchema = z.object({
   availability: z.string().max(500).optional().default(''),
   referral_source: z.string().max(120).optional(),
   consents: z.record(z.unknown()).optional().nullable(),
-  guest_signup: z.record(z.unknown()).optional().nullable(),
+  guest_signup: z.unknown().optional().nullable(),
   agent_email: z.string().email().max(255).optional(),
   agent_name: z.string().max(120).optional().default(''),
   agent_phone: z.string().max(40).optional().default(''),
+  locale: z.string().max(16).optional(),
 }).passthrough()
 
 export const invitationCreateSchema = z.object({
@@ -63,7 +68,10 @@ async function requireAgencyOwnerOrAdmin(req, res, next) {
   }
 }
 
-export function registerAgencyInvitationRoutes(app, { auth = authMiddleware } = {}) {
+export function registerAgencyInvitationRoutes(app, {
+  auth = authMiddleware,
+  optionalAuth = optionalAuthMiddleware,
+} = {}) {
   app.get('/api/invitations/:code', async (req, res) => {
     try {
       const invite = await findInvitationByCode(req.params.code)
@@ -79,7 +87,7 @@ export function registerAgencyInvitationRoutes(app, { auth = authMiddleware } = 
 
   app.post(
     '/api/invitations/:code/accept',
-    auth,
+    optionalAuth,
     validate(invitationAcceptSchema),
     async (req, res) => {
       try {
@@ -113,38 +121,117 @@ export function registerAgencyInvitationRoutes(app, { auth = authMiddleware } = 
           })
         }
 
-        // Claim single-use codes before inserting the application to avoid
-        // orphaned applications when a concurrent accept wins the race.
-        if (invite.single_use) {
-          const claimed = await markInvitationUsed(invite.id)
-          if (!claimed) {
+        const guestSignup = req.body?.guest_signup
+        if (!req.user && guestSignup == null) {
+          return res.status(401).json({ error: 'Unauthorized' })
+        }
+
+        // Authenticated: guest_signup ignored.
+        if (req.user) {
+          // Claim single-use codes before inserting the application to avoid
+          // orphaned applications when a concurrent accept wins the race.
+          if (invite.single_use) {
+            const claimed = await markInvitationUsed(invite.id)
+            if (!claimed) {
+              return res.status(409).json({
+                error: 'INVITATION_USED',
+                message: 'This invitation has already been used.',
+              })
+            }
+          }
+
+          const application = await createApplicationFromInvitation({
+            invite,
+            agency,
+            user: req.user,
+            body: req.validated,
+          })
+
+          logger.info(
+            {
+              application_id: application.id,
+              agency_id: agency.id,
+              invitation_code: invite.code,
+              user_id: req.user.id,
+            },
+            'Agency invitation accepted',
+          )
+
+          return res.status(201).json({
+            success: true,
+            application: {
+              id: application.id,
+              agency_id: agency.id,
+              agency_name: agency.name,
+              status: application.status,
+              created_at: application.created_at,
+              expected_response_by: application.expected_response_by,
+            },
+            redirect_to: `/applications/${application.id}`,
+            message: `Application sent to ${agency.name}. They will review and approve your request.`,
+          })
+        }
+
+        let result
+        try {
+          // Claim + user + application in one transaction so a failed guest
+          // signup does not burn a single-use invitation or leave an orphan user.
+          result = await transaction(async () => {
+            if (invite.single_use) {
+              const claimed = await markInvitationUsed(invite.id)
+              if (!claimed) {
+                const usedErr = new Error('INVITATION_USED')
+                usedErr.code = 'INVITATION_USED'
+                usedErr.status = 409
+                throw usedErr
+              }
+            }
+            return createGuestUserAndApplication({
+              agency,
+              guestSignup,
+              body: {
+                ...req.validated,
+                message: String(req.validated.message || '').trim() || 'Invitation accept',
+              },
+              invitationCode: invite.code,
+              referralSource: 'direct_invitation',
+            })
+          })
+        } catch (err) {
+          if (err?.code === 'INVITATION_USED') {
             return res.status(409).json({
               error: 'INVITATION_USED',
               message: 'This invitation has already been used.',
             })
           }
+          const handled = guestSignupHttpError(err, res)
+          if (handled) return handled
+          throw err
         }
-
-        const application = await createApplicationFromInvitation({
-          invite,
-          agency,
-          user: req.user,
-          body: req.validated,
-        })
 
         logger.info(
           {
-            application_id: application.id,
+            application_id: result.application.id,
             agency_id: agency.id,
             invitation_code: invite.code,
-            user_id: req.user?.id,
+            user_id: result.user.id,
+            guest_signup: true,
           },
-          'Agency invitation accepted',
+          'Agency invitation accepted (guest signup)',
         )
 
         return res.status(201).json({
           success: true,
-          application,
+          application: {
+            id: result.application.id,
+            agency_id: agency.id,
+            agency_name: agency.name,
+            status: result.application.status,
+            created_at: result.application.created_at,
+            expected_response_by: result.application.expected_response_by,
+          },
+          session: result.session,
+          redirect_to: `/applications/${result.application.id}`,
           message: `Application sent to ${agency.name}. They will review and approve your request.`,
         })
       } catch (err) {

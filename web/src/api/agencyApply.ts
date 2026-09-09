@@ -8,6 +8,15 @@ export type AgencyApplicationAvailability =
   | 'within_a_month'
   | 'just_exploring'
 
+export type GuestSignupPayload = {
+  type: 'email' | 'username' | 'phone'
+  identifier: string
+  credentials: { password: string }
+  recovery?: { email?: string; phone?: string } | null
+  name?: string
+  display_name?: string
+}
+
 export type AgencyApplicationBody = {
   message: string
   current_listings_count?: number
@@ -19,7 +28,7 @@ export type AgencyApplicationBody = {
     terms?: boolean
     profile_share: true
   }
-  guest_signup?: null | Record<string, unknown>
+  guest_signup?: null | GuestSignupPayload
   locale?: string
 }
 
