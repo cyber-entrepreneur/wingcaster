@@ -4,6 +4,10 @@ import {
   goneReviewBody,
   DecisionError,
   DECISION_ERROR,
+  REPORT_ERROR,
+  UNDO_GRACE_MS,
+  REPORT_ERROR,
+  UNDO_GRACE_MS,
   WF05_DECISION_STATUS,
   assertStepUp,
 } from '../application/comparable-report-decisions.js'
@@ -436,5 +440,128 @@ describe('WF-05 admin route registration', () => {
 describe('assertStepUp', () => {
   it('throws DecisionError when elevation missing', () => {
     expect(() => assertStepUp(makeReq())).toThrow(DecisionError)
+  })
+})
+
+describe('WF-05 bulk / undo / affected (Agent 6)', () => {
+  const logger = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), child: () => logger }
+
+  it('bulkRejectAsInvalid returns 207 with OWN_CASE and ALREADY_DECIDED failures', async () => {
+    const dal = memoryDal({
+      comparable_reports: [
+        baseReport({ id: 'ok-1' }),
+        baseReport({ id: 'own-1', reporter_id: 'pa-1' }),
+        baseReport({ id: 'done-1', status: 'rejected' }),
+        baseReport({ id: 'ok-2', comparable_id: 'cmp-2' }),
+      ],
+    })
+    let clock = Date.parse('2026-09-08T12:00:00.000Z')
+    const service = createComparableReportDecisionService({ dal, now: () => clock, logger })
+    const result = await service.bulkRejectAsInvalid({
+      report_ids: ['ok-1', 'own-1', 'done-1', 'ok-2', 'missing-1'],
+      reason_code: 'insufficient_evidence',
+      notes: 'Need stronger proof of sale.',
+      actorId: 'pa-1',
+    })
+    expect(result.status).toBe(207)
+    expect(result.body.succeeded.map((r) => r.id).sort()).toEqual(['ok-1', 'ok-2'])
+    expect(result.body.succeeded.every((r) => r.status === 'rejected')).toBe(true)
+    expect(result.body.failed).toEqual(expect.arrayContaining([
+      { id: 'own-1', error: REPORT_ERROR.OWN_CASE },
+      { id: 'done-1', error: REPORT_ERROR.ALREADY_DECIDED },
+      { id: 'missing-1', error: REPORT_ERROR.NOT_FOUND },
+    ]))
+  })
+
+  it('undoDecision restores within grace and refuses after', async () => {
+    let clock = Date.parse('2026-09-08T12:00:00.000Z')
+    const dal = memoryDal({ comparable_reports: [baseReport({ id: 'undo-1' })] })
+    const service = createComparableReportDecisionService({ dal, now: () => clock, logger })
+    await service.bulkRejectAsInvalid({
+      report_ids: ['undo-1'],
+      reason_code: 'out_of_scope',
+      notes: 'Out of geographic scope for this queue.',
+      actorId: 'pa-3',
+    })
+    clock += 1000
+    const restored = await service.undoDecision('undo-1', { actorId: 'pa-3' })
+    expect(restored.status).toBe('pending')
+
+    await service.bulkRejectAsInvalid({
+      report_ids: ['undo-1'],
+      reason_code: 'other',
+      notes: 'Rejecting after second review pass.',
+      actorId: 'pa-3',
+    })
+    clock += UNDO_GRACE_MS + 1
+    await expect(service.undoDecision('undo-1')).rejects.toMatchObject({
+      code: REPORT_ERROR.UNDO_WINDOW_EXPIRED,
+    })
+  })
+
+  it('listAffectedValuations paginates properties referencing the comparable', async () => {
+    const dal = memoryDal({
+      comparable_reports: [baseReport({ id: 'aff-1', comparable_id: 'cmp-shared', comparable_type: 'external' })],
+      analysis_comparable_evidence: [
+        { id: 'e1', property_id: 'p1', comparable_id: 'cmp-shared', comparable_type: 'external', weight: 0.4 },
+        { id: 'e2', property_id: 'p2', comparable_id: 'cmp-shared', comparable_type: 'external', weight: 0.3 },
+      ],
+      property_price_analyses: [
+        { id: 'a1', property_id: 'p1', median_price: 100 },
+        { id: 'a2', property_id: 'p2', median_price: 120 },
+      ],
+      properties: [
+        { id: 'p1', title: 'One', city: 'Dubai' },
+        { id: 'p2', title: 'Two', city: 'Dubai' },
+      ],
+    })
+    const service = createComparableReportDecisionService({ dal, logger })
+    const page1 = await service.listAffectedValuations('aff-1', { page: 1, pageSize: 1 })
+    expect(page1.pagination.total).toBe(2)
+    expect(page1.items).toHaveLength(1)
+  })
+
+  it('registers bulk/undo/affected routes before :reportId and keeps review at 410', async () => {
+    const { app, routes } = fakeExpress()
+    registerAdminRoutes(app, {
+      configService: {},
+      currencyService: {},
+      comparableService: {},
+      analysisService: {},
+      trendService: {},
+      scraperService: {},
+      recalculationJobService: {},
+      decisionService: {
+        bulkRejectAsInvalid: vi.fn(),
+        bulkRequestInfo: vi.fn(),
+        undoDecision: vi.fn(),
+        listAffectedValuations: vi.fn(),
+        confirmRemove: vi.fn(),
+        confirmQuarantine: vi.fn(),
+        rejectAsInvalid: vi.fn(),
+        requestInfo: vi.fn(),
+      },
+      marketImpactService: { scoreComparable: vi.fn() },
+      dal: memoryDal(),
+      adapter: {},
+      logger,
+    })
+    const paths = routes.map((r) => `${r.method.toUpperCase()} ${r.path}`)
+    expect(paths).toContain('POST /api/admin/pricing/reports/bulk-reject-as-invalid')
+    expect(paths).toContain('POST /api/admin/pricing/reports/bulk-request-info')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/undo-decision')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/affected-valuations')
+    const bulkIdx = paths.indexOf('POST /api/admin/pricing/reports/bulk-reject-as-invalid')
+    const idIdx = paths.findIndex((p) => p.includes('/:reportId/confirm-remove'))
+    expect(bulkIdx).toBeGreaterThanOrEqual(0)
+    expect(idIdx).toBeGreaterThan(bulkIdx)
+
+    const review = routes.find((r) => r.path === '/api/admin/pricing/reports/:id/review')
+    const handler = review.handlers[review.handlers.length - 1]
+    const req = makeReq({ body: { status: 'reviewed' } })
+    req.user = { id: 'pa-1', platform_role: 'platform_admin', env: 'live' }
+    const res = mockRes()
+    await handler(req, res, (err) => { throw err })
+    expect(res.status).toHaveBeenCalledWith(410)
   })
 })

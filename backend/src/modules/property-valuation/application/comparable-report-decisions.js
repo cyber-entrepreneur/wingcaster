@@ -264,7 +264,9 @@ export function createComparableReportDecisionService({
   listMemberships = listUserAgencyMemberships,
   runTransaction = transaction,
   writeAuditFn = insertAudit,
+  now = () => Date.now(),
 } = {}) {
+  const nowIsoLocal = () => new Date(now()).toISOString()
   async function loadReport(reportId) {
     const report = await dal.findOne(
       Collections.COMPARABLE_REPORTS,
@@ -351,7 +353,7 @@ export function createComparableReportDecisionService({
   }
 
   async function tombstoneComparable(report, { quarantineHours = null } = {}) {
-    const now = nowIso()
+    const now = nowIsoLocal()
     const type = report.comparable_type
     const id = report.comparable_id
 
@@ -473,7 +475,7 @@ export function createComparableReportDecisionService({
           afterState,
           reasonCode: reasonCode || action,
           approvalRequestId: asUuidOrNull(approvalRequestId),
-          now: nowIso(),
+          now: nowIsoLocal(),
         })
       })
     } catch (err) {
@@ -490,7 +492,7 @@ export function createComparableReportDecisionService({
     marketImpact,
   }) {
     const id = randomUUID()
-    const now = nowIso()
+    const now = nowIsoLocal()
     const payload = {
       workflow: COMPARABLE_REMOVE_WORKFLOW,
       decision: 'REMOVE_PROPOSED',
@@ -550,7 +552,7 @@ export function createComparableReportDecisionService({
           ...(r.data || {}),
           ...(patch.data || {}),
         },
-        updated_at: nowIso(),
+        updated_at: nowIsoLocal(),
       }),
     )
     return loadReport(reportId)
@@ -581,14 +583,14 @@ export function createComparableReportDecisionService({
         decision_notes: notes ?? report.decision_notes ?? null,
         notes: notes !== undefined ? notes : report.notes,
         reviewed_by: req.user.id,
-        reviewed_at: nowIso(),
+        reviewed_at: nowIsoLocal(),
         approval_request_id: approval.id,
         data: {
           decision: buildDecisionSnapshot(report, {
             action: 'remove_proposed',
             notes: notes ?? null,
             actorId: req.user.id,
-            decidedAt: nowIso(),
+            decidedAt: nowIsoLocal(),
             extra: {
               env,
               market_impact: marketImpact,
@@ -644,13 +646,13 @@ export function createComparableReportDecisionService({
       decision_notes: notes ?? null,
       notes: notes !== undefined ? notes : report.notes,
       reviewed_by: req.user.id,
-      reviewed_at: nowIso(),
+      reviewed_at: nowIsoLocal(),
       data: {
         decision: buildDecisionSnapshot(report, {
           action: 'confirm_remove',
           notes: notes ?? null,
           actorId: req.user.id,
-          decidedAt: nowIso(),
+          decidedAt: nowIsoLocal(),
           recalc_job_id: jobs[0]?.id || null,
           extra: {
             env,
@@ -732,13 +734,13 @@ export function createComparableReportDecisionService({
       notes: notes !== undefined ? notes : report.notes,
       quarantine_until: quarantineUntil,
       reviewed_by: req.user.id,
-      reviewed_at: nowIso(),
+      reviewed_at: nowIsoLocal(),
       data: {
         decision: buildDecisionSnapshot(report, {
           action: 'confirm_quarantine',
           notes: notes ?? null,
           actorId: req.user.id,
-          decidedAt: nowIso(),
+          decidedAt: nowIsoLocal(),
           extra: {
             env,
             quarantine_hours: hours,
@@ -800,14 +802,14 @@ export function createComparableReportDecisionService({
       decision_notes: String(notes).trim(),
       notes: String(notes).trim(),
       reviewed_by: req.user.id,
-      reviewed_at: nowIso(),
+      reviewed_at: nowIsoLocal(),
       data: {
         decision: buildDecisionSnapshot(report, {
           action: 'reject_as_invalid',
           reason_code: code,
           notes: String(notes).trim(),
           actorId: req.user.id,
-          decidedAt: nowIso(),
+          decidedAt: nowIsoLocal(),
           extra: { env, decision_label: 'REJECT_AS_INVALID' },
         }),
       },
@@ -866,7 +868,7 @@ export function createComparableReportDecisionService({
       notes: String(notes).trim(),
       requested_evidence: evidence,
       reviewed_by: req.user.id,
-      reviewed_at: nowIso(),
+      reviewed_at: nowIsoLocal(),
       data: {
         decision: buildDecisionSnapshot(report, {
           action: 'request_info',
@@ -874,7 +876,7 @@ export function createComparableReportDecisionService({
           notes: String(notes).trim(),
           requested_evidence: evidence,
           actorId: req.user.id,
-          decidedAt: nowIso(),
+          decidedAt: nowIsoLocal(),
           extra: { env, decision_label: 'REQUEST_INFO' },
         }),
       },
@@ -902,6 +904,187 @@ export function createComparableReportDecisionService({
     }
   }
 
+
+  const RECALC_COMMITTED_STATUSES = new Set([
+    'running', 'completed', 'completed_with_errors', 'failed', 'cancelled',
+  ])
+
+  async function applyRejectAsInvalid(report, { reason_code, notes, actorId, req } = {}) {
+    const syntheticReq = req || {
+      user: { id: actorId, env: 'live' },
+      get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
+      headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
+      sessionEnv: 'live',
+    }
+    return rejectAsInvalid({
+      req: syntheticReq,
+      reportId: report.id,
+      reasonCode: reason_code,
+      notes,
+    })
+  }
+
+  async function applyRequestInfo(report, {
+    reason_code, notes, requested_evidence = [], actorId, req,
+  } = {}) {
+    const syntheticReq = req || {
+      user: { id: actorId, env: 'live' },
+      get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
+      headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
+      sessionEnv: 'live',
+    }
+    return requestInfo({
+      req: syntheticReq,
+      reportId: report.id,
+      reasonCode: reason_code,
+      notes,
+      requestedEvidence: requested_evidence,
+    })
+  }
+
+  async function bulkApply(reportIds, mutator) {
+    const ids = Array.isArray(reportIds)
+      ? [...new Set(reportIds.filter((id) => typeof id === 'string' && id.trim()))]
+      : []
+    if (!ids.length) throw decisionError(REPORT_ERROR.INVALID_INPUT, 'report_ids is required')
+    const succeeded = []
+    const failed = []
+    for (const id of ids) {
+      try {
+        let report
+        try { report = await loadReport(id) }
+        catch (err) {
+          if (err?.code === REPORT_ERROR.NOT_FOUND || err?.code === DECISION_ERROR.NOT_FOUND) {
+            failed.push({ id, error: REPORT_ERROR.NOT_FOUND }); continue
+          }
+          throw err
+        }
+        const result = await mutator(report)
+        const updated = result?.body?.report || result?.report || result
+        if (!updated?.id) throw decisionError(REPORT_ERROR.INVALID_INPUT, 'Decision writer returned no report')
+        succeeded.push(summarizeReport(updated))
+      } catch (err) {
+        failed.push({ id, error: err?.code || REPORT_ERROR.INVALID_INPUT })
+      }
+    }
+    return { status: failed.length ? 207 : 200, body: { succeeded, failed } }
+  }
+
+  async function bulkRejectAsInvalid({ report_ids, reason_code, notes, actorId, req } = {}) {
+    return bulkApply(report_ids, (report) => applyRejectAsInvalid(report, { reason_code, notes, actorId, req }))
+  }
+
+  async function bulkRequestInfo({ report_ids, reason_code, notes, requested_evidence, actorId, req } = {}) {
+    return bulkApply(report_ids, (report) => applyRequestInfo(report, { reason_code, notes, requested_evidence, actorId, req }))
+  }
+
+  async function isRecalcCommitted(decision) {
+    const jobId = decision?.recalc_job_id
+    if (!jobId) return false
+    if (!recalculationJobService?.get) return true
+    const job = await recalculationJobService.get(jobId)
+    if (!job) return false
+    if (RECALC_COMMITTED_STATUSES.has(job.status)) return true
+    return job.status !== 'queued'
+  }
+
+  async function undoDecision(reportId, { actorId: _actorId } = {}) {
+    const report = await loadReport(reportId)
+    const decision = report.data?.decision
+    if (!decision?.decided_at) throw decisionError(REPORT_ERROR.NO_DECISION, 'No reversible decision on this report')
+    if (await isRecalcCommitted(decision)) throw decisionError(REPORT_ERROR.RECALC_COMMITTED, 'Cannot undo — recalculation has committed')
+    const decidedMs = Date.parse(decision.decided_at)
+    if (!Number.isFinite(decidedMs) || now() - decidedMs > UNDO_GRACE_MS) {
+      throw decisionError(REPORT_ERROR.UNDO_WINDOW_EXPIRED, 'Undo grace window has expired')
+    }
+    const previousData = { ...(decision.previous_data || {}) }
+    delete previousData.decision
+    const restored = await patchReport(reportId, {
+      status: decision.previous_status || WF05_DECISION_STATUS.PENDING,
+      notes: decision.previous_notes ?? null,
+      decision_notes: decision.previous_notes ?? null,
+      decision_reason_code: null,
+      requested_evidence: null,
+      reviewed_by: decision.previous_reviewed_by ?? null,
+      reviewed_at: decision.previous_reviewed_at ?? null,
+      data: previousData,
+    })
+    if (decision.recalc_job_id && recalculationJobService?.cancel) {
+      try { await recalculationJobService.cancel(decision.recalc_job_id) } catch (err) {
+        logger?.warn?.({ err: err.message, jobId: decision.recalc_job_id }, 'undo cancel failed')
+      }
+    }
+    return summarizeReport(restored)
+  }
+
+  async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}) {
+    const report = await loadReport(reportId)
+    const safePage = Math.max(1, Number(page) || 1)
+    const safeSize = Math.min(100, Math.max(1, Number(pageSize) || 25))
+    const evidenceRows = await dal.findAll(
+      Collections.ANALYSIS_COMPARABLE_EVIDENCE,
+      (row) => row.comparable_id === report.comparable_id
+        && (!report.comparable_type || row.comparable_type === report.comparable_type),
+    )
+    const byProperty = new Map()
+    for (const row of evidenceRows || []) {
+      byProperty.set(row.property_id, {
+        property_id: row.property_id,
+        comparable_id: row.comparable_id,
+        comparable_type: row.comparable_type,
+        similarity_score: row.similarity_score ?? null,
+        weight: row.weight ?? null,
+      })
+    }
+    const analyses = await dal.findAll(
+      Collections.PROPERTY_PRICE_ANALYSES,
+      (a) => Array.isArray(a.data?.comparables_used) && a.data.comparables_used.includes(report.comparable_id),
+    )
+    for (const analysis of analyses || []) {
+      if (!byProperty.has(analysis.property_id)) {
+        byProperty.set(analysis.property_id, {
+          property_id: analysis.property_id,
+          comparable_id: report.comparable_id,
+          comparable_type: report.comparable_type,
+          similarity_score: null,
+          weight: null,
+        })
+      }
+    }
+    const propertyIds = [...byProperty.keys()].sort()
+    const total = propertyIds.length
+    const startIdx = (safePage - 1) * safeSize
+    const pageIds = propertyIds.slice(startIdx, startIdx + safeSize)
+    const items = []
+    for (const propertyId of pageIds) {
+      const hit = byProperty.get(propertyId)
+      const analysis = await dal.findOne(Collections.PROPERTY_PRICE_ANALYSES, (a) => a.property_id === propertyId)
+      let property = null
+      if (adapter?.getPropertyById) property = await adapter.getPropertyById(propertyId)
+      else property = await dal.findOne('properties', (row) => row.id === propertyId)
+      items.push({
+        property_id: propertyId,
+        analysis_id: analysis?.id || null,
+        title: property?.title || property?.name || null,
+        city: property?.city || null,
+        median_price: analysis?.median_price ?? null,
+        similarity_score: hit.similarity_score,
+        weight: hit.weight,
+        comparable_id: hit.comparable_id,
+        comparable_type: hit.comparable_type,
+      })
+    }
+    return {
+      items,
+      pagination: {
+        page: safePage,
+        pageSize: safeSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / safeSize) || 1),
+      },
+    }
+  }
+
   return {
     detectIsOwn,
     isOwnCase: detectIsOwn,
@@ -909,38 +1092,13 @@ export function createComparableReportDecisionService({
     confirmQuarantine,
     rejectAsInvalid,
     requestInfo,
-    // Agent 6 bulk/undo shared entry points (same writers as single-row routes)
-    applyRejectAsInvalid: async (report, { reason_code, notes, actorId, req }) => {
-      const syntheticReq = req || {
-        user: { id: actorId, env: 'live' },
-        get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
-        headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
-        sessionEnv: 'live',
-      }
-      return rejectAsInvalid({
-        req: syntheticReq,
-        reportId: report.id,
-        reasonCode: reason_code,
-        notes,
-      })
-    },
-    applyRequestInfo: async (report, {
-      reason_code, notes, requested_evidence = [], actorId, req,
-    }) => {
-      const syntheticReq = req || {
-        user: { id: actorId, env: 'live' },
-        get: (name) => (String(name).toLowerCase() === WINGCASTER_ENV_HEADER.toLowerCase() ? 'live' : null),
-        headers: { [WINGCASTER_ENV_HEADER.toLowerCase()]: 'live' },
-        sessionEnv: 'live',
-      }
-      return requestInfo({
-        req: syntheticReq,
-        reportId: report.id,
-        reasonCode: reason_code,
-        notes,
-        requestedEvidence: requested_evidence,
-      })
-    },
+    applyRejectAsInvalid,
+    applyRequestInfo,
+    bulkRejectAsInvalid,
+    bulkRequestInfo,
+    undoDecision,
+    listAffectedValuations,
+    isRecalcCommitted,
     buildDecisionSnapshot,
     summarizeReport,
     tombstoneComparable,

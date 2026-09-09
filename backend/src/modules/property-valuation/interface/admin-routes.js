@@ -6,6 +6,7 @@ import { createMarketImpactService } from '../application/market-impact-service.
 import {
   createComparableReportDecisionService,
   goneReviewBody,
+  REPORT_ERROR,
 } from '../application/comparable-report-decisions.js'
 
 export function parseCsv(text) {
@@ -626,6 +627,84 @@ export function registerAdminRoutes(app, services) {
       res.json(report)
     } catch (err) { next(err) }
   })
+
+  // Bulk reject/request-info + undo + affected valuations (BE-CMR-03/09/12).
+  // Register BEFORE `/:reportId/...` so Express does not treat bulk paths as ids.
+
+  app.post('/api/admin/pricing/reports/bulk-reject-as-invalid', admin, async (req, res, next) => {
+    try {
+      const { report_ids, reason_code, notes } = req.body || {}
+      const result = await decisionService.bulkRejectAsInvalid({
+        report_ids,
+        reason_code,
+        notes,
+        actorId: req.user.id,
+      })
+      res.status(result.status).json(result.body)
+    } catch (err) {
+      if (err?.code === REPORT_ERROR.INVALID_INPUT) {
+        return res.status(400).json({ error: err.message, code: err.code })
+      }
+      next(err)
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/bulk-request-info', admin, async (req, res, next) => {
+    try {
+      const { report_ids, reason_code, notes, requested_evidence } = req.body || {}
+      const result = await decisionService.bulkRequestInfo({
+        report_ids,
+        reason_code,
+        notes,
+        requested_evidence,
+        actorId: req.user.id,
+      })
+      res.status(result.status).json(result.body)
+    } catch (err) {
+      if (err?.code === REPORT_ERROR.INVALID_INPUT) {
+        return res.status(400).json({ error: err.message, code: err.code })
+      }
+      next(err)
+    }
+  })
+
+  app.get('/api/admin/pricing/reports/:reportId/affected-valuations', admin, async (req, res, next) => {
+    try {
+      const payload = await decisionService.listAffectedValuations(req.params.reportId, {
+        page: req.query.page,
+        pageSize: req.query.pageSize,
+      })
+      res.json(payload)
+    } catch (err) {
+      if (err?.code === REPORT_ERROR.NOT_FOUND) {
+        return res.status(404).json({ error: err.message, code: err.code })
+      }
+      next(err)
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/:reportId/undo-decision', admin, async (req, res, next) => {
+    try {
+      const restored = await decisionService.undoDecision(req.params.reportId, {
+        actorId: req.user.id,
+      })
+      res.json({ success: true, report: restored })
+    } catch (err) {
+      if (err?.code === REPORT_ERROR.NOT_FOUND) {
+        return res.status(404).json({ error: err.message, code: err.code })
+      }
+      if (
+        err?.code === REPORT_ERROR.RECALC_COMMITTED ||
+        err?.code === REPORT_ERROR.UNDO_WINDOW_EXPIRED ||
+        err?.code === REPORT_ERROR.NO_DECISION ||
+        err?.code === REPORT_ERROR.OWN_CASE
+      ) {
+        return res.status(409).json({ error: err.message, code: err.code })
+      }
+      next(err)
+    }
+  })
+
 
   app.post('/api/admin/pricing/reports/:reportId/confirm-remove', admin, async (req, res, next) => {
     try {
