@@ -100,6 +100,7 @@ import { AccountRecoveryDetailPage } from '@/pages/admin/AccountRecoveryDetailPa
 import { settingsRoutes } from '@/pages/settings/routes'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { onboardingRoutes } from '@/pages/agent/onboarding/routes'
+import { activationRoutes } from '@/pages/agent/activation/routes'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -116,6 +117,7 @@ const BARE_CHROME_PREFIXES = [
   '/terms',
   '/privacy',
   '/onboarding',
+  '/activate',
 ] as const
 
 function usesBareChrome(pathname: string): boolean {
@@ -272,6 +274,7 @@ function AppRoutes() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       {onboardingRoutes}
+      {activationRoutes}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
     </Sentry.ErrorBoundary>
