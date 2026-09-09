@@ -17,9 +17,23 @@ import { signToken, authMiddleware, requireElevated } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import {
   castVote,
+  withdrawVote,
   CastVoteError,
   goneApproveRejectBody,
 } from './account-recovery/cast-vote.js'
+import { registerAccountRecoveryEvidenceRoutes } from './account-recovery/evidence-routes.js'
+import {
+  caseMatchesEnvironment,
+  resolveRecoveryRequestEnv,
+  resolveWingcasterEnv,
+} from './account-recovery/env.js'
+import { deriveAccountValueTier } from './account-recovery/account-value-tier.js'
+import {
+  requestInfo,
+  cancelInfoRequest,
+  undoApprove,
+  PaActionError,
+} from './account-recovery/pa-actions.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
@@ -113,6 +127,7 @@ import {
   accountRecoveryRequestSchema,
   accountRecoveryReviewSchema,
   accountRecoveryCastVoteSchema,
+  accountRecoveryRequestInfoSchema,
   accountRecoveryCompleteSchema,
   otpVerifySchema,
   otpRequestSchema,
@@ -169,6 +184,7 @@ import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/in
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
+import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
@@ -703,6 +719,7 @@ registerSettingsIndexRoutes(app, { authMiddleware })
 registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
+registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 
@@ -1444,12 +1461,24 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     return res.json(genericResponse)
   }
 
+  const environment = resolveRecoveryRequestEnv(req)
+
   const existingOpenCase = await findOne('account_recovery_cases', (c) =>
-    c.user_id === user.id && ['pending_review', 'approved'].includes(c.status),
+    c.user_id === user.id
+      && ['pending_review', 'approved'].includes(c.status)
+      && caseMatchesEnvironment(c, environment),
   )
 
   if (existingOpenCase) {
     return res.json(genericResponse)
+  }
+
+  let tierInfo = { tier: 'standard', requires_two_person: false }
+  try {
+    tierInfo = await deriveAccountValueTier(user.id)
+  } catch {
+    // Intake must not fail closed on tier lookup errors — cache best-effort.
+    tierInfo = { tier: 'standard', requires_two_person: false }
   }
 
   const recoveryCase = {
@@ -1460,6 +1489,9 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     contact,
     reason,
     status: 'pending_review',
+    environment,
+    account_value_tier: tierInfo.tier,
+    requires_two_person: Boolean(tierInfo.requires_two_person),
     requested_ip: req.ip,
     requested_user_agent: req.get('user-agent') || null,
     created_at: new Date().toISOString(),
@@ -1469,11 +1501,16 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
   await logActivity({
     type: 'account_recovery_requested',
     agent_id: user.id,
-    meta: { case_id: recoveryCase.id, preferred_channel },
+    meta: {
+      case_id: recoveryCase.id,
+      preferred_channel,
+      environment,
+      account_value_tier: tierInfo.tier,
+    },
   })
 
   res.json(!isProduction
-    ? { ...genericResponse, _dev_case_id: recoveryCase.id }
+    ? { ...genericResponse, _dev_case_id: recoveryCase.id, _dev_environment: environment }
     : genericResponse)
 })
 
@@ -7153,13 +7190,35 @@ app.post('/api/admin/submissions/:id/reject', authMiddleware, async (req, res) =
 
 app.get('/api/admin/account-recovery', authMiddleware, async (req, res) => {
   if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  const environment = resolveWingcasterEnv(req)
   const rows = await Promise.all((await findAll('account_recovery_cases'))
+    .filter((c) => caseMatchesEnvironment(c, environment))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 300)
     .map(async (c) => {
       const agent = await findOne('agents', (a) => a.id === c.user_id)
+      let account_value_tier = c.account_value_tier
+      let requires_two_person = c.requires_two_person
+      if (!account_value_tier || requires_two_person == null) {
+        try {
+          const tierInfo = await deriveAccountValueTier(c.user_id)
+          account_value_tier = tierInfo.tier
+          requires_two_person = Boolean(tierInfo.requires_two_person)
+          await update('account_recovery_cases', (row) => row.id === c.id, (row) => ({
+            ...row,
+            account_value_tier,
+            requires_two_person,
+          }))
+        } catch {
+          account_value_tier = account_value_tier || 'standard'
+          requires_two_person = Boolean(requires_two_person)
+        }
+      }
       return {
         ...c,
+        environment: c.environment || environment,
+        account_value_tier,
+        requires_two_person,
         agent: agent ? serializeAgent(agent) : null,
       }
     }))
@@ -7187,7 +7246,131 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
       ip: req.ip,
       userAgent: req.get('user-agent') || null,
       isProduction,
+      environment: resolveWingcasterEnv(req),
       issueRecoveryToken,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof CastVoteError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+// BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
+registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
+
+async function notifyAccountRecoveryApplicant({
+  recoveryCase,
+  reasonCode,
+  notes = '',
+  requestedEvidence = [],
+  canceled = false,
+  channel = 'email',
+}) {
+  const evidenceList = Array.isArray(requestedEvidence) && requestedEvidence.length
+    ? requestedEvidence.join(', ')
+    : 'additional documents'
+  const title = canceled
+    ? 'Account recovery info request canceled'
+    : 'More information needed for account recovery'
+  const body = canceled
+    ? 'A Platform Admin canceled the request for more information. Your recovery case is back in review.'
+    : `A Platform Admin requested more information (${reasonCode}). Please provide: ${evidenceList}.${notes ? ` Notes: ${notes}` : ''}`
+
+  try {
+    const notification = await createNotification({
+      userId: recoveryCase.user_id,
+      type: canceled ? 'account_recovery_info_canceled' : 'account_recovery_info_requested',
+      title,
+      body,
+      severity: 'info',
+      meta: {
+        case_id: recoveryCase.id,
+        preferred_channel: channel,
+        reason_code: reasonCode || null,
+        requested_evidence: requestedEvidence,
+        alert_channel: channel === 'whatsapp' ? 'whatsapp' : (channel === 'email' ? 'email' : 'inapp'),
+      },
+    })
+    // Preferred-channel delivery may be heavy (WhatsApp/SMS); in-app + log is enough for this agent.
+    console.info('[account-recovery] applicant notify', {
+      case_id: recoveryCase.id,
+      channel,
+      canceled: Boolean(canceled),
+      notification_id: notification?.id || null,
+    })
+    return notification
+  } catch (err) {
+    console.warn('[account-recovery] applicant notify failed (persisted on case)', err?.message || err)
+    return null
+  }
+}
+
+app.post('/api/admin/account-recovery/:caseId/request-info', authMiddleware, validate(accountRecoveryRequestInfoSchema), async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await requestInfo({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      reasonCode: req.validated.reason_code,
+      notes: req.validated.notes || '',
+      requestedEvidence: req.validated.requested_evidence,
+      notifyApplicant: notifyAccountRecoveryApplicant,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/cancel-info-request', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await cancelInfoRequest({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      notifyApplicant: notifyAccountRecoveryApplicant,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/undo-approve', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await undoApprove({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
+      logActivity,
+    })
+    return res.status(result.httpStatus).json(result.body)
+  } catch (err) {
+    if (err instanceof PaActionError) {
+      return res.status(err.httpStatus).json(err.toJSON())
+    }
+    throw err
+  }
+})
+
+app.post('/api/admin/account-recovery/:caseId/withdraw-vote', authMiddleware, async (req, res) => {
+  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    const result = await withdrawVote({
+      caseId: req.params.caseId,
+      actorId: req.user.id,
       logActivity,
     })
     return res.status(result.httpStatus).json(result.body)

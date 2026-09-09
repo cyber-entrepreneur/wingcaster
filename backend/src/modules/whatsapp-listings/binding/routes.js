@@ -3,7 +3,11 @@ import {
   deactivateBinding,
   generateActivationCode,
   getBindingStatus,
+<<<<<<< HEAD
   getInboundStatus,
+=======
+  getOrCreateActivationCode,
+>>>>>>> origin/main
   listActiveBindingsForUser,
 } from './service.js'
 
@@ -13,15 +17,34 @@ function rowDate(value) {
   return value
 }
 
+function activationCodeResponse(result) {
+  return {
+    display_code: result.display_code,
+    parseable_code: result.parseable_code || result.code,
+    shared_number_e164: result.shared_number_e164,
+    expires_at: result.expires_at,
+  }
+}
+
 export function registerBindingRoutes(app, { auth = authMiddleware } = {}) {
+  // Idempotent: return active code if present, else mint one.
+  async function handleGetActivationCode(req, res) {
+    try {
+      const result = await getOrCreateActivationCode(req.user.id, { firstName: req.user.name })
+      res.json(activationCodeResponse(result))
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  }
+
+  app.get('/api/auth/whatsapp/activation-code', auth, handleGetActivationCode)
+  app.get('/api/auth/whatsapp/activation-code/current', auth, handleGetActivationCode)
+
+  // Explicit regenerate: invalidate prior codes, then mint a new one.
   app.post('/api/auth/whatsapp/activation-code', auth, async (req, res) => {
     try {
       const result = await generateActivationCode(req.user.id, { firstName: req.user.name })
-      res.json({
-        display_code: result.display_code,
-        shared_number_e164: result.shared_number_e164,
-        expires_at: result.expires_at,
-      })
+      res.json(activationCodeResponse(result))
     } catch (err) {
       res.status(500).json({ error: err.message })
     }

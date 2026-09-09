@@ -16,11 +16,14 @@ import {
 
 
 async function seedAgency(id) {
+  // Use the full id in the slug. Truncating to 8 chars collapses
+  // `agency-<uuid…>` ids to only ~16 values (`slug-agency-a`…`f`) and
+  // trips agencies_slug_key under Real-Postgres suite concurrency.
   await query(
     `INSERT INTO public.agencies (id, name, slug, created_at, updated_at, data)
      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'::jsonb)
      ON CONFLICT (id) DO NOTHING`,
-    [id, `Agency ${id.slice(0, 8)}`, `slug-${id.slice(0, 8)}`],
+    [id, `Agency ${id}`, `slug-${id}`],
   )
   return id
 }
