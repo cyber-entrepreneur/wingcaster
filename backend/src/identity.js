@@ -43,9 +43,15 @@ export async function createAgentAccount({ user, agent, agency = null }) {
   await transaction(async (client) => {
     await assertNoPriorClaim({ ...claimIdentity, client })
 
-    // Insert user with active_tenant_id NULL first — the FK references tenants(id),
-    // and the personal tenant is created below. Setting the pointer before the
-    // tenant row exists violates users_active_tenant_id_fkey (Wave 0 nav prefs).
+    // Always provision the personal workspace first. active_tenant_id is set
+    // after the tenants row exists (users.active_tenant_id → tenants FK).
+    // users.active_tenant_id → tenants(id) and tenants.personal_owner_user_id → users(id)
+    // are circular. Insert user with NULL active_tenant_id, create personal tenant, then set it.
+    const tenantId = `personal:${principal.id}`
+    const membershipId = `personal-membership:${principal.id}`
+    const tenantName = principal.name || principal.email || 'Personal workspace'
+    const requestedActiveTenantId = principal.active_tenant_id || tenantId
+
     await client.query(
       `INSERT INTO users (
         id, email, phone, name, password_hash, role, platform_role, verified, verified_at,
@@ -70,7 +76,7 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         principal.preferred_locale || 'en',
         principal.created_at,
         principal.updated_at,
-        JSON.stringify(principal),
+        JSON.stringify({ ...principal, active_tenant_id: tenantId }),
       ],
     )
 
@@ -100,9 +106,6 @@ export async function createAgentAccount({ user, agent, agency = null }) {
       ],
     )
 
-    const tenantId = `personal:${principal.id}`
-    const membershipId = `personal-membership:${principal.id}`
-    const tenantName = principal.name || principal.email || 'Personal workspace'
     const tenant = {
       id: tenantId,
       tenant_type: 'personal',
@@ -147,9 +150,14 @@ export async function createAgentAccount({ user, agent, agency = null }) {
       ],
     )
     await client.query(
-      `UPDATE users SET active_tenant_id = $2 WHERE id = $1`,
-      [principal.id, principal.active_tenant_id || tenantId],
+      `UPDATE users
+          SET active_tenant_id = $2,
+              updated_at = $3::timestamptz,
+              data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('active_tenant_id', $2::text)
+        WHERE id = $1`,
+      [principal.id, requestedActiveTenantId, principal.updated_at],
     )
+    principal.active_tenant_id = requestedActiveTenantId
     await client.query(
       `INSERT INTO tenant_memberships (
         id, tenant_id, user_id, role, affiliation_mode, status, public_profile,

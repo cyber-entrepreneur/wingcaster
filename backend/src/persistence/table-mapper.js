@@ -316,8 +316,13 @@ const TABLE_MAP = {
       'second_vote_reviewer_id', 'second_vote', 'second_vote_at', 'second_vote_notes',
       'approval_request_id', 'escalation_approval_request_id',
       'account_value_tier', 'requires_two_person',
+      'environment',
+      'requested_evidence', 'info_requested_at', 'info_requested_by',
+      'info_request_reason_code', 'info_request_notes',
+      'info_request_canceled_at', 'info_request_canceled_by',
     ],
   },
+
   otp_verifications: { schema: 'public', table: 'otp_verifications', columns: ['user_id', 'channel', 'value_hash', 'code_hash', 'expires_at', 'verified', 'attempts', 'last_attempt_at', 'locked_at'] },
 
   // Profile / reviews
