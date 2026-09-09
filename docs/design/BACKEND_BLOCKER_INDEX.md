@@ -5,6 +5,7 @@
 **Author:** Architect-owner
 **Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
 **Rev 2.1 — 2026-09-09.** Backend Week 3 (BE-BLOCKER-21/22) marked RESOLVED with merge SHAs.
+**Rev 3 — 2026-09-09.** Backend Week 5 (BE-BLOCKER-24/25/26/27/28) marked RESOLVED with merge SHAs.
 
 ---
 
@@ -186,29 +187,29 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-24 — `comparable_reports.expires_at` + auto-expire cron
 
-**Slot:** Week 5 · **Est:** 0.5 day
+**Slot:** Week 5 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `311885fb5773359dcf8e13a4e42f468c201bb605` (#93)
 **Unblocks:** AGT-REC-002 EXPIRED state
 
 ### BE-BLOCKER-25 — `agent_price_reports.expires_at` + auto-expire cron
 
-**Slot:** Week 5 · **Est:** 0.5 day
+**Slot:** Week 5 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `311885fb5773359dcf8e13a4e42f468c201bb605` (#93)
 **Unblocks:** AGT-REC-003 EXPIRED state
 
 ### BE-BLOCKER-26 — WF-06 PA-PVA-009 backend bundle (8 items)
 
-**Slot:** Week 5 · **Est:** 5-7 days
+**Slot:** Week 5 · **Est:** 5-7 days · **Status:** RESOLVED · **Merge:** `ef1e627b5db8ac4c6011db1cfb4cc18f9b046ce9` (#95)
 **Unblocks:** PA-PVA-009/009b
 **Items:** list-route pagination + filters + joins, per-item detail route, benchmark-series route, extend `POST /:id/review` with `incorporate: boolean` (true → benchmark write with single-approver commit for |delta|<10%, else two-person via `fin.approval_requests`), benchmark-refresh worker enqueue, benchmark writer, `request_info` state.
 
 ### BE-BLOCKER-27 — Seed `valuation.price_reports.submit` feature code on Pro tiers
 
-**Slot:** Week 5 · **Est:** 0.5 day
+**Slot:** Week 5 · **Est:** 0.5 day · **Status:** RESOLVED · **Merge:** `8bdebaa09d08593d030a5dc145458460c83bec3a` (#87)
 **Unblocks:** AGT-APR-005 tier gate
-**File(s):** new migration (post-Prompt-1 numbering)
+**File(s):** migration `338_price_reports_submit_feature.sql`
 
 ### BE-BLOCKER-28 — WF-05 PA-PVA-008 backend bundle
 
-**Slot:** Week 5 · **Est:** 12-14 days
+**Slot:** Week 5 · **Est:** 12-14 days · **Status:** RESOLVED · **Merge:** `65ca361ac9801ec4fbfc274cf8e600704a0b4447` (#92) — core `#98` `b46884acddf726658973cc32bb39166dce2334e7` · decisions `#97` `f66c43520aafbca3a28437ed882820cde9c82195`
 **Unblocks:** PA-PVA-008/008b
 **Items:** list-response extension (masking + market impact + evidence + reporter/comparable + is_own + env + pagination + counts), REPLACE generic `/review` with 4 WF-05 decision endpoints (`/confirm-remove`, `/confirm-quarantine`, `/reject-as-invalid`, `/request-info`) + bulk-reject-as-invalid + bulk-request-info + undo endpoints + affected-valuations + reporter-history + audit-trail + single-item `GET /:reportId`.
 
