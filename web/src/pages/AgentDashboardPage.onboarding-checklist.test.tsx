@@ -29,6 +29,7 @@ const INCOMPLETE = {
 } as const
 
 function makeState(overrides: Partial<OnboardingState> = {}): OnboardingState {
+  const { checklist, ...rest } = overrides
   return {
     user_id: 'usr_test',
     step: 'welcome',
@@ -37,11 +38,10 @@ function makeState(overrides: Partial<OnboardingState> = {}): OnboardingState {
     updated_at: '2026-09-09T10:00:00.000Z',
     completed_at: null,
     dismissed_forever: false,
-    checklist: { ...INCOMPLETE },
-    ...overrides,
+    ...rest,
     checklist: {
       ...INCOMPLETE,
-      ...overrides.checklist,
+      ...checklist,
     },
   }
 }
@@ -144,12 +144,16 @@ vi.mock('@/components/dashboard/PromoteDistributeModal', () => ({
 
 import { AgentDashboardPage } from './AgentDashboardPage'
 
-function renderDashboard() {
-  return render(
+async function renderDashboard() {
+  const view = render(
     <MemoryRouter>
       <AgentDashboardPage />
     </MemoryRouter>,
   )
+  await waitFor(() => {
+    expect(screen.getByText('No listings yet.')).toBeInTheDocument()
+  })
+  return view
 }
 
 beforeEach(() => {
@@ -171,8 +175,8 @@ beforeEach(() => {
 
 describe('AgentDashboardPage AGT-ONB-005 Zone 3 mount', () => {
   it('shows the checklist when required items are incomplete', async () => {
-    renderDashboard()
-    expect(await screen.findByRole('region', { name: /Onboarding progress/i })).toBeInTheDocument()
+    await renderDashboard()
+    expect(screen.getByRole('region', { name: /Onboarding progress/i })).toBeInTheDocument()
     expect(screen.getByText('Finish setting up')).toBeInTheDocument()
     expect(document.querySelector('[data-dashboard-zone="3"]')).toBeTruthy()
     expect(document.querySelector('[data-onboarding-pill]')).toBeNull()
@@ -180,35 +184,33 @@ describe('AgentDashboardPage AGT-ONB-005 Zone 3 mount', () => {
 
   it('shows the checklist when step is welcome_skipped', async () => {
     onboardingHook.state = makeState({ step: 'welcome_skipped' })
-    renderDashboard()
-    expect(await screen.findByRole('region', { name: /Onboarding progress/i })).toBeInTheDocument()
+    await renderDashboard()
+    expect(screen.getByRole('region', { name: /Onboarding progress/i })).toBeInTheDocument()
   })
 
-  it('hides the checklist when dismissed_forever is true', () => {
+  it('hides the checklist when dismissed_forever is true', async () => {
     onboardingHook.state = makeState({ dismissed_forever: true })
-    renderDashboard()
+    await renderDashboard()
     expect(screen.queryByRole('region', { name: /Onboarding progress/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Finish setting up')).not.toBeInTheDocument()
     expect(document.querySelector('[data-dashboard-zone="3"]')).toBeNull()
   })
 
-  it('hides the checklist when step is complete and all required flags are true', () => {
+  it('hides the checklist when step is complete and all required flags are true', async () => {
     onboardingHook.state = makeState({
       step: 'complete',
       completed_at: '2026-09-09T12:00:00.000Z',
       checklist: { ...MAIN_COMPLETE },
     })
-    renderDashboard()
+    await renderDashboard()
     expect(screen.queryByRole('region', { name: /Onboarding progress/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Finish setting up')).not.toBeInTheDocument()
   })
 
   it('renders a collapsed pill instead of the Zone 3 card when ui_mode is pro', async () => {
     authMock.agent = { ...authMock.agent, ui_mode: 'pro' }
-    renderDashboard()
-    await waitFor(() => {
-      expect(document.querySelector('[data-onboarding-pill]')).toBeTruthy()
-    })
+    await renderDashboard()
+    expect(document.querySelector('[data-onboarding-pill]')).toBeTruthy()
     expect(screen.queryByRole('region', { name: /Onboarding progress/i })).not.toBeInTheDocument()
     expect(document.querySelector('[data-dashboard-zone="3"]')).toBeNull()
   })
@@ -227,10 +229,8 @@ describe('AgentDashboardPage AGT-ONB-005 Zone 3 mount', () => {
         },
       ],
     })
-    renderDashboard()
-    await waitFor(() => {
-      expect(document.querySelector('[data-dashboard-urgent-card]')).toBeTruthy()
-    })
+    await renderDashboard()
+    expect(document.querySelector('[data-dashboard-urgent-card]')).toBeTruthy()
     const zone = document.querySelector('[data-dashboard-zone="3"]')
     expect(zone).toBeTruthy()
     const urgent = zone!.querySelector('[data-dashboard-urgent-card]')
