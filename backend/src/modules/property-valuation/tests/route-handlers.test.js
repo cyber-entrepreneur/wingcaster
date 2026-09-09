@@ -138,6 +138,10 @@ describe('Admin Route Registration', () => {
     expect(paths).toContain('GET /api/admin/pricing/agent-price-reports/:id')
     expect(paths).toContain('GET /api/admin/pricing/benchmarks/:segmentId/series')
     expect(paths).toContain('GET /api/admin/pricing/reports')
+    expect(paths).toContain('GET /api/admin/pricing/reports.csv')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/reporter-history')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/audit-trail')
     expect(paths).toContain('POST /api/admin/pricing/reports/:id/review')
   })
 
