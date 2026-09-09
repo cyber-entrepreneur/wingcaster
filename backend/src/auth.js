@@ -185,8 +185,11 @@ export async function authMiddleware(req, res, next) {
     platform_role: user.platform_role || null,
     active_tenant_id: decoded.active_tenant_id || user.active_tenant_id || null,
     preferred_locale: user.preferred_locale || 'en',
+    // PA-NAV-001 / fin admin session env (LIVE|TEST). Session claim wins;
+    // account-recovery env scoping reads fin_environment / environment.
     env: sessionEnv,
     fin_environment: sessionEnv === 'test' ? 'TEST' : 'LIVE',
+    environment: sessionEnv === 'test' ? 'TEST' : 'LIVE',
   }
   req.sessionEnv = sessionEnv
   req.agent = agent

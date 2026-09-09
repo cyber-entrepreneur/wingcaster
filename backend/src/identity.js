@@ -43,6 +43,15 @@ export async function createAgentAccount({ user, agent, agency = null }) {
   await transaction(async (client) => {
     await assertNoPriorClaim({ ...claimIdentity, client })
 
+    // Always provision the personal workspace first. active_tenant_id is set
+    // after the tenants row exists (users.active_tenant_id → tenants FK).
+    // users.active_tenant_id → tenants(id) and tenants.personal_owner_user_id → users(id)
+    // are circular. Insert user with NULL active_tenant_id, create personal tenant, then set it.
+    const tenantId = `personal:${principal.id}`
+    const membershipId = `personal-membership:${principal.id}`
+    const tenantName = principal.name || principal.email || 'Personal workspace'
+    const requestedActiveTenantId = principal.active_tenant_id || tenantId
+
     await client.query(
       `INSERT INTO users (
         id, email, phone, name, password_hash, role, platform_role, verified, verified_at,
@@ -50,8 +59,8 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         created_at, updated_at, data
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz,
-        $10, COALESCE($11, 'en'), $12,
-        $13::timestamptz, $14::timestamptz, $15::jsonb
+        $10, COALESCE($11, 'en'), NULL,
+        $12::timestamptz, $13::timestamptz, $14::jsonb
       )`,
       [
         principal.id,
@@ -65,10 +74,9 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         principal.verified_at || null,
         principal.username || claimIdentity.username || null,
         principal.preferred_locale || 'en',
-        principal.active_tenant_id || `personal:${principal.id}`,
         principal.created_at,
         principal.updated_at,
-        JSON.stringify(principal),
+        JSON.stringify({ ...principal, active_tenant_id: tenantId }),
       ],
     )
 
@@ -98,9 +106,6 @@ export async function createAgentAccount({ user, agent, agency = null }) {
       ],
     )
 
-    const tenantId = `personal:${principal.id}`
-    const membershipId = `personal-membership:${principal.id}`
-    const tenantName = principal.name || principal.email || 'Personal workspace'
     const tenant = {
       id: tenantId,
       tenant_type: 'personal',
@@ -144,6 +149,15 @@ export async function createAgentAccount({ user, agent, agency = null }) {
         JSON.stringify(tenant),
       ],
     )
+    await client.query(
+      `UPDATE users
+          SET active_tenant_id = $2,
+              updated_at = $3::timestamptz,
+              data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('active_tenant_id', $2::text)
+        WHERE id = $1`,
+      [principal.id, requestedActiveTenantId, principal.updated_at],
+    )
+    principal.active_tenant_id = requestedActiveTenantId
     await client.query(
       `INSERT INTO tenant_memberships (
         id, tenant_id, user_id, role, affiliation_mode, status, public_profile,
