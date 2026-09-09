@@ -311,10 +311,67 @@ export const api = {
   completeAccountRecovery: (data: { case_id: string; token: string; password: string }) =>
     fetchJson('/auth/recovery/complete', { method: 'POST', body: JSON.stringify(data) }),
   getAdminAccountRecoveryCases: () => fetchJson('/admin/account-recovery'),
-  approveAccountRecoveryCase: (caseId: string, notes = '') =>
-    fetchJson(`/admin/account-recovery/${caseId}/approve`, { method: 'POST', body: JSON.stringify({ notes }) }),
-  rejectAccountRecoveryCase: (caseId: string, notes = '') =>
-    fetchJson(`/admin/account-recovery/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  getAdminAccountRecoveryCase: (caseId: string) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}`),
+  /**
+   * BE-BLOCKER-22 — only cast-vote. Legacy /approve and /reject return 410 Gone.
+   * Do NOT reintroduce approve/reject call sites.
+   */
+  castAccountRecoveryVote: (
+    caseId: string,
+    body: { vote: 'approve' | 'reject'; notes?: string },
+  ) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/cast-vote`, {
+      method: 'POST',
+      body: JSON.stringify({ vote: body.vote, notes: body.notes ?? '' }),
+    }),
+  requestAccountRecoveryInfo: (
+    caseId: string,
+    body: { reason_code: string; notes?: string; requested_evidence: string[] },
+  ) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  cancelAccountRecoveryInfoRequest: (caseId: string) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/cancel-info-request`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  undoAccountRecoveryApprove: (caseId: string) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/undo-approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  withdrawAccountRecoveryVote: (caseId: string) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/withdraw-vote`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  revealAccountRecoveryAudit: (caseId: string, field: string) =>
+    fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}/reveal-audit`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
+  /** Authenticated evidence proxy path (never a public/unsigned URL). */
+  accountRecoveryEvidencePath: (caseId: string, evidenceId: string, download = false) =>
+    `/admin/account-recovery/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}${
+      download ? '?download=1' : ''
+    }`,
+  /** Fetch evidence bytes via the PA auth proxy (Authorization + X-Wingcaster-Env). */
+  fetchAccountRecoveryEvidenceBlob: async (caseId: string, evidenceId: string, download = false) => {
+    const path = `/admin/account-recovery/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}${
+      download ? '?download=1' : ''
+    }`
+    const url = `${API_BASE}${path}`
+    const res = await fetch(url, { headers: { ...headers() } })
+    if (!res.ok) {
+      const err = new Error(`Evidence fetch failed (${res.status})`) as Error & { status?: number }
+      err.status = res.status
+      throw err
+    }
+    return res.blob()
+  },
 
   // Two-factor / step-up (Phase 7f)
   twoFactorStatus: (): Promise<TwoFactorStatus> => fetchJson('/auth/2fa/status'),
