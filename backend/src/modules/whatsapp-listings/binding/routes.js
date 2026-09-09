@@ -3,11 +3,8 @@ import {
   deactivateBinding,
   generateActivationCode,
   getBindingStatus,
-<<<<<<< HEAD
   getInboundStatus,
-=======
   getOrCreateActivationCode,
->>>>>>> origin/main
   listActiveBindingsForUser,
 } from './service.js'
 
