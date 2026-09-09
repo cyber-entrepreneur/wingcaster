@@ -16,11 +16,15 @@ import {
 
 
 async function seedAgency(id) {
+  // Slug must be unique across the shared Real-Postgres DB. Do not derive from
+  // `agency-${uuid}`.slice(0, 8) — that collapses to `slug-agency-<digit>` and
+  // collides (~1/16) across applications in the same suite.
+  const slug = `slug-${String(id).replace(/[^a-z0-9]/gi, '').slice(0, 24) || randomUUID().slice(0, 12)}`
   await query(
     `INSERT INTO public.agencies (id, name, slug, created_at, updated_at, data)
      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'::jsonb)
      ON CONFLICT (id) DO NOTHING`,
-    [id, `Agency ${id.slice(0, 8)}`, `slug-${id.slice(0, 8)}`],
+    [id, `Agency ${slug}`, slug],
   )
   return id
 }
@@ -35,7 +39,7 @@ async function seedApplication({
   const expires = expiresAt === undefined
     ? agencyApplicationExpiresAt(created)
     : expiresAt
-  const agencyId = `agency-${id.slice(0, 8)}`
+  const agencyId = `agency-${id}`
   await seedAgency(agencyId)
   await query(
     `INSERT INTO public.agency_applications
@@ -75,7 +79,7 @@ finPostgresSuite('agency application expiry (BE-BLOCKER-09)', { seed: false }, (
 
     const created = '2026-01-01T00:00:00.000Z'
     const id = randomUUID()
-    const agencyId = `ag-${id.slice(0, 8)}`
+    const agencyId = `ag-${id}`
     await seedAgency(agencyId)
     await pool().query(
       `INSERT INTO public.agency_applications
