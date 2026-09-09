@@ -15,10 +15,10 @@ import {
   computeMismatches,
   loadEvidenceSummary,
   resolveCaseTier,
-  resolveRequestEnv,
   slaHoursRemaining,
   SLA_HOURS_TOTAL,
 } from './case-serializers.js'
+import { caseMatchesEnvironment, resolveWingcasterEnv } from './env.js'
 import { deriveReasonCategory } from './mask.js'
 
 export class AccountRecoveryCaseError extends Error {
@@ -39,12 +39,13 @@ export class AccountRecoveryCaseError extends Error {
  */
 export async function getAccountRecoveryCase({ caseId, viewerId, req }) {
   const recoveryCase = await findOne('account_recovery_cases', (c) => c.id === caseId)
-  if (!recoveryCase) {
+  const environment = resolveWingcasterEnv(req)
+  if (!recoveryCase || !caseMatchesEnvironment(recoveryCase, environment)) {
     throw new AccountRecoveryCaseError('NOT_FOUND', 'Recovery case not found', { httpStatus: 404 })
   }
 
   const now = new Date()
-  const env = resolveRequestEnv(req)
+  const env = String(environment).toLowerCase()
   const tiers = await resolveCaseTier(recoveryCase)
   const agent = await buildAgentPayload(recoveryCase.user_id)
   const evidence = await loadEvidenceSummary(recoveryCase.id)

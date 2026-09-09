@@ -30,6 +30,13 @@ import {
   recordRevealAudit,
   RevealAuditError,
 } from './account-recovery/reveal-audit.js'
+import { registerAccountRecoveryEvidenceRoutes } from './account-recovery/evidence-routes.js'
+import {
+  caseMatchesEnvironment,
+  resolveRecoveryRequestEnv,
+  resolveWingcasterEnv,
+} from './account-recovery/env.js'
+import { deriveAccountValueTier } from './account-recovery/account-value-tier.js'
 import {
   requestInfo,
   cancelInfoRequest,
@@ -1462,12 +1469,24 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     return res.json(genericResponse)
   }
 
+  const environment = resolveRecoveryRequestEnv(req)
+
   const existingOpenCase = await findOne('account_recovery_cases', (c) =>
-    c.user_id === user.id && ['pending_review', 'approved'].includes(c.status),
+    c.user_id === user.id
+      && ['pending_review', 'approved'].includes(c.status)
+      && caseMatchesEnvironment(c, environment),
   )
 
   if (existingOpenCase) {
     return res.json(genericResponse)
+  }
+
+  let tierInfo = { tier: 'standard', requires_two_person: false }
+  try {
+    tierInfo = await deriveAccountValueTier(user.id)
+  } catch {
+    // Intake must not fail closed on tier lookup errors — cache best-effort.
+    tierInfo = { tier: 'standard', requires_two_person: false }
   }
 
   const recoveryCase = {
@@ -1478,6 +1497,9 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
     contact,
     reason,
     status: 'pending_review',
+    environment,
+    account_value_tier: tierInfo.tier,
+    requires_two_person: Boolean(tierInfo.requires_two_person),
     requested_ip: req.ip,
     requested_user_agent: req.get('user-agent') || null,
     created_at: new Date().toISOString(),
@@ -1487,11 +1509,16 @@ app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), a
   await logActivity({
     type: 'account_recovery_requested',
     agent_id: user.id,
-    meta: { case_id: recoveryCase.id, preferred_channel },
+    meta: {
+      case_id: recoveryCase.id,
+      preferred_channel,
+      environment,
+      account_value_tier: tierInfo.tier,
+    },
   })
 
   res.json(!isProduction
-    ? { ...genericResponse, _dev_case_id: recoveryCase.id }
+    ? { ...genericResponse, _dev_case_id: recoveryCase.id, _dev_environment: environment }
     : genericResponse)
 })
 
@@ -7232,6 +7259,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
       ip: req.ip,
       userAgent: req.get('user-agent') || null,
       isProduction,
+      environment: resolveWingcasterEnv(req),
       issueRecoveryToken,
       logActivity,
     })
@@ -7243,6 +7271,9 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
     throw err
   }
 })
+
+// BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
+registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
 
 async function notifyAccountRecoveryApplicant({
   recoveryCase,

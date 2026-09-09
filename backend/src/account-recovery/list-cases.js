@@ -12,10 +12,10 @@ import {
   parsePageParams,
   parseWithin,
   resolveCaseTier,
-  resolveRequestEnv,
   sortCases,
   weekCutoff,
 } from './case-serializers.js'
+import { caseMatchesEnvironment, resolveWingcasterEnv } from './env.js'
 
 const LIST_STATUSES = new Set([
   'pending_review',
@@ -46,7 +46,8 @@ function decisionAt(row) {
  */
 export async function listAccountRecoveryCases({ req, viewerId }) {
   const now = new Date()
-  const env = resolveRequestEnv(req)
+  const environment = resolveWingcasterEnv(req)
+  const env = String(environment).toLowerCase()
   const q = req.query || {}
   const statusRaw = String(q.status || 'pending_review').toLowerCase()
   const status = LIST_STATUSES.has(statusRaw) ? statusRaw : 'pending_review'
@@ -61,6 +62,7 @@ export async function listAccountRecoveryCases({ req, viewerId }) {
   const enriched = []
 
   for (const recoveryCase of all) {
+    if (!caseMatchesEnvironment(recoveryCase, environment)) continue
     const tiers = await resolveCaseTier(recoveryCase)
     const agent = await buildAgentPayload(recoveryCase.user_id)
     const evidence = await loadEvidenceSummary(recoveryCase.id)
