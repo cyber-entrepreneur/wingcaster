@@ -365,6 +365,29 @@ export const api = {
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  /** AGN-MEM-002 — list agency applications (raw array today; client normalizes). */
+  listAgencyApplications: (agencyId: string) =>
+    fetchJson(`/agencies/${agencyId}/applications`),
+  /** AGN-MEM-002 / 002b — approve creates membership; requires role + affiliation_mode. */
+  approveAgencyApplication: (
+    agencyId: string,
+    applicationId: string,
+    data: { role: string; affiliation_mode: string },
+  ) =>
+    fetchJson(`/agencies/${agencyId}/applications/${applicationId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  /** AGN-MEM-002 / 002b — reject; reason forwarded for Agent 4 outcome deep-link. */
+  rejectAgencyApplication: (
+    agencyId: string,
+    applicationId: string,
+    data: { reason: string },
+  ) =>
+    fetchJson(`/agencies/${agencyId}/applications/${applicationId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   inviteMember: (agencyId: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${agencyId}/members`, { method: 'POST', body: JSON.stringify(data) }),
   updateMember: (agencyId: string, memberId: string, data: Record<string, unknown>) =>
