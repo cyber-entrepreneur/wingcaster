@@ -787,4 +787,5 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
     } catch (err) {
       return next(err)
     }
-  })}
+  })
+}
