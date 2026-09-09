@@ -2,7 +2,7 @@
 
 **Author:** Architect-owner
 **Created:** 2026-09-05
-**Last revised:** 2026-09-06 (Rev 9 — user reversed D-S-05: batch all Phase-1 briefs upfront instead of interleaving. Wave-0 briefs already exist on disk. Remaining ~20 anchor briefs to write across Waves 1-8+ as a batch pass. Enables true parallel Cursor dispatch from Week 0.)
+**Last revised:** 2026-09-09 (Rev 9.1 — Backend Week 3 BE-BLOCKER-21/22 marked RESOLVED in §5a with merge SHAs. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
 
 **Rev 8 — 2026-09-06.** User resolved every remaining open decision. D-S-03/04/05/06/07/09 all APPROVED. AGT-ACT-001..005 added (slate 53 → 58). Branding-cleanup PR bundled into Wave 0. Blue Door removed. Agent-matrix backend-prereq retrofit scheduled.
 
@@ -189,6 +189,13 @@ Slate progression: original 12 → Rev-2 22 → Rev-3 26 → **Rev-4 36**. Timel
 
 ## 5a. Non-UI blockers (backend / data / infrastructure prerequisites)
 
+### Backend Week 3 (WF-04) — RESOLVED 2026-09-09
+
+Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.md). All RESOLVED:
+
+- BE-BLOCKER-22 — two-person cast-vote for account-recovery approve — **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
+- BE-BLOCKER-21 — WF-04 account-recovery backend bundle — **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
+
 **[BE-BLOCKER-01] Portal publishers stubbed.** `backend/src/lib/notifications/realestate.js` throws `NOT_IMPLEMENTED`. WF-03 (portal submission → moderation → outcome) cannot function end-to-end without real portal-publisher integration for the Phase-1 portal list (from `PORTAL_LIST_RESEARCH_2026-09-04.md`). Scope of the fix: implement per-portal publishers for at least the Phase-1 must-have list (Bayut, Property Finder, Dubizzle for UAE; Aqar.fm for KSA — coordinate with B3 portal list). Estimated effort: 2-3 weeks of Cursor work per portal + integration tests. **This is not a screen; it's a required backend prerequisite for Week 2 (WF-03 cluster).**
 
 **[BE-VERIFY-01] `distribution_attempts.status` failure-class enumeration.** AGT-PUB-003/006 need to render 6 failure classes (auth-expired, portal-rules-violation, portal-down, quota-exceeded, invalid-content, unknown-error). Verify the schema carries these values before Week 2 dispatch. Grep the migrations + `lib/publishing/*` to confirm.
@@ -279,9 +286,9 @@ Slate progression: original 12 → Rev-2 22 → Rev-3 26 → **Rev-4 36**. Timel
 
 **Wave 4 Settings shared components:** `<SettingsShell>` + `<SettingsSidebar>` + `<SettingsNavGroup>` + `<SettingsNavItem>` + mobile pair `<SettingsCardList>` + `<SettingsCardRow>` under `web/src/components/settings/`. SHR-SET-002/003/004/005 register as child routes under `/settings/*` and specify only right-pane content deltas.
 
-**[BE-BLOCKER-22] Two-person-rule bypass in existing account-recovery approve endpoint.** `POST /:caseId/approve` at `backend/src/server.js:7041` currently bypasses two-person and executes on single admin action. **Security-adjacent.** Must refactor through a cast-vote endpoint before PA-ACR-002 UI ships or the UI will expose a security downgrade to admins. Estimated 1-2 days refactor + tests. **Slot: Week 3 (BLOCKING).**
+**[BE-BLOCKER-22] Two-person-rule bypass in existing account-recovery approve endpoint.** **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80.** `POST /:caseId/approve` at `backend/src/server.js:7041` currently bypasses two-person and executes on single admin action. **Security-adjacent.** Must refactor through a cast-vote endpoint before PA-ACR-002 UI ships or the UI will expose a security downgrade to admins. Estimated 1-2 days refactor + tests. **Slot: Week 3 (BLOCKING).**
 
-**[BE-BLOCKER-21] WF-04 account-recovery backend bundle (13 items).** From PA-ACR-001/002 briefs: list-response extension, request-info endpoint, evidence upload + storage, account_value_tier derivation, env-scoping audit, reveal-audit endpoint (20/hr rate limit), undo-approve endpoint, masked/PII CSV export, single-case GET, two-person cast-vote + escalation wiring, authenticated evidence image proxy, withdraw-vote, cancel-info-request. Total ~15-18 backend days. **Slot: Week 3 (bundled — many are needed by PA-ACR-002 detail view).**
+**[BE-BLOCKER-21] WF-04 account-recovery backend bundle (13 items).** **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85). From PA-ACR-001/002 briefs: list-response extension, request-info endpoint, evidence upload + storage, account_value_tier derivation, env-scoping audit, reveal-audit endpoint (20/hr rate limit), undo-approve endpoint, masked/PII CSV export, single-case GET, two-person cast-vote + escalation wiring, authenticated evidence image proxy, withdraw-vote, cancel-info-request. Total ~15-18 backend days. **Slot: Week 3 (bundled — many are needed by PA-ACR-002 detail view).**
 
 **Wave 3 PA-ACR shared components added:** `<PIIMask>` (reusable across PA-USR/PA-SUP/PA-KYC), `<TwoPersonProgress>` (reusable across every WF-07/08/17-25/27-28 second-approval surface), `<Timeline>` (shared with PA-AUD-001). Extract as shared primitives. Note: WF-04 does NOT use PAQueueBulkBar (single-case only for PII safety) — this deliberate deviation is documented in PA-ACR-001 brief.
 
