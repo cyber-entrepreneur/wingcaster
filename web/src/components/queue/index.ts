@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PA queue-family primitives (`web/src/components/queue/`).
  *
  * Anchor brief: PA-MOD-001 (portal moderation queue).
@@ -39,6 +39,14 @@
  * WF-04 (PA-ACR-001), WF-05 (PA-PVA-008), and Wave-1 AGN-MEM-002 (bulk deferred
  * to Phase 2 per CURSOR_SCREEN_WAVE_1_WF02_SIGNUP §8) — PII / market-impact /
  * hiring-wave safety.
+
+ * ### Bulk omission / restriction (family deviations)
+ * - WF-04 (PA-ACR-001): set `PAQueueBulkBar` / table `showBulk={false}` /
+ *   `selectable={false}` — PII safety (no bulk at all).
+ * - WF-05 (PA-PVA-008): keep bulk selectable, but pass
+ *   `actions={['reject','request_info']}` — confirm-remove / quarantine are
+ *   deliberately omitted because removal re-runs valuations market-wide.
+
  *
  * Additive filter props (`hideRiskTier`, `withinOptions`, `withinLabel`,
  * `searchPlaceholder`) keep PA-MOD-001 importable verbatim while letting
@@ -61,7 +69,11 @@ export {
   type PAQueueRow,
 } from './PAQueueTable'
 
-export { PAQueueBulkBar, type PAQueueBulkBarProps } from './PAQueueBulkBar'
+export {
+  PAQueueBulkBar,
+  type PAQueueBulkBarProps,
+  type PAQueueBulkAction,
+} from './PAQueueBulkBar'
 
 export {
   PAQueueBulkApproveDialog,
