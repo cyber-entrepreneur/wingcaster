@@ -159,6 +159,7 @@ function AppRoutes() {
       {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
       <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
       <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/agent/comparable-reports/new" element={<BadComparableReportPage />} />
       <Route path="/reports/prices/new" element={<PriceReportPage />} />
       <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
 >>>>>>> b7b1966 (feat(agent): AGT-APR-004/005 bad-comparable + price-report submitters)
