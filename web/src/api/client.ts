@@ -1481,6 +1481,59 @@ export const api = {
   reviewAdminPricingReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // WF-05 PA-PVA-008/008b — comparable-report queue + decisions (BE-28)
+  listAdminComparableReports: (params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports${qs}`)
+  },
+  getAdminComparableReport: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}`),
+  getAdminComparableReportReporterHistory: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/reporter-history${qs}`)
+  },
+  getAdminComparableReportAuditTrail: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/audit-trail`),
+  getAdminComparableReportAffectedValuations: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/affected-valuations${qs}`)
+  },
+  confirmAdminComparableReportRemove: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-remove`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  confirmAdminComparableReportQuarantine: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-quarantine`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  rejectAdminComparableReportAsInvalid: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/reject-as-invalid`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  requestAdminComparableReportInfo: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  undoAdminComparableReportDecision: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/undo-decision`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  bulkRejectAdminComparableReportsAsInvalid: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-reject-as-invalid', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  bulkRequestAdminComparableReportsInfo: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-request-info', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),

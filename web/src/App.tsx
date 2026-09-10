@@ -51,6 +51,10 @@ import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import {
+  BadComparableQueuePage,
+  BadComparableDetailPage,
+} from '@/pages/admin/valuation'
+import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -155,6 +159,14 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route
+        path="/admin/valuation/comparable-reports"
+        element={<BadComparableQueuePage />}
+      />
+      <Route
+        path="/admin/valuation/comparable-reports/:reportId"
+        element={<BadComparableDetailPage />}
+      />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
