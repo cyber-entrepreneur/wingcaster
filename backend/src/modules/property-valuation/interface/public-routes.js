@@ -158,7 +158,25 @@ export function registerPublicRoutes(app, services) {
   app.get('/api/pricing/my-comparable-reports', authMiddleware, async (req, res, next) => {
     try {
       const reports = await dal.findAll('comparable_reports', (report) => report.reporter_id === req.user.id)
-      res.json(reports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+      // Re-nest decision under `data` for ImpactPanel while keeping top-level
+      // `decision` after Postgres fromRow flattens the JSONB column.
+      const shaped = reports.map((report) => {
+        const decision = report?.decision && typeof report.decision === 'object'
+          ? report.decision
+          : (report?.data?.decision && typeof report.data.decision === 'object'
+            ? report.data.decision
+            : null)
+        if (!decision) return report
+        return {
+          ...report,
+          decision,
+          data: {
+            ...(report.data && typeof report.data === 'object' ? report.data : {}),
+            decision,
+          },
+        }
+      })
+      res.json(shaped.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
     } catch (err) { next(err) }
   })
 
