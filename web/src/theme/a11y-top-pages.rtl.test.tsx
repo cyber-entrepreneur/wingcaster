@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 /**
  * jest-axe pass on the ten highest-traffic screens. Pages are mounted
  * without the app chrome; each is wrapped in <main> so landmark rules
@@ -65,6 +65,24 @@ const pages: Array<[string, ComponentType, string]> = [
   ['Register', RegisterPage, '/register'],
   ['Settings', TotpSettingsPage, '/settings/2fa'],
   ['Command Center', CommandCenterPage, '/command-center'],
+
+/**
+ * Bare-chrome routes (login/register) own their own <main> in production
+ * (App.tsx skips the shell wrapper). App-chrome routes are wrapped in <main>
+ * here to mirror App.tsx guest/shell landmark layout.
+ */
+const pages: Array<[string, ComponentType, string, boolean]> = [
+  ['Dashboard', AgentDashboardPage, '/dashboard', true],
+  ['Listings', ListingsPage, '/listings', true],
+  ['Listing detail', ListingProfilePage, '/listings/listing-1', true],
+  ['Inbox', InboxPage, '/dashboard/inbox', true],
+  ['Contacts', ContactsPage, '/contacts', true],
+  ['Contact detail', ContactDetailPage, '/contacts/contact-1', true],
+  ['Login', LoginPage, '/login', false],
+  ['Register', AgentRegisterPage, '/register', false],
+  ['Settings', TotpSettingsPage, '/settings/2fa', true],
+  ['Command Center', CommandCenterPage, '/command-center', true],
+
 ]
 
 /** Auth surfaces ship their own `<main>`; wrapping again nests landmarks. */
@@ -86,10 +104,14 @@ describe('Broadcast a11y — top 10 pages', () => {
               <Page />
             ) : (
               <main>
-                <Page />
               </main>
             )}
           </ToastProvider>
+
+  it.each(pages)('%s has no axe violations', async (_name, Page, path, wrapInMain) => {
+    const page = <Page />
+          <ToastProvider>{wrapInMain ? <main>{page}</main> : page}</ToastProvider>
+
         </BrandProvider>
       </MemoryRouter>,
     )
@@ -101,6 +123,11 @@ describe('Broadcast a11y — top 10 pages', () => {
           rules: bare
             ? { 'aria-valid-attr-value': { enabled: false } }
             : undefined,
+
+      // Radix Tabs uses colon ids (`radix-:rN:-*`) which axe flags as
+      // aria-valid-attr-value even though browsers accept them.
+          rules: { 'aria-valid-attr-value': { enabled: false } },
+
         }),
       ).toHaveNoViolations()
     })
