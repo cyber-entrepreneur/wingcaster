@@ -40,8 +40,10 @@ function normalizeOutcomePayload(payload: unknown, reportId: string): Comparable
         ? existingDecision.action
         : undefined
 
+  const id = typeof report.id === 'string' && report.id ? report.id : reportId
+
   return {
-    id: report.id || reportId,
+    id,
     status: typeof report.status === 'string' ? report.status : 'pending',
     reason: typeof report.reason_code === 'string' ? report.reason_code : undefined,
     notes: typeof report.notes === 'string' ? report.notes : null,
