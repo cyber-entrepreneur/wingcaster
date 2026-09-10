@@ -14,7 +14,7 @@ export interface PAQueueKeyboardShortcutsPanelProps {
   open: boolean
   onOpenChange?: (open: boolean) => void
   /** Override default PA-MOD-001 shortcut list. */
-  shortcuts?: PAQueueKeyboardShortcut[]
+  shortcuts?: readonly PAQueueKeyboardShortcut[]
   title?: string
   className?: string
 }

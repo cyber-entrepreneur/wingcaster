@@ -171,7 +171,7 @@ export const LOGIN_COPY = {
 export type LoginCopyKey = keyof typeof LOGIN_COPY
 
 export function t(key: LoginCopyKey, locale: LoginLocale, vars?: Record<string, string | number>): string {
-  let value = LOGIN_COPY[key][locale]
+  let value: string = LOGIN_COPY[key][locale]
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
       value = value.replace(`{${k}}`, String(v))

@@ -285,7 +285,7 @@ export function SideDrawer({
   const copy = NAV_GROUP_COPY[locale]
   const location = useLocation()
   const titleId = useId()
-  const panelRef = useRef<HTMLNavElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const prevPathRef = useRef(location.pathname)
 
   const groups = useMemo(() => {
