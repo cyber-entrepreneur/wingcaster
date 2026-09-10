@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -379,6 +379,10 @@ export function LoginPage() {
           role="tablist"
           aria-label="Identifier type"
           className="grid h-auto w-full grid-cols-3 rounded-none bg-transparent p-0"
+
+          aria-label={t('tab.email', locale)}
+          className="grid h-auto w-full grid-cols-3"
+
         >
           {(['email', 'username', 'phone'] as const).map((tab) => {
             const selected = identifierType === tab
@@ -397,6 +401,13 @@ export function LoginPage() {
                     ? 'border-[var(--lc-action-primary)] text-[var(--lc-text-primary)]'
                     : 'border-transparent text-[var(--lc-text-muted)]',
                 )}
+
+                id={`login-tab-${tab}`}
+                className={
+                    ? 'inline-flex min-h-tap items-center justify-center border-b-2 border-[var(--lc-action-primary)] px-3 py-1.5 text-sm font-medium text-[var(--lc-text-primary)]'
+                    : 'inline-flex min-h-tap items-center justify-center border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-[var(--lc-text-muted)]'
+                }
+
               >
                 {t(`tab.${tab}`, locale)}
               </button>
@@ -617,9 +628,13 @@ export function LoginPage() {
             </p>
           </div>
         </aside>
-        <main className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8">
+        {/* App chrome already provides the page <main>; keep this a plain section. */}
+        <section
+          aria-label={t('page.title', locale)}
+          className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8"
+        >
           {authColumn}
-        </main>
+        </section>
       </div>
     </div>
   )
