@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Building2, Check, Crown, Loader2, MapPin, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import { ContextEchoCard, EvidenceUploader } from '@/components/forms'
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
@@ -19,15 +20,15 @@ import {
   PRICE_REPORT_NOTES_MAX,
   PRICE_REPORT_NOTES_MIN,
 } from './constants'
-import { priceReportCopy as copy } from './copy'
+import { priceReportT } from './copy'
 import { CharacterCounter, SectionCard } from './FormBits'
 import type { PackageFeatureFlags, PriceReportEcho, PriceReportSubjectKind } from './types'
 import { useEvidenceFiles } from './useEvidenceFiles'
 import { usePackageFeatureFlags } from './usePackageFeatureFlags'
 
-type Phase = 'form' | 'success'
+type Phase = 'form' | 'success' | 'upsell'
 
-function UpsellCard() {
+function UpsellCard({ t }: { t: (key: Parameters<typeof priceReportT>[0]) => string }) {
   return (
     <div className="mx-auto max-w-[560px] rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-2xl)] text-center shadow-[var(--lc-elevation-md)]">
       <Crown
@@ -35,13 +36,13 @@ function UpsellCard() {
         aria-hidden
       />
       <h1 className="mt-[var(--lc-space-md)] text-[length:var(--lc-type-heading-1)] text-[var(--lc-text-heading)]">
-        {copy.upsellHeading}
+        {t('upsellHeading')}
       </h1>
       <p className="mt-[var(--lc-space-sm)] text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
-        {copy.upsellBody}
+        {t('upsellBody')}
       </p>
       <ul className="mt-[var(--lc-space-lg)] space-y-[var(--lc-space-sm)] text-start">
-        {[copy.upsellBullet1, copy.upsellBullet2, copy.upsellBullet3].map((item) => (
+        {[t('upsellBullet1'), t('upsellBullet2'), t('upsellBullet3')].map((item) => (
           <li key={item} className="flex items-start gap-2 text-sm text-[var(--lc-text-primary)]">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--lc-accent-bold-edge)]" aria-hidden />
             <span>{item}</span>
@@ -50,10 +51,10 @@ function UpsellCard() {
       </ul>
       <div className="mt-[var(--lc-space-xl)] flex flex-col gap-[var(--lc-space-sm)] sm:flex-row sm:justify-center">
         <Button asChild size="lg">
-          <Link to="/plans?highlight=wf06">{copy.upsellPrimary}</Link>
+          <Link to="/plans?highlight=wf06">{t('upsellPrimary')}</Link>
         </Button>
         <Button asChild variant="ghost">
-          <Link to="/plans">{copy.upsellSecondary}</Link>
+          <Link to="/plans">{t('upsellSecondary')}</Link>
         </Button>
       </div>
     </div>
@@ -83,10 +84,11 @@ export type PriceReportPageProps = {
  * Posts to `POST /api/pricing/agent-price-reports`.
  */
 export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps = {}) {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { addToast } = useToast()
-  usePageTitle(copy.heroHeading)
+  const { locale, isArabic } = useLocale()
+  const t = (key: Parameters<typeof priceReportT>[0]) => priceReportT(key, locale)
+  usePageTitle(t('heroHeading'))
 
   const { loading: flagsLoading, hasPriceReportsSubmit } =
     usePackageFeatureFlags(featureFlagsOverride)
@@ -142,11 +144,11 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
   function validate(): Record<string, string> {
     const next: Record<string, string> = {}
-    if (!subjectSelected) next.subject = copy.subjectRequired
-    if (!Number.isFinite(priceNum) || priceNum <= 0) next.sold_price = copy.amountRequired
-    if (notesLen < PRICE_REPORT_NOTES_MIN) next.notes = copy.notesTooShort
-    if (notesLen > PRICE_REPORT_NOTES_MAX) next.notes = copy.notesTooLong
-    if (evidence.uploading) next.evidence = copy.waitingUploads
+    if (!subjectSelected) next.subject = t('subjectRequired')
+    if (!Number.isFinite(priceNum) || priceNum <= 0) next.sold_price = t('amountRequired')
+    if (notesLen < PRICE_REPORT_NOTES_MIN) next.notes = t('notesTooShort')
+    if (notesLen > PRICE_REPORT_NOTES_MAX) next.notes = t('notesTooLong')
+    if (evidence.uploading) next.evidence = t('waitingUploads')
     return next
   }
 
@@ -172,21 +174,20 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
       })
       setPhase('success')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : copy.networkError
-      if (/FEATURE_NOT_ENABLED|Pro-tier|403/i.test(message)) {
-        addToast({
-          title: copy.featureDisabledToast,
-          description: message,
-          variant: 'error',
-        })
-        // Defense-in-depth: treat as missing feature for next render via navigation.
-        navigate('/plans?highlight=wf06')
+      const e = err as { message?: string; error?: string; status?: number }
+      const message = e.message || e.error || t('networkError')
+      if (
+        e.error === 'FEATURE_NOT_ENABLED' ||
+        e.status === 403 ||
+        /FEATURE_NOT_ENABLED|Pro-tier/i.test(String(message))
+      ) {
+        setPhase('upsell')
         return
       }
       if (/VALIDATION|required|must be/i.test(message)) {
         setFieldErrors({ form: message })
       }
-      addToast({ title: copy.networkError, description: message, variant: 'error' })
+      addToast({ title: t('networkError'), description: message, variant: 'error' })
     } finally {
       setSubmitting(false)
     }
@@ -194,11 +195,12 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
   if (flagsLoading) {
     return (
-      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8">
+      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8" dir={isArabic ? 'rtl' : 'ltr'}>
         <div
           className="mx-auto max-w-[760px] animate-pulse space-y-4"
           aria-busy="true"
-          aria-label="Loading"
+          aria-label={t('loadingAria')}
+          data-testid="price-report-loading"
         >
           <div className="h-24 rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)]" />
           <div className="h-48 rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)]" />
@@ -208,29 +210,37 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
     )
   }
 
-  if (!hasPriceReportsSubmit) {
+  if (!hasPriceReportsSubmit || phase === 'upsell') {
     return (
-      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)]">
-        <UpsellCard />
+      <div
+        className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)]"
+        data-testid="price-report-upsell"
+        dir={isArabic ? 'rtl' : 'ltr'}
+      >
+        <UpsellCard t={t} />
       </div>
     )
   }
 
   if (phase === 'success') {
     return (
-      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6">
+      <div
+        className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6"
+        data-testid="price-report-success"
+        dir={isArabic ? 'rtl' : 'ltr'}
+      >
         <div className="mx-auto max-w-[760px] space-y-[var(--lc-space-lg)]">
-          <PageHero />
-          <StatusHero state="pending" label={copy.successLabel} emphasis="default" />
+          <PageHero t={t} />
+          <StatusHero state="pending" label={t('successLabel')} emphasis="default" />
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-muted)]">
-            {copy.successSla}
+            {t('successSla')}
           </p>
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
-            {copy.successBody}
+            {t('successBody')}
           </p>
           <div className="flex flex-wrap gap-[var(--lc-space-sm)]">
             <Button asChild>
-              <Link to="/agent/pricing">{copy.successPrimary}</Link>
+              <Link to="/agent/pricing">{t('successPrimary')}</Link>
             </Button>
             <Button
               variant="outline"
@@ -244,7 +254,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 setFieldErrors({})
               }}
             >
-              {copy.successSecondary}
+              {t('successSecondary')}
             </Button>
           </div>
         </div>
@@ -269,9 +279,13 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
     : []
 
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)] pb-[var(--lc-space-4xl)] sm:px-6">
+    <div
+      className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)] pb-[var(--lc-space-4xl)] sm:px-6"
+      data-testid="price-report-page"
+      dir={isArabic ? 'rtl' : 'ltr'}
+    >
       <div className="mx-auto max-w-[760px] space-y-[var(--lc-space-lg)]">
-        <PageHero />
+        <PageHero t={t} />
 
         <ol
           className="flex flex-wrap items-center gap-[var(--lc-space-sm)] text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]"
@@ -301,18 +315,18 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
         <form className="space-y-[var(--lc-space-lg)]" onSubmit={onSubmit} noValidate>
           <SectionCard
             headingId="apr-section-1"
-            title={copy.sectionSubject}
-            helper={copy.sectionSubjectHelper}
+            title={t('sectionSubject')}
+            helper={t('sectionSubjectHelper')}
           >
             <div
               role="radiogroup"
-              aria-label={copy.sectionSubjectHelper}
+              aria-label={t('sectionSubjectHelper')}
               className="flex max-w-md overflow-hidden rounded-[var(--lc-radius-pill)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)]"
             >
               {(
                 [
-                  ['property', copy.subjectProperty],
-                  ['external', copy.subjectExternal],
+                  ['property', t('subjectProperty')],
+                  ['external', t('subjectExternal')],
                 ] as const
               ).map(([value, label]) => {
                 const selected = subjectKind === value
@@ -338,18 +352,18 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
             {subjectKind === 'property' ? (
               <div className="space-y-[var(--lc-space-sm)]">
-                <Label htmlFor="apr-property-id">{copy.propertyIdLabel}</Label>
+                <Label htmlFor="apr-property-id">{t('propertyIdLabel')}</Label>
                 <Input
                   id="apr-property-id"
                   value={propertyId}
                   onChange={(e) => setPropertyId(e.target.value)}
-                  placeholder={copy.propertyIdPlaceholder}
+                  placeholder={t('propertyIdPlaceholder')}
                 />
               </div>
             ) : (
               <div className="grid gap-[var(--lc-space-md)] sm:grid-cols-2">
                 <div className="space-y-[var(--lc-space-sm)] sm:col-span-2">
-                  <Label htmlFor="apr-ext-title">{copy.externalTitleLabel}</Label>
+                  <Label htmlFor="apr-ext-title">{t('externalTitleLabel')}</Label>
                   <Input
                     id="apr-ext-title"
                     value={externalTitle}
@@ -357,7 +371,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                   />
                 </div>
                 <div className="space-y-[var(--lc-space-sm)] sm:col-span-2">
-                  <Label htmlFor="apr-ext-location">{copy.externalLocationLabel}</Label>
+                  <Label htmlFor="apr-ext-location">{t('externalLocationLabel')}</Label>
                   <Input
                     id="apr-ext-location"
                     value={externalLocation}
@@ -385,13 +399,13 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
           <SectionCard
             headingId="apr-section-2"
-            title={copy.sectionRecommendation}
-            helper={copy.sectionRecommendationHelper}
+            title={t('sectionRecommendation')}
+            helper={t('sectionRecommendationHelper')}
             muted={!subjectSelected}
           >
             <div className="grid gap-[var(--lc-space-md)] sm:grid-cols-[120px_1fr_160px]">
               <div className="space-y-[var(--lc-space-sm)]">
-                <Label htmlFor="apr-currency">{copy.currencyLabel}</Label>
+                <Label htmlFor="apr-currency">{t('currencyLabel')}</Label>
                 <select
                   id="apr-currency"
                   className="min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] px-3 text-sm"
@@ -407,7 +421,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 </select>
               </div>
               <div className="space-y-[var(--lc-space-sm)]">
-                <Label htmlFor="apr-amount">{copy.amountLabel}</Label>
+                <Label htmlFor="apr-amount">{t('amountLabel')}</Label>
                 <Input
                   id="apr-amount"
                   type="number"
@@ -426,7 +440,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 ) : null}
               </div>
               <div className="space-y-[var(--lc-space-sm)]">
-                <Label htmlFor="apr-sold-date">{copy.soldDateLabel}</Label>
+                <Label htmlFor="apr-sold-date">{t('soldDateLabel')}</Label>
                 <Input
                   id="apr-sold-date"
                   type="date"
@@ -441,18 +455,18 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
           <SectionCard
             headingId="apr-section-3"
-            title={copy.sectionRationale}
-            helper={copy.sectionRationaleHelper}
+            title={t('sectionRationale')}
+            helper={t('sectionRationaleHelper')}
             muted={!subjectSelected}
           >
             <div className="space-y-[var(--lc-space-sm)]">
-              <Label htmlFor="apr-notes">{copy.notesLabel}</Label>
+              <Label htmlFor="apr-notes">{t('notesLabel')}</Label>
               <textarea
                 id="apr-notes"
                 rows={6}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder={copy.notesPlaceholder}
+                placeholder={t('notesPlaceholder')}
                 disabled={!subjectSelected}
                 className="w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] px-3 py-2 text-sm text-[var(--lc-text-primary)] disabled:opacity-60"
                 aria-invalid={Boolean(fieldErrors.notes)}
@@ -461,7 +475,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 <p className="text-xs text-[var(--lc-text-muted)]">
                   {fieldErrors.notes ||
                     (notesLen > 0 && notesLen < PRICE_REPORT_NOTES_MIN
-                      ? copy.notesTooShort
+                      ? t('notesTooShort')
                       : null)}
                 </p>
                 <CharacterCounter value={notes.length} max={PRICE_REPORT_NOTES_MAX} />
@@ -471,8 +485,8 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
           <SectionCard
             headingId="apr-section-4"
-            title={copy.sectionPublication}
-            helper={copy.sectionPublicationHelper}
+            title={t('sectionPublication')}
+            helper={t('sectionPublicationHelper')}
             muted={!subjectSelected}
           >
             <EvidenceUploader
@@ -482,8 +496,8 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
               accepted_types={PRICE_REPORT_ACCEPTED_TYPES}
               onAdd={evidence.onAdd}
               onRemove={evidence.onRemove}
-              label={copy.evidenceLabel}
-              helper_text={copy.evidenceHelper}
+              label={t('evidenceLabel')}
+              helper_text={t('evidenceHelper')}
               disabled={submitting || !subjectSelected}
             />
             {fieldErrors.evidence ? (
@@ -500,10 +514,10 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
           ) : null}
 
           <div className="sticky bottom-0 z-10 flex flex-col gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] py-[var(--lc-space-md)] shadow-[var(--lc-elevation-sm)] sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-[var(--lc-text-muted)]">{copy.autosaveHelper}</p>
+            <p className="text-xs text-[var(--lc-text-muted)]">{t('autosaveHelper')}</p>
             <div className="flex flex-col-reverse gap-[var(--lc-space-sm)] sm:flex-row sm:items-center">
               <Button type="button" variant="ghost" disabled>
-                {copy.saveDraft}
+                {t('saveDraft')}
               </Button>
               <Button
                 type="submit"
@@ -514,16 +528,16 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 {submitting ? (
                   <>
                     <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
-                    {copy.submitBusy}
+                    {t('submitBusy')}
                   </>
                 ) : (
-                  copy.submitIdle
+                  t('submitIdle')
                 )}
               </Button>
               {!canSubmit ? (
                 <span id="apr-submit-hint" className="sr-only">
                   Submit disabled:{' '}
-                  {Object.values(validate())[0] || copy.subjectRequired}
+                  {Object.values(validate())[0] || t('subjectRequired')}
                 </span>
               ) : null}
             </div>
@@ -534,7 +548,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
   )
 }
 
-function PageHero() {
+function PageHero({ t }: { t: (key: Parameters<typeof priceReportT>[0]) => string }) {
   return (
     <header className="flex flex-col gap-[var(--lc-space-md)] rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-xl)] sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-start gap-[var(--lc-space-sm)]">
@@ -544,10 +558,10 @@ function PageHero() {
         />
         <div>
           <h1 className="text-[length:var(--lc-type-heading-1)] text-[var(--lc-text-heading)]">
-            {copy.heroHeading}
+            {t('heroHeading')}
           </h1>
           <p className="mt-1 text-[length:var(--lc-type-body)] text-[var(--lc-text-muted)]">
-            {copy.heroSubheading}
+            {t('heroSubheading')}
           </p>
         </div>
       </div>
@@ -556,7 +570,7 @@ function PageHero() {
         aria-label="Pro-tier feature"
       >
         <Crown className="h-3.5 w-3.5" aria-hidden />
-        {copy.proBadge}
+        {t('proBadge')}
       </Badge>
     </header>
   )
