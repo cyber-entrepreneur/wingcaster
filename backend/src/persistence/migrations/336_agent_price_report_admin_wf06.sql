@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS market_pricing.pricing_benchmark_snapshots (
   currency VARCHAR(10) NOT NULL DEFAULT 'USD',
   source_report_id TEXT REFERENCES market_pricing.agent_price_reports(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
   UNIQUE (segment_id, env, snapshot_date)
 );

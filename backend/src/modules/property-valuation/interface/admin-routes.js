@@ -5,9 +5,23 @@ import { createComparableReportReadService } from '../application/comparable-rep
 import { createMarketImpactService } from '../application/market-impact-service.js'
 import {
   createComparableReportDecisionService,
+  DecisionError,
   goneReviewBody,
   REPORT_ERROR,
 } from '../application/comparable-report-decisions.js'
+
+/** Map DecisionError → HTTP response; rethrow unknown errors. */
+function sendDecisionError(res, err) {
+  if (err instanceof DecisionError || err?.name === 'DecisionError') {
+    const status = err.httpStatus || 400
+    return res.status(status).json(
+      typeof err.toJSON === 'function'
+        ? err.toJSON()
+        : { error: err.message, code: err.code, ...(err.extra || {}) },
+    )
+  }
+  throw err
+}
 
 export function parseCsv(text) {
   if (!text || typeof text !== 'string') return { headers: [], rows: [] }
