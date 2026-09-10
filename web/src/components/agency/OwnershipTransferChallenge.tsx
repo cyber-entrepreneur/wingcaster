@@ -382,10 +382,6 @@ export function OwnershipTransferChallenge({
                 <Input
                   id="ownership-typed-agency-name"
                   value={typedName}
-<<<<<<< HEAD
-=======
-                  disabled={false}
->>>>>>> 01639c9 (fix(web): clear pre-existing tsc errors blocking CI)
                   placeholder={`Type "${agencyName}" to confirm`}
                   autoComplete="off"
                   spellCheck={false}
