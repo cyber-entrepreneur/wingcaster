@@ -14,6 +14,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import { BadComparableReportPage, PriceReportPage } from '@/pages/agent/reports'
 import { InboxPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
@@ -107,6 +108,11 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
+      <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+      <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/reports/prices/new" element={<PriceReportPage />} />
+      <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
