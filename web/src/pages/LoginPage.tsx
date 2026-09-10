@@ -387,6 +387,7 @@ export function LoginPage() {
                 key={tab}
                 type="button"
                 role="tab"
+                id={`login-tab-${tab}`}
                 aria-selected={selected}
                 tabIndex={selected ? 0 : -1}
                 onClick={() => onTabChange(tab)}
@@ -617,9 +618,13 @@ export function LoginPage() {
             </p>
           </div>
         </aside>
-        <main className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8">
+        {/* App chrome already provides the page <main>; keep this a plain section. */}
+        <section
+          aria-label={t('page.title', locale)}
+          className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8"
+        >
           {authColumn}
-        </main>
+        </section>
       </div>
     </div>
   )
