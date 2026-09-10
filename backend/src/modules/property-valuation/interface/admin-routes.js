@@ -14,11 +14,13 @@ import {
 function sendDecisionError(res, err) {
   if (err instanceof DecisionError || err?.name === 'DecisionError') {
     const status = err.httpStatus || 400
-    return res.status(status).json(
+    const body =
       typeof err.toJSON === 'function'
         ? err.toJSON()
-        : { error: err.message, code: err.code, ...(err.extra || {}) },
-    )
+        : { error: err.message, ...(err.extra || {}), code: err.code }
+    // Keep DecisionError.code authoritative for clients/tests (STEP_UP_REQUIRED).
+    body.code = err.code
+    return res.status(status).json(body)
   }
   throw err
 }

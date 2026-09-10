@@ -174,7 +174,8 @@ export class DecisionError extends Error {
   }
 
   toJSON() {
-    return { error: this.message, code: this.code, ...this.extra }
+    // Canonical `code` must win over any alias in `extra` (e.g. step_up_required).
+    return { error: this.message, ...this.extra, code: this.code }
   }
 }
 
@@ -226,7 +227,7 @@ export function assertStepUp(req, { maxAgeSeconds = ELEVATION_TTL_SECONDS } = {}
       message,
       {
         httpStatus: 401,
-        extra: { code: 'step_up_required', max_age_seconds: maxAgeSeconds },
+        extra: { step_up_required: true, max_age_seconds: maxAgeSeconds },
       },
     )
   }
