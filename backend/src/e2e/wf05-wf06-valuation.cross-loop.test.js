@@ -108,6 +108,151 @@ describe('WF-06 UI contract — incorporate → benchmark (BE-BLOCKER-26)', () =
   })
 })
 
+describe('WF-06 service — incorporate transactional + high-delta deferral', () => {
+  it('low-delta incorporate writes benchmark; high-delta creates PRICE_REPORT_INCORPORATE without write', async () => {
+    const { createBenchmarkService, PRICE_REPORT_INCORPORATE_ACTION } = await import(
+      '../modules/property-valuation/application/benchmark-service.js'
+    )
+    const { createAgentPriceReportAdminService } = await import(
+      '../modules/property-valuation/application/agent-price-report-admin-service.js'
+    )
+
+    const store = {
+      agent_price_reports: [
+        {
+          id: 'aprt_low',
+          reporter_id: 'agent-1',
+          agent_id: 'agent-1',
+          sold_price: 1_050_000,
+          recommendation_price_point: 1_050_000,
+          currency: 'AED',
+          segment_id: 'seg_ae_dubai_marina_apt_2',
+          segment_label: 'Dubai Marina · 2BR',
+          country_code: 'AE',
+          property_type: 'apartment',
+          bedrooms: 2,
+          status: 'pending_review',
+          env: 'live',
+          incorporated: false,
+          created_at: '2026-09-08T10:00:00.000Z',
+          updated_at: '2026-09-08T10:00:00.000Z',
+          data: {},
+        },
+        {
+          id: 'aprt_high',
+          reporter_id: 'agent-1',
+          agent_id: 'agent-1',
+          sold_price: 1_850_000,
+          recommendation_price_point: 1_850_000,
+          currency: 'AED',
+          segment_id: 'seg_ae_dubai_marina_apt_2',
+          segment_label: 'Dubai Marina · 2BR',
+          country_code: 'AE',
+          property_type: 'apartment',
+          bedrooms: 2,
+          status: 'pending_review',
+          env: 'live',
+          incorporated: false,
+          created_at: '2026-09-08T10:00:00.000Z',
+          updated_at: '2026-09-08T10:00:00.000Z',
+          data: {},
+        },
+      ],
+      pricing_benchmarks: [
+        {
+          id: 'bm_1',
+          segment_id: 'seg_ae_dubai_marina_apt_2',
+          env: 'live',
+          currency: 'AED',
+          price_point: 1_000_000,
+          computed_at: '2026-09-08T09:00:00.000Z',
+          data: {},
+        },
+      ],
+      pricing_benchmark_snapshots: [],
+      approval_requests: [],
+      users: [{ id: 'agent-1', name: 'Sara', created_at: '2021-01-01T00:00:00.000Z' }],
+      agents: [
+        {
+          id: 'agent-1',
+          user_id: 'agent-1',
+          name: 'Sara',
+          agency_id: 'agy_1',
+          subscription_tier: 'pro',
+          created_at: '2021-01-01T00:00:00.000Z',
+        },
+      ],
+      agencies: [{ id: 'agy_1', name: 'Elite' }],
+    }
+
+    const match = (item, filter) => (typeof filter === 'function' ? filter(item) : true)
+    const dal = {
+      store,
+      findAll: async (c, f) => (store[c] || []).filter((i) => match(i, f)),
+      findOne: async (c, f) => (store[c] || []).find((i) => match(i, f)) || null,
+      insert: async (c, item) => {
+        if (!store[c]) store[c] = []
+        store[c].push(item)
+        return item
+      },
+      update: async (c, f, updater) => {
+        const rows = store[c] || []
+        for (let i = 0; i < rows.length; i++) {
+          if (match(rows[i], f)) rows[i] = updater(rows[i])
+        }
+      },
+      query: async (sql, params) => {
+        if (String(sql).includes('INSERT INTO fin.approval_requests')) {
+          store.approval_requests.push({
+            id: params[0],
+            action_kind: params[2],
+            status: 'REQUESTED',
+          })
+        }
+        return []
+      },
+      transaction: async (work) => work({}),
+    }
+
+    const refreshCalls = []
+    const benchmarkService = createBenchmarkService({
+      dal,
+      recalculationJobService: {
+        invalidateAll: async () => {
+          const job = { id: 'job_1' }
+          refreshCalls.push(job)
+          return job
+        },
+      },
+      logger: { warn() {}, info() {} },
+    })
+    const admin = createAgentPriceReportAdminService({
+      dal,
+      benchmarkService,
+      logger: { warn() {}, info() {} },
+    })
+
+    const low = await admin.reviewReport(
+      'aprt_low',
+      { status: 'verified', incorporate: true, notes: 'ok' },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    expect(low).toMatchObject({ success: true, status: 'incorporated', incorporated: true })
+    expect(refreshCalls).toHaveLength(1)
+    expect(store.pricing_benchmarks[0].price_point).toBe(1_050_000)
+
+    const beforeHigh = store.pricing_benchmarks[0].price_point
+    const high = await admin.reviewReport(
+      'aprt_high',
+      { status: 'verified', incorporate: true, notes: 'second eyes' },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    expect(high.pending_second_approval).toBe(true)
+    expect(store.approval_requests[0].action_kind).toBe(PRICE_REPORT_INCORPORATE_ACTION)
+    expect(store.pricing_benchmarks[0].price_point).toBe(beforeHigh)
+  })
+})
+
 describe('WF-05/06 legacy endpoint constant', () => {
   it('legacy review is not among WF-05 decision endpoints', () => {
     expect(WF05_DECISION_ENDPOINTS).not.toContain(WF05_LEGACY_REVIEW_ENDPOINT)

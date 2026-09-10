@@ -576,3 +576,42 @@ describe('WF-06 cross-loop — incorporate=true → WeightingPanel with PA weigh
     expect(screen.getByTestId('weighting-panel').getAttribute('data-weight')).toBe('75')
   })
 })
+
+describe('Wave 5 non-negotiable — PII masking on PA reporter displays', () => {
+  it('WF-05 queue + detail and WF-06 detail source import PIIMask', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const path = await import('node:path')
+    const here = path.dirname(fileURLToPath(import.meta.url))
+    const webSrc = path.resolve(here, '..')
+    for (const rel of [
+      'pages/admin/valuation/BadComparableQueuePage.tsx',
+      'pages/admin/valuation/BadComparableDetailPage.tsx',
+      'pages/admin/valuation/PriceReportQueuePage.tsx',
+      'pages/admin/valuation/PriceReportDetailPage.tsx',
+    ]) {
+      const src = readFileSync(path.join(webSrc, rel), 'utf8')
+      expect(src).toMatch(/PIIMask/)
+    }
+  })
+
+  it('PA price-report detail renders masked agent name (PIIMask)', async () => {
+    getPriceReportMock.mockResolvedValue(priceDetail())
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/admin/valuation/price-reports/aprt_wf06']}>
+          <Routes>
+            <Route
+              path="/admin/valuation/price-reports/:reportId"
+              element={<PriceReportDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    )
+    await waitFor(() =>
+      expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0),
+    )
+    expect(document.querySelectorAll('[data-pii-kind="name"]').length).toBeGreaterThan(0)
+  })
+})
