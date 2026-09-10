@@ -79,7 +79,7 @@ const tenantState = vi.hoisted(() => ({
       name: 'Sara Agent',
       avatarUrl: null,
       role: 'owner' as const,
-      kind: 'personal' as const,
+      kind: 'personal' as 'personal' | 'agency',
       listingsCount: 1,
       agentsCount: 1,
     },
