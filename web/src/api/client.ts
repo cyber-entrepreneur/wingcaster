@@ -2090,6 +2090,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // WF-06 PA-PVA-009/009b — agent price-report queue + detail
   getAdminAgentPriceReports: (params?: Record<string, string | number | undefined>) => {
     const cleaned: Record<string, string> = {}
     if (params) {
@@ -2124,7 +2125,7 @@ export const api = {
     fetchJson(
       `/admin/pricing/benchmarks/${encodeURIComponent(segmentId)}/series?window=${encodeURIComponent(window)}`,
     ),
-  exportAdminAgentPriceReportsCsv: (params?: Record<string, string | number | undefined>) => {
+  exportAdminAgentPriceReportsCsv: async (params?: Record<string, string | number | undefined>) => {
     const cleaned: Record<string, string> = {}
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -2133,7 +2134,16 @@ export const api = {
       }
     }
     const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
-    return `/admin/pricing/agent-price-reports.csv${qs}`
+    const url = `${API_BASE}/admin/pricing/agent-price-reports.csv${qs}`
+    const res = await fetch(url, { headers: headers() })
+    if (!res.ok) throw new Error(`CSV export failed (${res.status})`)
+    const blob = await res.blob()
+    const href = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = href
+    a.download = 'agent-price-reports.csv'
+    a.click()
+    URL.revokeObjectURL(href)
   },
 
   submitAgentPriceReport: (data: Record<string, unknown>) =>
