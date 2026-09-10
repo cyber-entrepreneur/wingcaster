@@ -15,6 +15,10 @@ vi.mock('@/lib/usePageTitle', () => ({
   usePageTitle: () => {},
 }))
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({ locale: 'en' as const, isArabic: false, dir: 'ltr' as const, setLocale: vi.fn() }),
+}))
+
 const toastMock = vi.hoisted(() => ({ addToast: vi.fn() }))
 vi.mock('@/components/ui/toast', () => ({
   useToast: () => toastMock,
@@ -182,5 +186,28 @@ describe('PriceReportPage', () => {
     const submit = screen.getByRole('button', { name: /Submit for PA review/i })
     expect(submit).toBeDisabled()
     expect(apiMock.submitAgentPriceReport).not.toHaveBeenCalled()
+  })
+
+  it('swaps to upsell when POST returns FEATURE_NOT_ENABLED', async () => {
+    const user = userEvent.setup()
+    apiMock.submitAgentPriceReport.mockRejectedValue({
+      status: 403,
+      error: 'FEATURE_NOT_ENABLED',
+      feature: PRICE_REPORTS_SUBMIT_FEATURE,
+    })
+    renderPriceReport({ [PRICE_REPORTS_SUBMIT_FEATURE]: true })
+
+    await screen.findByRole('heading', { name: /Submit a price report/i })
+    await user.click(screen.getByRole('radio', { name: /External \/ off-platform sale/i }))
+    await user.type(screen.getByLabelText(/Property title/i), 'Marina Heights T2')
+    await user.type(screen.getByLabelText(/Sold price/i), '2400000')
+    await user.type(
+      screen.getByLabelText(/Evidence notes/i),
+      'Closed at this figure per DLD registry. Four nearby comps bracket the mid-tier band.',
+    )
+    await user.click(screen.getByRole('button', { name: /Submit for PA review/i }))
+
+    expect(await screen.findByTestId('price-report-upsell')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Price reports are a Pro feature/i })).toBeInTheDocument()
   })
 })

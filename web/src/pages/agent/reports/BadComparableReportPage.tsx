@@ -16,6 +16,7 @@ import { StatusHero } from '@/components/recipient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,7 @@ import {
   type BadComparableReason,
   type ComparableType,
 } from './constants'
-import { badComparableCopy as copy } from './copy'
+import { badComparableT, reasonCopy } from './copy'
 import { CharacterCounter } from './FormBits'
 import type { BadComparableEcho } from './types'
 import { useEvidenceFiles } from './useEvidenceFiles'
@@ -69,7 +70,9 @@ export function BadComparableReportPage() {
   const { comparableId: routeComparableId } = useParams<{ comparableId?: string }>()
   const [searchParams] = useSearchParams()
   const { addToast } = useToast()
-  usePageTitle(copy.pageTitle)
+  const { locale, isArabic } = useLocale()
+  const t = (key: Parameters<typeof badComparableT>[0]) => badComparableT(key, locale)
+  usePageTitle(t('pageTitle'))
 
   const initialId = routeComparableId || searchParams.get('comparable_id') || ''
   const initialType = (searchParams.get('comparable_type') || 'external') as ComparableType
@@ -100,21 +103,21 @@ export function BadComparableReportPage() {
     !submitting
 
   const disabledReason = !comparableId.trim()
-    ? copy.comparableRequired
+    ? t('comparableRequired')
     : !reason
-      ? copy.reasonRequired
+      ? t('reasonRequired')
       : notesLen < BAD_COMPARABLE_NOTES_MIN
-        ? copy.notesTooShort
+        ? t('notesTooShort')
         : notesLen > BAD_COMPARABLE_NOTES_MAX
-          ? copy.notesTooLong
+          ? t('notesTooLong')
           : evidence.uploading
-            ? copy.waitingUploads
+            ? t('waitingUploads')
             : undefined
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!canSubmit || !reason) {
-      setFieldError(disabledReason || copy.reasonRequired)
+      setFieldError(disabledReason || t('reasonRequired'))
       return
     }
     setSubmitting(true)
@@ -133,8 +136,8 @@ export function BadComparableReportPage() {
       })
       setPhase('success')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : copy.networkError
-      addToast({ title: copy.networkError, description: message, variant: 'error' })
+      const message = err instanceof Error ? err.message : t('networkError')
+      addToast({ title: t('networkError'), description: message, variant: 'error' })
     } finally {
       setSubmitting(false)
     }
@@ -142,21 +145,25 @@ export function BadComparableReportPage() {
 
   if (phase === 'success') {
     return (
-      <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6">
+      <div
+        className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6"
+        data-testid="bad-comparable-success"
+        dir={isArabic ? 'rtl' : 'ltr'}
+      >
         <div className="mx-auto max-w-[680px] space-y-[var(--lc-space-lg)]">
-          <StatusHero state="pending" label={copy.successLabel} emphasis="default" />
+          <StatusHero state="pending" label={t('successLabel')} emphasis="default" />
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-muted)]">
-            {copy.successSla}
+            {t('successSla')}
           </p>
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
-            {copy.successBody}
+            {t('successBody')}
           </p>
           <div className="flex flex-wrap gap-[var(--lc-space-sm)]">
             <Button asChild>
-              <Link to="/agent/pricing">{copy.successPrimary}</Link>
+              <Link to="/agent/pricing">{t('successPrimary')}</Link>
             </Button>
             <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
-              {copy.successSecondary}
+              {t('successSecondary')}
             </Button>
           </div>
         </div>
@@ -191,11 +198,15 @@ export function BadComparableReportPage() {
     : []
 
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6">
+    <div
+      className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6"
+      data-testid="bad-comparable-report-page"
+      dir={isArabic ? 'rtl' : 'ltr'}
+    >
       <div className="mx-auto max-w-[680px]">
         <header className="mb-[var(--lc-space-lg)]">
           <h1 className="text-[length:var(--lc-type-heading-1)] text-[var(--lc-text-heading)]">
-            {copy.pageTitle}
+            {t('pageTitle')}
           </h1>
         </header>
 
@@ -206,7 +217,7 @@ export function BadComparableReportPage() {
           aria-describedby={fieldError ? 'bcr-form-error' : undefined}
         >
           {echo ? (
-            <section aria-label="Comparable being reported">
+            <section aria-label={t('echoAria')}>
               <ContextEchoCard
                 glyph={Building2}
                 title={echo.title}
@@ -217,28 +228,28 @@ export function BadComparableReportPage() {
           ) : null}
 
           <div className="space-y-[var(--lc-space-sm)]">
-            <Label htmlFor="bcr-comparable-id">{copy.comparableIdLabel}</Label>
+            <Label htmlFor="bcr-comparable-id">{t('comparableIdLabel')}</Label>
             <Input
               id="bcr-comparable-id"
               value={comparableId}
               onChange={(e) => setComparableId(e.target.value)}
-              placeholder={copy.comparableIdPlaceholder}
+              placeholder={t('comparableIdPlaceholder')}
               required
               disabled={Boolean(routeComparableId)}
             />
           </div>
 
           <div className="space-y-[var(--lc-space-sm)]">
-            <Label htmlFor="bcr-comparable-type">{copy.comparableTypeLabel}</Label>
+            <Label htmlFor="bcr-comparable-type">{t('comparableTypeLabel')}</Label>
             <select
               id="bcr-comparable-type"
               className="min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] px-3 text-sm text-[var(--lc-text-primary)]"
               value={comparableType}
               onChange={(e) => setComparableType(e.target.value as ComparableType)}
             >
-              {COMPARABLE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {COMPARABLE_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
                 </option>
               ))}
             </select>
@@ -246,16 +257,17 @@ export function BadComparableReportPage() {
 
           <fieldset className="space-y-[var(--lc-space-sm)]">
             <legend className="text-[length:var(--lc-type-overline)] text-[var(--lc-text-muted)]">
-              {copy.reasonLabel}
+              {t('reasonLabel')}
             </legend>
             <div
               role="radiogroup"
-              aria-label={copy.reasonLabel}
+              aria-label={t('reasonLabel')}
               className="grid grid-cols-2 gap-[var(--lc-space-sm)] md:grid-cols-3"
             >
               {BAD_COMPARABLE_REASONS.map((item) => {
                 const Icon = REASON_ICONS[item.glyph as keyof typeof REASON_ICONS] ?? AlertCircle
                 const selected = reason === item.value
+                const labels = reasonCopy(item.value, locale)
                 return (
                   <button
                     key={item.value}
@@ -279,13 +291,13 @@ export function BadComparableReportPage() {
                     ) : null}
                     <Icon className="h-5 w-5 text-[var(--lc-text-muted)]" aria-hidden />
                     <span className="text-sm font-medium text-[var(--lc-text-primary)]">
-                      {item.label}
+                      {labels.label}
                     </span>
                     <span
                       id={`bcr-reason-help-${item.value}`}
                       className="text-xs text-[var(--lc-text-muted)]"
                     >
-                      {item.helper}
+                      {labels.helper}
                     </span>
                   </button>
                 )
@@ -294,20 +306,20 @@ export function BadComparableReportPage() {
           </fieldset>
 
           <div className="space-y-[var(--lc-space-sm)]">
-            <Label htmlFor="bcr-notes">{copy.notesLabel}</Label>
+            <Label htmlFor="bcr-notes">{t('notesLabel')}</Label>
             <textarea
               id="bcr-notes"
               rows={4}
               maxLength={BAD_COMPARABLE_NOTES_MAX + 50}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder={copy.notesPlaceholder}
+              placeholder={t('notesPlaceholder')}
               className="w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] px-3 py-2 text-sm text-[var(--lc-text-primary)]"
               aria-describedby="bcr-notes-hint"
             />
             <div className="flex items-start justify-between gap-2">
               <p id="bcr-notes-hint" className="text-xs text-[var(--lc-text-muted)]">
-                {notesLen > 0 && notesLen < BAD_COMPARABLE_NOTES_MIN ? copy.notesTooShort : null}
+                {notesLen > 0 && notesLen < BAD_COMPARABLE_NOTES_MIN ? t('notesTooShort') : null}
               </p>
               <CharacterCounter value={notes.length} max={BAD_COMPARABLE_NOTES_MAX} />
             </div>
@@ -320,25 +332,25 @@ export function BadComparableReportPage() {
             accepted_types={BAD_COMPARABLE_ACCEPTED_TYPES}
             onAdd={evidence.onAdd}
             onRemove={evidence.onRemove}
-            label={copy.evidenceLabel}
-            helper_text={copy.evidenceHelper}
+            label={t('evidenceLabel')}
+            helper_text={t('evidenceHelper')}
             disabled={submitting}
           />
 
           <fieldset className="space-y-[var(--lc-space-sm)]">
             <legend className="text-[length:var(--lc-type-overline)] text-[var(--lc-text-muted)]">
-              {copy.confidenceLabel}
+              {t('confidenceLabel')}
             </legend>
             <div
               role="radiogroup"
-              aria-label={copy.confidenceLabel}
+              aria-label={t('confidenceLabel')}
               className="flex max-w-[360px] overflow-hidden rounded-[var(--lc-radius-pill)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)]"
             >
               {(
                 [
-                  ['self_witnessed', copy.confidenceSelf],
-                  ['hearsay', copy.confidenceHearsay],
-                  ['hard_evidence', copy.confidenceEvidence],
+                  ['self_witnessed', t('confidenceSelf')],
+                  ['hearsay', t('confidenceHearsay')],
+                  ['hard_evidence', t('confidenceEvidence')],
                 ] as const
               ).map(([value, label]) => {
                 const selected = confidence === value
@@ -371,7 +383,7 @@ export function BadComparableReportPage() {
 
           <div className="sticky bottom-0 flex flex-col-reverse gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] py-[var(--lc-space-md)] shadow-[var(--lc-elevation-sm)] sm:flex-row sm:items-center sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
-              {copy.cancel}
+              {t('cancel')}
             </Button>
             <Button
               type="submit"
@@ -383,10 +395,10 @@ export function BadComparableReportPage() {
               {submitting ? (
                 <>
                   <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
-                  {copy.submitBusy}
+                  {t('submitBusy')}
                 </>
               ) : (
-                copy.submitIdle
+                t('submitIdle')
               )}
             </Button>
             {disabledReason ? (
