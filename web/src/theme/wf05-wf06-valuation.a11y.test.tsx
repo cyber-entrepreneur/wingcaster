@@ -595,6 +595,64 @@ describe('Wave 5 a11y — PIIMask on reporter identifiers', () => {
     )
     expect(await axe(container)).toHaveNoViolations()
   })
+
+  it('PIIMask exposes Masked name accessible label without leaking plaintext', () => {
+    wrap(
+      <PIIMask
+        value="Ahmed Khan"
+        kind="name"
+        auditContext={{ caseId: 'cmr_001', field: 'reporter_name' }}
+      />,
+    )
+    expect(screen.getByLabelText(/Masked name/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Reveal PII \(audited\)/i })).toBeInTheDocument()
+    expect(screen.queryByText('Ahmed Khan')).toBeNull()
+  })
+})
+
+describe('Wave 5 a11y — reporter-pattern amber not color-only + market-impact readable', () => {
+  it('queue reporter-pattern signal has role=img + text aria-label', async () => {
+    wrapQueue()
+    await screen.findByText('Villa · Saadiyat')
+    const dot = screen.getByRole('img', { name: /possible pattern/i })
+    expect(dot).toHaveAttribute('data-reporter-pattern', 'true')
+    expect(dot.getAttribute('aria-label') ?? '').toMatch(/reports/i)
+  })
+
+  it('market-impact chip announces valuations affected (not color-only)', async () => {
+    wrapQueue()
+    await screen.findByText('Villa · Saadiyat')
+    const chip = screen.getByLabelText(/valuations affected/i)
+    expect(chip).toHaveAttribute('data-market-impact-tier', 'high')
+    expect(chip.textContent).toMatch(/valuations/)
+  })
+
+  it('detail market-impact section includes affected valuations copy', async () => {
+    wrapDetail()
+    await screen.findByText(/Valuations affected/i)
+    expect(screen.getByRole('tab', { name: /Affected valuations/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/recalculation|affected valuations/i).length).toBeGreaterThan(0)
+  })
+})
+
+describe('Wave 5 a11y — submitter form labels/errors associated', () => {
+  it('AGT-APR-004 associates labels and disabled-submit hint', async () => {
+    const { container } = wrapBadSubmit()
+    await screen.findByRole('heading', { name: /Report a bad comparable/i })
+    expect(screen.getByLabelText(/Comparable ID/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Tell PA what happened/i)).toHaveAttribute(
+      'aria-describedby',
+      'bcr-notes-hint',
+    )
+    const submit = screen.getByRole('button', { name: /Submit/i })
+    expect(submit).toBeDisabled()
+    expect(submit).toHaveAttribute('aria-describedby', 'bcr-submit-hint')
+    expect(document.getElementById('bcr-submit-hint')?.textContent).toMatch(/Submit disabled/i)
+
+    fireEvent.submit(container.querySelector('form')!)
+    const alert = await screen.findByRole('alert')
+    expect(alert.id).toBe('bcr-form-error')
+  })
 })
 
 describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => {
@@ -659,9 +717,11 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
   it('PA-PVA-009b PriceReportDetailPage passes axe (masked PIIMask region)', async () => {
     const { container } = wrapPriceDetail()
     await screen.findAllByText(/Dubai Marina/i)
-    // Visible PIIMask stays masked; Phase A still echoes display_name in sr-only h1.
     expect(document.querySelector('[data-pii-kind="name"][data-pii-revealed="false"]')).toBeTruthy()
     expect(document.querySelector('[data-pii-kind="name"]')?.textContent).toContain('S*****')
+    // sr-only h1 must not echo plaintext agent name (quality fix).
+    expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
+    expect(container.querySelector('h1.sr-only')?.textContent ?? '').not.toMatch(/Sara Al Mansouri/)
     expect(
       await axe(container, {
         rules: {

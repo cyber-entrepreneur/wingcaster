@@ -287,13 +287,8 @@ function applyTheme(mode: Mode, dir: Dir) {
 
 async function snap(label: string, root: HTMLElement) {
   const html = serialize(root)
-  // Visible / non-sr-only tree must stay PII-safe. Full HTML may still contain
-  // Phase A sr-only heading echoes of agent display_name (PVA-009b).
   assertNoVisiblePlaintextPii(root, label)
-  // For non-PA-detail pages, also gate the full serialized HTML.
-  if (!/PVA-009b/.test(label)) {
-    assertNoPlaintextPii(html.replace(/<[^>]*class="[^"]*sr-only[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/g, ''), label)
-  }
+  assertNoPlaintextPii(html, label)
   expect(html).toMatchSnapshot()
 }
 
