@@ -26,6 +26,8 @@ export function ImpactPanel({
 
   return (
     <section
+      data-testid="impact-panel"
+      data-impact-mode={mode}
       aria-label="Valuation impact"
       className={cn(
         'rounded-lg bg-[var(--lc-surface-sunken)] p-[var(--lc-space-lg)]',

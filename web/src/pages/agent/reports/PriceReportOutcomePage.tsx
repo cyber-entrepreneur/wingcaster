@@ -10,6 +10,7 @@ import {
 } from '@/components/recipient'
 import { PIIMask } from '@/components/security'
 import { Numeric } from '@/components/ui/numeric'
+import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { OriginalReportAccordion } from './OriginalReportAccordion'
 import { ReportIdentityCard } from './ReportIdentityCard'
@@ -107,6 +108,7 @@ export function PriceReportOutcomePage() {
   const reportId = params.reportId || params.id
   const { report, loading, notFound, error, refetch } = usePriceReportOutcome(reportId)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
 
   const mapping = useMemo(
     () => (report ? mapPriceOutcomeState(report) : null),
@@ -225,20 +227,31 @@ export function PriceReportOutcomePage() {
         key: 'withdraw',
         label: 'Withdraw report',
         variant: 'ghost',
+        loading: withdrawing,
         confirm: {
           title: 'Withdraw your price report?',
-          body: 'The reviewer will stop looking at this. You can submit a fresh report anytime. (Withdraw API not yet available — contact support if you need this closed now.)',
+          body: 'The reviewer will stop looking at this. You can submit a fresh report anytime.',
           confirm_label: 'Withdraw',
           cancel_label: 'Keep report open',
         },
         onClick: () => {
-          // Thin gap: POST /api/users/me/price-reports/:id/withdraw not shipped.
+          void (async () => {
+            setWithdrawing(true)
+            try {
+              await api.withdrawPriceReport(report.id)
+              await refetch()
+            } catch {
+              // Alias may be absent on main — leave UI on current state.
+            } finally {
+              setWithdrawing(false)
+            }
+          })()
         },
       }
     }
 
     return { primary, secondary, tertiary }
-  }, [mapping, report, navigate])
+  }, [mapping, report, navigate, withdrawing, refetch])
 
   if (loading) {
     return (

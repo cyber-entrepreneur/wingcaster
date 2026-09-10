@@ -74,21 +74,21 @@ export function OriginalReportAccordion({
         className="border-t border-[var(--lc-border)] px-[var(--lc-space-md)] py-[var(--lc-space-md)]"
       >
         {body.reasonLabel ? (
-          <p className="mb-[var(--lc-space-sm)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+          <div className="mb-[var(--lc-space-sm)]" style={{ font: 'var(--lc-type-body-sm)' }}>
             <span className="text-[var(--lc-text-muted)]">Reason: </span>
             <Badge variant="outline" className="rounded-pill">
               {body.reasonLabel}
             </Badge>
-          </p>
+          </div>
         ) : null}
 
         {body.marketSegmentLabel ? (
-          <p className="mb-[var(--lc-space-sm)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+          <div className="mb-[var(--lc-space-sm)]" style={{ font: 'var(--lc-type-body-sm)' }}>
             <span className="text-[var(--lc-text-muted)]">Market segment: </span>
             <Badge variant="outline" className="rounded-pill">
               {body.marketSegmentLabel}
             </Badge>
-          </p>
+          </div>
         ) : null}
 
         {body.priceBands && body.priceBands.length > 0 ? (

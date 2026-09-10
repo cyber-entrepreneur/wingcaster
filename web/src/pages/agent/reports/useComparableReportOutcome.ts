@@ -12,14 +12,89 @@ export type ComparableOutcomeQuery = {
   refetch: () => Promise<void>
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+/** Normalize brief-shaped `{ report, comparable, resolver, impact }` into a list row. */
+function normalizeOutcomePayload(payload: unknown, reportId: string): ComparableReportRow | null {
+  if (!isRecord(payload)) return null
+
+  if (typeof payload.id === 'string' && !isRecord(payload.report)) {
+    return payload as ComparableReportRow
+  }
+
+  if (!isRecord(payload.report) || typeof payload.report.id !== 'string') return null
+
+  const report = payload.report
+  const comparable = isRecord(payload.comparable) ? payload.comparable : null
+  const resolver = isRecord(payload.resolver) ? payload.resolver : null
+  const impact = isRecord(payload.impact) ? payload.impact : null
+  const existingData = isRecord(report.data) ? report.data : {}
+  const existingDecision = isRecord(existingData.decision) ? existingData.decision : {}
+
+  const action =
+    typeof report.action === 'string'
+      ? report.action
+      : typeof existingDecision.action === 'string'
+        ? existingDecision.action
+        : undefined
+
+  return {
+    id: report.id || reportId,
+    status: typeof report.status === 'string' ? report.status : 'pending',
+    reason: typeof report.reason_code === 'string' ? report.reason_code : undefined,
+    notes: typeof report.notes === 'string' ? report.notes : null,
+    comparable_id: comparable && typeof comparable.id === 'string' ? comparable.id : undefined,
+    submitted_at: typeof report.submitted_at === 'string' ? report.submitted_at : undefined,
+    created_at: typeof report.submitted_at === 'string' ? report.submitted_at : undefined,
+    picked_up_at: typeof report.picked_up_at === 'string' ? report.picked_up_at : null,
+    decided_at: typeof report.decided_at === 'string' ? report.decided_at : null,
+    resolved_at: typeof report.resolved_at === 'string' ? report.resolved_at : null,
+    expires_at: typeof report.expires_at === 'string' ? report.expires_at : null,
+    superseded_by_report_id:
+      typeof report.superseded_by_report_id === 'string' ? report.superseded_by_report_id : null,
+    sla_hours: typeof report.sla_hours === 'number' ? report.sla_hours : undefined,
+    decision_notes: resolver && typeof resolver.message === 'string' ? resolver.message : null,
+    data: {
+      ...existingData,
+      comparable: comparable
+        ? {
+            address_label: String(comparable.address_label || ''),
+            market_label: String(comparable.market_label || ''),
+            source_label: String(comparable.source_label || ''),
+          }
+        : undefined,
+      evidence: Array.isArray(report.evidence) ? report.evidence : undefined,
+      decision: {
+        ...existingDecision,
+        action,
+        notes: resolver && typeof resolver.message === 'string' ? resolver.message : undefined,
+        market_impact: impact
+          ? {
+              valuations_affected:
+                typeof impact.affected_listings_count === 'number'
+                  ? impact.affected_listings_count
+                  : undefined,
+            }
+          : undefined,
+        resolver: resolver
+          ? {
+              display_name: String(resolver.display_name || ''),
+              avatar_url: typeof resolver.avatar_url === 'string' ? resolver.avatar_url : null,
+            }
+          : undefined,
+      },
+    },
+  }
+}
+
 /**
- * Compose outcome detail from live `GET /pricing/my-comparable-reports`
- * (user-scoped list). Missing id → not-found (404 semantics; list is already
- * scoped to the caller so foreign reports never appear).
+ * Load AGT-REC-002 outcome detail.
  *
- * Thin alias gap: briefs prefer `GET /api/users/me/comparable-reports/:id`
- * and detail-by-id under `/pricing/my-comparable-reports/:id` — neither
- * ships yet; see PR notes.
+ * Prefers `GET /api/users/me/comparable-reports/:id` (brief contract).
+ * Falls back to composing from `GET /api/pricing/my-comparable-reports`
+ * when the thin alias is not yet available. Missing ids → not-found.
  */
 export function useComparableReportOutcome(reportId: string | undefined): ComparableOutcomeQuery {
   const [report, setReport] = useState<ComparableReportRow | null>(null)
@@ -36,6 +111,20 @@ export function useComparableReportOutcome(reportId: string | undefined): Compar
     }
     try {
       setError(null)
+
+      try {
+        const detail = await api.getMyComparableReportOutcome(reportId)
+        const normalized = normalizeOutcomePayload(detail, reportId)
+        if (normalized) {
+          setNotFound(false)
+          setReport(normalized)
+          return
+        }
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status
+        if (status && status !== 404) throw err
+      }
+
       const rows = (await api.getMyComparableReports()) as ComparableReportRow[]
       const list = Array.isArray(rows) ? rows : []
       const hit = list.find((r) => r.id === reportId) ?? null

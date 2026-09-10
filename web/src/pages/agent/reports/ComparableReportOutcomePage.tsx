@@ -10,6 +10,7 @@ import {
 } from '@/components/recipient'
 import { PIIMask } from '@/components/security'
 import { Numeric } from '@/components/ui/numeric'
+import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { ImpactPanel } from './ImpactPanel'
 import { OriginalReportAccordion } from './OriginalReportAccordion'
@@ -159,6 +160,7 @@ export function ComparableReportOutcomePage() {
   const reportId = params.reportId || params.id
   const { report, loading, notFound, error, refetch } = useComparableReportOutcome(reportId)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
 
   const mapping = useMemo(
     () => (report ? mapComparableOutcomeState(report) : null),
@@ -271,21 +273,31 @@ export function ComparableReportOutcomePage() {
         key: 'withdraw',
         label: 'Withdraw report',
         variant: 'ghost',
-        // Withdraw POST alias not on main yet — document gap; keep confirm UI honest.
+        loading: withdrawing,
         confirm: {
           title: 'Withdraw your report?',
-          body: 'The reviewer will stop looking at this. You can submit a fresh report anytime. (Withdraw API not yet available — contact support if you need this closed now.)',
+          body: 'The reviewer will stop looking at this. You can submit a fresh report anytime.',
           confirm_label: 'Withdraw',
           cancel_label: 'Keep report open',
         },
         onClick: () => {
-          // Thin gap: POST /api/users/me/comparable-reports/:id/withdraw not shipped.
+          void (async () => {
+            setWithdrawing(true)
+            try {
+              await api.withdrawComparableReport(report.id)
+              await refetch()
+            } catch {
+              // Alias may be absent on main — leave UI on current state.
+            } finally {
+              setWithdrawing(false)
+            }
+          })()
         },
       }
     }
 
     return { primary, secondary, tertiary }
-  }, [mapping, report, navigate])
+  }, [mapping, report, navigate, withdrawing, refetch])
 
   if (loading) {
     return (

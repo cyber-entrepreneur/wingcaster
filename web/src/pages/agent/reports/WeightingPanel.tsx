@@ -39,6 +39,9 @@ export function WeightingPanel({
 
   return (
     <section
+      data-testid="weighting-panel"
+      data-weight-mode={mode}
+      data-weight={clamped}
       aria-label="Signal weighting"
       className={cn(
         'rounded-lg bg-[var(--lc-surface-sunken)] p-[var(--lc-space-lg)]',
