@@ -1,5 +1,5 @@
-﻿// @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('broadcast session channel', () => {
   let listeners: Set<(event: MessageEvent) => void>
@@ -24,13 +24,21 @@ describe('broadcast session channel', () => {
       close() {
         listeners.clear()
       }
+      // BroadcastChannel also exposes onmessage; unused by our wrapper.
+      onmessage: ((this: BroadcastChannel, ev: MessageEvent) => unknown) | null = null
+      dispatchEvent(): boolean {
+        return false
+      }
     }
 
     vi.resetModules()
     vi.stubGlobal('BroadcastChannel', MockBroadcastChannel)
-    // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
-    ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
-      MockBroadcastChannel as unknown as typeof BroadcastChannel
+    // jsdom: stubGlobal may not mirror onto window; the module gates on window.BroadcastChannel.
+    Object.defineProperty(window, 'BroadcastChannel', {
+      configurable: true,
+      writable: true,
+      value: MockBroadcastChannel,
+    })
   })
 
   afterEach(() => {
