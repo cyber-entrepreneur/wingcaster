@@ -3,12 +3,27 @@ import { Button } from '@/components/ui/button'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
 
+/** Built-in bulk actions the bar can expose. */
+export type PAQueueBulkAction = 'approve' | 'reject' | 'request_info'
+
+const DEFAULT_ACTIONS: PAQueueBulkAction[] = ['approve', 'reject', 'request_info']
+
 export interface PAQueueBulkBarProps {
   /**
-   * When false, the bar never renders (WF-04 PA-ACR-001 / WF-05 PA-PVA-008
-   * omit bulk for PII / market-impact safety). Default `true`.
+   * When false, the bar never renders (WF-04 PA-ACR-001 omits bulk for PII safety).
+   * Default `true`. WF-05 PA-PVA-008 keeps the bar but restricts `actions` —
+   * see `actions` prop comment.
    */
   showBulk?: boolean
+  /**
+   * Restrict which built-in buttons render. Default all three.
+   *
+   * WF-05 PA-PVA-008 MUST pass `['reject', 'request_info']` only — confirm-remove /
+   * confirm-quarantine (the "approve" family) are deliberately omitted because
+   * removal re-runs valuations market-wide; a wrong bulk confirm could invalidate
+   * thousands of valuations. Single-row confirm-remove lives on PA-PVA-008b only.
+   */
+  actions?: PAQueueBulkAction[]
   /** Number of selected rows. Bar hidden when 0 even if showBulk. */
   selectedCount: number
   /** Optional aggregate: distinct portals / categories in selection. */
@@ -19,24 +34,37 @@ export interface PAQueueBulkBarProps {
   onApprove?: () => void
   onReject?: () => void
   onRequestInfo?: () => void
-  /** Hide request-info for queues that lack that action. */
+  /**
+   * @deprecated Prefer `actions` without `'request_info'`.
+   * Hide request-info for queues that lack that action. Ignored when `actions` is set.
+   */
   showRequestInfo?: boolean
   /** Extra trailing actions slot. */
   extraActions?: ReactNode
   className?: string
   /** Override selected-count label prefix (i18n). */
   selectedLabel?: string
+  /** Override Approve button label (prefix before count). */
+  approveLabel?: string
+  /** Override Reject button label (prefix before count). */
+  rejectLabel?: string
+  /** Override Request-info button label (prefix before count). */
+  requestInfoLabel?: string
+  /** Optional step-up notice copy override. */
+  stepUpNotice?: string
 }
 
 /**
  * Floating / sliding bulk-action bar for PA queues.
  *
- * Used by: PA-MOD-001, PA-PKG-003, PA-PVA-009 (when bulk enabled).
- * Omitted via `showBulk={false}` for: PA-ACR-001 (WF-04), PA-PVA-008 (WF-05).
+ * Used by: PA-MOD-001, PA-PKG-003, PA-PVA-009 (full actions).
+ * Restricted via `actions={['reject','request_info']}` for: PA-PVA-008 (WF-05).
+ * Omitted via `showBulk={false}` for: PA-ACR-001 (WF-04).
  * Stub visual + prop types only — no real API.
  */
 export function PAQueueBulkBar({
   showBulk = true,
+  actions,
   selectedCount,
   acrossCount,
   highRiskCount = 0,
@@ -48,13 +76,28 @@ export function PAQueueBulkBar({
   extraActions,
   className,
   selectedLabel = 'selected',
+  approveLabel = 'Approve',
+  rejectLabel = 'Reject',
+  requestInfoLabel = 'Request info',
+  stepUpNotice = 'Step-up required for high-risk decisions.',
 }: PAQueueBulkBarProps) {
   if (!showBulk || selectedCount < 1) return null
+
+  const resolvedActions =
+    actions ??
+    (showRequestInfo
+      ? DEFAULT_ACTIONS
+      : (DEFAULT_ACTIONS.filter((a) => a !== 'request_info') as PAQueueBulkAction[]))
+
+  const showApprove = resolvedActions.includes('approve')
+  const showReject = resolvedActions.includes('reject')
+  const showRequest = resolvedActions.includes('request_info')
 
   return (
     <div
       role="status"
       aria-live="polite"
+      data-pa-queue-bulk-actions={resolvedActions.join(',')}
       className={cn(
         'flex flex-wrap items-center justify-between gap-[var(--lc-space-sm)]',
         'rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]',
@@ -82,22 +125,24 @@ export function PAQueueBulkBar({
           </span>
         ) : null}
         {highRiskCount > 0 ? (
-          <span className="text-sm text-[var(--lc-status-warning-fg)]">
-            Step-up required for high-risk decisions.
-          </span>
+          <span className="text-sm text-[var(--lc-status-warning-fg)]">{stepUpNotice}</span>
         ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="default" size="sm" onClick={onApprove}>
-          Approve <Numeric className="ms-1">{selectedCount}</Numeric>
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={onReject}>
-          Reject <Numeric className="ms-1">{selectedCount}</Numeric>
-        </Button>
-        {showRequestInfo ? (
+        {showApprove ? (
+          <Button type="button" variant="default" size="sm" onClick={onApprove}>
+            {approveLabel} <Numeric className="ms-1">{selectedCount}</Numeric>
+          </Button>
+        ) : null}
+        {showReject ? (
+          <Button type="button" variant="secondary" size="sm" onClick={onReject}>
+            {rejectLabel} <Numeric className="ms-1">{selectedCount}</Numeric>
+          </Button>
+        ) : null}
+        {showRequest ? (
           <Button type="button" variant="secondary" size="sm" onClick={onRequestInfo}>
-            Request info <Numeric className="ms-1">{selectedCount}</Numeric>
+            {requestInfoLabel} <Numeric className="ms-1">{selectedCount}</Numeric>
           </Button>
         ) : null}
         {extraActions}

@@ -67,6 +67,10 @@ import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
+  BadComparableQueuePage,
+  BadComparableDetailPage,
+} from '@/pages/admin/valuation'
+import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -215,10 +219,21 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+<<<<<<< HEAD
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 — account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
       <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
+=======
+      <Route
+        path="/admin/valuation/comparable-reports"
+        element={<BadComparableQueuePage />}
+      />
+      <Route
+        path="/admin/valuation/comparable-reports/:reportId"
+        element={<BadComparableDetailPage />}
+      />
+>>>>>>> b48dc13 (feat(pa-pva-008): WF-05 bad-comparable queue + detail)
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
