@@ -20,6 +20,12 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import {
+  BadComparableReportPage,
+  PriceReportPage,
+  ComparableReportOutcomePage,
+  PriceReportOutcomePage,
+} from '@/pages/agent/reports'
 import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
@@ -139,6 +145,7 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+<<<<<<< HEAD
       {/* AGT-REC-002 comparable-report outcome + matrix-legacy alias */}
       <Route
         path="/reports/comparables/:reportId/outcome"
@@ -148,6 +155,13 @@ function AppRoutes() {
       {/* AGT-REC-003 price-report outcome + matrix-legacy alias */}
       <Route path="/reports/prices/:reportId/outcome" element={<PriceReportOutcomePage />} />
       <Route path="/agent/pricing/reports/:id/outcome" element={<PriceReportOutcomePage />} />
+=======
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
+      <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+      <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/reports/prices/new" element={<PriceReportPage />} />
+      <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
+>>>>>>> b7b1966 (feat(agent): AGT-APR-004/005 bad-comparable + price-report submitters)
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
