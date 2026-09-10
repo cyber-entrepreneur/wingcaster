@@ -41,15 +41,20 @@ Wave 2 / Wave 3 — see `scratchpad/wave0-chromatic-gap.md`). `package.json` has
 
 ## PII-audit (mandatory)
 
-Every default-state snapshot is gated by `assertNoVisiblePlaintextPii` (strips
-`.sr-only` before scanning). Visible `<PIIMask>` regions must show masked
-reporter names only.
+Every default-state snapshot is gated by `assertNoPlaintextPii` against the full
+serialized DOM (including `.sr-only`). Visible `<PIIMask>` regions must show
+masked reporter names only; reveal states are covered by a11y interaction tests.
 
-**Known Phase A gap (not fixed on this quality branch):** PA-PVA-009b still puts
-`agent.display_name` into an `sr-only` `<h1>` for screen-reader context. Full-HTML
-snapshots therefore may contain plaintext in sr-only; Chromatic stand-ins assert
-the visible tree + `[data-pii-kind]` mask instead. Product follow-up once screens
-merge.
+**Quality fix:** PA-PVA-009b `sr-only` `<h1>` no longer echoes `agent.display_name`
+(uses segment label only; identity remains on `<PIIMask>`).
+
+## Highest-scrutiny checklist (WF-05)
+
+- [x] Bulk actions ONLY for low-impact decisions — confirm-remove absent from bulk bar
+- [x] Market-wide implications / affected valuations copy readable (aria-label + visible text)
+- [x] Two-person progress indicator — `role="progressbar"` + accessible name + valuemin/max/now
+- [x] Reporter-pattern amber signal is not color-only (`role="img"` + aria-label text)
+- [x] `<PIIMask>` masked accessible name present; plaintext absent until deliberate reveal
 
 ## WF-05 bulk-safety (highest risk)
 

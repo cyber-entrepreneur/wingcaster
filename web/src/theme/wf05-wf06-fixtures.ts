@@ -36,15 +36,11 @@ export function assertNoPlaintextPii(html: string, label: string) {
 }
 
 /**
- * Full-page Chromatic stand-in PII gate.
- * Strips `.sr-only` nodes first — Phase A PA-PVA-009b still puts the agent
- * display_name into an sr-only `<h1>` (product follow-up; not redesignable here).
- * Visible / PIIMask regions must still never leak plaintext.
+ * Full-page Chromatic stand-in PII gate (visible + sr-only).
+ * PA-PVA-009b sr-only heading no longer echoes agent display_name.
  */
 export function assertNoVisiblePlaintextPii(root: HTMLElement, label: string) {
-  const clone = root.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('.sr-only').forEach((el) => el.remove())
-  assertNoPlaintextPii(clone.innerHTML, label)
+  assertNoPlaintextPii(root.innerHTML, label)
 }
 
 
