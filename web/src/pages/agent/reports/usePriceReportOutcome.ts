@@ -31,9 +31,10 @@ function normalizeOutcomePayload(payload: unknown, reportId: string): AgentPrice
   const placement = isRecord(payload.signal_placement) ? payload.signal_placement : null
   const existingData = isRecord(report.data) ? report.data : {}
   const weight = typeof report.weight === 'number' ? report.weight : null
+  const id = typeof report.id === 'string' && report.id ? report.id : reportId
 
   return {
-    id: report.id || reportId,
+    id,
     status: typeof report.status === 'string' ? report.status : 'pending',
     notes: typeof report.methodology_notes === 'string' ? report.methodology_notes : null,
     review_notes: resolver && typeof resolver.message === 'string' ? resolver.message : null,
