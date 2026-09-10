@@ -57,8 +57,10 @@ import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/Agent
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import {
+  BadComparableReportPage,
   ComparableReportOutcomePage,
   PriceReportOutcomePage,
+  PriceReportPage,
 } from '@/pages/agent/reports'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
@@ -139,6 +141,11 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
+      <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+      <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/reports/prices/new" element={<PriceReportPage />} />
+      <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
       {/* AGT-REC-002 comparable-report outcome + matrix-legacy alias */}
       <Route
         path="/reports/comparables/:reportId/outcome"
