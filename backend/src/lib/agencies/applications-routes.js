@@ -19,6 +19,7 @@ import { addAgencyMembership, getAgencyMembership } from '../../tenant-authoriza
 import logger from '../logger.js'
 import { agencyApplicationCreateSchema, validate } from '../validation.js'
 import { agencyApplicationExpiresAt } from '../../workers/agency-application-expiry.js'
+import { safeEmitAgencyApplicationResolved } from './notify-application-resolved.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
 
@@ -231,6 +232,15 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
         await update('agents', (a) => a.id === agent.id, (a) => ({ ...a, agency_name: agency.name }))
       }
 
+      // Non-blocking: AGT-REC-004 / Wave 1 Agent 5 notification hook.
+      const recipientId = appRecord.applicant_user_id || agent.id
+      await safeEmitAgencyApplicationResolved({
+        userId: recipientId,
+        agencyName: agency.name,
+        applicationId: appRecord.id,
+        newStatus: 'approved',
+      })
+
       return res.json({ success: true })
     } catch (err) {
       return next(err)
@@ -245,9 +255,15 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
       if (!member || !ADMIN_ROLES.has(member.role)) {
         return res.status(403).json({ error: 'Forbidden' })
       }
-      const updated = await update(
+      const appRecord = await findOne(
         'agency_applications',
         (a) => a.id === req.params.appId && a.agency_id === agency.id,
+      )
+      if (!appRecord) return res.status(404).json({ error: 'Application not found' })
+
+      const updated = await update(
+        'agency_applications',
+        (a) => a.id === appRecord.id,
         (a) => ({
           ...a,
           status: 'rejected',
@@ -256,6 +272,22 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
         }),
       )
       if (!updated) return res.status(404).json({ error: 'Application not found' })
+
+      // Non-blocking: AGT-REC-004 / Wave 1 Agent 5 notification hook.
+      if (appRecord.applicant_user_id) {
+        await safeEmitAgencyApplicationResolved({
+          userId: appRecord.applicant_user_id,
+          agencyName: agency.name,
+          applicationId: appRecord.id,
+          newStatus: 'rejected',
+        })
+      } else {
+        logger.warn(
+          { applicationId: appRecord.id },
+          'agency_application.resolved reject skipped: missing applicant_user_id',
+        )
+      }
+
       return res.json({ success: true })
     } catch (err) {
       return next(err)

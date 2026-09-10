@@ -7,10 +7,13 @@
  * during the BE-06 merge window.
  *
  * Idempotent: already-expired (or non-pending) rows are skipped.
+ * On each newly-expired row, emits agency_application.resolved.expired
+ * (Wave 1 WF-02 / AGT-REC-004) via safeEmitAgencyApplicationResolved.
  */
 
 import logger from '../lib/logger.js'
 import { query } from '../db.js'
+import { safeEmitAgencyApplicationResolved } from '../lib/agencies/notify-application-resolved.js'
 
 export const AGENCY_APPLICATION_EXPIRY_DAYS = 30
 
@@ -37,6 +40,37 @@ async function agencyApplicationsTableExists() {
   return rows.length > 0
 }
 
+async function agencyNamesByIds(agencyIds) {
+  const ids = [...new Set((agencyIds || []).filter(Boolean))]
+  if (!ids.length) return new Map()
+  const rows = await query(
+    `SELECT id, name FROM public.agencies WHERE id = ANY($1::text[])`,
+    [ids],
+  )
+  return new Map(rows.map((r) => [r.id, r.name]))
+}
+
+async function notifyExpiredRows(rows) {
+  if (!rows?.length) return
+  const names = await agencyNamesByIds(rows.map((r) => r.agency_id))
+  for (const row of rows) {
+    const userId = row.applicant_user_id || null
+    if (!userId) {
+      logger.warn(
+        { applicationId: row.id },
+        'agency_application.resolved expire skipped: missing applicant_user_id',
+      )
+      continue
+    }
+    await safeEmitAgencyApplicationResolved({
+      userId,
+      agencyName: names.get(row.agency_id) || row.agency_name || 'the agency',
+      applicationId: row.id,
+      newStatus: 'expired',
+    })
+  }
+}
+
 async function expireTypedTable(nowIso) {
   const due = await query(
     `SELECT id, status
@@ -56,8 +90,9 @@ async function expireTypedTable(nowIso) {
     }
   }
 
+  let updated = []
   if (due.some((r) => r.status === 'pending')) {
-    const updated = await query(
+    updated = await query(
       `UPDATE public.agency_applications
           SET status = 'expired',
               updated_at = $1::timestamptz,
@@ -68,10 +103,11 @@ async function expireTypedTable(nowIso) {
         WHERE status = 'pending'
           AND expires_at IS NOT NULL
           AND expires_at <= $1::timestamptz
-        RETURNING id`,
+        RETURNING id, applicant_user_id, agency_id`,
       [nowIso],
     )
     expired = updated.length
+    await notifyExpiredRows(updated)
   }
 
   return { expired, skipped, scanned: due.length }
@@ -104,8 +140,9 @@ async function expireLegacyCollections(nowIso) {
     }
   }
 
+  let updated = []
   if (due.some((r) => r.status === 'pending')) {
-    const updated = await query(
+    updated = await query(
       `UPDATE public.legacy_collections
           SET data = data
                 || jsonb_build_object(
@@ -124,10 +161,14 @@ async function expireLegacyCollections(nowIso) {
               ELSE COALESCE(created_at, CURRENT_TIMESTAMP) + INTERVAL '30 days'
             END
           ) <= $1::timestamptz
-        RETURNING id`,
+        RETURNING id,
+                  data->>'applicant_user_id' AS applicant_user_id,
+                  data->>'agency_id' AS agency_id,
+                  data->>'agency_name' AS agency_name`,
       [nowIso],
     )
     expired = updated.length
+    await notifyExpiredRows(updated)
   }
 
   return { expired, skipped, scanned: due.length }
