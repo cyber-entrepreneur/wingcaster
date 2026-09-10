@@ -194,8 +194,10 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     const outcome = mine.body.find((r) => r.id === reportId)
     expect(outcome).toBeTruthy()
     expect(outcome.status).toBe('confirmed_removed')
-    // ImpactPanel reads decision.market_impact (DAL fromRow flattens JSONB `data`)
+    // ImpactPanel: status is SoT; decision snapshot is promoted to top-level
+    // because Postgres fromRow flattens JSONB `data` and drops the nested key.
     const decision = outcome.decision ?? outcome.data?.decision
+    expect(decision, JSON.stringify(outcome)).toBeTruthy()
     const impact =
       decision?.market_impact?.valuations_affected ??
       outcome.market_impact?.valuations_affected ??
@@ -204,8 +206,6 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     const decisionAction =
       decision?.action ||
       decision?.decision_label ||
-      outcome.data?.decision?.action ||
-      outcome.data?.decision?.decision_label ||
       ''
     expect(String(decisionAction)).toMatch(/confirm_remove|CONFIRM_REMOVE|removed|REMOVED/)
   })

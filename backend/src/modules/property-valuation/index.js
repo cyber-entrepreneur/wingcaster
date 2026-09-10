@@ -208,6 +208,7 @@ export {
   WF05_DECISION_STATUS,
   COMPARABLE_REMOVE_ACTION_KIND,
   buildDecisionSnapshot,
+  readDecision,
   summarizeReport,
   OPEN_DECISION_STATUSES,
   DECIDED_STATUSES,
