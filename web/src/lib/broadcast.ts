@@ -15,7 +15,7 @@ export const SESSION_BROADCAST_CHANNEL = 'wingcaster-session'
 type SessionBroadcastListener = (event: SessionBroadcastEvent) => void
 
 function canUseBroadcastChannel(): boolean {
-  return typeof window !== 'undefined' && typeof window.BroadcastChannel !== 'undefined'
+  return typeof globalThis !== 'undefined' && typeof globalThis.BroadcastChannel === 'function'
 }
 
 let channel: BroadcastChannel | null = null
@@ -23,7 +23,7 @@ let channel: BroadcastChannel | null = null
 function getChannel(): BroadcastChannel | null {
   if (!canUseBroadcastChannel()) return null
   if (!channel) {
-    channel = new BroadcastChannel(SESSION_BROADCAST_CHANNEL)
+    channel = new globalThis.BroadcastChannel(SESSION_BROADCAST_CHANNEL)
   }
   return channel
 }
@@ -48,4 +48,14 @@ export function subscribeSessionEvents(listener: SessionBroadcastListener): () =
   return () => {
     ch.removeEventListener('message', handler)
   }
+}
+
+/** Test-only: drop the cached channel so the next call rebuilds against the current stub. */
+export function __resetSessionBroadcastForTests(): void {
+  try {
+    channel?.close()
+  } catch {
+    /* ignore */
+  }
+  channel = null
 }
