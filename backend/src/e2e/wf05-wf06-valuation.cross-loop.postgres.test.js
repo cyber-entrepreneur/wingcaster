@@ -194,18 +194,20 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     const outcome = mine.body.find((r) => r.id === reportId)
     expect(outcome).toBeTruthy()
     expect(outcome.status).toBe('confirmed_removed')
-    // ImpactPanel reads data.decision.market_impact.valuations_affected
+    // ImpactPanel reads decision.market_impact (DAL fromRow flattens JSONB `data`)
+    const decision = outcome.decision ?? outcome.data?.decision
     const impact =
-      outcome.data?.decision?.market_impact?.valuations_affected ??
+      decision?.market_impact?.valuations_affected ??
+      outcome.market_impact?.valuations_affected ??
       outcome.data?.market_impact?.valuations_affected
     expect(typeof impact === 'number' || impact == null).toBe(true)
-    // Decision snapshot shape varies (action vs decision_label); status is SoT for ImpactPanel.
     const decisionAction =
+      decision?.action ||
+      decision?.decision_label ||
       outcome.data?.decision?.action ||
       outcome.data?.decision?.decision_label ||
-      outcome.data?.decision_label ||
       ''
-    expect(String(decisionAction)).toMatch(/confirm_remove|CONFIRM_REMOVE|removed|REMOVED|^$/)
+    expect(String(decisionAction)).toMatch(/confirm_remove|CONFIRM_REMOVE|removed|REMOVED/)
   })
 
   it('WF-05 high market-impact confirm-remove → REMOVE_PROPOSED (two-person)', async () => {
