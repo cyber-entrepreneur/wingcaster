@@ -308,13 +308,13 @@ export function SideDrawer({
     if (mode !== 'overlay') return
     const panel = panelRef.current
     const previouslyFocused = document.activeElement as HTMLElement | null
-    const focusables = () =>
+    const focusables = (): HTMLElement[] =>
       panel
         ? Array.from(
-            panel.querySelectorAll<HTMLElement>(
+            panel.querySelectorAll(
               'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
             ),
-          )
+          ).filter((node): node is HTMLElement => node instanceof HTMLElement)
         : []
 
     focusables()[0]?.focus()
@@ -328,8 +328,8 @@ export function SideDrawer({
       if (event.key !== 'Tab' || !panel) return
       const nodes = focusables()
       if (nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
+      const first = nodes[0]!
+      const last = nodes[nodes.length - 1]!
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()

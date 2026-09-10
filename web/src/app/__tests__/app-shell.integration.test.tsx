@@ -51,46 +51,51 @@ vi.mock('@/hooks/useContactAttentionCount', () => ({
 }))
 
 const tenantSwitch = vi.hoisted(() => vi.fn())
-const tenantState = vi.hoisted(() => ({
-  value: {
-    tenants: [
-      {
-        id: 'personal:u1',
-        name: 'Sara Agent',
-        avatarUrl: null,
-        role: 'owner' as const,
-        kind: 'personal' as const,
-        listingsCount: 1,
-        agentsCount: 1,
-      },
-      {
-        id: 'agency-elite',
-        name: 'Elite Real Estate',
-        avatarUrl: null,
-        role: 'owner' as const,
-        kind: 'agency' as const,
-        listingsCount: 10,
-        agentsCount: 4,
-      },
-    ],
-    activeTenantId: 'personal:u1',
-    activeTenant: {
+type TestTenant = {
+  id: string
+  name: string
+  avatarUrl: null
+  role: 'owner'
+  kind: 'personal' | 'agency'
+  listingsCount: number
+  agentsCount: number
+}
+
+const tenantState = vi.hoisted(() => {
+  const tenants: TestTenant[] = [
+    {
       id: 'personal:u1',
       name: 'Sara Agent',
       avatarUrl: null,
-      role: 'owner' as const,
-      kind: 'personal' as const,
+      role: 'owner',
+      kind: 'personal',
       listingsCount: 1,
       agentsCount: 1,
     },
-    loading: false,
-    switching: false,
-    error: null as string | null,
-    isMultiTenant: true,
-    refresh: vi.fn(),
-    switchTenant: tenantSwitch,
-  },
-}))
+    {
+      id: 'agency-elite',
+      name: 'Elite Real Estate',
+      avatarUrl: null,
+      role: 'owner',
+      kind: 'agency',
+      listingsCount: 10,
+      agentsCount: 4,
+    },
+  ]
+  return {
+    value: {
+      tenants,
+      activeTenantId: 'personal:u1',
+      activeTenant: tenants[0] as TestTenant,
+      loading: false,
+      switching: false,
+      error: null as string | null,
+      isMultiTenant: true,
+      refresh: vi.fn(),
+      switchTenant: tenantSwitch,
+    },
+  }
+})
 
 vi.mock('@/hooks/useTenant', async () => {
   const actual = await vi.importActual<typeof import('@/hooks/useTenant')>('@/hooks/useTenant')
