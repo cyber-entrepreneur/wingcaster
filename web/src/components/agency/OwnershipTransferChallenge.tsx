@@ -382,7 +382,6 @@ export function OwnershipTransferChallenge({
                 <Input
                   id="ownership-typed-agency-name"
                   value={typedName}
-                  disabled={step3Status === 'disabled'}
                   placeholder={`Type "${agencyName}" to confirm`}
                   autoComplete="off"
                   spellCheck={false}

@@ -212,9 +212,9 @@ describe('Wave 0 app shell integration', () => {
       tenantState.value = {
         ...tenantState.value,
         activeTenantId: id,
-        activeTenant: next,
+        activeTenant: next as (typeof tenantState.value)['activeTenant'],
       }
-      return next
+      return next as (typeof tenantState.value)['activeTenant']
     })
     __resetEnvStoreForTests('live')
     MockBroadcastChannel.listeners.clear()

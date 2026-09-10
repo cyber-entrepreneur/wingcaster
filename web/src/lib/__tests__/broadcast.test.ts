@@ -36,7 +36,7 @@ describe('broadcast session channel', () => {
 
   it('publishes and receives tenant-switched events on wingcaster-session', async () => {
     const { publishSessionEvent, subscribeSessionEvents, SESSION_BROADCAST_CHANNEL } =
-      await import('./broadcast')
+      await import('../broadcast')
 
     expect(SESSION_BROADCAST_CHANNEL).toBe('wingcaster-session')
 
