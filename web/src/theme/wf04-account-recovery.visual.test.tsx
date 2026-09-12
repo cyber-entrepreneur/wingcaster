@@ -245,11 +245,15 @@ function serialize(root: HTMLElement): string {
   const dir = document.documentElement.dir || 'ltr'
   const lang = document.documentElement.lang || 'en'
   const body = `${clone.innerHTML}\n<!-- portals -->\n${portals}`
-  // Stabilize relative/absolute timestamps so CI (Linux) and local (Windows) match.
+  // Stabilize relative/absolute timestamps so CI (Linux UTC) and local (Windows) match.
   const stable = body
     .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
     .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
     .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}/g, '__ABS__')
+    .replace(
+      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s+[A-Z]{2,5}\b/g,
+      '__ABS__',
+    )
   return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 
