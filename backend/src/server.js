@@ -205,6 +205,7 @@ import { registerRoutes as registerActivationStateRoutes } from './lib/activatio
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
+import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -739,6 +740,7 @@ registerAgencyOnboardingStateRoutes(app)
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
+registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({

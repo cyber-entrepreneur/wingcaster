@@ -112,6 +112,7 @@ const TABLE_MAP = {
       'scope', 'status', 'consent_record', 'starts_at', 'ends_at',
     ],
   },
+  // contacts.cross_tenant_visibility added in 339_contact_relationships_crud
   lead_assignments: {
     schema: 'public',
     table: 'lead_assignments',
@@ -191,7 +192,10 @@ const TABLE_MAP = {
   contacts: {
     schema: 'public',
     table: 'contacts',
-    columns: ['email', 'phone', 'name', 'assigned_agent_id', 'agency_id', 'status', 'source', 'first_touch_channel', 'first_touch_at', 'tags', 'last_activity_at'],
+    columns: [
+      'email', 'phone', 'name', 'assigned_agent_id', 'agency_id', 'status', 'source',
+      'first_touch_channel', 'first_touch_at', 'tags', 'last_activity_at', 'cross_tenant_visibility',
+    ],
   },
   contact_notes: { schema: 'public', table: 'contact_notes', columns: ['contact_id', 'agent_id', 'content'] },
   inquiries: {
