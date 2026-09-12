@@ -1,6 +1,7 @@
 import { findOne, transaction, update } from './db.js'
 import { provisionFreeTier } from './lib/packages/onboarding.js'
 import { assertNoPriorClaim, recordClaim } from './lib/auth/free-trial-claims.js'
+import { revokeUserSessions } from './lib/auth/user-sessions.js'
 
 export async function findUserById(userId) {
   return findOne('users', (user) => user.id === userId)
@@ -225,6 +226,9 @@ export async function bumpTokenVersion(client, userId) {
       WHERE id = $1`,
     [userId, updatedAt],
   )
+  // Global eject: outstanding JWTs fail the version check; also stamp the
+  // per-session rows so GET /api/auth/sessions does not keep listing them.
+  await revokeUserSessions(userId, { client })
 }
 
 export async function updatePlatformRole(userId, platformRole) {
@@ -251,5 +255,6 @@ export async function updatePlatformRole(userId, platformRole) {
       [userId, platformRole, updatedAt],
     )
     if (userResult.rowCount !== 1) throw new Error('User not found')
+    await revokeUserSessions(userId, { client })
   })
 }
