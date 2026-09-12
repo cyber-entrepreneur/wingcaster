@@ -147,8 +147,6 @@
   --lc-channel-dubizzle-on: #FFFFFF;
   --lc-channel-aqar: #0B7A4B;
   --lc-channel-aqar-on: #FFFFFF;
-  --lc-channel-blue_door: #1B4F9C;
-  --lc-channel-blue_door-on: #FFFFFF;
 }
 
 [data-lc-mode="dark"] {
@@ -222,8 +220,6 @@
   --lc-channel-dubizzle-on: #0B0E12;
   --lc-channel-aqar: #4BE38C;
   --lc-channel-aqar-on: #0B0E12;
-  --lc-channel-blue_door: #6BA8F5;
-  --lc-channel-blue_door-on: #0B0E12;
 }
 
 /* Same values as the block above, generated from one source. If they ever drift, this
@@ -300,8 +296,6 @@
     --lc-channel-dubizzle-on: #0B0E12;
     --lc-channel-aqar: #4BE38C;
     --lc-channel-aqar-on: #0B0E12;
-    --lc-channel-blue_door: #6BA8F5;
-    --lc-channel-blue_door-on: #0B0E12;
   }
 }
 

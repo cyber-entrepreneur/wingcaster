@@ -21,7 +21,6 @@ const SURFACES = [
   'Dubizzle',
   'OLX',
   'Aqar',
-  'Blue Door',
 ] as const
 
 export interface StepPublishPreviewProps {

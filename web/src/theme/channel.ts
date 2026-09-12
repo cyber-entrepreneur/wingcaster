@@ -11,7 +11,6 @@ export const LC_CHANNELS = [
   'property_finder',
   'dubizzle',
   'aqar',
-  'blue_door',
 ] as const
 
 export type LcChannel = (typeof LC_CHANNELS)[number]
@@ -37,9 +36,6 @@ const CHANNEL_ALIAS: Record<string, LcChannel> = {
   dubizzle: 'dubizzle',
   aqar: 'aqar',
   'aqar.fm': 'aqar',
-  blue_door: 'blue_door',
-  bluedoor: 'blue_door',
-  'blue door': 'blue_door',
 }
 
 export const LC_CHANNEL_SHORT: Record<LcChannel, string> = {
@@ -55,7 +51,6 @@ export const LC_CHANNEL_SHORT: Record<LcChannel, string> = {
   property_finder: 'PF',
   dubizzle: 'DZ',
   aqar: 'AQ',
-  blue_door: 'BD',
 }
 
 export function resolveLcChannel(value: string | null | undefined): LcChannel | null {

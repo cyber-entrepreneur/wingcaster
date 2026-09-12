@@ -824,17 +824,8 @@
             "$value": "#FFFFFF",
             "$type": "color"
           }
-        },
-        "blue_door": {
-          "mark": {
-            "$value": "#1B4F9C",
-            "$type": "color"
-          },
-          "on": {
-            "$value": "#FFFFFF",
-            "$type": "color"
-          }
         }
+      },
       }
     },
     "dark": {
@@ -1179,17 +1170,8 @@
             "$value": "#0B0E12",
             "$type": "color"
           }
-        },
-        "blue_door": {
-          "mark": {
-            "$value": "#6BA8F5",
-            "$type": "color"
-          },
-          "on": {
-            "$value": "#0B0E12",
-            "$type": "color"
-          }
         }
+      },
       }
     }
   },
