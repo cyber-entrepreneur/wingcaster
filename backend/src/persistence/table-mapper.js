@@ -92,7 +92,14 @@ const TABLE_MAP = {
     table: 'tenant_memberships',
     columns: [
       'tenant_id', 'user_id', 'role', 'affiliation_mode', 'status', 'public_profile', 'lead_eligible',
-      'capabilities', 'legacy_agency_member_id', 'invited_by', 'joined_at', 'ended_at', 'end_reason',
+      'capabilities', 'capability_packs', 'legacy_agency_member_id', 'invited_by', 'joined_at', 'ended_at', 'end_reason',
+    ],
+  },
+  capability_pack_definitions: {
+    schema: 'public',
+    table: 'capability_pack_definitions',
+    columns: [
+      'slug', 'name', 'description', 'capabilities', 'is_seeded', 'is_custom', 'editable', 'sort_order',
     ],
   },
   tenant_lead_routing_policies: {
