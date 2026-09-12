@@ -52,9 +52,9 @@ const {
 } = vi.hoisted(() => ({
   castVoteMock: vi.fn(),
   getCaseMock: vi.fn(),
-  revealAuditMock: vi.fn(async () => ({ ok: true })),
+  revealAuditMock: vi.fn<(caseId: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
   listMock: vi.fn(),
-  revealQueueMock: vi.fn(async () => ({ ok: true })),
+  revealQueueMock: vi.fn<(caseId: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
   addToastMock: vi.fn(),
 }))
 
