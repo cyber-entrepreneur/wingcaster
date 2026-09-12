@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
+import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
 
 export interface RateLimitBannerProps {
@@ -6,7 +7,7 @@ export interface RateLimitBannerProps {
   message: string
   /**
    * Optional lockout remaining minutes for countdown display.
-   * Rendered via monospace tabular numerals when provided.
+   * Rendered via `<Numeric>` when provided.
    */
   retryAfterMinutes?: number
   /** Optional accessible live-region politeness. Defaults to assertive. */
@@ -19,7 +20,6 @@ export interface RateLimitBannerProps {
  *
  * Used by: SHR-MFA-004, SHR-MFA-004b, SHR-MFA-007, SHR-AUT-001.
  * Tokens: `--lc-status-warning-*` + `AlertTriangle` glyph.
- * Stub visual only — parent owns timer / API.
  */
 export function RateLimitBanner({
   message,
@@ -43,10 +43,13 @@ export function RateLimitBanner({
         aria-hidden
       />
       <div className="min-w-0 font-[family-name:var(--lc-font-ui)] text-[length:var(--lc-type-body-sm)]">
-        <p>{message}</p>
+        <p>
+          <span aria-hidden>⚠ </span>
+          {message}
+        </p>
         {typeof retryAfterMinutes === 'number' ? (
-          <p className="mt-1 font-[family-name:var(--lc-font-mono)] tabular-nums">
-            Retry in {retryAfterMinutes} min
+          <p className="mt-1">
+            Retry in <Numeric>{retryAfterMinutes}</Numeric> min
           </p>
         ) : null}
       </div>

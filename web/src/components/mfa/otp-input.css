@@ -1,0 +1,21 @@
+/**
+ * OTP cell error shake (SHR-MFA-004). Tokens only; skipped when reduced-motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-otp-error] {
+    animation: lc-otp-shake 200ms var(--lc-easing-in-out);
+  }
+}
+
+@keyframes lc-otp-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
