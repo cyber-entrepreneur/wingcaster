@@ -8,6 +8,7 @@ import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
+import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -103,6 +104,8 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
       <Route path="/listings" element={<ListingsPage />} />
+      <Route path="/listings/new" element={<ManualListingComposerPage />} />
+      <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
