@@ -249,11 +249,12 @@ function serialize(root: HTMLElement): string {
   const stable = body
     .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
     .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
-    .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}/g, '__ABS__')
+    .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}(?:\s+[A-Z]{2,5})?/g, '__ABS__')
     .replace(
-      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s+[A-Z]{2,5}\b/g,
+      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}(?:\s+[A-Z]{2,5})?/g,
       '__ABS__',
     )
+    .replace(/__ABS__\\s+[A-Z]{2,5}\\b/g, '__ABS__')
   return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 
