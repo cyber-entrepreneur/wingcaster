@@ -51,4 +51,26 @@ describe('SessionsPage', () => {
     wrap()
     expect(await screen.findByRole('alert')).toHaveTextContent('backend down')
   })
+
+  it('does not interpolate an undefined foreign country', async () => {
+    apiMock.getAuthSessions.mockResolvedValue({
+      sessions: [
+        {
+          id: 's1',
+          is_current: true,
+          ip_country: 'AE',
+          device_summary: 'Chrome on this device',
+        },
+        {
+          id: 's2',
+          is_current: false,
+          ip_country: 'GB',
+          device_summary: 'Firefox on a laptop',
+        },
+      ],
+    })
+    wrap()
+    expect(await screen.findByText(/A session is signed in from GB/i)).toBeInTheDocument()
+    expect(screen.queryByText(/from undefined/i)).not.toBeInTheDocument()
+  })
 })

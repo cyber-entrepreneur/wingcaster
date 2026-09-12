@@ -33,6 +33,13 @@ function KbdHint({ label }: { label: string }) {
   )
 }
 
+function isAppleHotkeyPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const platform = navigator.platform || ''
+  const ua = navigator.userAgent || ''
+  return /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS X/i.test(ua)
+}
+
 function SettingsLayoutInner() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -145,7 +152,7 @@ function SettingsLayoutInner() {
         onSearchChange={setQuery}
         searchPlaceholder={copy['search.placeholder']}
         searchLabel={copy['search.label']}
-        searchHotkeyHint={<KbdHint label={copy['search.hotkey.win']} />}
+        searchHotkeyHint={<KbdHint label={copy[isAppleHotkeyPlatform() ? 'search.hotkey.mac' : 'search.hotkey.win']} />}
         searchInputRef={searchRef}
         onSearchSubmit={onSearchSubmit}
         emptyState={emptyState}

@@ -49,7 +49,7 @@ export const FALLBACK_SETTINGS_GROUPS: SettingsIndexGroup[] = [
         id: 'delete_account',
         label: 'Delete account',
         label_key: 'settings.items.delete_account',
-        route: '/settings/delete-account',
+        route: '/settings/danger/delete-account',
         icon: 'trash-2',
       },
     ],

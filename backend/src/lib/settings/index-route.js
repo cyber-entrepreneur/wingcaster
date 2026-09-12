@@ -9,7 +9,7 @@
  * SHR-SET-001 extras (`capabilities`, item `icon`/`badge`/`label_key`).
  */
 
-import { findAll } from '../../db.js'
+import { findAll, query } from '../../db.js'
 import { findUserById } from '../../identity.js'
 import logger from '../logger.js'
 
@@ -74,7 +74,7 @@ export const SETTINGS_CATALOG = Object.freeze([
         id: 'billing_notifications',
         label: 'Billing notifications',
         label_key: 'settings.items.billing_notifications',
-        route: '/settings/notifications/billing',
+        route: '/settings/notifications',
         icon: 'bell',
         access: 'billing',
       }),
@@ -120,7 +120,7 @@ export const SETTINGS_CATALOG = Object.freeze([
         id: 'delete_account',
         label: 'Delete account',
         label_key: 'settings.items.delete_account',
-        route: '/settings/delete-account',
+        route: '/settings/danger/delete-account',
         icon: 'trash-2',
         access: 'authenticated',
       }),
@@ -128,8 +128,10 @@ export const SETTINGS_CATALOG = Object.freeze([
   }),
 ])
 
-function isMissingRelationOrColumn(err) {
-  return err?.code === PG_UNDEFINED_COLUMN || err?.code === PG_UNDEFINED_TABLE
+function isDegradableLookupError(err) {
+  if (isMissingRelationOrColumn(err)) return true
+  const message = String(err?.message || '')
+  return /DATABASE_URL is required/i.test(message) || err?.code === 'ECONNREFUSED'
 }
 
 function isAgencyMembership(membership) {
@@ -252,15 +254,123 @@ export function resolveSettingsCapabilities({ memberships = [], user } = {}) {
   }
 }
 
-function publicCapabilities(caps) {
+function publicCapabilities(caps, snapshot = {}) {
+  const twoFactorEnrolled = Boolean(snapshot.two_factor_enrolled)
+  const sessionCount = Number(snapshot.active_session_count || 0)
   return {
     account: true,
-    security: true,
-    billing: Boolean(caps.canSeeBilling),
-    team: Boolean(caps.canManageTeam),
     danger: true,
     password: Boolean(caps.hasPassword),
+    identity: {
+      oauth_only: Boolean(caps.oauthOnly),
+      signin_method: snapshot.signin_method || (caps.oauthOnly ? 'oauth' : 'email'),
+    },
+    security: {
+      two_factor_enrolled: twoFactorEnrolled,
+      active_session_count: Number.isFinite(sessionCount) ? sessionCount : 0,
+    },
+    billing: caps.canSeeBilling
+      ? {
+        plan: snapshot.plan || null,
+        past_due: Boolean(snapshot.past_due),
+        display_name: snapshot.display_name || null,
+        renews_at: snapshot.renews_at || null,
+      }
+      : false,
+    team: caps.canManageTeam
+      ? {
+        role: caps.role || 'admin',
+        member_count: snapshot.member_count ?? null,
+        pending_invite_count: snapshot.pending_invite_count ?? 0,
+      }
+      : false,
+    env: snapshot.env || 'live',
   }
+}
+
+function applyItemBadges(item, snapshot = {}) {
+  if (item.id === 'two_factor' && !snapshot.two_factor_enrolled) {
+    return {
+      ...item,
+      badge: { kind: 'status', tone: 'warning', label_key: 'badge.2faOff' },
+    }
+  }
+  if (item.id === 'sessions' && Number(snapshot.active_session_count) > 1) {
+    return {
+      ...item,
+      badge: { kind: 'count', value: Number(snapshot.active_session_count) },
+    }
+  }
+  if (item.id === 'subscription' && snapshot.past_due) {
+    return {
+      ...item,
+      badge: { kind: 'status', tone: 'danger', label_key: 'badge.pastDue' },
+    }
+  }
+  return item
+}
+
+/**
+ * Best-effort extras for the SHR-SET-001 capabilities contract.
+ * Missing tables (sessions BE, tenant_subscriptions) degrade to zeros/nulls.
+ */
+export async function loadSettingsSnapshot({ user, memberships = [], tenantId } = {}) {
+  const snapshot = {
+    two_factor_enrolled: Boolean(user?.totp_enabled || user?.data?.totp_enabled),
+    active_session_count: 0,
+    signin_method: user?.auth_provider && user.auth_provider !== 'password' && user.auth_provider !== 'email'
+      ? String(user.auth_provider)
+      : 'email',
+    env: 'live',
+  }
+
+  if (user?.id) {
+    try {
+      const rows = await query(
+        `SELECT COUNT(*)::int AS n
+           FROM user_sessions
+          WHERE user_id = $1
+            AND revoked_at IS NULL`,
+        [user.id],
+      )
+      snapshot.active_session_count = Number(rows?.[0]?.n || 0)
+    } catch (err) {
+      if (!isDegradableLookupError(err)) {
+        logger.warn({ err: err.message, user_id: user.id }, 'settings index session count lookup failed')
+      }
+    }
+  }
+
+  const activeTenantId = tenantId
+    || memberships.find((m) => m?.status === 'active' && m.tenant_id)?.tenant_id
+    || null
+  if (activeTenantId) {
+    try {
+      const rows = await query(
+        `SELECT p.code AS package_code, p.display_name, s.status, s.billing_cycle_end
+           FROM public.tenant_subscriptions s
+           JOIN public.product_package_versions v ON v.id = s.package_version_id
+           JOIN public.product_packages p ON p.id = v.package_id
+          WHERE s.tenant_id = $1
+          ORDER BY s.created_at DESC
+          LIMIT 1`,
+        [activeTenantId],
+      )
+      const row = rows?.[0]
+      if (row) {
+        snapshot.plan = row.package_code || null
+        snapshot.display_name = row.display_name || row.package_code || null
+        snapshot.renews_at = row.billing_cycle_end || null
+        snapshot.past_due = String(row.status || '').toLowerCase() === 'past_due'
+      }
+    } catch (err) {
+      if (!isDegradableLookupError(err)) {
+        logger.warn({ err: err.message, tenant_id: activeTenantId }, 'settings index billing snapshot lookup failed')
+      }
+    }
+  }
+
+  return snapshot
 }
 
 function maySeeItem(access, caps) {
@@ -301,9 +411,9 @@ function publicGroup(group, items) {
 /**
  * Build the settings index response for a caller.
  *
- * @param {{ memberships?: object[], user?: object, fallback?: boolean, capabilities?: object }} input
+ * @param {{ memberships?: object[], user?: object, fallback?: boolean, capabilities?: object, snapshot?: object }} input
  */
-export function buildSettingsIndex({ memberships, user, fallback = false, capabilities } = {}) {
+export function buildSettingsIndex({ memberships, user, fallback = false, capabilities, snapshot } = {}) {
   const caps = fallback
     ? {
       canManageTeam: false,
@@ -315,6 +425,14 @@ export function buildSettingsIndex({ memberships, user, fallback = false, capabi
     }
     : (capabilities || resolveSettingsCapabilities({ memberships, user }))
 
+  const extras = {
+    two_factor_enrolled: Boolean(user?.totp_enabled || user?.data?.totp_enabled),
+    active_session_count: 0,
+    signin_method: 'email',
+    env: 'live',
+    ...(snapshot || {}),
+  }
+
   const allowedGroupIds = fallback ? new Set(FALLBACK_GROUP_IDS) : null
   const groups = []
 
@@ -323,13 +441,15 @@ export function buildSettingsIndex({ memberships, user, fallback = false, capabi
     const items = group.items
       .filter((item) => maySeeItem(item.access, caps))
       .map(publicItem)
+      .map((item) => applyItemBadges(item, extras))
     if (items.length === 0) continue
     groups.push(publicGroup(group, items))
   }
 
   return {
-    capabilities: publicCapabilities(caps),
+    capabilities: publicCapabilities(caps, extras),
     groups,
+    recent_activity: Array.isArray(snapshot?.recent_activity) ? snapshot.recent_activity : [],
   }
 }
 
@@ -374,7 +494,11 @@ export function registerRoutes(app, { authMiddleware, loadCallerContext } = {}) 
     }
     try {
       const context = await loadContext(req)
-      return res.json(buildSettingsIndex(context))
+      const snapshot = await loadSettingsSnapshot({
+        ...context,
+        tenantId: req.tenant?.creditTenantId || req.tenantId || null,
+      })
+      return res.json(buildSettingsIndex({ ...context, snapshot }))
     } catch (err) {
       logger.error(
         { err: err.message, user_id: req.user?.id },
