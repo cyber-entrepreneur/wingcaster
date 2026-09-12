@@ -129,6 +129,8 @@ type Dir = 'ltr' | 'rtl'
 type Mode = 'light' | 'dark'
 
 beforeAll(() => {
+  // Match GitHub Actions (Linux UTC) so visual snapshots are stable across dev machines.
+  process.env.TZ = 'UTC'
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
