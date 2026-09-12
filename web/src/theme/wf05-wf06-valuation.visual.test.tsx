@@ -185,6 +185,8 @@ import { PriceReportQueuePage } from '@/pages/admin/valuation/PriceReportQueuePa
 import { PriceReportDetailPage } from '@/pages/admin/valuation/PriceReportDetailPage'
 
 beforeAll(() => {
+  // Match GitHub Actions (Linux UTC) so visual snapshots are stable across dev machines.
+  process.env.TZ = 'UTC'
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
@@ -276,7 +278,21 @@ function serialize(root: HTMLElement): string {
   const mode = document.documentElement.getAttribute('data-lc-mode') || 'light'
   const dir = document.documentElement.dir || 'ltr'
   const lang = document.documentElement.lang || 'en'
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  const body = `${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  const stable = body
+    .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
+    .replace(/\d+[smhdwy]\s+ago/gi, '__REL__')
+    .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+    .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM))?(?:\s+[A-Z]{2,5})?/gi, '__ABS__')
+    .replace(
+      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}(?:\s+[A-Z]{2,5})?/g,
+      '__ABS__',
+    )
+    .replace(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4}(?:,\s*\d{1,2}:\d{2}(?:\s*[AP]M)?)?/gi, '__ABS__')
+    .replace(/__ABS__\s+[A-Z]{2,5}\b/g, '__ABS__')
+    .replace(/title="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'title="__ISO__"')
+    .replace(/datetime="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'datetime="__ISO__"')
+  return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 
 function applyTheme(mode: Mode, dir: Dir) {
