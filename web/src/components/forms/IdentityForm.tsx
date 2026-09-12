@@ -609,6 +609,7 @@ export function IdentityForm({
             required
             onCheckedChange={(checked) => patch({ consent_terms: checked === true })}
             aria-invalid={!values.consent_terms}
+            aria-label="I agree to the Terms of Service and Privacy Policy"
           />
           <Label htmlFor={termsCheckboxId} className="cursor-pointer font-normal leading-snug">
             I agree to the{' '}
@@ -643,6 +644,7 @@ export function IdentityForm({
               checked={values.consent_marketing}
               disabled={locked}
               onCheckedChange={(checked) => patch({ consent_marketing: checked === true })}
+              aria-label="Send me product updates and MENA real-estate insights."
             />
             <Label
               htmlFor={marketingCheckboxId}
