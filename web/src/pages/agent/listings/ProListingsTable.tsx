@@ -102,14 +102,29 @@ function listingHrid(p: Property): string {
   return p.reference || p.canonical_id || p.id.slice(0, 8).toUpperCase()
 }
 
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+function listingPortals(p: Property): Array<{ channel: string; label: string }> {
+  const marks: Array<{ channel: string; label: string }> = []
+  const seen = new Set<string>()
+  const push = (channel: string, label: string) => {
+    const key = `${channel}:${label}`
+    if (seen.has(key)) return
+    seen.add(key)
+    marks.push({ channel, label })
+  }
+  for (const syn of p.syndications || []) {
+    const raw = String(syn.channel || syn.portal || '').trim()
+    if (!raw) continue
+    push(raw, raw)
+  }
+  if (p.marketplace_syndicated === true || p.marketplace_syndicated === 1) {
+    push('olx', 'Bazaar')
+  }
+  return marks
+}
+
+function listingInquiryCount(p: Property): number {
+  const n = Number(p.inquiry_count)
+  return Number.isFinite(n) ? n : 0
 }
 
 /**
@@ -196,6 +211,8 @@ export function ProListingsTable({
   )
 
   const filtered = useMemo(() => {
+    const view = views.find((v) => v.id === activeViewId)
+    const viewFilter = (view?.filter || {}) as Record<string, unknown>
     return listings.filter((l) => {
       if (filters.status && normalizeStatus(l.status) !== filters.status) return false
       if (filters.type && l.type !== filters.type) return false
@@ -207,9 +224,14 @@ export function ProListingsTable({
       if (filters.priceMax && price > Number(filters.priceMax)) return false
       if (filters.dateFrom && (l.listed_date || '') < filters.dateFrom) return false
       if (filters.dateTo && (l.listed_date || '') > filters.dateTo) return false
+      if (viewFilter.never_published) {
+        const published = normalizeStatus(l.status) === 'published'
+        const syndicated = l.marketplace_syndicated === true || l.marketplace_syndicated === 1
+        if (published || syndicated) return false
+      }
       return true
     })
-  }, [listings, filters])
+  }, [listings, filters, views, activeViewId])
 
   const sorted = useMemo(() => {
     const rows = [...filtered]
@@ -711,6 +733,9 @@ export function ProListingsTable({
                 const isSelected = selected.has(row.id)
                 const isFocused = index === focusIndex
                 const dom = daysOnMarket(row.listed_date)
+                const portals = listingPortals(row)
+                const colWidth = (id: ListingsColumnId) =>
+                  prefs.widths[id] ? { width: prefs.widths[id] } : undefined
                 return (
                   <tr
                     key={row.id}
@@ -738,7 +763,10 @@ export function ProListingsTable({
                       </td>
                     ) : null}
                     {columns.includes('title') ? (
-                      <td className="sticky start-[116px] z-10 max-w-[240px] bg-[var(--lc-surface-raised)] px-3 py-2 shadow-[var(--lc-elevation-sm)]">
+                      <td
+                        className="sticky start-[116px] z-10 max-w-[240px] bg-[var(--lc-surface-raised)] px-3 py-2 shadow-[var(--lc-elevation-sm)]"
+                        style={colWidth('title')}
+                      >
                         <Link
                           to={`/listings/${row.id}`}
                           className="line-clamp-1 font-medium text-[var(--lc-text-primary)] hover:text-[var(--lc-text-brand)]"
@@ -822,15 +850,21 @@ export function ProListingsTable({
                     {columns.includes('portals') ? (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          <ChannelMark channel="instagram" />
-                          <ChannelMark channel="whatsapp" />
-                          <ChannelMark channel="olx" label="Bayut" />
+                          {portals.length === 0 ? (
+                            <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                              —
+                            </span>
+                          ) : (
+                            portals.map((mark) => (
+                              <ChannelMark key={`${row.id}-${mark.label}`} channel={mark.channel} label={mark.label} />
+                            ))
+                          )}
                         </div>
                       </td>
                     ) : null}
                     {columns.includes('inquiries') ? (
                       <td className="px-3 py-2 text-end">
-                        <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>0</Numeric>
+                        <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>{listingInquiryCount(row)}</Numeric>
                       </td>
                     ) : null}
                     {columns.includes('views') ? (
@@ -1007,6 +1041,22 @@ export function ProListingsTable({
                   <span className="flex-1 capitalize" style={{ font: 'var(--lc-type-body-sm)' }}>
                     {col}
                   </span>
+                  <label className="flex items-center gap-1 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                    W
+                    <Input
+                      type="number"
+                      className="h-9 w-16"
+                      min={40}
+                      max={800}
+                      value={prefs.widths[col] || ''}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        if (!Number.isFinite(n)) return
+                        void savePrefs({ widths: { [col]: Math.min(800, Math.max(40, n)) } })
+                      }}
+                      aria-label={`${col} width`}
+                    />
+                  </label>
                   <span className="text-[var(--lc-text-muted)]" aria-hidden="true">
                     ⋮⋮
                   </span>

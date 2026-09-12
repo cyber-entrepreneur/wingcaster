@@ -44,6 +44,10 @@ export function ListingsPage() {
   /** Local override so Cards toggle can leave Pro table without changing server ui_mode. */
   const [forceGuidedCards, setForceGuidedCards] = useState(false)
 
+  useEffect(() => {
+    if (searchParams.get('create') === '1') setCreateOpen(true)
+  }, [searchParams])
+
   const wantTable =
     !forceGuidedCards &&
     isProCapable &&
@@ -62,10 +66,28 @@ export function ListingsPage() {
     setLoading(true)
     try {
       const params: Record<string, string> = { agent_id: agent!.id }
-      const data = await api.getProperties(params)
+      const [data, inquiries] = await Promise.all([
+        api.getProperties(params),
+        api.getInquiries({ limit: '200' }).catch(() => ({ items: [] })),
+      ])
       const rows: Property[] = Array.isArray(data) ? data : []
       const mine = rows.filter((r) => r.agent_id === agent!.id)
-      setListings(mine)
+      const inquiryItems = Array.isArray((inquiries as { items?: unknown[] })?.items)
+        ? (inquiries as { items: Array<{ property_id?: string }> }).items
+        : Array.isArray(inquiries)
+          ? (inquiries as Array<{ property_id?: string }>)
+          : []
+      const inquiryCounts = new Map<string, number>()
+      for (const inq of inquiryItems) {
+        if (!inq?.property_id) continue
+        inquiryCounts.set(inq.property_id, (inquiryCounts.get(inq.property_id) || 0) + 1)
+      }
+      setListings(
+        mine.map((row) => ({
+          ...row,
+          inquiry_count: row.inquiry_count ?? inquiryCounts.get(row.id) ?? 0,
+        })),
+      )
     } catch (err: any) {
       addToast({ title: 'Could not load listings', description: err?.message, variant: 'error' })
     } finally {
@@ -75,7 +97,13 @@ export function ListingsPage() {
 
   const counts = useMemo(() => {
     const c: Record<ListingStatus | 'all', number> = {
-      all: listings.length, draft: 0, published: 0, unpublished: 0, archived: 0,
+      all: listings.length,
+      draft: 0,
+      published: 0,
+      unpublished: 0,
+      underOffer: 0,
+      closed: 0,
+      archived: 0,
     }
     for (const l of listings) c[normalizeStatus(l.status)]++
     return c

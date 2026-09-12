@@ -111,6 +111,7 @@ describe('useListPrefs', () => {
     })
     expect(api.patchListPrefs).toHaveBeenCalledWith(
       expect.objectContaining({ columns: ['hrid', 'title'] }),
+      't1',
     )
   })
 })

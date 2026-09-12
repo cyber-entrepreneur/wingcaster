@@ -34,6 +34,7 @@ const dashboardLayoutPatchSchema = z.object({
 })
 
 const listPrefsPatchSchema = z.object({
+  tenant_id: z.string().min(1).max(200).optional(),
   listings: z.object({
     columns: z.array(z.string().min(1).max(40)).max(30).optional(),
     widths: z.record(z.string(), z.number().int().min(40).max(800)).optional(),
@@ -226,7 +227,7 @@ export function registerWave8ProRoutes(app, deps) {
   })
 
   app.patch('/api/users/me/list-prefs', authMiddleware, validate(listPrefsPatchSchema), async (req, res) => {
-    const ctx = await loadActiveMembership(req.user.id)
+    const ctx = await loadActiveMembership(req.user.id, req.validated.tenant_id)
     if (!ctx) return res.status(404).json({ error: 'Active tenant membership not found' })
     const prevPrefs = ctx.data.column_prefs && typeof ctx.data.column_prefs === 'object'
       ? ctx.data.column_prefs

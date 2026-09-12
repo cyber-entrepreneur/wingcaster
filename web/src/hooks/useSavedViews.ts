@@ -71,6 +71,16 @@ const SEED_VIEWS: SavedView[] = [
     sort: [],
     column_prefs: {},
   },
+  {
+    id: 'seed-never-published',
+    resource: 'listings',
+    name: 'Never published to portals',
+    owner_user_id: 'system',
+    shared_with_tenant: true,
+    filter: { never_published: true },
+    sort: [],
+    column_prefs: {},
+  },
 ]
 
 /** AGT-LST-002 — CRUD saved views for a tenant. */

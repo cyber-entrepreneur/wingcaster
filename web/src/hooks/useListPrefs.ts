@@ -100,8 +100,8 @@ export function useListPrefs(tenantId?: string | null): UseListPrefsResult {
       widths: { ...prefs.widths, ...(patch.widths || {}) },
     }
     setPrefs(next)
-    await api.patchListPrefs(next)
-  }, [prefs])
+    await api.patchListPrefs(next, tenantId || undefined)
+  }, [prefs, tenantId])
 
   return { prefs, loading, savePrefs, reload }
 }
