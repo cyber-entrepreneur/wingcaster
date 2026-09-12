@@ -2,7 +2,6 @@ import { type ReactNode } from 'react'
 import {
   GripVertical,
   Maximize2,
-  MoreHorizontal,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
@@ -150,17 +149,10 @@ export function WidgetCard({
             aria-label={`Remove ${title}`}
             onClick={onRemove}
           >
-            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Remove</span>
+            ×
           </button>
-        ) : (
-          <button
-            type="button"
-            className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
-            aria-label={`${title} menu`}
-          >
-            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
+        ) : null}
       </header>
       <div className="min-h-0 flex-1 overflow-auto p-[var(--lc-space-lg)]">{children}</div>
     </section>

@@ -582,7 +582,13 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
               </Avatar>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold">{agent.name}</h1>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date().getHours() < 12
+                      ? 'Good morning'
+                      : new Date().getHours() < 17
+                        ? 'Good afternoon'
+                        : 'Good evening'}
+                  </p>
                   {showMobileProChip ? (
                     <Badge
                       variant="outline"
@@ -594,6 +600,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                     </Badge>
                   ) : null}
                 </div>
+                <h1 className="text-2xl font-bold">{agent.name}</h1>
                 <p className="text-sm text-muted-foreground">{agent.agency_name} &bull; License {agent.license_number}</p>
                 <div className="mt-1 flex items-center gap-2">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

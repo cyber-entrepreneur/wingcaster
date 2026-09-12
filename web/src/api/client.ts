@@ -593,10 +593,10 @@ export const api = {
       tenant_id: string
     }>
   },
-  patchListPrefs: (listings: Record<string, unknown>) =>
+  patchListPrefs: (listings: Record<string, unknown>, tenantId?: string) =>
     fetchJson('/users/me/list-prefs', {
       method: 'PATCH',
-      body: JSON.stringify({ listings }),
+      body: JSON.stringify({ listings, tenant_id: tenantId }),
     }) as Promise<{
       listings: Record<string, unknown>
       updated_at: string | null

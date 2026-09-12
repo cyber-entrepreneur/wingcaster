@@ -265,8 +265,9 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
   const recentListings = useMemo(() => live.listings.slice(0, 8), [live.listings])
 
   const todayTasks = useMemo(() => {
-    const opsTasks = (live.operations as { tasks?: unknown[] } | null)?.tasks
-    if (Array.isArray(opsTasks) && opsTasks.length) return opsTasks.slice(0, 6)
+    const ops = live.operations as { tasks?: { due_today?: unknown[]; overdue?: unknown[] } } | null
+    const due = ops?.tasks?.due_today || ops?.tasks?.overdue
+    if (Array.isArray(due) && due.length) return due.slice(0, 6)
     return live.viewings.slice(0, 6)
   }, [live.operations, live.viewings])
 
@@ -284,6 +285,49 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
       { label: 'Closed', value: closed },
     ]
   }, [live.inquiries, live.viewings])
+
+  const pipelineValue = Number(
+    (live.operations as { pipeline?: { total_value?: number } } | null)?.pipeline?.total_value || 0,
+  )
+  const bazaarLeads = live.inquiries.filter((i) =>
+    String(i.source || i.platform || '').toLowerCase().includes('bazaar'),
+  ).length
+  const bazaarListings = live.listings.filter(
+    (p) => p.marketplace_syndicated === true || p.marketplace_syndicated === 1,
+  ).length
+  const urgentItems = useMemo(() => {
+    const ops = live.operations as {
+      sla_breached_count?: number
+      overdue_follow_ups?: number
+      tasks?: { overdue?: Array<{ id?: string; title?: string; label?: string }> }
+      todays_viewings?: Array<{ id?: string; client_name?: string; property_title?: string; scheduled_at?: string }>
+    } | null
+    const rows: Array<{ id: string; title: string; status: string }> = []
+    const sla = Number(ops?.sla_breached_count || 0)
+    if (sla > 0) rows.push({ id: 'sla', title: `${sla} SLA-breached inquir${sla === 1 ? 'y' : 'ies'}`, status: 'urgent' })
+    for (const task of ops?.tasks?.overdue?.slice(0, 3) || []) {
+      rows.push({
+        id: String(task.id || task.title),
+        title: String(task.title || task.label || 'Overdue task'),
+        status: 'overdue',
+      })
+    }
+    for (const viewing of ops?.todays_viewings?.slice(0, 3) || []) {
+      rows.push({
+        id: String(viewing.id),
+        title: String(viewing.property_title || viewing.client_name || 'Viewing'),
+        status: 'today',
+      })
+    }
+    if (rows.length === 0) {
+      return live.inquiries.slice(0, 4).map((inq) => ({
+        id: String(inq.id),
+        title: String(inq.name || inq.contact_name || inq.message || 'Inquiry'),
+        status: String(inq.status || 'new'),
+      }))
+    }
+    return rows
+  }, [live.operations, live.inquiries])
 
   const renderWidget = (id: string) => {
     switch (id) {
@@ -314,36 +358,42 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           />
         )
       case 'kpi-pipeline':
+        return (
+          <KpiCard
+            label="Pipeline value"
+            value={pipelineValue}
+            delta={{
+              direction: pipelineValue > 0 ? 'up' : 'flat',
+              label: `${Number((live.operations as { pipeline?: { open_opportunities?: number } } | null)?.pipeline?.open_opportunities || 0)} open`,
+            }}
+            onClick={() => navigate('/opportunities')}
+          />
+        )
       case 'kpi-bazaar':
         return (
           <KpiCard
-            label={id === 'kpi-bazaar' ? 'Bazaar-driven leads' : 'Pipeline value'}
-            value={
-              id === 'kpi-bazaar'
-                ? live.inquiries.filter((i) => String(i.source || '').includes('bazaar')).length ||
-                  live.stats.inquiries
-                : live.stats.listings * 1000
-            }
-            delta={{ direction: 'flat', label: id === 'kpi-bazaar' ? 'Lead sources' : 'Estimate' }}
+            label="Bazaar-driven leads"
+            value={bazaarLeads || bazaarListings}
+            delta={{ direction: 'flat', label: `${bazaarListings} syndicated listings` }}
           />
         )
       case 'urgent':
         return (
           <div className="space-y-2">
-            {live.inquiries.slice(0, 4).length === 0 ? (
+            {urgentItems.length === 0 ? (
               <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
                 No urgent items right now.
               </p>
             ) : (
-              live.inquiries.slice(0, 4).map((inq) => (
+              urgentItems.map((item) => (
                 <div
-                  key={String(inq.id)}
+                  key={item.id}
                   className="flex items-center justify-between gap-2 border-b border-[var(--lc-border)] py-1"
                 >
                   <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
-                    {String(inq.name || inq.contact_name || inq.message || 'Inquiry')}
+                    {item.title}
                   </span>
-                  <Badge variant="secondary">{String(inq.status || 'new')}</Badge>
+                  <Badge variant="secondary">{item.status}</Badge>
                 </div>
               ))
             )}
@@ -353,19 +403,31 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           </div>
         )
       case 'quota': {
-        const credits = (live.operations as { credits_remaining?: number } | null)?.credits_remaining
+        const ops = live.operations as {
+          pending_viewings?: number
+          tasks?: { due_today_count?: number; overdue_count?: number }
+        } | null
         return (
           <div>
             <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Credits & channel headroom
+              Today&apos;s operational load
             </p>
-            <div className="mt-[var(--lc-space-sm)]">
-              <Numeric style={{ font: 'var(--lc-type-data)' }}>
-                {credits ?? live.stats.listings}
-              </Numeric>
+            <div className="mt-[var(--lc-space-sm)] flex flex-wrap gap-4">
+              <div>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Due today</div>
+                <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.tasks?.due_today_count ?? 0}</Numeric>
+              </div>
+              <div>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Overdue</div>
+                <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.tasks?.overdue_count ?? 0}</Numeric>
+              </div>
+              <div>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Viewings</div>
+                <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.pending_viewings ?? live.viewings.length}</Numeric>
+              </div>
             </div>
-            <Link to="/credits" className="mt-2 inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-caption)' }}>
-              Manage credits
+            <Link to="/tasks" className="mt-2 inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-caption)' }}>
+              Open tasks
             </Link>
           </div>
         )
@@ -534,7 +596,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         onDensityChange={setDensity}
         saveState={saveState}
         onAction={(id) => {
-          if (id === 'listing') navigate('/listings')
+          if (id === 'listing') navigate('/listings?view=table&create=1')
           if (id === 'inbox') navigate('/inbox')
           if (id === 'contact') navigate('/contacts')
           if (id === 'task') navigate('/tasks')
