@@ -15,11 +15,15 @@ import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPag
 import { TotpEnrollPage } from '@/pages/security/mfa/TotpEnrollPage'
 import { BackupCodesViewerPage } from '@/pages/security/mfa/BackupCodesViewerPage'
 import { LoginFlow } from '@/pages/security/mfa/LoginFlow'
+import { mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { settingsRoutes } from '@/pages/settings/routes'
 import type { EnrollLocationState } from '@/pages/security/mfa/mfaShared'
 
 expect.extend(toHaveNoViolations)
 
 const apiMock = vi.hoisted(() => ({
+  getSettingsIndex: vi.fn(),
   twoFactorStatus: vi.fn(),
   totpSetup: vi.fn(),
   totpVerify: vi.fn(),
@@ -47,6 +51,17 @@ vi.mock('@/context/AuthContext', () => ({
     refreshAgent: vi.fn(),
   }),
 }))
+
+const SETTINGS_INDEX = {
+  capabilities: { billing: true, password: true, team: false },
+  groups: [
+    {
+      id: 'security',
+      label: 'Security',
+      items: [{ id: 'two_factor', label: 'Two-factor authentication', route: '/settings/2fa', icon: 'shield' }],
+    },
+  ],
+}
 
 vi.mock('@/hooks/useLocale', () => ({
   useLocale: () => ({
@@ -115,6 +130,7 @@ beforeEach(() => {
   document.documentElement.lang = 'en'
   document.documentElement.dir = 'ltr'
   vi.clearAllMocks()
+  apiMock.getSettingsIndex.mockResolvedValue(SETTINGS_INDEX)
   apiMock.twoFactorStatus.mockResolvedValue({
     totp_enabled: false,
     preferred_2fa: 'email',
@@ -219,12 +235,16 @@ describe('Wave 4B MFA pages — RTL extras', () => {
     document.documentElement.lang = 'ar'
     wrap(
       <Routes>
-        <Route path="/settings/2fa" element={<TwoFactorSettingsPage />} />
+        <Route path="/settings" element={<SettingsPage />}>
+          {mfaSettingsChildRoutes}
+          {settingsRoutes}
+        </Route>
         <Route path="/login" element={<LoginFlow />} />
       </Routes>,
       '/settings/2fa',
     )
     expect(await screen.findByText('Skip to settings content')).toHaveAttribute('href', '#settings-content')
+    expect(document.querySelectorAll('main').length).toBe(1)
     cleanup()
     wrap(
       <Routes>

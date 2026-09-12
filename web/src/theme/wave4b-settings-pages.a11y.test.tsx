@@ -3,9 +3,8 @@
  * Page-level axe + RTL checks against merged SHR-SET pages.
  * Primitive coverage remains in wave4b-screens.*.test.tsx.
  *
- * MFA-001..005 page modules land on feat/wave-4b-mfa. Until that branch
- * merges, `/settings/2fa` mounts the existing TotpSettingsPage placeholder
- * inside the settings shell.
+ * `/settings/2fa*` is nested in the SettingsPage Outlet (mfaSettingsChildRoutes)
+ * so the skip-link and single `<main id="settings-content">` come from SettingsShell.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -20,7 +19,7 @@ import { BrandProvider } from '@/context/BrandContext'
 import { StepUpProvider } from '@/components/mfa'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { settingsRoutes } from '@/pages/settings/routes'
-import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPage'
+import { mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 
 expect.extend(toHaveNoViolations)
 
@@ -127,9 +126,9 @@ function renderSettings(path = '/settings') {
           <StepUpProvider>
             <Routes>
               <Route path="/settings" element={<SettingsPage />}>
+                {mfaSettingsChildRoutes}
                 {settingsRoutes}
               </Route>
-              <Route path="/settings/2fa" element={<TwoFactorSettingsPage />} />
             </Routes>
           </StepUpProvider>
         </ToastProvider>
@@ -246,6 +245,7 @@ describe('Wave 4B settings pages — RTL extras', () => {
     renderSettings('/settings/2fa')
     expect(await screen.findByText('Skip to settings content')).toBeInTheDocument()
     expect(document.getElementById('settings-content')).toBeTruthy()
+    expect(document.querySelectorAll('main').length).toBe(1)
     expect(await screen.findByRole('heading', { name: /Two-factor authentication/i })).toBeInTheDocument()
   })
 })
