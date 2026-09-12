@@ -18,7 +18,7 @@ import {
   EnrollmentStepper,
   useStepUp,
 } from '@/components/mfa'
-import { MfaSettingsChrome } from './MfaSettingsChrome'
+import { MfaSettingsChrome, SettingsDialogHost } from './MfaSettingsChrome'
 import type { TwoFactorStatus } from '@/types/twoFactor'
 import type { BackupCodesLocationState } from './mfaShared'
 import '../../../print.css'
@@ -307,6 +307,7 @@ export function BackupCodesViewerPage() {
       </div>
     </MfaSettingsChrome>
 
+      <SettingsDialogHost>
       <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -353,6 +354,7 @@ export function BackupCodesViewerPage() {
           </div>
         </DialogContent>
       </Dialog>
+      </SettingsDialogHost>
     </>
   )
 }

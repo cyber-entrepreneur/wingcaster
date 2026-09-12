@@ -1,27 +1,28 @@
-import type { ReactNode } from 'react'
-import { Shield } from 'lucide-react'
-import { SettingsShell } from '@/components/settings'
-import type { SettingsNavGroupData } from '@/components/settings'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
-const MFA_NAV_GROUPS: SettingsNavGroupData[] = [
-  {
-    id: 'security',
-    label: 'Security',
-    items: [
-      {
-        id: '2fa',
-        route: '/settings/2fa',
-        icon: Shield,
-        label: 'Two-factor authentication',
-      },
-    ],
-  },
-]
-
+/**
+ * SettingsPage already wraps `/settings/*` in `<SettingsShell>`.
+ * MFA pages must not mount a second shell when nested in that Outlet.
+ */
 export function MfaSettingsChrome({ children }: { children: ReactNode }) {
+  return <>{children}</>
+}
+
+/**
+ * SettingsShell mounts `{children}` twice (desktop pane + mobile pane).
+ * Render dialogs only from the desktop copy so Radix does not stack two modals.
+ */
+export function SettingsDialogHost({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [allow, setAllow] = useState(true)
+  useLayoutEffect(() => {
+    if (ref.current?.closest('[data-settings-pane-mobile]')) {
+      setAllow(false)
+    }
+  }, [])
   return (
-    <SettingsShell mobileView="detail" title="Settings" groups={MFA_NAV_GROUPS}>
-      {children}
-    </SettingsShell>
+    <div ref={ref} className="contents">
+      {allow ? children : null}
+    </div>
   )
 }

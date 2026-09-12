@@ -12,7 +12,7 @@ import {
   RevealableSecret,
   useStepUp,
 } from '@/components/mfa'
-import { MfaSettingsChrome } from './MfaSettingsChrome'
+import { MfaSettingsChrome, SettingsDialogHost } from './MfaSettingsChrome'
 import {
   apiErrorCode,
   apiStatus,
@@ -375,6 +375,7 @@ export function TotpEnrollPage() {
       </div>
     </MfaSettingsChrome>
 
+        <SettingsDialogHost>
         {cancelOpen ? (
           <div
             role="dialog"
@@ -400,6 +401,7 @@ export function TotpEnrollPage() {
             </div>
           </div>
         ) : null}
+        </SettingsDialogHost>
     </>
   )
 }
