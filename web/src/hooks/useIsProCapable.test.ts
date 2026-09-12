@@ -1,49 +1,54 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { PRO_VIEWPORT_MQ, useIsProCapable } from './useIsProCapable'
+import { PRO_CAPABLE_MQ, useIsProCapable } from './useIsProCapable'
 
-function mockMatchMedia(matches: boolean) {
-  const listeners = new Set<(ev: MediaQueryListEvent) => void>()
+function stubMatchMedia(matches: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
   const mql = {
     matches,
-    media: PRO_VIEWPORT_MQ,
+    media: PRO_CAPABLE_MQ,
     onchange: null,
-    addEventListener: (_: string, cb: (ev: MediaQueryListEvent) => void) => {
+    addEventListener: (_: string, cb: (event: MediaQueryListEvent) => void) => {
       listeners.add(cb)
     },
-    removeEventListener: (_: string, cb: (ev: MediaQueryListEvent) => void) => {
+    removeEventListener: (_: string, cb: (event: MediaQueryListEvent) => void) => {
       listeners.delete(cb)
     },
-    addListener: () => {},
-    removeListener: () => {},
+    addListener: () => undefined,
+    removeListener: () => undefined,
     dispatchEvent: () => true,
-    _emit(next: boolean) {
+    /** Test helper */
+    _setMatches(next: boolean) {
       mql.matches = next
-      listeners.forEach((cb) => cb({ matches: next } as MediaQueryListEvent))
+      const event = { matches: next, media: PRO_CAPABLE_MQ } as MediaQueryListEvent
+      listeners.forEach((cb) => cb(event))
     },
   }
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
-    value: vi.fn().mockImplementation(() => mql),
+    value: vi.fn().mockImplementation((query: string) => {
+      if (query === PRO_CAPABLE_MQ) return mql
+      return { matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }
+    }),
   })
   return mql
 }
 
 describe('useIsProCapable', () => {
   afterEach(() => {
-    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  it('returns false below 768px', () => {
-    mockMatchMedia(false)
+  it('returns false below 768px (D-S-06)', () => {
+    stubMatchMedia(false)
     const { result } = renderHook(() => useIsProCapable())
     expect(result.current).toBe(false)
   })
 
   it('returns true at ≥768px', () => {
-    mockMatchMedia(true)
+    stubMatchMedia(true)
     const { result } = renderHook(() => useIsProCapable())
     expect(result.current).toBe(true)
   })
@@ -61,6 +66,19 @@ describe('useIsProCapable', () => {
   it('honors force override', () => {
     mockMatchMedia(false)
     const { result } = renderHook(() => useIsProCapable(true))
+  it('updates when the viewport crosses the Pro breakpoint', () => {
+    const mql = stubMatchMedia(true)
+    const { result } = renderHook(() => useIsProCapable())
+    expect(result.current).toBe(true)
+
+    act(() => {
+      mql._setMatches(false)
+    })
+    expect(result.current).toBe(false)
+
+    act(() => {
+      mql._setMatches(true)
+    })
     expect(result.current).toBe(true)
   })
 })
