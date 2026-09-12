@@ -663,7 +663,12 @@ export async function undoRejectPublish(client, { packageId, versionId, actorId,
   )
   const rejectedAt = rejectAction.rows[0]?.created_at || approval.updated_at
   if (!rejectedAt) fail(PACKAGE_ERROR.UNDO_REJECT_EXPIRED, 'No reject timestamp found')
-  const nowMs = new Date(now || new Date().toISOString()).getTime()
+  // Spec non-negotiable #5: grace is server-enforced. Client now cannot backdate
+  // past wall-clock (Math.max) to reopen an expired undo window.
+  const serverNowRes = await client.query('SELECT NOW() AS server_now')
+  const serverNowMs = new Date(serverNowRes.rows[0].server_now).getTime()
+  const requestedNowMs = new Date(now || serverNowRes.rows[0].server_now).getTime()
+  const nowMs = Math.max(requestedNowMs, serverNowMs)
   const rejectedMs = new Date(rejectedAt).getTime()
   const elapsed = nowMs - rejectedMs
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > REJECT_UNDO_GRACE_MS) {
@@ -673,7 +678,7 @@ export async function undoRejectPublish(client, { packageId, versionId, actorId,
       elapsed_ms: elapsed,
     })
   }
-  const ts = now || new Date().toISOString()
+  const ts = new Date(nowMs).toISOString()
   await client.query(
     `UPDATE fin.approval_requests
         SET status = 'REQUESTED', updated_at = $2::timestamptz, updated_by_actor_id = $3

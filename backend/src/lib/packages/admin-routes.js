@@ -49,6 +49,22 @@ function envOf(req) {
   return resolvePackagesEnv(req)
 }
 
+/** Mirror fin/admin/context.js — callers must not inject `now` outside tests. */
+function allowClockOverride() {
+  return process.env.NODE_ENV === 'test' || process.env.VITEST === '1'
+}
+
+function commandBody(req) {
+  const body = { ...(req.body || {}) }
+  if (!allowClockOverride()) delete body.now
+  return body
+}
+
+function resolveNow(req) {
+  if (!allowClockOverride()) return undefined
+  return req.body?.now
+}
+
 function sendPackageError(res, error) {
   if (error instanceof PackageError) {
     const status = error.code === PACKAGE_ERROR.CANCEL_IMMEDIATE_APPROVAL_REQUIRED
@@ -146,14 +162,14 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       )
     }
     const result = await run((client) => importPackagesFromLive(client, {
-      ...actorOf(req), now: req.body?.now,
+      ...actorOf(req), now: resolveNow(req),
     }))
     return res.status(200).json({ ...result, env: 'test' })
   }))
 
   app.post('/api/admin/fin/packages', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => createPackageDraft(client, {
-      ...actorOf(req), ...req.body, environment: envOf(req),
+      ...actorOf(req), ...commandBody(req), environment: envOf(req),
     }))
     return res.status(200).json(row)
   }))
@@ -165,14 +181,14 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
 
   app.patch('/api/admin/fin/packages/:id', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => updatePackage(client, {
-      packageId: req.params.id, ...actorOf(req), ...req.body,
+      packageId: req.params.id, ...actorOf(req), ...commandBody(req),
     }))
     return res.status(200).json(row)
   }))
 
   app.post('/api/admin/fin/packages/:id/versions', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => createDraftVersion(client, {
-      packageId: req.params.id, ...actorOf(req), ...req.body,
+      packageId: req.params.id, ...actorOf(req), ...commandBody(req),
     }))
     return res.status(200).json(row)
   }))
@@ -205,14 +221,14 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
 
   app.patch('/api/admin/fin/packages/:id/versions/:vid', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => updateDraft(client, {
-      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...req.body,
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...commandBody(req),
     }))
     return res.status(200).json(row)
   }))
 
   app.post('/api/admin/fin/packages/:id/versions/:vid/quotas', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => addQuota(client, {
-      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...req.body,
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...commandBody(req),
     }))
     return res.status(200).json(row)
   }))
@@ -226,7 +242,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
 
   app.post('/api/admin/fin/packages/:id/versions/:vid/flags', writeGuards, wrap(async (req, res) => {
     const row = await run((client) => addFlag(client, {
-      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...req.body,
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...commandBody(req),
     }))
     return res.status(200).json(row)
   }))
@@ -256,7 +272,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
     const result = await run((client) => rejectPublish(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
       reason: req.body?.reason,
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json({
       ...result,
@@ -268,7 +284,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   app.post('/api/admin/fin/packages/:id/versions/:vid/undo-reject', writeGuards, wrap(async (req, res) => {
     const result = await run((client) => undoRejectPublish(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(result)
   }))
@@ -276,7 +292,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   app.post('/api/admin/fin/packages/:id/versions/:vid/recall', writeGuards, wrap(async (req, res) => {
     const result = await run((client) => recallPublish(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(result)
   }))
@@ -284,7 +300,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   app.post('/api/admin/fin/packages/:id/versions/:vid/publish', writeGuards, wrap(async (req, res) => {
     const environment = envOf(req)
     const row = await run((client) => publishVersion(client, {
-      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...req.body,
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...commandBody(req),
     }))
     const revalidation = await triggerMarketingRevalidate('pricing-tiers', {
       packageId: req.params.id,
@@ -336,7 +352,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       )
     }
     const result = await run((client) => importPackagesFromLive(client, {
-      ...actorOf(req), now: req.body?.now,
+      ...actorOf(req), now: resolveNow(req),
     }))
     return res.status(200).json({ ...result, env: 'test' })
   }))
@@ -358,7 +374,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       )
     }
     const row = await run((client) => updateMeteredFeature(client, {
-      featureId: req.params.id, ...actorOf(req), ...req.body,
+      featureId: req.params.id, ...actorOf(req), ...commandBody(req),
       reason: req.body?.reason,
     }))
     return res.status(200).json(row)
@@ -382,7 +398,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       billingCycleStart: req.body.billing_cycle_start || req.body.billingCycleStart,
       autoRenew: req.body.auto_renew !== false,
       actorId: asUuid(req.user?.id),
-      now: req.body.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(row)
   }))
@@ -392,7 +408,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       subscriptionId: req.params.id,
       actorId: asUuid(req.user?.id),
       reason: req.body?.reason,
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(row)
   }))
@@ -401,7 +417,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
     const row = await run((client) => resumeSubscription(client, {
       subscriptionId: req.params.id,
       actorId: asUuid(req.user?.id),
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(row)
   }))
@@ -411,7 +427,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       subscriptionId: req.params.id,
       actorId: asUuid(req.user?.id),
       reason: req.body?.reason,
-      now: req.body?.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(row)
   }))
@@ -433,7 +449,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
         const existingId = req.body.approval_request_id
         if (!existingId) {
           const approvalId = randomUUID()
-          const ts = req.body.now || new Date().toISOString()
+          const ts = resolveNow(req) || new Date().toISOString()
           await client.query(
             `INSERT INTO fin.approval_requests (
                id, environment, tenant_id, action_kind, status, subject_type, subject_id,
@@ -482,7 +498,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
           throw new PackageError(PACKAGE_ERROR.APPROVAL_ALREADY_RESOLVED, `Approval is ${approval.status}`)
         }
         const ended = await cancelImmediate(client, {
-          subscriptionId: req.params.id, actorId: actor, reason, now: req.body.now,
+          subscriptionId: req.params.id, actorId: actor, reason, now: resolveNow(req),
         })
         await client.query(
           `UPDATE fin.approval_requests SET status = 'EXECUTED', updated_at = NOW() WHERE id = $1`,
@@ -491,7 +507,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
         return ended
       }
       return cancelImmediate(client, {
-        subscriptionId: req.params.id, actorId: actor, reason, now: req.body.now,
+        subscriptionId: req.params.id, actorId: actor, reason, now: resolveNow(req),
       })
     })
     if (result?.pending_approval) {
@@ -506,7 +522,7 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
       newPackageVersionId: req.body.package_version_id || req.body.newPackageVersionId,
       prorate: Boolean(req.body.prorate),
       actorId: asUuid(req.user?.id),
-      now: req.body.now,
+      now: resolveNow(req),
     }))
     return res.status(200).json(row)
   }))
