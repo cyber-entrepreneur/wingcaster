@@ -108,6 +108,7 @@ export function useUiMode(options?: { forceProCapable?: boolean }): UseUiModeRes
   return {
     mode,
     effectiveMode,
+    shouldRenderPro: effectiveMode === 'pro',
     isProCapable,
     loading: Boolean(agent) && (authLoading || tenantLoading),
     switching,
