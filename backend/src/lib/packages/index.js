@@ -16,14 +16,10 @@ export {
 } from './registry.js'
 export { PackageError, PACKAGE_ERROR, PACKAGE_HTTP_STATUS } from './errors.js'
 export { registerFinPackagesAdminRoutes } from './admin-routes.js'
-<<<<<<< HEAD
 export { getActiveTierCatalog, TierConfigSchema } from './tier-config.js'
 export { registerPublicPricingRoutes } from './public-pricing-routes.js'
-export { triggerMarketingRevalidate } from './marketing-revalidate.js'
-=======
 export { triggerMarketingRevalidate, getRevalidationEvent } from './marketing-revalidate.js'
 export { resolvePackagesEnv } from './env.js'
->>>>>>> 2c13229 (feat(packages): BE-BLOCKER-32 PA-PKG backend prereqs bundle)
 export {
   createPackageDraft, createDraftVersion, addQuota, addFlag, updateDraft,
   submitForApproval, approvePublish, rejectPublish, publishVersion, deprecateVersion,
