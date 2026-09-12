@@ -1,22 +1,18 @@
 /**
- * Thin PA-MOD-001 API helpers for portal moderation queue list + actions.
- * Contract: docs/design/briefs/PA-MOD-001-portal-moderation-queue-brief.md §Backend contract.
+ * PA-MOD-001 queue list/actions + PA-MOD-002 detail types/helpers.
+ *
+ * Queue contract: docs/design/briefs/PA-MOD-001-portal-moderation-queue-brief.md
+ * Detail contract: docs/design/briefs/PA-MOD-002-portal-moderation-detail-brief.md
  *
  * Every request carries `X-Wingcaster-Env` (LIVE/TEST) — never co-mingles envs.
  * Backend surface `[BE-BLOCKER-02b]` may still be landing; callers must handle 404.
  */
 import { API_BASE, getElevatedToken } from '@/api/client'
 
+// --- PA-MOD-001 queue types ---
+
 export type PortalModerationStatus =
   | 'pending'
- * Thin types + helpers for PA-MOD-002 portal moderation detail.
- * Routes: GET/POST /api/admin/moderation/portals/:submissionId[/*]
- * Env-scoped via X-Wingcaster-Env on every call (api client headers).
- */
-
-export type ModerationStatus =
-  | 'pending'
-  | 'pending_moderation'
   | 'approved'
   | 'rejected'
   | 'request_info'
@@ -82,149 +78,56 @@ export interface PortalModerationTenureRisk {
   tier: PortalModerationRiskTier
   score?: number
   signals?: string[]
-  | 'pending_second_approval'
-
-export type TenureRiskTier = 'low' | 'medium' | 'high' | 'unknown'
-
-export type ValidatorSeverity = 'pass' | 'warn' | 'fail'
-
-export interface ValidatorLintCheck {
-  code: string
-  severity: ValidatorSeverity
-  message: string
-  expected?: string
-  actual?: string
 }
 
-export interface PortalModerationSubmission {
+/** Queue row shape from GET /api/admin/moderation/portals */
+export interface PortalModerationListItem {
   id: string
   submitted_at: string
-  status: ModerationStatus
-  env: 'live' | 'test'
-  is_own: boolean
-  is_already_decided: boolean
-  step_up_required: boolean
-  decision?: {
-    actor_name?: string
-    actor_id?: string
-    decided_at?: string
-    reason_code?: string
-    notes?: string
-    state?: string
-  } | null
+  sla_hours_remaining: number
+  sla_hours_total: number
   agent: PortalModerationAgent
   agency: PortalModerationAgency
   listing: PortalModerationListing
   portal: PortalModerationPortal
   validator_lint: PortalModerationValidatorLint
   tenure_risk: PortalModerationTenureRisk
-  agent_context: {
-    wingcaster_tenure_month: string
-    portfolio_size: number
-    prior_decision_summary_30d: {
-      approved: number
-      rejected: number
-      request_info: number
-    }
-  }
-  listing_preview: {
-    hero_image_url?: string | null
-    gallery?: string[]
-    price: { amount_minor: number; currency: string; basis: string }
-    specs: { beds: number; baths: number; area_m2: number }
-    amenities: string[]
-    description: string
-    agent_contact: {
-      phone_masked: string
-      email_masked: string
-      whatsapp_deeplink?: string | null
-    }
-  }
-  agent: {
-    id: string
-    display_name: string
-    avatar_url?: string | null
-  }
-  agent_context: {
-    wingcaster_tenure_month: string
-    portfolio_size: number
-    prior_decision_summary_30d: {
-      approved: number
-      rejected: number
-      request_info: number
-    }
-  }
-  agency: {
-    id: string
-    name: string
-    tenant_url: string
-    two_person_reject_required?: boolean
-  }
-  portal: {
-    code: string
-    display_name: string
-    country_code: string
-    country_flag_emoji?: string
-  }
-  validator_lint: {
-    pass_count?: number
-    warn_count?: number
-    fail_count?: number
-    checks: ValidatorLintCheck[]
-  }
-  tenure_risk: {
-    tier: TenureRiskTier
-    score?: number
-    signals?: string[]
-    reasons?: string[]
-  }
-  portal_payload_preview: Record<string, unknown> | unknown
-  notification_previews: {
-    approve: string
-    reject: string
-    request_info: string
-  }
-  queue_position?: {
-    position: number
+  status: PortalModerationStatus | string
+  decision?: { reason_code?: string; notes?: string } | null
+  is_own: boolean
+  step_up_required: boolean
+  env: 'live' | 'test' | string
+}
+
+export interface PortalModerationListResponse {
+  submissions: PortalModerationListItem[]
+  pagination: {
+    page: number
+    page_size: number
     total: number
+    has_next: boolean
+  }
+  counts: {
+    pending: number
+    pending_at_risk: number
+    approved_this_week: number
+    rejected_this_week: number
+    request_info_this_week?: number
+    portal_error_this_week?: number
+    expired?: number
   }
 }
 
-export interface PortalModerationDetailResponse {
-  submission: PortalModerationSubmission
+export interface PortalRegistryOption {
+  code: string
+  display_name: string
+  country_codes: string[]
+  is_active?: boolean
 }
 
-export interface SubmissionSiblingResponse {
-  next_submission_id: string | null
-}
-
-export interface SubmissionHistoryRow {
-  portal_code: string
-  portal_display_name?: string
-  submitted_at: string
-  status: string
-  decided_at?: string | null
-  decided_by?: string | null
-}
-
-export interface AuditTrailEvent {
-  id?: string
-  at: string
-  actor?: string | null
-  kind: string
-  description: string
-}
-
-export interface ModerationActionResult {
-  state?: string
-  approval_request_id?: string
-  status?: string
-  error?: string
-}
-
-export interface RevealContactResult {
-  phone_full?: string
-  email_full?: string
+export interface BulkActionResult {
+  succeeded: string[]
+  failed: Array<{ id: string; error: string }>
 }
 
 export const REJECT_REASON_OPTIONS = [
@@ -238,8 +141,6 @@ export const REJECT_REASON_OPTIONS = [
 ] as const
 
 export const REQUEST_INFO_REASON_OPTIONS = [
-  { value: 'missing_trakheesi_number', label: 'Missing trakheesi number' },
-  { value: 'photo_count_below_minimum', label: 'Photo count below minimum' },
   { value: 'missing_trakheesi', label: 'Missing trakheesi number' },
   { value: 'photo_count_below_min', label: 'Photo count below minimum' },
   { value: 'description_too_short', label: 'Description too short' },
@@ -413,6 +314,155 @@ export function bulkRequestInfoPortalSubmissions(
 /** CSV export URL (same query as list). Caller triggers browser download. */
 export function portalModerationCsvPath(query: PortalModerationListQuery = {}): string {
   return `${API_BASE}/admin/moderation/portals.csv${toQuery(query)}`
+}
+
+// --- PA-MOD-002 detail types + helpers ---
+
+export type ModerationStatus =
+  | 'pending'
+  | 'pending_moderation'
+  | 'approved'
+  | 'rejected'
+  | 'request_info'
+  | 'portal_error'
+  | 'expired'
+  | 'pending_second_approval'
+
+export type TenureRiskTier = 'low' | 'medium' | 'high' | 'unknown'
+
+export type ValidatorSeverity = 'pass' | 'warn' | 'fail'
+
+export interface ValidatorLintCheck {
+  code: string
+  severity: ValidatorSeverity
+  message: string
+  expected?: string
+  actual?: string
+}
+
+/** Detail view shape from GET /api/admin/moderation/portals/:submissionId */
+export interface PortalModerationSubmission {
+  id: string
+  submitted_at: string
+  status: ModerationStatus
+  env: 'live' | 'test'
+  is_own: boolean
+  is_already_decided: boolean
+  step_up_required: boolean
+  decision?: {
+    actor_name?: string
+    actor_id?: string
+    decided_at?: string
+    reason_code?: string
+    notes?: string
+    state?: string
+  } | null
+  listing: {
+    id: string
+    title: string
+    address_line: string
+    hero_image_url?: string | null
+  }
+  listing_preview: {
+    hero_image_url?: string | null
+    gallery?: string[]
+    price: { amount_minor: number; currency: string; basis: string }
+    specs: { beds: number; baths: number; area_m2: number }
+    amenities: string[]
+    description: string
+    agent_contact: {
+      phone_masked: string
+      email_masked: string
+      whatsapp_deeplink?: string | null
+    }
+  }
+  agent: {
+    id: string
+    display_name: string
+    avatar_url?: string | null
+  }
+  agent_context: {
+    wingcaster_tenure_month: string
+    portfolio_size: number
+    prior_decision_summary_30d: {
+      approved: number
+      rejected: number
+      request_info: number
+    }
+  }
+  agency: {
+    id: string
+    name: string
+    tenant_url: string
+    two_person_reject_required?: boolean
+  }
+  portal: {
+    code: string
+    display_name: string
+    country_code: string
+    country_flag_emoji?: string
+  }
+  validator_lint: {
+    pass_count?: number
+    warn_count?: number
+    fail_count?: number
+    checks: ValidatorLintCheck[]
+  }
+  tenure_risk: {
+    tier: TenureRiskTier
+    score?: number
+    signals?: string[]
+    reasons?: string[]
+  }
+  portal_payload_preview: Record<string, unknown> | unknown
+  notification_previews: {
+    approve: string
+    reject: string
+    request_info: string
+  }
+  queue_position?: {
+    position: number
+    total: number
+  }
+}
+
+export interface PortalModerationDetailResponse {
+  submission: PortalModerationSubmission
+}
+
+export interface SubmissionSiblingResponse {
+  next_submission_id: string | null
+}
+
+export interface SubmissionHistoryRow {
+  portal_code: string
+  portal_display_name?: string
+  submitted_at: string
+  status: string
+  decided_at?: string | null
+  decided_by?: string | null
+}
+
+export interface AuditTrailEvent {
+  id?: string
+  at: string
+  actor?: string | null
+  kind: string
+  description: string
+}
+
+export interface ModerationActionResult {
+  state?: string
+  approval_request_id?: string
+  status?: string
+  error?: string
+}
+
+export interface RevealContactResult {
+  phone_full?: string
+  email_full?: string
+}
+
 export function reasonLabel(
   options: ReadonlyArray<{ value: string; label: string }>,
   code: string,

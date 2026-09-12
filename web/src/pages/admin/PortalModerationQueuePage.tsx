@@ -66,7 +66,7 @@ import {
   retryPublishPortalSubmission,
   undoApprovePortalSubmission,
   undoRejectPortalSubmission,
-  type PortalModerationSubmission,
+  type PortalModerationListItem,
   type PortalRegistryOption,
 } from '@/api/portalModeration'
 
@@ -82,7 +82,7 @@ const STATUS_VALUES = [
   'expired',
 ] as const
 
-type ModerationRow = PAQueueRow & PortalModerationSubmission
+type ModerationRow = PAQueueRow & PortalModerationListItem
 
 type PendingUndo = {
   id: string
