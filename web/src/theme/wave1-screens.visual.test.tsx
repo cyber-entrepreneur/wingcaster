@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -22,6 +22,7 @@ import type { ApplicationOutcomePayload } from '@/pages/agent/applicationOutcome
 import type { AgencyApplicationRaw } from '@/pages/agency/applicationsTypes'
 
 const FIXED_NOW = new Date('2026-09-08T12:00:00.000Z').getTime()
+const SNAPSHOT_NOW = new Date('2026-09-12T12:00:00.000Z').getTime()
 
 const apiMocks = vi.hoisted(() => ({
   getAgencyPublic: vi.fn(),
@@ -200,6 +201,8 @@ function outcomePayload(
 }
 
 beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(SNAPSHOT_NOW)
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
@@ -213,6 +216,10 @@ beforeAll(() => {
     style.textContent = THEME_CSS
     document.head.appendChild(style)
   }
+})
+
+afterAll(() => {
+  vi.useRealTimers()
 })
 
 function setViewport(bucket: 'mobile' | 'tablet' | 'desktop') {
@@ -301,6 +308,7 @@ function serialize(root: HTMLElement): string {
 beforeEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.setSystemTime(SNAPSHOT_NOW)
   authMock.agent = null
   authMock.loading = false
   document.documentElement.lang = 'en'

@@ -46,6 +46,7 @@ import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/Age
 import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
+import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
@@ -74,6 +75,8 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { onboardingRoutes } from '@/pages/agent/onboarding/routes'
+import { activationRoutes } from '@/pages/agent/activation/routes'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -88,6 +91,8 @@ const BARE_CHROME_PREFIXES = [
   '/join/',
   '/terms',
   '/privacy',
+  '/onboarding',
+  '/activate',
 ] as const
 
 function usesBareChrome(pathname: string): boolean {
@@ -180,6 +185,7 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      {whatsappIntakeRoutes}
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
@@ -190,6 +196,8 @@ function AppRoutes() {
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      {onboardingRoutes}
+      {activationRoutes}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
