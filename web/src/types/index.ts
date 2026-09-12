@@ -80,6 +80,8 @@ export interface Property {
   inquiries_new_count?: number
   days_on_market?: number
   last_activity_at?: string
+  owning_agent_id?: string
+  owning_agent_name?: string
   syndications?: Array<{
     channel: string
     status: string

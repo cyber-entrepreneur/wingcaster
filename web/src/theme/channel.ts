@@ -42,6 +42,22 @@ const CHANNEL_ALIAS: Record<string, LcChannel> = {
   'blue door': 'blue_door',
 }
 
+export const LC_CHANNEL_SHORT: Record<LcChannel, string> = {
+  instagram: 'IG',
+  whatsapp: 'WA',
+  messenger: 'MS',
+  facebook: 'FB',
+  tiktok: 'TT',
+  x: 'X',
+  linkedin: 'IN',
+  olx: 'OL',
+  bayut: 'BY',
+  property_finder: 'PF',
+  dubizzle: 'DZ',
+  aqar: 'AQ',
+  blue_door: 'BD',
+}
+
 export function resolveLcChannel(value: string | null | undefined): LcChannel | null {
   if (!value) return null
   const key = value.trim().toLowerCase()

@@ -40,6 +40,9 @@ import {
   type ComposerStep,
 } from '@/components/listings/composer/types'
 
+/** Survives the /listings/new → /listings/:id/edit remount after first autosave. */
+let inflightComposer: { id: string; form: ComposerFormState; step: ComposerStep } | null = null
+
 function hydrateFromProperty(p: Property): ComposerFormState {
   const base = emptyComposerForm()
   const photos: ComposerPhoto[] = (Array.isArray(p.photos) ? p.photos : []).map((url, i) => ({
@@ -97,26 +100,38 @@ export function ManualListingComposerPage() {
   ) as ComposerStep
   const sourceOnboarding = searchParams.get('source') === 'onboarding'
 
-  const [step, setStep] = useState<ComposerStep>(initialStep)
-  const [form, setForm] = useState<ComposerFormState>(emptyComposerForm)
+  const cached = inflightComposer && inflightComposer.id === routeId ? inflightComposer : null
+  const [step, setStep] = useState<ComposerStep>(cached ? cached.step : initialStep)
+  const [form, setForm] = useState<ComposerFormState>(() =>
+    cached ? cached.form : emptyComposerForm(),
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [propertyId, setPropertyId] = useState<string | null>(isEdit ? routeId! : null)
-  const [hydrating, setHydrating] = useState(isEdit)
+  const [hydrating, setHydrating] = useState(isEdit && !cached)
   const [hydrateError, setHydrateError] = useState<string | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [touched, setTouched] = useState(false)
+  const [touched, setTouched] = useState(Boolean(cached))
   const [charsTyped, setCharsTyped] = useState(0)
-  /** Skip GET hydrate when we already own form state for this id (post-create URL swap). */
-  const skipHydrateForIdRef = useRef<string | null>(null)
+  const skipHydrateForIdRef = useRef<string | null>(cached ? routeId! : null)
 
   const isAgency = activeTenant?.kind === 'agency'
   const agencyName = activeTenant?.name || 'your agency'
 
   useEffect(() => {
     if (!isEdit || !routeId) return
+    if (inflightComposer?.id === routeId && inflightComposer.form) {
+      setForm(inflightComposer.form)
+      setPropertyId(routeId)
+      setStep(inflightComposer.step)
+      setTouched(true)
+      setHydrating(false)
+      skipHydrateForIdRef.current = routeId
+      inflightComposer = null
+      return
+    }
     if (skipHydrateForIdRef.current === routeId) {
       setHydrating(false)
       return
@@ -152,7 +167,7 @@ export function ManualListingComposerPage() {
     onCreated: (id) => {
       setPropertyId(id)
       skipHydrateForIdRef.current = id
-      // Replace /listings/new so refresh preserves the draft (AGT-LST-004).
+      inflightComposer = { id, form, step }
       const sp = new URLSearchParams(searchParams)
       if (!sp.get('step')) sp.set('step', String(step))
       navigate(`/listings/${id}/edit?${sp.toString()}`, { replace: true })

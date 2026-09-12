@@ -107,6 +107,7 @@ function AppRoutes() {
       <Route path="/listings/new" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
+      <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
       <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />

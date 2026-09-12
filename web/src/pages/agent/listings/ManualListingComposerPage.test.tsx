@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 const addToast = vi.hoisted(() => vi.fn())
 const apiMocks = vi.hoisted(() => ({
@@ -61,9 +61,15 @@ vi.mock('@/lib/usePageTitle', () => ({
 
 import { ManualListingComposerPage } from './ManualListingComposerPage'
 
+function LocationProbe() {
+  const loc = useLocation()
+  return <div data-testid="loc">{`${loc.pathname}${loc.search}`}</div>
+}
+
 function renderComposer(path = '/listings/new') {
   return render(
     <MemoryRouter initialEntries={[path]}>
+      <LocationProbe />
       <Routes>
         <Route path="/listings/new" element={<ManualListingComposerPage />} />
         <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
@@ -132,6 +138,12 @@ describe('ManualListingComposerPage', () => {
     )
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '5')
     expect(screen.getByRole('button', { name: /publish →/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /publish →/i }))
+    await user.click(screen.getByRole('button', { name: /yes, publish/i }))
+    await waitFor(() =>
+      expect(screen.getByTestId('loc').textContent).toMatch(/\/publish\/outcome\/prop_new/),
+    )
   })
 
   it('autosaves via PUT after create on typing idle (happy path)', async () => {
@@ -151,6 +163,9 @@ describe('ManualListingComposerPage', () => {
       status: 'draft',
       location: 'Hamra',
     })
+    await waitFor(() =>
+      expect(screen.getByTestId('loc').textContent).toMatch(/\/listings\/prop_draft\/edit/),
+    )
 
     // URL replaced to /listings/:id/edit so refresh preserves draft
     await waitFor(() =>
