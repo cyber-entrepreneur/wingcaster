@@ -297,6 +297,34 @@ export const api = {
   me: () => fetchJson('/auth/me'),
   updateProfile: (data: Record<string, unknown>) =>
     fetchJson('/auth/me', { method: 'PUT', body: JSON.stringify(data) }),
+  patchMe: (data: Record<string, unknown>) =>
+    fetchJson('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
+  getSettingsIndex: (): Promise<SettingsIndexResponse> => fetchJson('/settings/index'),
+  getAuthSessions: (): Promise<{ sessions: AuthSessionRow[] }> => fetchJson('/auth/sessions'),
+  deleteAuthSession: (sessionId: string) =>
+    fetchJson(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+  deleteAuthSessionsExceptCurrent: (): Promise<{ revoked?: number } | null> =>
+    fetchJson('/auth/sessions/all-except-current', { method: 'DELETE' }),
+  getPushTokens: (): Promise<{ tokens: PushTokenRow[] }> => fetchJson('/auth/push-tokens'),
+  deletePushToken: (id: string) =>
+    fetchJson(`/auth/push-token/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  createBillingPortalSession: (section?: string): Promise<{ url: string }> =>
+    fetchJson('/billing/portal-session', {
+      method: 'POST',
+      body: JSON.stringify(section ? { section } : {}),
+    }),
+  testBillingNotification: (channel: string) =>
+    fetchJson(`/billing/notifications/test?channel=${encodeURIComponent(channel)}`, { method: 'POST' }),
+  initiateDeleteAccount: (data: Record<string, unknown>) =>
+    fetchJson('/auth/delete-account/initiate', { method: 'POST', body: JSON.stringify(data) }),
+  regenerateDeleteAccountWord: (): Promise<{ word?: string }> =>
+    fetchJson('/auth/delete-account/regenerate-word', { method: 'POST', body: '{}' }),
+  resendDeleteAccountEmail: () =>
+    fetchJson('/auth/delete-account/resend-email', { method: 'POST', body: '{}' }),
+  confirmDeleteAccount: (data: Record<string, unknown>) =>
+    fetchJson('/auth/delete-account/confirm', { method: 'POST', body: JSON.stringify(data) }),
+  cancelDeleteAccount: () =>
+    fetchJson('/auth/delete-account/cancel', { method: 'POST', body: '{}' }),
   getOnboarding: () => fetchJson('/auth/onboarding'),
   updateOnboarding: (data: Record<string, unknown>) =>
     fetchJson('/auth/onboarding', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -324,6 +352,9 @@ export const api = {
     fetchJson('/auth/2fa/totp/verify', { method: 'POST', body: JSON.stringify({ secret, code }) }),
   totpDisable: (code: string): Promise<{ totp_enabled: false; token: string | null }> =>
     fetchJson('/auth/2fa/totp/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  /** Invalidates existing backup codes and returns a fresh set once. Requires elevation. */
+  regenerateBackupCodes: (): Promise<{ backup_codes: string[]; backup_codes_remaining: number }> =>
+    fetchJson('/auth/2fa/backup-codes/regenerate', { method: 'POST', body: '{}' }),
   /** Redeems a sign-in challenge. Unauthenticated — there is no session yet. */
   twoFactorChallenge: (challenge_id: string, code: string) =>
     fetchJson('/auth/2fa/challenge', { method: 'POST', body: JSON.stringify({ challenge_id, code }) }),
@@ -1760,6 +1791,97 @@ export interface TenantCreditNote {
   note_number: string | null
   issued_at: string | null
   created_at: string
+}
+
+export interface SettingsIndexBadge {
+  kind?: 'status' | 'count'
+  tone?: 'default' | 'warning' | 'danger'
+  label?: string
+  label_key?: string
+  value?: number
+}
+
+export interface SettingsIndexItem {
+  id: string
+  label: string
+  label_key?: string
+  route: string
+  icon?: string
+  badge?: SettingsIndexBadge | null
+}
+
+export interface SettingsIndexGroup {
+  id: string
+  label: string
+  label_key?: string
+  items: SettingsIndexItem[]
+}
+
+export interface SettingsIndexActivity {
+  kind?: string
+  label: string
+  at: string
+}
+
+export interface SettingsIndexSecurityCapabilities {
+  two_factor_enrolled?: boolean
+  active_session_count?: number
+}
+
+export interface SettingsIndexBillingCapabilities {
+  plan?: string | null
+  past_due?: boolean
+  display_name?: string | null
+  renews_at?: string | null
+}
+
+export interface SettingsIndexIdentityCapabilities {
+  oauth_only?: boolean
+  signin_method?: string
+}
+
+export interface SettingsIndexTeamCapabilities {
+  role?: string
+  member_count?: number | null
+  pending_invite_count?: number
+}
+
+export interface SettingsIndexCapabilities {
+  account?: boolean
+  danger?: boolean
+  password?: boolean
+  env?: string
+  identity?: SettingsIndexIdentityCapabilities
+  security?: SettingsIndexSecurityCapabilities
+  billing?: SettingsIndexBillingCapabilities | false
+  team?: SettingsIndexTeamCapabilities | false
+}
+
+export interface SettingsIndexResponse {
+  capabilities?: SettingsIndexCapabilities
+  groups: SettingsIndexGroup[]
+  recent_activity?: SettingsIndexActivity[]
+}
+
+export interface AuthSessionRow {
+  id: string
+  is_current?: boolean
+  device_kind?: 'desktop' | 'mobile' | 'tablet' | 'unknown' | string
+  device_summary?: string
+  ip?: string | null
+  ip_country_iso?: string | null
+  ip_country?: string | null
+  ip_city?: string | null
+  created_at?: string
+  last_active_at?: string
+}
+
+export interface PushTokenRow {
+  id: string
+  platform: 'ios' | 'android' | 'web' | string
+  device_id?: string | null
+  created_at?: string
+  last_used_at?: string | null
 }
 
 export interface TenantPlanPreview {

@@ -1,7 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
+import { isSettingsNavActive, useSettingsItemRoutes } from './SettingsNavContext'
 import type { SettingsNavBadge, SettingsNavItemData } from './types'
 
 export interface SettingsNavItemProps {
@@ -43,11 +44,16 @@ function NavBadge({ badge }: { badge: SettingsNavBadge }) {
 export function SettingsNavItem({ item, className }: SettingsNavItemProps) {
   const Icon = item.icon
   const danger = Boolean(item.danger)
+  const { pathname } = useLocation()
+  const allRoutes = useSettingsItemRoutes()
+  const isActive = isSettingsNavActive(pathname, item.route, allRoutes)
+  const end = allRoutes.some((route) => route !== item.route && route.startsWith(`${item.route}/`))
 
   return (
     <NavLink
       to={item.route}
-      className={({ isActive }) =>
+      end={end}
+      className={() =>
         cn(
           'relative flex h-10 w-full items-center gap-2 rounded-[var(--lc-radius-md)] px-[var(--lc-space-sm)]',
           'text-[var(--lc-text-primary)] transition-colors duration-[var(--lc-duration-base)]',
@@ -59,32 +65,30 @@ export function SettingsNavItem({ item, className }: SettingsNavItemProps) {
         )
       }
     >
-      {({ isActive }) => (
-        <>
-          {/* Leading accent bar — flips to end edge under RTL via logical border. */}
-          {isActive ? (
-            <span
-              aria-hidden="true"
-              className="absolute inset-y-0 start-0 w-[3px] rounded-s-[var(--lc-radius-md)] bg-[var(--lc-action-primary)]"
-            />
-          ) : null}
-          <Icon
-            className={cn(
-              'h-[18px] w-[18px] shrink-0',
-              danger
-                ? 'text-[var(--lc-status-unpublished-fg)]'
-                : isActive
-                  ? 'text-[var(--lc-text-brand)]'
-                  : 'text-[var(--lc-text-primary)]',
-            )}
+      <>
+        {/* Leading accent bar — flips to end edge under RTL via logical border. */}
+        {isActive ? (
+          <span
             aria-hidden="true"
+            className="absolute inset-y-0 start-0 w-[3px] rounded-s-[var(--lc-radius-md)] bg-[var(--lc-action-primary)]"
           />
-          <span className="min-w-0 flex-1 truncate" style={{ font: 'var(--lc-type-body)' }}>
-            {item.label}
-          </span>
-          {item.badge ? <NavBadge badge={item.badge} /> : null}
-        </>
-      )}
+        ) : null}
+        <Icon
+          className={cn(
+            'h-[18px] w-[18px] shrink-0',
+            danger
+              ? 'text-[var(--lc-status-unpublished-fg)]'
+              : isActive
+                ? 'text-[var(--lc-text-brand)]'
+                : 'text-[var(--lc-text-primary)]',
+          )}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate" style={{ font: 'var(--lc-type-body)' }}>
+          {item.label}
+        </span>
+        {item.badge ? <NavBadge badge={item.badge} /> : null}
+      </>
     </NavLink>
   )
 }
