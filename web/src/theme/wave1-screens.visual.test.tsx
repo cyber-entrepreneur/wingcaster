@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -22,6 +22,8 @@ import type { ApplicationOutcomePayload } from '@/pages/agent/applicationOutcome
 import type { AgencyApplicationRaw } from '@/pages/agency/applicationsTypes'
 
 const FIXED_NOW = new Date('2026-09-08T12:00:00.000Z').getTime()
+/** Wall-clock for relative timestamps (outcome “Submitted N days ago”). */
+const SNAPSHOT_NOW = new Date('2026-09-12T12:00:00.000Z').getTime()
 
 const apiMocks = vi.hoisted(() => ({
   getAgencyPublic: vi.fn(),
@@ -200,6 +202,10 @@ function outcomePayload(
 }
 
 beforeAll(() => {
+  // Match GitHub Actions (Linux UTC) so visual snapshots are stable across locales.
+  process.env.TZ = 'UTC'
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(SNAPSHOT_NOW)
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
@@ -213,6 +219,10 @@ beforeAll(() => {
     style.textContent = THEME_CSS
     document.head.appendChild(style)
   }
+})
+
+afterAll(() => {
+  vi.useRealTimers()
 })
 
 function setViewport(bucket: 'mobile' | 'tablet' | 'desktop') {
@@ -295,12 +305,35 @@ function serialize(root: HTMLElement): string {
   const dir = document.documentElement.dir || 'ltr'
   const lang = document.documentElement.lang || 'en'
   const vw = window.innerWidth
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  const body = `${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  // Locale / timezone drift (Windows vs CI Linux) — scrub absolute & relative dates.
+  const stable = body
+    .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
+    .replace(/\d+[smhdwy]\s+ago/gi, '__REL__')
+    .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+    .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM))?(?:\s+[A-Z]{2,5})?/gi, '__ABS__')
+    .replace(
+      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}(?:\s+[A-Z]{2,5})?/g,
+      '__ABS__',
+    )
+    .replace(
+      /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4}(?:,\s*\d{1,2}:\d{2}(?:\s*[AP]M)?)?/gi,
+      '__ABS__',
+    )
+    .replace(/\d{1,2}\/\d{1,2}\/\d{4}(?:,\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?/gi, '__ABS__')
+    .replace(/__ABS__\s+[A-Z]{2,5}\b/g, '__ABS__')
+    .replace(/title="\d{1,2}\/\d{1,2}\/\d{4}[^"]*"/g, 'title="__ABS__"')
+    .replace(/title="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'title="__ISO__"')
+    .replace(/title="[^"]*\d{4}-\d{2}-\d{2}T[^"]*"/g, 'title="__ISO__"')
+    .replace(/datetime="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'datetime="__ISO__"')
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z/g, '__ISO__')
+  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n${stable}`
 }
 
 beforeEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.setSystemTime(SNAPSHOT_NOW)
   authMock.agent = null
   authMock.loading = false
   document.documentElement.lang = 'en'
