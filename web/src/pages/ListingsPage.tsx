@@ -33,7 +33,6 @@ import { ListingFormModal } from '@/components/ListingFormModal'
 import {
   FabActionSheet,
   ListingCard,
-  ProListingsTable,
   StatusPill,
   ViewToggleGroup,
   type ListingCardProperty,
@@ -43,7 +42,7 @@ import { cn } from '@/lib/utils'
 import type { Property } from '@/types'
 import { useUiMode } from '@/hooks/useUiMode'
 import { useTenant } from '@/hooks/useTenant'
-import { ProListingsTable } from '@/pages/agent/listings/ProListingsTable'
+import { ProListingsTable as ProListingsTableFull } from '@/pages/agent/listings/ProListingsTable'
 
 type StatusFilter = 'all' | ListingStatus
 type TypeFilter = 'all' | 'sale' | 'rent'
@@ -91,16 +90,6 @@ function useMediaMin(px: number): boolean {
   return match
 }
 
-function readUiMode(): 'guided' | 'pro' {
-  try {
-    const raw = localStorage.getItem('wc.ui_mode')
-    if (raw === 'pro') return 'pro'
-  } catch {
-    /* ignore */
-  }
-  return 'guided'
-}
-
 export function ListingsPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
@@ -112,7 +101,6 @@ export function ListingsPage() {
 
   const isDesktop = useMediaMin(1024)
   const isTabletPlus = useMediaMin(768)
-  const uiMode = readUiMode()
 
   const [listings, setListings] = useState<ListingCardProperty[]>([])
   const [loading, setLoading] = useState(true)
@@ -121,6 +109,8 @@ export function ListingsPage() {
   )
   const [createOpen, setCreateOpen] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
+  /** Local override so Cards toggle can leave Pro table without changing server ui_mode. */
+  const [forceGuidedCards, setForceGuidedCards] = useState(false)
 
   const viewFromUrl = searchParams.get('view') as ViewMode | null
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -247,7 +237,10 @@ export function ListingsPage() {
     syncParams({ view: mode })
   }
 
-  const showProTable = uiMode === 'pro' && isTabletPlus && viewMode === 'list'
+  const wantTable =
+    !forceGuidedCards &&
+    isProCapable &&
+    (effectiveMode === 'pro' || searchParams.get('view') === 'table')
 
   if (authLoading || loading) {
     return (
@@ -289,7 +282,7 @@ export function ListingsPage() {
   if (wantTable) {
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <ProListingsTable
+        <ProListingsTableFull
           listings={filtered}
           totalCount={listings.length}
           showOwnerColumn={activeTenant?.kind === 'agency'}
@@ -307,7 +300,10 @@ export function ListingsPage() {
           <ListingFormModal
             open={createOpen}
             onClose={() => setCreateOpen(false)}
-            onSaved={() => { setCreateOpen(false); loadListings() }}
+            onSaved={() => {
+              setCreateOpen(false)
+              void loadListings()
+            }}
           />
         )}
       </div>
@@ -483,8 +479,6 @@ export function ListingsPage() {
             syncParams({ status: null, type: null, q: null })
           }}
         />
-      ) : showProTable ? (
-        <ProListingsTable items={filtered} onOpen={(id) => navigate(`/listings/${id}`)} />
       ) : viewMode === 'card' ? (
         <CardGrid
           items={filtered}
