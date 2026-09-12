@@ -244,7 +244,13 @@ function serialize(root: HTMLElement): string {
   const mode = document.documentElement.getAttribute('data-lc-mode') || 'light'
   const dir = document.documentElement.dir || 'ltr'
   const lang = document.documentElement.lang || 'en'
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  const body = `${clone.innerHTML}\n<!-- portals -->\n${portals}`
+  // Stabilize relative/absolute timestamps so CI (Linux) and local (Windows) match.
+  const stable = body
+    .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
+    .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+    .replace(/\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},\s*\d{1,2}:\d{2}/g, '__ABS__')
+  return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 
 function applyTheme(mode: Mode, dir: Dir) {
