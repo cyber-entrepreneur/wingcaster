@@ -25,6 +25,13 @@ export type { SettingsCardListProps } from './SettingsCardList'
 export { SettingsCardRow } from './SettingsCardRow'
 export type { SettingsCardRowProps } from './SettingsCardRow'
 
+export { SettingsItemRoutesProvider } from './SettingsNavContext'
+export { SettingsPaneHeader, SavedPill } from './SettingsPaneHeader'
+export { SettingsAnchor } from './anchor/SettingsAnchor'
+export { SecurityPostureTile } from './anchor/SecurityPostureTile'
+export { BillingSnapshotCard } from './anchor/BillingSnapshotCard'
+export { SettingsActivityList } from './anchor/SettingsActivityList'
+
 export type {
   SettingsFooterSlot,
   SettingsNavBadge,
@@ -32,3 +39,4 @@ export type {
   SettingsNavItemData,
   SettingsNavigateHandlers,
 } from './types'
+
