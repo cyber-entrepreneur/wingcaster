@@ -733,6 +733,8 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     provider_message_id: dispatch.provider_message_id,
     content: content || '',
     content_type: contentType,
+    image_url: imageUrl || null,
+    audio_url: (attachments || []).find((a) => String(a?.mime || '').startsWith('audio/'))?.url || null,
     status: dispatch.status,
     sent_at: dispatch.ok ? now : null,
     delivered_at: null,
@@ -828,6 +830,32 @@ export async function markConversationReadByAgent(conversationId) {
     ...c,
     unread_count: 0,
     is_unread_by_agent: false,
+    updated_at: now,
+  }))
+  return await findOne('conversations', (c) => c.id === conversationId)
+}
+
+export async function markConversationUnreadByAgent(conversationId) {
+  const conversation = await findOne('conversations', (c) => c.id === conversationId)
+  if (!conversation) return null
+  const now = new Date().toISOString()
+  await update('conversations', (c) => c.id === conversationId, (c) => ({
+    ...c,
+    unread_count: Math.max(1, Number(c.unread_count || 0)),
+    is_unread_by_agent: true,
+    updated_at: now,
+  }))
+  return await findOne('conversations', (c) => c.id === conversationId)
+}
+
+export async function archiveConversation(conversationId) {
+  const conversation = await findOne('conversations', (c) => c.id === conversationId)
+  if (!conversation) return null
+  const now = new Date().toISOString()
+  await update('conversations', (c) => c.id === conversationId, (c) => ({
+    ...c,
+    status: 'closed',
+    archived_at: now,
     updated_at: now,
   }))
   return await findOne('conversations', (c) => c.id === conversationId)
