@@ -17,6 +17,18 @@ vi.mock('@/api/client', () => ({
       status: 'active',
       syndications: [{ channel: 'bayut', status: 'published' }],
     }),
+    getPublishingTracker: vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'att_1',
+          portal_code: 'bayut',
+          portal_display_name: 'Bayut',
+          status: 'succeeded',
+          credit_charged: 1,
+          published_at: '2026-09-12T10:00:00.000Z',
+        },
+      ],
+    }),
   },
 }))
 

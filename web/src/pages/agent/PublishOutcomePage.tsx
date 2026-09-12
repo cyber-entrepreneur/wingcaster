@@ -77,9 +77,13 @@ export function PublishOutcomePage() {
       setLoading(true)
       setError(null)
       try {
+        const trackerPromise =
+          typeof api.getPublishingTracker === 'function'
+            ? (api.getPublishingTracker({ listing_id: id, limit: '50' }) as Promise<TrackerResponse>)
+            : Promise.resolve({ items: [] } as TrackerResponse)
         const [propResult, trackerResult] = await Promise.allSettled([
           api.getProperty(id) as Promise<Property>,
-          api.getPublishingTracker({ listing_id: id, limit: '50' }) as Promise<TrackerResponse>,
+          trackerPromise,
         ])
         if (cancelled) return
         if (propResult.status === 'fulfilled') setProperty(propResult.value)
