@@ -328,8 +328,8 @@ export const AGENCY_APPLICATION_AVAILABILITY = Object.freeze([
 
 /**
  * AGN-MEM-005 public join apply (BE-BLOCKER-06).
- * Signed-in path: applicant identity comes from the session.
- * Guest signup embedding is a follow-up (prefer authMiddleware for this blocker).
+ * Signed-in: applicant identity from session; guest_signup ignored.
+ * Anonymous: guest_signup (SHR-AUT-006 identity) creates user+application atomically.
  */
 export const agencyApplicationCreateSchema = z.object({
   message: z.string().trim().min(1).max(500),
@@ -344,6 +344,9 @@ export const agencyApplicationCreateSchema = z.object({
       errorMap: () => ({ message: 'profile_share consent is required' }),
     }),
   }),
+  // Parsed / validated in the route for guest_signup.* field_errors (brief shape).
+  guest_signup: z.unknown().optional().nullable(),
+  locale: z.string().max(16).optional(),
 })
 
 export const propertyQuerySchema = z.object({

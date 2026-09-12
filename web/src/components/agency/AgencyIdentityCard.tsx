@@ -35,7 +35,22 @@ export interface AgencyIdentityCardProps {
   onViewProfile?: () => void
   /** Optional invitation badge label (e.g. "Invited by Rashid"). */
   invitedByLabel?: string
+  /**
+   * Invitation expiry ISO date — shown under the meta strip on `/join/:code`
+   * (AGN-MEM-005 invitation variant).
+   */
+  invitationExpiresAt?: string | null
   className?: string
+}
+
+function formatExpiryDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function monogram(name: string): string {
@@ -63,6 +78,7 @@ export function AgencyIdentityCard({
   profileHref,
   onViewProfile,
   invitedByLabel,
+  invitationExpiresAt,
   className,
 }: AgencyIdentityCardProps) {
   const handleViewProfile = () => {
@@ -198,6 +214,15 @@ export function AgencyIdentityCard({
               </li>
             ) : null}
           </ul>
+
+          {invitationExpiresAt ? (
+            <p
+              className="mt-[var(--lc-space-sm)] text-[var(--lc-text-muted)]"
+              style={{ font: 'var(--lc-type-caption)' }}
+            >
+              This invitation expires on {formatExpiryDate(invitationExpiresAt)}.
+            </p>
+          ) : null}
 
           {showProfile ? (
             <Button

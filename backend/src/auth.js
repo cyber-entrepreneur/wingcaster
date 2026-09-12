@@ -134,18 +134,9 @@ function isoTimestamp(value) {
   return value
 }
 
-export async function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-  const token = authHeader.slice(7)
-  const decoded = verifyToken(token)
-  if (!decoded) {
-    return res.status(401).json({ error: 'Invalid token' })
-  }
+async function attachAuthenticatedUser(req, decoded) {
   if (!decoded.verified_at) {
-    return res.status(401).json({ error: 'Session verification required' })
+    return { status: 401, error: 'Session verification required' }
   }
 
   let user
@@ -154,19 +145,19 @@ export async function authMiddleware(req, res, next) {
     user = await findUserById(decoded.id)
     agent = user ? await findAgentForUser(user.id) : null
   } catch (err) {
-    return next(err)
+    return { error: err }
   }
   if (!user || !agent) {
-    return res.status(401).json({ error: 'Account no longer exists' })
+    return { status: 401, error: 'Account no longer exists' }
   }
   if (!user.verified || !user.verified_at || decoded.verified_at !== isoTimestamp(user.verified_at)) {
-    return res.status(401).json({ error: 'Session verification required' })
+    return { status: 401, error: 'Session verification required' }
   }
 
   const tokenVersion = Number(decoded.token_version ?? 0)
   const userTokenVersion = Number(user.token_version ?? 0)
   if (tokenVersion !== userTokenVersion) {
-    return res.status(401).json({ error: 'Session expired. Please sign in again.' })
+    return { status: 401, error: 'Session expired. Please sign in again.' }
   }
 
   const sessionEnv = (() => {
@@ -193,5 +184,43 @@ export async function authMiddleware(req, res, next) {
   }
   req.sessionEnv = sessionEnv
   req.agent = agent
+  return null
+}
+
+export async function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  const token = authHeader.slice(7)
+  const decoded = verifyToken(token)
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token' })
+  }
+
+  const failure = await attachAuthenticatedUser(req, decoded)
+  if (failure?.error && !failure.status) return next(failure.error)
+  if (failure) return res.status(failure.status).json({ error: failure.error })
+  next()
+}
+
+/**
+ * Auth when a Bearer token is present; otherwise continue unauthenticated.
+ * Used by AGN-MEM-005 guest signup-on-apply (guest_signup body when anonymous).
+ */
+export async function optionalAuthMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) {
+    return next()
+  }
+  const token = authHeader.slice(7)
+  const decoded = verifyToken(token)
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token' })
+  }
+
+  const failure = await attachAuthenticatedUser(req, decoded)
+  if (failure?.error && !failure.status) return next(failure.error)
+  if (failure) return res.status(failure.status).json({ error: 'Invalid token' })
   next()
 }
