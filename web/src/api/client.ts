@@ -3,6 +3,7 @@ import type {
   StepUpResult,
   TotpEnrolmentResult,
   TotpSetup,
+  TwoFactorMethod,
   TwoFactorStatus,
 } from '@/types/twoFactor'
 import type {
@@ -352,8 +353,14 @@ export const api = {
     fetchJson('/auth/2fa/totp/verify', { method: 'POST', body: JSON.stringify({ secret, code }) }),
   totpDisable: (code: string): Promise<{ totp_enabled: false; token: string | null }> =>
     fetchJson('/auth/2fa/totp/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  /** Invalidates existing backup codes and returns a fresh set once. Requires elevation. */
+  regenerateBackupCodes: (): Promise<{ backup_codes: string[]; backup_codes_remaining: number }> =>
+    fetchJson('/auth/2fa/backup-codes/regenerate', { method: 'POST', body: '{}' }),
   /** Redeems a sign-in challenge. Unauthenticated — there is no session yet. */
-  twoFactorChallenge: (challenge_id: string, code: string) =>
+  twoFactorChallenge: (
+    challenge_id: string,
+    code: string,
+  ): Promise<{ token: string; agent?: unknown; factor_used?: TwoFactorMethod }> =>
     fetchJson('/auth/2fa/challenge', { method: 'POST', body: JSON.stringify({ challenge_id, code }) }),
   stepUp: (): Promise<StepUpChallenge> => fetchJson('/auth/step-up', { method: 'POST', body: '{}' }),
   stepUpVerify: (challenge_id: string, code: string): Promise<StepUpResult> =>
