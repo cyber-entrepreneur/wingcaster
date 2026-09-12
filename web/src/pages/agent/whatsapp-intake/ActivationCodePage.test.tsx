@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
@@ -8,6 +8,28 @@ import { ActivationCodePage } from './ActivationCodePage'
 
 vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn(async () => 'data:image/png;base64,qr') },
+}))
+
+type BindingStatusPollMock = {
+  status: { bound: boolean; phone_e164?: string } | null
+  bound: boolean
+  pollError: boolean
+  capReached: boolean
+  consecutiveFailures: number
+}
+
+const bindingStatusMock = vi.hoisted((): { value: BindingStatusPollMock } => ({
+  value: {
+    status: null,
+    bound: false,
+    pollError: false,
+    capReached: false,
+    consecutiveFailures: 0,
+  },
+}))
+
+vi.mock('./useBindingStatusPoll', () => ({
+  useBindingStatusPoll: () => bindingStatusMock.value,
 }))
 
 const fetchMock = vi.fn()
@@ -53,6 +75,13 @@ function renderCode(state?: Record<string, string>) {
 beforeEach(() => {
   fetchMock.mockReset()
   clipboardWrite.mockReset()
+  bindingStatusMock.value = {
+    status: null,
+    bound: false,
+    pollError: false,
+    capReached: false,
+    consecutiveFailures: 0,
+  }
   vi.stubGlobal('fetch', fetchMock)
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -67,6 +96,11 @@ beforeEach(() => {
     }
     return jsonResponse({})
   })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
 })
 
 describe('ActivationCodePage', () => {
@@ -110,12 +144,13 @@ describe('ActivationCodePage', () => {
   })
 
   it('navigates to waiting when binding-status reports bound', async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (String(url).includes('binding-status')) {
-        return jsonResponse({ bound: true, phone_e164: '+971501234567' })
-      }
-      return jsonResponse(CODE)
-    })
+    bindingStatusMock.value = {
+      status: { bound: true, phone_e164: '+971501234567' },
+      bound: true,
+      pollError: false,
+      capReached: false,
+      consecutiveFailures: 0,
+    }
     renderCode()
     await waitFor(() => expect(screen.getByText('WAITING_PAGE')).toBeInTheDocument())
   })

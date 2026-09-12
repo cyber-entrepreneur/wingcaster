@@ -6,6 +6,20 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { ListingDraftingPage } from './ListingDraftingPage'
 
+vi.mock('./useOnboardingState', async () => {
+  const actual = await vi.importActual<typeof import('./useOnboardingState')>('./useOnboardingState')
+  return {
+    ...actual,
+    useOnboardingState: () => ({
+      state: { checklist: {} },
+      patch: vi.fn(async () => undefined),
+      completeStep: vi.fn(async () => undefined),
+      deferStep: vi.fn(async () => undefined),
+    }),
+    markWhatsAppIntakeProgress: vi.fn(async () => undefined),
+  }
+})
+
 vi.mock('./useDraftProgress', async () => {
   const actual = await vi.importActual<typeof import('./useDraftProgress')>('./useDraftProgress')
   return {
