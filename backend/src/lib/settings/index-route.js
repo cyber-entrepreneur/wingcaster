@@ -16,6 +16,11 @@ import logger from '../logger.js'
 const PG_UNDEFINED_COLUMN = '42703'
 const PG_UNDEFINED_TABLE = '42P01'
 
+function isMissingRelationOrColumn(err) {
+  const code = err?.code
+  return code === PG_UNDEFINED_TABLE || code === PG_UNDEFINED_COLUMN
+}
+
 export const FALLBACK_GROUP_IDS = Object.freeze(['account', 'security', 'danger'])
 
 export const SETTINGS_CATALOG = Object.freeze([
