@@ -120,6 +120,9 @@ finPostgresSuite('tenant billing routes', {}, ({ pool }) => {
     const app = buildApp()
     const res = await request(app).get('/api/tenant/plans').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.plans.some((p) => p.code === 'free-agent')).toBe(true)
+    // free-* packages are deactivated from the marketing catalog (migration 339)
+    // but remain PUBLISHED for onboarding; tenant plans only lists active packages.
+    expect(res.body.plans.some((p) => p.code === 'free-agent')).toBe(false)
+    expect(res.body.plans.some((p) => p.code === 'semsar')).toBe(true)
   })
 })

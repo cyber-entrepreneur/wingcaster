@@ -97,7 +97,8 @@ finPostgresSuite('packages migrations 302–304 + 319 + 333', {}, ({ pool }) => 
     expect(free.rows[0].code).toBe('free-agency')
     expect(free.rows[0].tier).toBe('free')
     expect(free.rows[0].target_audience).toBe('agency')
-    expect(free.rows[0].active).toBe(true)
+    // Migration 339 deactivates free from the marketing catalog; stays PUBLISHED.
+    expect(free.rows[0].active).toBe(false)
     expect(free.rows[0].state).toBe('PUBLISHED')
     expect(Number(free.rows[0].properties_covered)).toBe(0)
     expect(Number(free.rows[0].monthly_price_minor)).toBe(0)

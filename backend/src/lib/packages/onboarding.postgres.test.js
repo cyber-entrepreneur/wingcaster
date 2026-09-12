@@ -106,7 +106,8 @@ finPostgresSuite('free-tier onboarding', {}, ({ pool }) => {
     expect(pkg.rows[0].display_name).toBe('Free Agency')
     expect(pkg.rows[0].tier).toBe('free')
     expect(pkg.rows[0].target_audience).toBe('agency')
-    expect(pkg.rows[0].active).toBe(true)
+    // Migration 339 deactivates free from the marketing catalog; stays PUBLISHED.
+    expect(pkg.rows[0].active).toBe(false)
     expect(pkg.rows[0].state).toBe('PUBLISHED')
     expect(Number(pkg.rows[0].properties_covered)).toBe(0)
     expect(Number(pkg.rows[0].monthly_price_minor)).toBe(0)
