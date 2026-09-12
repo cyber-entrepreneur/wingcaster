@@ -61,6 +61,7 @@ import {
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
+import { PreferencesPage } from '@/pages/PreferencesPage'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
@@ -146,6 +147,7 @@ function AppRoutes() {
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
       <Route path="/settings/2fa" element={<TotpSettingsPage />} />
+      <Route path="/settings/preferences" element={<PreferencesPage />} />
       <Route path="/settings/channels" element={<SocialChannelsPage />} />
       <Route path="/settings/routing" element={<RoutingSettingsPage />} />
       <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
