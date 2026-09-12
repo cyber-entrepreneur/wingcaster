@@ -48,7 +48,7 @@ describe('useUiMode', () => {
     mockUseAuth.mockReturnValue({
       agent: { id: 'a1', ui_mode: 'pro' },
       loading: false,
-    } as ReturnType<typeof useAuth>)
+    } as unknown as ReturnType<typeof useAuth>)
     mockUseIsProCapable.mockReturnValue(false)
 
     const { result } = renderHook(() => useUiMode())
@@ -61,7 +61,7 @@ describe('useUiMode', () => {
     mockUseAuth.mockReturnValue({
       agent: { id: 'a1', tenant_membership: { data: { ui_mode: 'pro' } } },
       loading: false,
-    } as ReturnType<typeof useAuth>)
+    } as unknown as ReturnType<typeof useAuth>)
     mockUseIsProCapable.mockReturnValue(true)
 
     const { result } = renderHook(() => useUiMode())
