@@ -60,8 +60,7 @@ export function SettingsSidebar({
   const showClear = searchQuery.length > 0
 
   return (
-    <aside
-      role="navigation"
+    <nav
       aria-label="Settings navigation"
       className={cn(
         'flex h-full w-[240px] shrink-0 flex-col border-e border-[var(--lc-border)]',
@@ -141,6 +140,6 @@ export function SettingsSidebar({
           {footer}
         </div>
       ) : null}
-    </aside>
+    </nav>
   )
 }

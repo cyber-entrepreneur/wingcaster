@@ -126,43 +126,41 @@ export function SettingsShell({
         Skip to settings content
       </a>
 
-      {/* Desktop / tablet ≥768px */}
+      {/*
+        One main landmark. Sidebar is CSS-hidden on mobile; the pane is
+        CSS-hidden on mobile list (cards take over) so children are never
+        duplicated in the accessibility tree.
+      */}
       <div
         className={cn(
-          'mx-auto hidden max-w-[1200px] md:grid',
-          'grid-cols-[240px_minmax(640px,960px)] gap-[var(--lc-space-2xl)]',
-          'px-[var(--lc-space-2xl)] pt-[var(--lc-space-4xl)]',
+          'mx-auto max-w-[1200px]',
+          'md:grid md:grid-cols-[240px_minmax(640px,960px)] md:gap-[var(--lc-space-2xl)]',
+          'md:px-[var(--lc-space-2xl)] md:pt-[var(--lc-space-4xl)]',
         )}
       >
-        <div className="sticky top-0 self-start" style={{ maxHeight: '100vh' }}>
+        <div className="sticky top-0 hidden self-start md:block" style={{ maxHeight: '100vh' }}>
           {sidebar ?? defaultSidebar}
         </div>
         <main
           id={contentId}
-          className="min-w-0 transition-opacity duration-[var(--lc-duration-base)]"
+          className={cn(
+            'min-w-0 transition-opacity duration-[var(--lc-duration-base)]',
+            mobileView === 'list'
+              ? 'hidden md:block'
+              : 'px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)] md:px-0 md:pb-0 md:pt-0',
+          )}
           data-settings-pane
         >
           {children}
         </main>
       </div>
 
-      {/* Mobile ≤767px — list = grouped cards; detail = full-screen child pane. */}
-      <div className="flex flex-col md:hidden">
-        {mobileView === 'list' ? (
-          <>
-            {mobileSearch}
-            <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
-          </>
-        ) : (
-          <main
-            id={`${contentId}-mobile`}
-            className="min-w-0 px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)]"
-            data-settings-pane-mobile
-          >
-            {children}
-          </main>
-        )}
-      </div>
+      {mobileView === 'list' ? (
+        <div className="flex flex-col md:hidden">
+          {mobileSearch}
+          <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
+        </div>
+      ) : null}
     </div>
   )
 }

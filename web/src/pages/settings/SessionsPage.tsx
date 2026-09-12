@@ -181,9 +181,13 @@ export function SessionsPage() {
         </div>
       ) : null}
 
-      <section>
+      <section aria-labelledby="settings-sessions-heading">
         <div className="mb-[var(--lc-space-md)] flex flex-col gap-[var(--lc-space-sm)] sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-2)' }}>
+          <h2
+            id="settings-sessions-heading"
+            className="text-[var(--lc-text-heading)]"
+            style={{ font: 'var(--lc-type-heading-2)' }}
+          >
             Active sessions
           </h2>
           {!sessionsUnavailable && sessions.filter((s) => !s.is_current).length > 0 ? (
@@ -262,8 +266,15 @@ export function SessionsPage() {
         )}
       </section>
 
-      <section className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border)] pt-[var(--lc-space-xl)]">
-        <h2 className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-2)' }}>
+      <section
+        className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border)] pt-[var(--lc-space-xl)]"
+        aria-labelledby="settings-devices-heading"
+      >
+        <h2
+          id="settings-devices-heading"
+          className="text-[var(--lc-text-heading)]"
+          style={{ font: 'var(--lc-type-heading-2)' }}
+        >
           Registered mobile devices
         </h2>
         <p className="mb-[var(--lc-space-md)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { SettingsCardRow } from './SettingsCardRow'
 import type { SettingsNavGroupData } from './types'
@@ -52,12 +52,12 @@ export function SettingsCardList({
           data-settings-card-group={group.id}
         >
           <CardHeader className="px-[var(--lc-space-md)] py-[var(--lc-space-sm)]">
-            <CardTitle
-              className="text-[var(--lc-text-heading)]"
+            <h2
+              className="leading-none text-[var(--lc-text-heading)]"
               style={{ font: 'var(--lc-type-heading-3)' }}
             >
               {group.label}
-            </CardTitle>
+            </h2>
           </CardHeader>
           <CardContent className="divide-y divide-[var(--lc-border)] p-0">
             {group.items.map((item) => (

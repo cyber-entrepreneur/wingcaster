@@ -205,7 +205,7 @@ export function BillingPage({ section }: { section?: 'subscription' | 'invoices'
       />
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)} className="md:hidden">
-        <TabsList className="w-full">
+        <TabsList className="w-full" aria-label="Billing sections">
           <TabsTrigger value="subscription">Subscription</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="channels">Notification channels</TabsTrigger>

@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -50,6 +51,8 @@ function onlyDigits(raw: string): string {
  * Invariants:
  * - Cells stay LTR even in RTL layouts (Western digits from authenticator apps).
  * - Do NOT auto-submit on 6th digit — parent owns Verify.
+ * - Live region announces completion / multi-digit paste, not every keystroke
+ *   (each cell already names itself "Digit N of 6").
  */
 export function OtpInput({
   count = 6,
@@ -71,25 +74,43 @@ export function OtpInput({
     .split('')
     .map((c) => (c === ' ' ? '' : c))
   const refs = useRef<Array<HTMLInputElement | null>>([])
-  const [announce, setAnnounce] = useState('')
+  const filled = digits.filter(Boolean).length
+  const prevFilled = useRef<number | null>(null)
+  const [progressAnnounce, setProgressAnnounce] = useState('')
+
+  /**
+   * SHR-MFA-004: paste (or a jump of ≥2 digits) announces progression once.
+   * Single keystrokes are already spoken by the focused cell's accessible
+   * name ("Digit N of 6") — do not also push "1 of 6", "2 of 6" into the
+   * live region on every character.
+   */
+  useEffect(() => {
+    const prev = prevFilled.current
+    if (prev === null) {
+      prevFilled.current = filled
+      return
+    }
+    const jumped = filled - prev
+    prevFilled.current = filled
+    if (filled === count && jumped > 0) {
+      setProgressAnnounce(`${count}-digit code entered`)
+      return
+    }
+    if (jumped >= 2 && filled > 0) {
+      setProgressAnnounce(`${filled} of ${count} digits entered`)
+      return
+    }
+    if (jumped !== 0) {
+      setProgressAnnounce('')
+    }
+  }, [filled, count])
 
   const emit = useCallback(
     (nextDigits: string[], source: 'type' | 'paste' | 'backspace') => {
       const next = nextDigits.join('').slice(0, count)
       onChange?.(next)
-      const filled = next.length
-      if (filled === 0) {
-        setAnnounce('')
-        return
-      }
-      if (source === 'paste' && filled === count) {
-        setAnnounce(`${count}-digit code entered`)
+      if (next.length === count && (source === 'paste' || source === 'type')) {
         onComplete?.(next)
-        return
-      }
-      if (source === 'type') {
-        setAnnounce(`Digit ${filled} of ${count}`)
-        if (filled === count) onComplete?.(next)
       }
     },
     [count, onChange, onComplete],
@@ -163,9 +184,21 @@ export function OtpInput({
       aria-label={ariaLabel}
       id={groupId}
       dir="ltr"
+      aria-invalid={error || undefined}
       className={cn('flex gap-[var(--lc-space-xs)]', className)}
       data-otp-error={error || undefined}
     >
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-otp-progress=""
+        data-otp-announce=""
+        data-testid="otp-progress"
+      >
+        {progressAnnounce}
+      </span>
       {digits.map((digit, index) => (
         <input
           key={`${groupId}-${index}`}
@@ -190,13 +223,10 @@ export function OtpInput({
             'border-[var(--lc-border-strong)]',
             'focus-visible:border-[var(--lc-action-primary)] focus-visible:outline-none',
             'disabled:cursor-not-allowed disabled:opacity-50',
-            error && 'border-[var(--lc-status-danger-fg)]',
+            error && 'border-[var(--lc-status-danger-fg)] motion-reduce:transition-none',
           )}
         />
       ))}
-      <span className="sr-only" aria-live="polite" aria-atomic="true" data-otp-announce>
-        {announce}
-      </span>
     </div>
   )
 }

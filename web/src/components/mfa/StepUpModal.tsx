@@ -96,6 +96,7 @@ export function StepUpModal({
       }}
     >
       <DialogContent
+        aria-modal="true"
         className={cn(
           'max-w-[440px] border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-lg)]',
           'rounded-[var(--lc-radius-lg)]',
