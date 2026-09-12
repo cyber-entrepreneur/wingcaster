@@ -64,6 +64,7 @@ import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
 import { registerPublicPricingRoutes } from './lib/packages/public-pricing-routes.js'
+import { registerPortalAdminRoutes } from './lib/portals/admin-routes.js'
 import { wingcasterEnvMiddleware, fromAnyEnv, normalizeClientEnv } from './lib/session-env.js'
 import {
   registerWave0NavRoutes,
@@ -732,6 +733,10 @@ registerFinPackagesAdminRoutes(app, {
   requirePlatformAdmin,
 })
 registerPublicPricingRoutes(app)
+registerPortalAdminRoutes(app, {
+  authMiddleware,
+  requirePlatformAdmin,
+})
 registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
