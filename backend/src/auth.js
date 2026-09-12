@@ -262,7 +262,12 @@ export async function authMiddleware(req, res, next) {
 
   const failure = await attachAuthenticatedUser(req, decoded)
   if (failure?.error && !failure.status) return next(failure.error)
-  if (failure) return res.status(failure.status).json({ error: failure.error })
+  if (failure) {
+    return res.status(failure.status).json({
+      error: failure.error,
+      ...(failure.code ? { code: failure.code } : {}),
+    })
+  }
   next()
 }
 

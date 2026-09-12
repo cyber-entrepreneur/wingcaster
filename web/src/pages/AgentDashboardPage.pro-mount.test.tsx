@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 
 const useUiModeMock = vi.fn()
 
@@ -21,14 +22,26 @@ vi.mock('@/context/AuthContext', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useTenant', () => ({
+  useTenant: () => ({
+    activeTenant: { id: 'personal:agent-1', name: 'Personal', kind: 'personal', uiMode: 'pro' },
+    loading: false,
+    refresh: vi.fn(),
+  }),
+}))
+
 import {
   AgentDashboardModeMount,
   AgentDashboardProGate,
 } from '@/pages/agent/dashboard/AgentDashboardModeMount'
 
+function wrap(ui: React.ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>)
+}
+
 describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
   it('mounts ProDashboard when shouldRenderPro is true', async () => {
-    render(
+    wrap(
       <AgentDashboardModeMount
         shouldRenderPro
         agentName="Sara"
@@ -43,7 +56,7 @@ describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
   })
 
   it('keeps Guided when shouldRenderPro is false (D-S-06 mobile fallback)', () => {
-    render(
+    wrap(
       <AgentDashboardModeMount
         shouldRenderPro={false}
         guided={<div data-testid="guided-dashboard" />}
@@ -68,7 +81,7 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    render(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('pro-dashboard')).toBeTruthy()
@@ -84,7 +97,7 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    render(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
 
     expect(screen.getByTestId('guided-dashboard')).toBeTruthy()
     expect(screen.queryByTestId('pro-dashboard')).toBeNull()
