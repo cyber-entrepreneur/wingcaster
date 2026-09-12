@@ -12,6 +12,11 @@ const apiMocks = vi.hoisted(() => ({
   closeConversation: vi.fn(),
   updateConversation: vi.fn(),
   assignConversation: vi.fn(),
+  getAgentPreferences: vi.fn(),
+  patchAgentPreferences: vi.fn(),
+  getConversationAiSuggestions: vi.fn(),
+  bulkConversations: vi.fn(),
+  getMessageTemplates: vi.fn(),
 }))
 
 vi.mock('@/components/ui/toast', () => ({
@@ -86,6 +91,11 @@ describe('InboxPage AGT-INB-001/002', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiMocks.getConversations.mockResolvedValue([legacyConv, modernConv])
+    apiMocks.getAgentPreferences.mockResolvedValue({ inbox_merge_mode: 'separate' })
+    apiMocks.patchAgentPreferences.mockResolvedValue({ inbox_merge_mode: 'merged' })
+    apiMocks.getConversationAiSuggestions.mockResolvedValue({ enabled: true, suggestions: ['Yes, still available.'] })
+    apiMocks.bulkConversations.mockResolvedValue({ updated: 1, failed: [] })
+    apiMocks.getMessageTemplates.mockResolvedValue([])
     apiMocks.getConversation.mockImplementation(async (id: string) => {
       const base = id === 'conv_legacy' ? legacyConv : modernConv
       return {
@@ -136,6 +146,8 @@ describe('InboxPage AGT-INB-001/002', () => {
     })
     expect(screen.getAllByLabelText(/WhatsApp from Bayut/i).length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Compose message')).toBeInTheDocument()
+    expect(screen.getByLabelText('Attach a photo, document, or voice note')).toBeInTheDocument()
+    expect(screen.getByLabelText('Insert template')).toBeInTheDocument()
     expect(screen.getAllByText(/From Bayut/i).length).toBeGreaterThan(0)
   })
 
@@ -161,6 +173,37 @@ describe('InboxPage AGT-INB-001/002', () => {
       expect(screen.queryByText('Sara Al-Mansoori')).not.toBeInTheDocument()
     })
     expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+  })
+
+  it('exposes MENA portal sources on the source filter', async () => {
+    renderInbox()
+    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    const sourceFilter = screen.getByLabelText('Filter by source') as HTMLSelectElement
+    expect([...sourceFilter.options].map((o) => o.value)).toEqual(
+      expect.arrayContaining(['aqar', 'wasalt', 'aqarmap', '3akarat']),
+    )
+  })
+
+  it('toggles merged-vs-separate preference', async () => {
+    renderInbox()
+    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    fireEvent.click(screen.getByRole('button', { name: /Merge conversations across channels per contact/i }))
+    await waitFor(() => {
+      expect(apiMocks.patchAgentPreferences).toHaveBeenCalledWith({ inbox_merge_mode: 'merged' })
+    })
+  })
+
+  it('enters selection mode from the row checkbox and runs bulk mark read', async () => {
+    renderInbox()
+    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Select conversation' })[0])
+    await waitFor(() => screen.getByRole('toolbar', { name: /Selection mode/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark read' }))
+    await waitFor(() => {
+      expect(apiMocks.bulkConversations).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'mark_read' }),
+      )
+    })
   })
 })
 

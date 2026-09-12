@@ -11,6 +11,8 @@ export type InboxFilters = {
 export type InboxFilterChipRowProps = {
   filters: InboxFilters
   onChange: (next: InboxFilters) => void
+  mergeMode?: 'merged' | 'separate'
+  onMergeModeChange?: (mode: 'merged' | 'separate') => void
   className?: string
 }
 
@@ -44,7 +46,13 @@ function Chip({
   )
 }
 
-export function InboxFilterChipRow({ filters, onChange, className }: InboxFilterChipRowProps) {
+export function InboxFilterChipRow({
+  filters,
+  onChange,
+  mergeMode = 'separate',
+  onMergeModeChange,
+  className,
+}: InboxFilterChipRowProps) {
   return (
     <div
       className={cn(
@@ -104,6 +112,13 @@ export function InboxFilterChipRow({ filters, onChange, className }: InboxFilter
           ))}
         </select>
       </label>
+      {onMergeModeChange ? (
+        <Chip
+          label="Merge conversations across channels per contact"
+          pressed={mergeMode === 'merged'}
+          onClick={() => onMergeModeChange(mergeMode === 'merged' ? 'separate' : 'merged')}
+        />
+      ) : null}
     </div>
   )
 }
