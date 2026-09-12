@@ -1410,6 +1410,22 @@ export const api = {
     fetchJson('/pricing/report-comparable', { method: 'POST', body: JSON.stringify(data) }),
   getMyComparableReports: () => fetchJson('/pricing/my-comparable-reports'),
   getMyAgentPriceReports: (): Promise<AgentPriceReport[]> => fetchJson('/pricing/my-agent-price-reports'),
+  /** AGT-REC-002 — preferred user-scoped by-id (falls back in hooks when absent). */
+  getMyComparableReportOutcome: (reportId: string) =>
+    fetchJson(`/users/me/comparable-reports/${encodeURIComponent(reportId)}`),
+  withdrawComparableReport: (reportId: string) =>
+    fetchJson(`/users/me/comparable-reports/${encodeURIComponent(reportId)}/withdraw`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  /** AGT-REC-003 — preferred user-scoped by-id (falls back in hooks when absent). */
+  getMyPriceReportOutcome: (reportId: string) =>
+    fetchJson(`/users/me/price-reports/${encodeURIComponent(reportId)}`),
+  withdrawPriceReport: (reportId: string) =>
+    fetchJson(`/users/me/price-reports/${encodeURIComponent(reportId)}/withdraw`, {
+      method: 'POST',
+      body: '{}',
+    }),
   getAgentPricingPortfolio: (): Promise<AgentPricingPortfolio> => fetchJson('/agent/pricing/portfolio'),
   getAgencyPricingPortfolio: (): Promise<AgencyPricingPortfolio> => fetchJson('/agency/pricing/portfolio'),
   keepAgentListingPrice: (propertyId: string, reason?: string): Promise<PricingDecision> =>
@@ -1481,9 +1497,104 @@ export const api = {
   reviewAdminPricingReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
 
-  getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
+  // WF-05 PA-PVA-008/008b — comparable-report queue + decisions (BE-28)
+  listAdminComparableReports: (params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports${qs}`)
+  },
+  getAdminComparableReport: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}`),
+  getAdminComparableReportReporterHistory: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/reporter-history${qs}`)
+  },
+  getAdminComparableReportAuditTrail: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/audit-trail`),
+  getAdminComparableReportAffectedValuations: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/affected-valuations${qs}`)
+  },
+  confirmAdminComparableReportRemove: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-remove`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  confirmAdminComparableReportQuarantine: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-quarantine`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  rejectAdminComparableReportAsInvalid: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/reject-as-invalid`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  requestAdminComparableReportInfo: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  undoAdminComparableReportDecision: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/undo-decision`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  bulkRejectAdminComparableReportsAsInvalid: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-reject-as-invalid', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  bulkRequestAdminComparableReportsInfo: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-request-info', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getAdminAgentPriceReports: (params?: Record<string, string | number | undefined>) => {
+    const cleaned: Record<string, string> = {}
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue
+        cleaned[k] = String(v)
+      }
+    }
+    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
+    return fetchJson(`/admin/pricing/agent-price-reports${qs}`)
+  },
+  getAdminAgentPriceReport: (id: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}`),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
+    fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  bulkReviewAdminAgentPriceReports: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/agent-price-reports/bulk-review', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  undoAdminAgentPriceReportReview: (id: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}/undo-review`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getAdminAgentPriceReportEvidenceUrl: (reportId: string, evidenceId: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${reportId}/evidence/${evidenceId}/url`),
+  getAdminPricingBenchmarkSeries: (segmentId: string, window = '90d') =>
+    fetchJson(
+      `/admin/pricing/benchmarks/${encodeURIComponent(segmentId)}/series?window=${encodeURIComponent(window)}`,
+    ),
+  exportAdminAgentPriceReportsCsv: (params?: Record<string, string | number | undefined>) => {
+    const cleaned: Record<string, string> = {}
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue
+        cleaned[k] = String(v)
+      }
+    }
+    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
+    return `/admin/pricing/agent-price-reports.csv${qs}`
+  },
 
   submitAgentPriceReport: (data: Record<string, unknown>) =>
     fetchJson('/pricing/agent-price-reports', { method: 'POST', body: JSON.stringify(data) }),

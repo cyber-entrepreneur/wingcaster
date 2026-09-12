@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -617,9 +617,13 @@ export function LoginPage() {
             </p>
           </div>
         </aside>
-        <main className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8">
+        {/* App chrome already provides the page <main>; keep this a plain section. */}
+        <section
+          aria-label={t('page.title', locale)}
+          className="flex items-start justify-center px-4 py-6 lg:items-center lg:px-8"
+        >
           {authColumn}
-        </main>
+        </section>
       </div>
     </div>
   )

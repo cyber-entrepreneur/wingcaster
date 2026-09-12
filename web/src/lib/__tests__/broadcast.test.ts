@@ -6,6 +6,9 @@ describe('broadcast session channel', () => {
 
   beforeEach(() => {
     listeners = new Set()
+
+
+
     class MockBroadcastChannel {
       name: string
       constructor(name: string) {
@@ -13,13 +16,14 @@ describe('broadcast session channel', () => {
       }
       postMessage(data: unknown) {
         const event = { data } as MessageEvent
-        for (const listener of listeners) listener(event)
+        // Same-tab delivery for unit tests (real BC is cross-context only).
+        for (const listener of [...listeners]) listener(event)
       }
-      addEventListener(_type: string, listener: EventListener) {
-        listeners.add(listener as (event: MessageEvent) => void)
+      addEventListener(type: string, listener: EventListener) {
+        if (type === 'message') listeners.add(listener as (event: MessageEvent) => void)
       }
-      removeEventListener(_type: string, listener: EventListener) {
-        listeners.delete(listener as (event: MessageEvent) => void)
+      removeEventListener(type: string, listener: EventListener) {
+        if (type === 'message') listeners.delete(listener as (event: MessageEvent) => void)
       }
       close() {
         listeners.clear()
@@ -31,28 +35,31 @@ describe('broadcast session channel', () => {
     // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
     ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
       MockBroadcastChannel as unknown as typeof BroadcastChannel
+    globalThis.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
+    window.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    vi.resetModules()
   })
 
   it('publishes and receives tenant-switched events on wingcaster-session', async () => {
-    const { publishSessionEvent, subscribeSessionEvents, SESSION_BROADCAST_CHANNEL } =
-      await import('../broadcast')
+    const mod = await import('../broadcast')
+    mod.__resetSessionBroadcastForTests()
 
-    expect(SESSION_BROADCAST_CHANNEL).toBe('wingcaster-session')
+    expect(mod.SESSION_BROADCAST_CHANNEL).toBe('wingcaster-session')
 
     const received: unknown[] = []
-    const unsubscribe = subscribeSessionEvents((event) => {
+    const unsubscribe = mod.subscribeSessionEvents((event) => {
       received.push(event)
     })
 
-    publishSessionEvent({ type: 'tenant-switched', tenantId: 'tenant-1' })
-    publishSessionEvent({ type: 'locale-changed', locale: 'ar' })
-    publishSessionEvent({ type: 'env-changed', env: 'test' })
-    publishSessionEvent({ type: 'signed-out' })
+    mod.publishSessionEvent({ type: 'tenant-switched', tenantId: 'tenant-1' })
+    mod.publishSessionEvent({ type: 'locale-changed', locale: 'ar' })
+    mod.publishSessionEvent({ type: 'env-changed', env: 'test' })
+    mod.publishSessionEvent({ type: 'signed-out' })
 
     expect(received).toEqual([
       { type: 'tenant-switched', tenantId: 'tenant-1' },
