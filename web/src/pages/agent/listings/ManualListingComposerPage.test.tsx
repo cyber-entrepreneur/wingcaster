@@ -69,6 +69,7 @@ function renderComposer(path = '/listings/new') {
         <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
         <Route path="/listings" element={<div>Listings home</div>} />
         <Route path="/listings/:id" element={<div>Listing detail</div>} />
+        <Route path="/publish/outcome/:id" element={<div>Publish outcome</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -151,11 +152,52 @@ describe('ManualListingComposerPage', () => {
       location: 'Hamra',
     })
 
+    // URL replaced to /listings/:id/edit so refresh preserves draft
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar')).toBeInTheDocument(),
+    )
+
     await user.type(screen.getByLabelText(/area \/ neighborhood/i), ' Beach')
     await actAdvance(3100)
 
     await waitFor(() => expect(apiMocks.updateProperty).toHaveBeenCalled())
     expect(apiMocks.updateProperty.mock.calls[0][0]).toBe('prop_draft')
+  })
+
+  it('navigates to /publish/outcome/:id after successful publish', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    apiMocks.createProperty.mockResolvedValue({ id: 'prop_pub' })
+    apiMocks.updateProperty.mockResolvedValue({ id: 'prop_pub' })
+
+    renderComposer('/listings/new')
+
+    await user.type(screen.getByLabelText(/area \/ neighborhood/i), 'Dubai Marina')
+    await user.type(screen.getByLabelText(/asking price/i), '2400000')
+    await user.click(screen.getByRole('button', { name: /next →/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /property details/i })).toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: /next →/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /photos & video/i })).toBeInTheDocument(),
+    )
+    const urlInput = screen.getByLabelText(/or paste a photo url/i)
+    for (const url of ['https://cdn.example/1.jpg', 'https://cdn.example/2.jpg', 'https://cdn.example/3.jpg']) {
+      await user.clear(urlInput)
+      await user.type(urlInput, `${url}{Enter}`)
+    }
+    await user.click(screen.getByRole('button', { name: /next →/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /how should buyers reach you/i })).toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: /next →/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /last look before you publish/i })).toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: /publish →/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /yes, publish/i })).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /yes, publish/i }))
+    await waitFor(() => expect(screen.getByText(/publish outcome/i)).toBeInTheDocument())
   })
 
   it('hydrates edit mode from GET /properties/:id', async () => {

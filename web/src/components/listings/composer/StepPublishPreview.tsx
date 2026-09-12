@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import { ListingPreviewCard } from '@/components/onboarding/whatsapp/ListingPreviewCard'
 import { Numeric } from '@/components/ui/numeric'
-import { resolveLcChannel } from '@/theme/channel'
+import { portalLabelToChannel } from '@/theme/channel'
 import { cn } from '@/lib/utils'
 import {
   runPortalValidators,
@@ -126,10 +126,7 @@ export function StepPublishPreview({
         <ul className="space-y-2">
           {['Bayut', 'Property Finder', 'Dubizzle', 'OLX', 'Aqar'].map((portal) => {
             const portalIssues = byPortal.get(portal) || []
-            const channelKey = portal.toLowerCase().replace(/\s+/g, '_')
-            const resolved = resolveLcChannel(
-              channelKey === 'olx' ? 'olx' : channelKey === 'bayut' ? '' : '',
-            )
+            const resolved = portalLabelToChannel(portal)
             const ok = portalIssues.length === 0
             return (
               <li
@@ -139,7 +136,7 @@ export function StepPublishPreview({
                 <details className="group">
                   <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3">
                     {resolved ? (
-                      <ChannelMark channel={resolved} />
+                      <ChannelMark channel={resolved} label={portal} />
                     ) : (
                       <span className="inline-flex h-6 w-6 items-center justify-center rounded-[var(--lc-radius-sm)] bg-[var(--lc-surface-sunken)] text-[10px] font-semibold uppercase text-[var(--lc-text-muted)]">
                         {portal.slice(0, 2)}

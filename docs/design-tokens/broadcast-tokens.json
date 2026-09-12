@@ -784,6 +784,56 @@
             "$value": "#FFFFFF",
             "$type": "color"
           }
+        },
+        "bayut": {
+          "mark": {
+            "$value": "#6B9B2D",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "property_finder": {
+          "mark": {
+            "$value": "#E31C23",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "dubizzle": {
+          "mark": {
+            "$value": "#E4002B",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "aqar": {
+          "mark": {
+            "$value": "#0B7A4B",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
+        },
+        "blue_door": {
+          "mark": {
+            "$value": "#1B4F9C",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#FFFFFF",
+            "$type": "color"
+          }
         }
       }
     },
@@ -1083,6 +1133,56 @@
         "olx": {
           "mark": {
             "$value": "#6ED3D9",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "bayut": {
+          "mark": {
+            "$value": "#A8D96A",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "property_finder": {
+          "mark": {
+            "$value": "#FF7A7F",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "dubizzle": {
+          "mark": {
+            "$value": "#FF6B8A",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "aqar": {
+          "mark": {
+            "$value": "#4BE38C",
+            "$type": "color"
+          },
+          "on": {
+            "$value": "#0B0E12",
+            "$type": "color"
+          }
+        },
+        "blue_door": {
+          "mark": {
+            "$value": "#6BA8F5",
             "$type": "color"
           },
           "on": {

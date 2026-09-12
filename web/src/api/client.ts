@@ -491,6 +491,12 @@ export const api = {
   getProperty: (id: string) => fetchJson(`/properties/${id}`),
   createProperty: (data: Record<string, unknown>) =>
     fetchJson('/properties', { method: 'POST', body: JSON.stringify(data) }),
+  /** AGT-PUB-003 / BE-BLOCKER-11 — portal submission ledger for a listing or job. */
+  getPublishingTracker: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker${qs}`)
+  },
+  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
   uploadMedia: async (files: File[]) => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))

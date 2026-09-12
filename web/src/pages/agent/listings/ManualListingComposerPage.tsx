@@ -152,8 +152,10 @@ export function ManualListingComposerPage() {
     onCreated: (id) => {
       setPropertyId(id)
       skipHydrateForIdRef.current = id
-      // Stay on /listings/new so the wizard instance (and form state) is preserved.
-      // Deep-link edit remains /listings/:id/edit for returning to drafts.
+      // Replace /listings/new so refresh preserves the draft (AGT-LST-004).
+      const sp = new URLSearchParams(searchParams)
+      if (!sp.get('step')) sp.set('step', String(step))
+      navigate(`/listings/${id}/edit?${sp.toString()}`, { replace: true })
     },
   })
 
@@ -212,7 +214,7 @@ export function ManualListingComposerPage() {
         await api.updateProperty(id, body)
       }
       addToast({ title: 'Published. Taking you to your dashboard.', variant: 'success' })
-      navigate(`/listings/${id}`)
+      navigate(`/publish/outcome/${id}`)
     } catch (err: unknown) {
       addToast({
         title: 'Publish failed',

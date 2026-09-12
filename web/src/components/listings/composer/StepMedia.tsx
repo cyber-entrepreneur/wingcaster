@@ -1,5 +1,22 @@
-import { useRef } from 'react'
-import { Star, Trash2, Upload } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { GripVertical, Star, Trash2, Upload } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Numeric } from '@/components/ui/numeric'
@@ -18,6 +35,109 @@ function newPhotoId() {
   return `photo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+function SortablePhotoTile({
+  photo,
+  index,
+  onSetHero,
+  onRemove,
+  onAltChange,
+  isKeyboardActive,
+}: {
+  photo: ComposerPhoto
+  index: number
+  onSetHero: (id: string) => void
+  onRemove: (id: string) => void
+  onAltChange: (id: string, alt: string) => void
+  isKeyboardActive: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: photo.id,
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]',
+        'bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',
+        isDragging && 'z-10 opacity-90 shadow-[var(--lc-elevation-md)]',
+        isKeyboardActive && 'ring-2 ring-[var(--lc-focus-ring)]',
+      )}
+    >
+      <div className="relative aspect-square">
+        <img src={photo.url} alt={photo.alt_text || ''} className="h-full w-full object-cover" />
+        {index === 0 && (
+          <span
+            className={cn(
+              'absolute start-2 top-2 rounded-[var(--lc-radius-sm)] px-1.5 py-0.5',
+              'border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent-bold)]',
+              'text-[10px] font-semibold text-[var(--lc-accent-bold-text)]',
+            )}
+          >
+            Hero
+          </span>
+        )}
+        <div className="absolute end-1 top-1 z-[2] flex gap-1">
+          {index !== 0 && (
+            <button
+              type="button"
+              aria-label="Set as hero photo"
+              className="rounded-[var(--lc-radius-sm)] bg-[color-mix(in_srgb,var(--lc-surface-inverse)_70%,transparent)] p-1.5 text-[var(--lc-text-inverse)]"
+              onClick={() => onSetHero(photo.id)}
+            >
+              <Star className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Remove photo"
+            className="rounded-[var(--lc-radius-sm)] bg-[color-mix(in_srgb,var(--lc-surface-inverse)_70%,transparent)] p-1.5 text-[var(--lc-text-inverse)]"
+            onClick={() => onRemove(photo.id)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-label={`Reorder photo ${index + 1}. Press Space to pick up, arrow keys to move, Space to drop.`}
+          className={cn(
+            'absolute inset-x-0 bottom-0 z-[1] flex min-h-11 items-center justify-center gap-1',
+            'bg-[color-mix(in_srgb,var(--lc-surface-inverse)_55%,transparent)] text-[var(--lc-text-inverse)]',
+            'cursor-grab touch-none active:cursor-grabbing',
+          )}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden />
+          <span className="text-[10px] font-medium">Reorder</span>
+        </button>
+      </div>
+      <div className="p-2">
+        <Label htmlFor={`alt-${photo.id}`} className="text-[length:var(--lc-type-body-sm)]">
+          Describe this photo (for accessibility)
+        </Label>
+        <Input
+          id={`alt-${photo.id}`}
+          value={photo.alt_text}
+          placeholder="e.g. Marina view from the living room at sunset"
+          onChange={(e) => onAltChange(photo.id, e.target.value)}
+          className="mt-1"
+        />
+        {!photo.alt_text.trim() && (
+          <p className="mt-1 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
+            Adding a short description helps buyers with screen readers and improves SEO.
+          </p>
+        )}
+      </div>
+    </li>
+  )
+}
+
 export function StepMedia({
   form,
   errors,
@@ -26,11 +146,20 @@ export function StepMedia({
   uploading,
 }: StepMediaProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [announce, setAnnounce] = useState('')
+  const [activeId, setActiveId] = useState<string | null>(null)
   const count = form.photos.filter((p) => p.url).length
   const need = Math.max(0, 3 - count)
+  const photoIds = useMemo(() => form.photos.map((p) => p.id), [form.photos])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   function setPhotos(photos: ComposerPhoto[]) {
-    onChange('photos', photos)
+    const normalized = photos.map((p, i) => ({ ...p, isHero: i === 0 }))
+    onChange('photos', normalized)
   }
 
   function updatePhoto(id: string, patch: Partial<ComposerPhoto>) {
@@ -42,8 +171,9 @@ export function StepMedia({
     if (idx <= 0) return
     const next = [...form.photos]
     const [picked] = next.splice(idx, 1)
-    next.unshift({ ...picked, isHero: true })
-    setPhotos(next.map((p, i) => ({ ...p, isHero: i === 0 })))
+    next.unshift(picked)
+    setPhotos(next)
+    setAnnounce('Hero photo updated. First photo is now the hero.')
   }
 
   function removePhoto(id: string) {
@@ -63,13 +193,28 @@ export function StepMedia({
     ])
   }
 
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    setActiveId(null)
+    if (!over || active.id === over.id) return
+    const oldIndex = form.photos.findIndex((p) => p.id === active.id)
+    const newIndex = form.photos.findIndex((p) => p.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const next = arrayMove(form.photos, oldIndex, newIndex)
+    setPhotos(next)
+    setAnnounce(
+      `Photo moved to position ${newIndex + 1} of ${next.length}.${
+        newIndex === 0 ? ' This photo is now the hero.' : ''
+      }`,
+    )
+  }
+
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files?.length) return
     if (onUploadFiles) {
       await onUploadFiles(files)
     } else {
-      // Local object URLs for offline / test environments
       const added: ComposerPhoto[] = Array.from(files).map((f, i) => ({
         id: newPhotoId(),
         url: URL.createObjectURL(f),
@@ -114,6 +259,14 @@ export function StepMedia({
         />
       </div>
 
+      <p className="text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)] sm:hidden">
+        Long-press a photo to drag it. First photo is the hero.
+      </p>
+      <p className="hidden text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)] sm:block">
+        Drag photos to reorder. First photo is the hero. Keyboard: Space to pick up, arrows to move,
+        Space to drop.
+      </p>
+
       {need > 0 && (
         <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-status-warning-fg,var(--lc-text-brand))]">
           Add at least <Numeric>{need}</Numeric> more to publish.
@@ -125,69 +278,33 @@ export function StepMedia({
         </p>
       )}
 
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {form.photos.map((photo, index) => (
-          <li
-            key={photo.id}
-            className={cn(
-              'overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]',
-              'bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',
-            )}
-          >
-            <div className="relative aspect-square">
-              <img src={photo.url} alt={photo.alt_text || ''} className="h-full w-full object-cover" />
-              {index === 0 && (
-                <span
-                  className={cn(
-                    'absolute start-2 top-2 rounded-[var(--lc-radius-sm)] px-1.5 py-0.5',
-                    'border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent-bold)]',
-                    'text-[10px] font-semibold text-[var(--lc-accent-bold-text)]',
-                  )}
-                >
-                  Hero
-                </span>
-              )}
-              <div className="absolute end-1 top-1 flex gap-1">
-                {index !== 0 && (
-                  <button
-                    type="button"
-                    aria-label="Set as hero photo"
-                    className="rounded-[var(--lc-radius-sm)] bg-[color-mix(in_srgb,var(--lc-surface-inverse)_70%,transparent)] p-1.5 text-[var(--lc-text-inverse)]"
-                    onClick={() => setHero(photo.id)}
-                  >
-                    <Star className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label="Remove photo"
-                  className="rounded-[var(--lc-radius-sm)] bg-[color-mix(in_srgb,var(--lc-surface-inverse)_70%,transparent)] p-1.5 text-[var(--lc-text-inverse)]"
-                  onClick={() => removePhoto(photo.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            <div className="p-2">
-              <Label htmlFor={`alt-${photo.id}`} className="text-[length:var(--lc-type-body-sm)]">
-                Describe this photo (for accessibility)
-              </Label>
-              <Input
-                id={`alt-${photo.id}`}
-                value={photo.alt_text}
-                placeholder="e.g. Marina view from the living room at sunset"
-                onChange={(e) => updatePhoto(photo.id, { alt_text: e.target.value })}
-                className="mt-1"
+      <div aria-live="polite" className="sr-only">
+        {announce}
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setActiveId(null)}
+      >
+        <SortableContext items={photoIds} strategy={rectSortingStrategy}>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Listing photos">
+            {form.photos.map((photo, index) => (
+              <SortablePhotoTile
+                key={photo.id}
+                photo={photo}
+                index={index}
+                onSetHero={setHero}
+                onRemove={removePhoto}
+                onAltChange={(id, alt) => updatePhoto(id, { alt_text: alt })}
+                isKeyboardActive={activeId === photo.id}
               />
-              {!photo.alt_text.trim() && (
-                <p className="mt-1 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-                  Adding a short description helps buyers with screen readers and improves SEO.
-                </p>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
 
       <div>
         <Label htmlFor="composer-photo-url">Or paste a photo URL</Label>

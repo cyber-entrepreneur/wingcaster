@@ -27,6 +27,7 @@ describe('useAutosaveDraft', () => {
   it('POSTs on first saveNow when no property id, then PUTs on subsequent saves', async () => {
     createProperty.mockResolvedValue({ id: 'prop_1' })
     updateProperty.mockResolvedValue({ id: 'prop_1' })
+    const onCreated = vi.fn()
 
     const { result, rerender } = renderHook(
       ({ form, id }) =>
@@ -35,6 +36,7 @@ describe('useAutosaveDraft', () => {
           formState: form,
           enabled: true,
           debounceMs: 60_000,
+          onCreated,
         }),
       { initialProps: { form: { title: 'A' }, id: null as string | null } },
     )
@@ -51,6 +53,7 @@ describe('useAutosaveDraft', () => {
     expect(createProperty.mock.calls[0][0]).toMatchObject({ title: 'Marina Gate', status: 'draft' })
     expect(result.current.propertyId).toBe('prop_1')
     expect(result.current.status).toBe('saved')
+    expect(onCreated).toHaveBeenCalledWith('prop_1')
 
     rerender({ form: { title: 'Marina Gate 1' }, id: 'prop_1' })
     result.current.markDirty()
