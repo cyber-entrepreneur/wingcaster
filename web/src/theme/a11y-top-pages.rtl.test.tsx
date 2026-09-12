@@ -72,14 +72,13 @@ const pages: Array<[string, ComponentType, string]> = [
 const BARE_LANDMARK_PAGES = new Set(['Login', 'Register'])
 
 describe('Broadcast a11y — top 10 pages', () => {
-describe('Broadcast a11y — top 10 pages + Wave 4A welcome/activate', () => {
-describe('Broadcast a11y — top 10 pages', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
   })
 
-  it.each(pages)('%s has no axe violations', async (_name, Page, path) => {
+  it.each(pages)('%s has no axe violations', async (name, Page, path) => {
     document.documentElement.lang = 'en'
+    const bare = BARE_LANDMARK_PAGES.has(name)
     const { container } = render(
       <MemoryRouter initialEntries={[path]}>
         <BrandProvider>
@@ -99,7 +98,7 @@ describe('Broadcast a11y — top 10 pages', () => {
       // LoginPage renders its own <main> + Radix Tabs colon ids (`radix-:rN:`).
       // Same harness/Radix exemptions as nav-chrome.a11y.test.tsx — not Wave 4A scope.
       const axeOptions =
-        _name === 'Login'
+        name === 'Login'
           ? {
               rules: {
                 'aria-valid-attr-value': { enabled: false },
