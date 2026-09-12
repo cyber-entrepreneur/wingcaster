@@ -322,12 +322,12 @@ export async function sendOwnershipTransferOtp({ agencyId, callerUserId, ip = nu
   const transfer = await loadCurrentTransfer(agencyId)
   const isOwner = membership.role === 'owner'
   const isTarget = transfer?.status === 'pending' && transfer.target_user_id === callerUserId
-  const isFormerOwnerReversible = transfer?.status === 'executed'
+  // Former initiator of an executed transfer may always request OTP (even after
+  // the 30-day window). Reverse itself returns 410 when the deadline has passed.
+  const isFormerOwnerOnExecuted = transfer?.status === 'executed'
     && transfer.initiator_user_id === callerUserId
-    && transfer.reversal_deadline_at
-    && new Date(transfer.reversal_deadline_at).getTime() > Date.now()
 
-  if (!isOwner && !isTarget && !isFormerOwnerReversible) {
+  if (!isOwner && !isTarget && !isFormerOwnerOnExecuted) {
     throw new OwnershipTransferError(403, 'FORBIDDEN', 'Not eligible to request ownership-transfer OTP')
   }
 
