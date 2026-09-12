@@ -58,7 +58,7 @@ import {
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
-import { mfaRoutes } from '@/pages/security/mfa/routes'
+import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
@@ -145,10 +145,8 @@ function AppRoutes() {
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
       <Route path="/settings" element={<SettingsPage />}>
+        {mfaSettingsChildRoutes}
         {settingsRoutes}
-        {/* MFA-owned: keep TotpSettingsPage until the MFA agent fills nested 2FA pages. */}
-        <Route path="2fa" element={<TotpSettingsPage />} />
-        <Route path="2fa/*" element={<TotpSettingsPage />} />
         <Route path="channels" element={<SocialChannelsPage />} />
         <Route path="routing" element={<RoutingSettingsPage />} />
         <Route path="historical-transactions" element={<HistoricalTransactionsPage />} />

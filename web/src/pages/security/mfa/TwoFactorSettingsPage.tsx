@@ -25,7 +25,7 @@ import {
 } from '@/components/mfa'
 import type { TwoFactorStatus } from '@/types/twoFactor'
 import { DisableTwoFactorModal } from './DisableTwoFactorModal'
-import { MfaSettingsChrome } from './MfaSettingsChrome'
+import { MfaSettingsChrome, SettingsDialogHost } from './MfaSettingsChrome'
 import { apiStatus, formatEnrolledDate } from './mfaShared'
 
 export function TwoFactorSettingsPage() {
@@ -284,6 +284,7 @@ export function TwoFactorSettingsPage() {
         </div>
       ) : null}
     </MfaSettingsChrome>
+      <SettingsDialogHost>
       <DisableTwoFactorModal
         open={disableOpen}
         onOpenChange={setDisableOpen}
@@ -306,6 +307,7 @@ export function TwoFactorSettingsPage() {
           void beginDisable()
         }}
       />
+      </SettingsDialogHost>
     </>
   )
 }
