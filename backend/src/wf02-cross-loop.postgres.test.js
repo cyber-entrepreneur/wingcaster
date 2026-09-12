@@ -11,8 +11,7 @@
  *   - #89 guest_signup atomic apply/accept
  *   - #108 queue filters / CSV / reveal-contact
  *
- * Outcome deep-link GET is on main (#90); this suite still asserts via DB rows
- * for stability, and can be tightened to the HTTP outcome API in a follow-up.
+ * Outcome assertions use GET /api/users/me/agency-applications/:id (#90).
  */
 import { randomUUID } from 'node:crypto'
 import express from 'express'
@@ -176,19 +175,11 @@ async function resolvedNotificationsFor(userId, applicationId) {
   return rows
 }
 
-/** Stand-in for #90 outcome GET until that PR merges — same projected fields. */
-async function applicationOutcomeRow(applicationId) {
-  const row = await findOne('agency_applications', (a) => a.id === applicationId)
-  if (!row) return null
-  const agency = await findOne('agencies', (a) => a.id === row.agency_id)
-  return {
-    application: row,
-    agency,
-    decision: {
-      role_offered: row.approved_role ?? null,
-      affiliation_mode: row.affiliation_mode ?? null,
-    },
-  }
+/** AGT-REC-004 outcome deep-link GET (#90 on main). */
+async function fetchApplicationOutcome(app, { applicationId, token }) {
+  return request(app)
+    .get(`/api/users/me/agency-applications/${applicationId}`)
+    .set('Authorization', `Bearer ${token}`)
 }
 
 finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed: false }, ({ pool }) => {
@@ -227,14 +218,17 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
     expect(queue.status).toBe(200)
     expect(queue.body.some((row) => row.id === applicationId && row.status === 'pending')).toBe(true)
 
-    // Pending outcome (DB stand-in for #90 AGT-REC-004 deep-link GET)
-    const pendingOutcome = await applicationOutcomeRow(applicationId)
-    expect(pendingOutcome.application).toMatchObject({
+    // Pending outcome via AGT-REC-004 deep-link GET (#90)
+    const pendingRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(pendingRes.status).toBe(200)
+    expect(pendingRes.body.application).toMatchObject({
       id: applicationId,
       status: 'pending',
-      applicant_user_id: applicant.userId,
     })
-    expect(pendingOutcome.agency.slug).toBe(agency.slug)
+    expect(pendingRes.body.agency.slug).toBe(agency.slug)
 
     // Approve
     const approved = await request(app)
@@ -245,22 +239,26 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
     expect(approved.body.success).toBe(true)
 
     // Outcome after approve
-    const outcome = await applicationOutcomeRow(applicationId)
-    expect(outcome.application).toMatchObject({
+    const outcomeRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(outcomeRes.status).toBe(200)
+    expect(outcomeRes.body.application).toMatchObject({
       id: applicationId,
       status: 'approved',
     })
-    expect(outcome.decision.role_offered).toBe('member')
-    expect(outcome.decision.affiliation_mode).toBe('non_exclusive')
-    expect(outcome.agency.name).toBe(agency.name)
+    expect(outcomeRes.body.decision.role_offered).toBe('member')
+    expect(outcomeRes.body.decision.affiliation_mode).toBe('non_exclusive')
+    expect(outcomeRes.body.agency.display_name).toBe(agency.name)
 
-    // Cross-user isolation: stranger does not own this application row
+    // Cross-user isolation: stranger gets 404 (not 403) on another user's application
     const stranger = await registerJoinAgencyApplicant('Stranger')
-    const strangerRow = await findOne(
-      'agency_applications',
-      (a) => a.id === applicationId && a.applicant_user_id === stranger.userId,
-    )
-    expect(strangerRow).toBeFalsy()
+    const strangerRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: stranger.token,
+    })
+    expect(strangerRes.status).toBe(404)
 
     // Notification hook (#86) — in-app row with AGT-REC-004 deep-link
     const notes = await resolvedNotificationsFor(applicant.userId, applicationId)
@@ -293,9 +291,13 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
       .set('Authorization', `Bearer ${agency.token}`)
     expect(rejected.status).toBe(200)
 
-    const outcome = await applicationOutcomeRow(applicationId)
-    expect(outcome.application.status).toBe('rejected')
-    expect(outcome.application.rejected_by).toBe(agency.userId)
+    const outcomeRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(outcomeRes.status).toBe(200)
+    expect(outcomeRes.body.application.status).toBe('rejected')
+    expect(outcomeRes.body.application.rejected_by).toBe('agency')
 
     const notes = await resolvedNotificationsFor(applicant.userId, applicationId)
     expect(notes.length).toBeGreaterThanOrEqual(1)
@@ -338,8 +340,12 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
     )
     expect(row.rows[0].status).toBe('expired')
 
-    const outcome = await applicationOutcomeRow(applicationId)
-    expect(outcome.application.status).toBe('expired')
+    const outcomeRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(outcomeRes.status).toBe(200)
+    expect(outcomeRes.body.application.status).toBe('expired')
 
     const notes = await resolvedNotificationsFor(applicant.userId, applicationId)
     expect(notes.length).toBeGreaterThanOrEqual(1)
@@ -400,9 +406,13 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
       .send({ role: 'member', affiliation_mode: 'non_exclusive' })
     expect(approved.status).toBe(200)
 
-    const outcome = await applicationOutcomeRow(applicationId)
-    expect(outcome.application.status).toBe('approved')
-    expect(outcome.agency.slug).toBe(agency.slug)
+    const outcomeRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(outcomeRes.status).toBe(200)
+    expect(outcomeRes.body.application.status).toBe('approved')
+    expect(outcomeRes.body.agency.slug).toBe(agency.slug)
 
     const notes = await resolvedNotificationsFor(applicant.userId, applicationId)
     expect(notes.some((n) => n.metadata?.variant === 'approved')).toBe(true)
@@ -455,9 +465,13 @@ finPostgresSuite('WF-02 cross-loop deadlock resolution (Wave 1 Agent 6)', { seed
       .set('Authorization', `Bearer ${agency.token}`)
       .send({ role: 'member', affiliation_mode: 'exclusive' })
 
-    const outcome = await applicationOutcomeRow(applicationId)
-    expect(outcome.application.status).toBe('approved')
-    expect(outcome.decision.affiliation_mode).toBe('exclusive')
+    const outcomeRes = await fetchApplicationOutcome(app, {
+      applicationId,
+      token: applicant.token,
+    })
+    expect(outcomeRes.status).toBe(200)
+    expect(outcomeRes.body.application.status).toBe('approved')
+    expect(outcomeRes.body.decision.affiliation_mode).toBe('exclusive')
     expect(applied.body.redirect_to).toBe(`/applications/${applicationId}`)
   })
 })
