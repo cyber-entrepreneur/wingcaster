@@ -560,6 +560,109 @@ export const api = {
   getDashboardStats: () => fetchJson('/dashboard/stats'),
   getDashboardAnalytics: () => fetchJson('/dashboard/analytics'),
   getDashboardOperations: () => fetchJson('/dashboard/operations'),
+
+  // Wave-8 Pro prefs / layout (AGT-DSH-002 / AGT-LST-002 / AGT-SET-002)
+  getDashboardLayout: (tenantId?: string) => {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : ''
+    return fetchJson(`/users/me/dashboard-layout${qs}`) as Promise<{
+      layout: Array<{ i: string; x: number; y: number; w: number; h: number }>
+      density: 'compact' | 'comfortable' | 'spacious'
+      updated_at: string | null
+      tenant_id: string
+    }>
+  },
+  patchDashboardLayout: (body: {
+    tenant_id?: string
+    layout?: Array<{ i: string; x: number; y: number; w: number; h: number }>
+    density?: 'compact' | 'comfortable' | 'spacious'
+  }) =>
+    fetchJson('/users/me/dashboard-layout', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }) as Promise<{
+      layout: Array<{ i: string; x: number; y: number; w: number; h: number }>
+      density: 'compact' | 'comfortable' | 'spacious'
+      updated_at: string | null
+      tenant_id: string
+    }>,
+  getListPrefs: (tenantId?: string) => {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : ''
+    return fetchJson(`/users/me/list-prefs${qs}`) as Promise<{
+      listings: Record<string, unknown>
+      updated_at: string | null
+      tenant_id: string
+    }>
+  },
+  patchListPrefs: (listings: Record<string, unknown>) =>
+    fetchJson('/users/me/list-prefs', {
+      method: 'PATCH',
+      body: JSON.stringify({ listings }),
+    }) as Promise<{
+      listings: Record<string, unknown>
+      updated_at: string | null
+      tenant_id: string
+    }>,
+  getProNudge: () =>
+    fetchJson('/users/me/pro-nudge') as Promise<{
+      eligible: boolean
+      listing_count: number
+      days_since_signup: number
+      pro_nudge_dismissed_at: string | null
+      days_since_dismiss: number | null
+    }>,
+  dismissProNudge: () =>
+    fetchJson('/users/me/pro-nudge/dismiss', { method: 'POST', body: '{}' }) as Promise<{
+      pro_nudge_dismissed_at: string
+    }>,
+  getSavedViews: (tenantId: string, resource = 'listings') =>
+    fetchJson(
+      `/tenants/${encodeURIComponent(tenantId)}/saved-views?resource=${encodeURIComponent(resource)}`,
+    ) as Promise<{ views: Array<Record<string, unknown>> }>,
+  createSavedView: (tenantId: string, body: Record<string, unknown>) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }) as Promise<Record<string, unknown>>,
+  updateSavedView: (tenantId: string, viewId: string, body: Record<string, unknown>) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views/${encodeURIComponent(viewId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }) as Promise<Record<string, unknown>>,
+  deleteSavedView: (tenantId: string, viewId: string) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views/${encodeURIComponent(viewId)}`, {
+      method: 'DELETE',
+    }) as Promise<{ success: boolean }>,
+  bulkArchiveProperties: (ids: string[]) =>
+    fetchJson('/properties/bulk/archive', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }) as Promise<{ updated: string[]; missing: string[] }>,
+  bulkPublishProperties: (ids: string[], channels: string[] = []) =>
+    fetchJson('/properties/bulk/publish', {
+      method: 'POST',
+      body: JSON.stringify({ ids, channels }),
+    }) as Promise<{ updated: string[]; missing: string[]; channels: string[] }>,
+  bulkDeleteProperties: (ids: string[], confirmed_phrase: string) =>
+    fetchJson('/properties/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids, confirmed_phrase }),
+    }) as Promise<{ deleted: string[]; missing: string[] }>,
+  bulkExportProperties: (ids: string[] | null = null) =>
+    fetchJson('/properties/bulk/export', {
+      method: 'POST',
+      body: JSON.stringify({ ids, format: 'csv' }),
+    }) as Promise<{
+      job_id: string
+      status: string
+      csv: string
+      filename: string
+      row_count: number
+    }>,
+  bulkPriceAdjustProperties: (ids: string[], mode: 'fixed' | 'percent', value: number) =>
+    fetchJson('/properties/bulk/price-adjust', {
+      method: 'POST',
+      body: JSON.stringify({ ids, mode, value }),
+    }) as Promise<{ updated: Array<{ id: string; price: number }>; missing: string[] }>,
   getPropertyAnalytics: (id: string) => fetchJson(`/properties/${id}/analytics`),
   trackPropertyEvent: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/properties/${id}/events`, { method: 'POST', body: JSON.stringify(data) }),

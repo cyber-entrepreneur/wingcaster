@@ -82,9 +82,19 @@ export interface WidgetCardProps {
   className?: string
   span?: 3 | 4 | 6 | 8 | 12
   onFullscreen?: () => void
+  onRemove?: () => void
+  dragHandleClassName?: string
 }
 
-export function WidgetCard({ title, children, className, span = 6, onFullscreen }: WidgetCardProps) {
+export function WidgetCard({
+  title,
+  children,
+  className,
+  span = 6,
+  onFullscreen,
+  onRemove,
+  dragHandleClassName,
+}: WidgetCardProps) {
   const spanClass =
     span === 12
       ? 'md:col-span-12'
@@ -99,7 +109,7 @@ export function WidgetCard({ title, children, className, span = 6, onFullscreen 
   return (
     <section
       className={cn(
-        'group col-span-12 rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',
+        'group col-span-12 flex h-full flex-col rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',
         spanClass,
         className,
       )}
@@ -114,7 +124,10 @@ export function WidgetCard({ title, children, className, span = 6, onFullscreen 
         </h3>
         <button
           type="button"
-          className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--lc-text-brand)]"
+          className={cn(
+            'inline-flex h-tap w-tap cursor-grab items-center justify-center rounded-md text-[var(--lc-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--lc-text-brand)] active:cursor-grabbing',
+            dragHandleClassName,
+          )}
           aria-label={`Drag ${title}`}
           title="Drag to rearrange"
         >
@@ -130,15 +143,26 @@ export function WidgetCard({ title, children, className, span = 6, onFullscreen 
             <Maximize2 className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : null}
-        <button
-          type="button"
-          className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
-          aria-label={`${title} menu`}
-        >
-          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-        </button>
+        {onRemove ? (
+          <button
+            type="button"
+            className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-status-unpublished-fg)]"
+            aria-label={`Remove ${title}`}
+            onClick={onRemove}
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
+            aria-label={`${title} menu`}
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </header>
-      <div className="p-[var(--lc-space-lg)]">{children}</div>
+      <div className="min-h-0 flex-1 overflow-auto p-[var(--lc-space-lg)]">{children}</div>
     </section>
   )
 }
