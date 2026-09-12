@@ -199,6 +199,7 @@ import {
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
+import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
@@ -704,6 +705,8 @@ registerWave0NavRoutes(app, {
   buildAuthSession,
   startSigninChallengeIfRequired,
 })
+
+registerInboxAgentRoutes(app, { authMiddleware })
 
 // BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).
 registerScheduledDeletionRoutes(app)
@@ -4105,14 +4108,19 @@ app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
 app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
   const conversation = await assertOwnsConversation(req.user.id, req.params.id)
   const content = String(req.body.content || '').trim()
-  if (!content) return res.status(400).json({ error: 'Message content is required' })
+  const imageUrl = req.body.image_url
+  const attachments = Array.isArray(req.body.attachments) ? req.body.attachments : []
+  if (!content && !imageUrl && attachments.length === 0) {
+    return res.status(400).json({ error: 'Message content is required' })
+  }
 
   try {
     const { message, dispatch } = await sendOutboundMessage({
       conversationId: conversation.id,
       content,
-      contentType: req.body.content_type || 'text',
-      imageUrl: req.body.image_url,
+      contentType: req.body.content_type || (imageUrl ? 'image' : 'text'),
+      imageUrl,
+      attachments,
       sentByAgentId: req.user.id,
       subject: req.body.subject,
     })

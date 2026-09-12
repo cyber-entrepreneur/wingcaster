@@ -8,18 +8,26 @@ import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { api, type InboxConversation, type InboxConversationMessage } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { cn } from '@/lib/utils'
 import { readChannel, readSource } from '@/lib/channel-source'
+import { groupConversationsForInbox, type InboxMergeMode } from '@/lib/inbox-merge'
+import { collectInboxAttachments } from '@/lib/inbox-media'
 import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import {
+  AISuggestedReplyRow,
   ComposeBar,
   ConversationHeader,
   DayGroupSeparator,
+  InboxBulkActionBar,
   InboxEmptyState,
   InboxFilterChipRow,
+  InboxOfflineBanner,
   InboxRow,
   MessageBubble,
+  type ComposeAttachment,
+  type ComposeTemplate,
   type InboxFilters,
   type InboxMessage,
 } from '@/components/inbox'
@@ -51,6 +59,7 @@ function toInboxMessage(m: InboxConversationMessage, index: number, all: InboxCo
   const isFirstInbound =
     m.direction === 'inbound' &&
     all.findIndex((x) => x.direction === 'inbound') === index
+  const attachments = collectInboxAttachments(m)
   return {
     id: m.id,
     direction: m.direction === 'system' ? 'system' : m.direction,
@@ -61,6 +70,10 @@ function toInboxMessage(m: InboxConversationMessage, index: number, all: InboxCo
     failed_reason: m.failed_reason ?? null,
     is_first_inbound: m.is_first_inbound ?? isFirstInbound,
     system_event_type: m.system_event_type ?? null,
+    image_url: m.image_url ?? null,
+    audio_url: m.audio_url ?? null,
+    content_type: m.content_type ?? null,
+    attachments,
   }
 }
 
@@ -72,12 +85,30 @@ function normalizeConversation(raw: InboxConversation): InboxConversation & { ch
   }
 }
 
+function substituteTemplate(body: string, conversation: InboxConversation | null): string {
+  const first = (conversation?.contact_name || '').split(' ')[0] || ''
+  return body
+    .replaceAll('{contact.first_name}', first)
+    .replaceAll('{contact.name}', conversation?.contact_name || '')
+    .replaceAll('{listing.address}', conversation?.linked_listing_label || '')
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
 export function InboxPage() {
   const { agent } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const { conversationId: routeConversationId } = useParams<{ conversationId?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const online = useOnlineStatus()
   usePageTitle('Inbox')
 
   const initialId = routeConversationId || searchParams.get('conversation')
@@ -92,7 +123,7 @@ export function InboxPage() {
     (InboxConversation & { channel: string; source: string }) | null
   >(null)
   const [messages, setMessages] = useState<InboxMessage[]>([])
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(searchParams.get('draft') || '')
   const [sending, setSending] = useState(false)
   const [closing, setClosing] = useState(false)
   const [search, setSearch] = useState(searchParams.get('q') || '')
@@ -103,6 +134,16 @@ export function InboxPage() {
     channel: searchParams.get('channel'),
     source: searchParams.get('source'),
   })
+  const [mergeMode, setMergeMode] = useState<InboxMergeMode>('separate')
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [composeAttachments, setComposeAttachments] = useState<ComposeAttachment[]>([])
+  const [templates, setTemplates] = useState<ComposeTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
+  const [aiLoading, setAiLoading] = useState(false)
 
   const loadConversations = async () => {
     try {
@@ -129,7 +170,6 @@ export function InboxPage() {
       setActiveConversation(normalized)
       const rawMessages = data.messages || []
       setMessages(rawMessages.map((m, i) => toInboxMessage(m, i, rawMessages)))
-      // Keep URL in sync — prefer path param when on /inbox/:id, else query.
       if (routeConversationId) {
         navigate(`/inbox/${id}`, { replace: true })
       } else {
@@ -149,10 +189,31 @@ export function InboxPage() {
     }
   }
 
+  const loadAiSuggestions = async (id: string) => {
+    setAiLoading(true)
+    try {
+      const res = await api.getConversationAiSuggestions(id)
+      setAiEnabled(Boolean(res?.enabled))
+      setAiSuggestions(Array.isArray(res?.suggestions) ? res.suggestions : [])
+    } catch {
+      setAiEnabled(false)
+      setAiSuggestions([])
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    loadConversations().then(() => {
+    Promise.all([
+      loadConversations(),
+      api.getAgentPreferences().then((prefs) => {
+        if (mounted && (prefs?.inbox_merge_mode === 'merged' || prefs?.inbox_merge_mode === 'separate')) {
+          setMergeMode(prefs.inbox_merge_mode)
+        }
+      }).catch(() => undefined),
+    ]).then(() => {
       if (!mounted) return
       setLoading(false)
       if (initialId) loadThread(initialId)
@@ -172,7 +233,9 @@ export function InboxPage() {
   useEffect(() => {
     if (!selectedId) return
     loadThread(selectedId)
+    loadAiSuggestions(selectedId)
     const interval = setInterval(() => {
+      if (!navigator.onLine) return
       loadThread(selectedId)
       loadConversations()
     }, 8000)
@@ -180,7 +243,6 @@ export function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
-  // Persist filter/sort/search in query params
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
     if (filters.unread) next.set('unread', '1')
@@ -200,13 +262,18 @@ export function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, search, sort, selectedId])
 
+  const groupedConversations = useMemo(
+    () => groupConversationsForInbox(conversations, mergeMode),
+    [conversations, mergeMode],
+  )
+
   const filteredConversations = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let list = conversations.filter((c) => {
+    let list = groupedConversations.filter((c) => {
       if (filters.unread && !(c.unread_count > 0 || c.is_unread_by_agent)) return false
       if (filters.assignedMe && agent && c.assigned_agent_id !== agent.id) return false
-      if (filters.channel && readChannel(c) !== filters.channel) return false
-      if (filters.source && readSource(c) !== filters.source) return false
+      if (filters.channel && !c.channels.includes(filters.channel) && readChannel(c) !== filters.channel) return false
+      if (filters.source && !c.sources.includes(filters.source) && readSource(c) !== filters.source) return false
       if (!q) return true
       return (
         (c.contact_name || '').toLowerCase().includes(q) ||
@@ -225,7 +292,7 @@ export function InboxPage() {
       return sort === 'oldest' ? ta - tb : tb - ta
     })
     return list
-  }, [conversations, search, filters, sort, agent])
+  }, [groupedConversations, search, filters, sort, agent])
 
   const unreadCount = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0),
@@ -240,12 +307,43 @@ export function InboxPage() {
   const hasActiveFilters =
     filters.unread || filters.assignedMe || Boolean(filters.channel) || Boolean(filters.source)
 
+  const activeMergedRow = filteredConversations.find(
+    (row) => row.id === selectedId || row.conversation_ids.includes(selectedId || ''),
+  )
+  const channelOptions = (activeMergedRow?.conversation_ids || []).map((id) => {
+    const row = conversations.find((c) => c.id === id)
+    return { id, channel: row ? readChannel(row) : readChannel(activeConversation) }
+  })
+
   const handleSelect = (id: string) => {
     setSelectedId(id)
-    // Desktop keeps split; mobile navigates to detail route.
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
       navigate(`/inbox/${id}`)
     }
+  }
+
+  const handleEnterSelection = (id: string) => {
+    setSelectionMode(true)
+    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const clearSelection = () => {
+    setSelectionMode(false)
+    setSelectedIds([])
+  }
+
+  const expandSelectionIds = (ids: string[]) => {
+    const expanded = new Set<string>()
+    for (const id of ids) {
+      const row = filteredConversations.find((c) => c.id === id)
+      if (row?.conversation_ids?.length) row.conversation_ids.forEach((cid) => expanded.add(cid))
+      else expanded.add(id)
+    }
+    return [...expanded]
   }
 
   const handleBack = () => {
@@ -254,23 +352,84 @@ export function InboxPage() {
     navigate('/inbox')
   }
 
-  const handleSend = async () => {
-    if (!activeConversation || !draft.trim()) return
-    const content = draft.trim()
-    setDraft('')
-    setSending(true)
+  const handleMergeModeChange = async (mode: InboxMergeMode) => {
+    const previous = mergeMode
+    setMergeMode(mode)
     try {
-      await api.sendConversationMessage(activeConversation.id, content)
-      await loadThread(activeConversation.id)
-      await loadConversations()
+      await api.patchAgentPreferences({ inbox_merge_mode: mode })
     } catch (e: unknown) {
+      setMergeMode(previous)
       const err = e as { message?: string }
-      setDraft(content)
       addToast({
-        title: 'Failed to send message',
-        description: err.message || 'Message could not be sent',
+        title: 'Could not save inbox display',
+        description: err.message || 'Merge preference was not saved',
         variant: 'error',
       })
+    }
+  }
+
+  const handleSend = async () => {
+    if (!activeConversation || (!draft.trim() && composeAttachments.length === 0)) return
+    const content = draft.trim()
+    const queued = composeAttachments
+    setDraft('')
+    setComposeAttachments([])
+    setSending(true)
+    const image = queued.find((item) => item.kind === 'image')
+    let imageUrl = image?.url && image.url.startsWith('http') ? image.url : undefined
+    if (image?.file) {
+      try {
+        imageUrl = await fileToDataUrl(image.file)
+      } catch {
+        imageUrl = undefined
+      }
+    }
+    const attachments = queued.map((item) => ({
+      url: item.url,
+      mime: item.mime,
+      filename: item.filename,
+      size_bytes: item.size_bytes,
+    }))
+    try {
+      await api.sendConversationMessage(activeConversation.id, content, {
+        image_url: imageUrl,
+        attachments,
+        content_type: imageUrl ? 'image' : 'text',
+      })
+      await loadThread(activeConversation.id)
+      await loadConversations()
+      await loadAiSuggestions(activeConversation.id)
+    } catch (e: unknown) {
+      if (!online) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `queued-${Date.now()}`,
+            direction: 'outbound',
+            channel: readChannel(activeConversation),
+            content,
+            status: 'queued',
+            created_at: new Date().toISOString(),
+            attachments: queued.map((item) => ({
+              url: item.url,
+              mime: item.mime,
+              filename: item.filename,
+              size_bytes: item.size_bytes,
+              kind: item.kind,
+            })),
+          },
+        ])
+        addToast({ title: 'Queued — will send when back online.', variant: 'success' })
+      } else {
+        const err = e as { message?: string }
+        setDraft(content)
+        setComposeAttachments(queued)
+        addToast({
+          title: 'Failed to send message',
+          description: err.message || 'Message could not be sent',
+          variant: 'error',
+        })
+      }
     } finally {
       setSending(false)
     }
@@ -345,6 +504,54 @@ export function InboxPage() {
     }
   }
 
+  const runBulk = async (action: 'mark_read' | 'mark_unread' | 'assign' | 'archive') => {
+    const ids = expandSelectionIds(selectedIds)
+    if (ids.length === 0) return
+    setBulkBusy(true)
+    const snapshot = conversations
+    try {
+      await api.bulkConversations({
+        conversation_ids: ids,
+        action,
+        assign_to_agent_id: action === 'assign' ? agent?.id : undefined,
+      })
+      await loadConversations()
+      clearSelection()
+    } catch (e: unknown) {
+      setConversations(snapshot)
+      const err = e as { message?: string }
+      addToast({
+        title: 'Bulk action failed',
+        description: err.message || 'Could not update conversations',
+        variant: 'error',
+      })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const loadTemplates = async () => {
+    setTemplatesLoading(true)
+    try {
+      const rows = (await api.getMessageTemplates({
+        channel: activeConversation ? readChannel(activeConversation) : undefined,
+      })) as Array<{ id: string; name: string; body: string; channel?: string }>
+      setTemplates(
+        (Array.isArray(rows) ? rows : []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          body: row.body,
+          channel: row.channel,
+          preview: row.body,
+        })),
+      )
+    } catch {
+      setTemplates([])
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
   const contactFirstName = (activeConversation?.contact_name || '').split(' ')[0] || null
   const showDetail = Boolean(selectedId && activeConversation)
 
@@ -387,14 +594,27 @@ export function InboxPage() {
         }
       />
 
+      {!online ? <InboxOfflineBanner queuedSend={Boolean(selectedId)} /> : null}
+
       <div className="flex flex-1 overflow-hidden">
-        {/* List column */}
         <div
           className={cn(
             'flex w-full shrink-0 flex-col border-e border-[var(--lc-border)] bg-[var(--lc-surface)] lg:w-[min(40%,480px)] lg:min-w-[380px]',
             selectedId && 'hidden lg:flex',
           )}
         >
+          {selectionMode && selectedIds.length > 0 ? (
+            <InboxBulkActionBar
+              count={selectedIds.length}
+              busy={bulkBusy}
+              onMarkRead={() => runBulk('mark_read')}
+              onMarkUnread={() => runBulk('mark_unread')}
+              onAssign={() => runBulk('assign')}
+              onArchive={() => runBulk('archive')}
+              onCancel={clearSelection}
+            />
+          ) : null}
+
           <div className="space-y-2 border-b border-[var(--lc-border)] px-4 py-3">
             <div className="relative">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lc-text-muted)]" />
@@ -443,6 +663,8 @@ export function InboxPage() {
           <InboxFilterChipRow
             filters={filters}
             onChange={setFilters}
+            mergeMode={mergeMode}
+            onMergeModeChange={handleMergeModeChange}
           />
 
           <div className="flex-1 overflow-y-auto" aria-label="Conversations">
@@ -479,8 +701,10 @@ export function InboxPage() {
                       id: c.id,
                       contact_name: c.contact_name,
                       contact_masked: c.contact_masked,
-                      channel: readChannel(c),
-                      source: readSource(c),
+                      channel: c.channel,
+                      source: c.source,
+                      channels: c.channels,
+                      sources: c.sources,
                       last_message_at: c.last_message_at,
                       last_message_preview: c.last_message_preview,
                       unread_count: c.unread_count,
@@ -490,16 +714,21 @@ export function InboxPage() {
                       assigned_agent_id: c.assigned_agent_id,
                       assigned_agent_name: c.assigned_agent_name,
                       current_agent_id: agent?.id ?? null,
+                      conversation_ids: c.conversation_ids,
+                      merged: c.merged,
                     }}
-                    selected={c.id === selectedId}
+                    selected={c.id === selectedId || c.conversation_ids.includes(selectedId || '')}
+                    checked={selectedIds.includes(c.id)}
+                    selectionMode={selectionMode}
                     onSelect={handleSelect}
+                    onToggleSelect={handleToggleSelect}
+                    onEnterSelection={handleEnterSelection}
                   />
                 ))}
               </div>
             )}
           </div>
 
-          {/* Mobile FAB */}
           <Button
             size="icon"
             className="fixed bottom-24 end-6 z-20 h-14 w-14 rounded-[var(--lc-radius-pill)] shadow-[var(--lc-elevation-lg)] lg:hidden"
@@ -510,7 +739,6 @@ export function InboxPage() {
           </Button>
         </div>
 
-        {/* Detail / preview column (AGT-INB-002) */}
         <div
           className={cn(
             'flex flex-1 flex-col bg-[var(--lc-surface-sunken)]',
@@ -536,6 +764,9 @@ export function InboxPage() {
                 onClose={handleClose}
                 onReopen={handleReopen}
                 closing={closing}
+                channelOptions={channelOptions}
+                selectedConversationId={selectedId}
+                onSelectChannel={handleSelect}
               />
 
               <div className="flex-1 overflow-y-auto p-4" aria-live="polite" aria-label="Message thread">
@@ -565,6 +796,15 @@ export function InboxPage() {
                 )}
               </div>
 
+              {aiEnabled ? (
+                <AISuggestedReplyRow
+                  suggestions={aiSuggestions}
+                  loading={aiLoading}
+                  disabled={activeConversation!.status === 'closed'}
+                  onInsert={(text) => setDraft(text)}
+                />
+              ) : null}
+
               <ComposeBar
                 value={draft}
                 onChange={setDraft}
@@ -574,6 +814,15 @@ export function InboxPage() {
                 sending={sending}
                 closed={activeConversation!.status === 'closed'}
                 onReopen={handleReopen}
+                offline={!online}
+                attachments={composeAttachments}
+                onAttachmentsChange={setComposeAttachments}
+                templates={templates}
+                templatesLoading={templatesLoading}
+                onRequestTemplates={loadTemplates}
+                onInsertTemplate={(template) => {
+                  setDraft(substituteTemplate(template.body, activeConversation))
+                }}
               />
             </>
           )}
@@ -583,7 +832,6 @@ export function InboxPage() {
   )
 }
 
-/** Routable conversation detail alias — same page, path-param driven (AGT-INB-002). */
 export function InboxConversationPage() {
   return <InboxPage />
 }

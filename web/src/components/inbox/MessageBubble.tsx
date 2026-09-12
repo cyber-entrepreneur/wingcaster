@@ -8,6 +8,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Numeric } from '@/components/ui/numeric'
 import { PortalSourceChip } from '@/components/inbox/PortalSourceChip'
+import { MediaAttachment } from '@/components/inbox/MediaAttachment'
+import { collectInboxAttachments, type InboxAttachment } from '@/lib/inbox-media'
 import { channelLabel } from '@/lib/inbox-labels'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +25,10 @@ export type InboxMessage = {
   failed_reason?: string | null
   is_first_inbound?: boolean
   system_event_type?: string | null
+  image_url?: string | null
+  audio_url?: string | null
+  content_type?: string | null
+  attachments?: InboxAttachment[]
 }
 
 function formatTime(iso: string) {
@@ -92,9 +98,14 @@ export function MessageBubble({
           {showPortalChip && isInbound ? (
             <PortalSourceChip source={conversationSource} />
           ) : null}
-          <p className="whitespace-pre-wrap" dir="auto">
-            {m.content}
-          </p>
+          {m.content ? (
+            <p className="whitespace-pre-wrap" dir="auto">
+              {m.content}
+            </p>
+          ) : null}
+          {collectInboxAttachments(m).map((attachment) => (
+            <MediaAttachment key={attachment.url} attachment={attachment} outbound={!isInbound} />
+          ))}
         </div>
         <div
           className={cn(

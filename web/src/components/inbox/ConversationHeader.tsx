@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
+import { channelLabel } from '@/lib/inbox-labels'
 import { cn } from '@/lib/utils'
 
 export type ConversationHeaderProps = {
@@ -36,6 +37,9 @@ export type ConversationHeaderProps = {
   onClose?: () => void
   onReopen?: () => void
   closing?: boolean
+  channelOptions?: Array<{ id: string; channel: string }>
+  selectedConversationId?: string | null
+  onSelectChannel?: (id: string) => void
   className?: string
 }
 
@@ -63,6 +67,9 @@ export function ConversationHeader({
   onClose,
   onReopen,
   closing,
+  channelOptions,
+  selectedConversationId,
+  onSelectChannel,
   className,
 }: ConversationHeaderProps) {
   return (
@@ -161,6 +168,30 @@ export function ConversationHeader({
       </div>
 
       <ChannelSourceBadges channel={channel} source={source} channelClassName="h-5 w-5" />
+      {channelOptions && channelOptions.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Channels for this contact">
+          {channelOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="tab"
+              aria-selected={option.id === selectedConversationId}
+              className={cn(
+                'rounded-[var(--lc-radius-pill)] px-2 py-1 text-[length:var(--lc-type-caption)]',
+                option.id === selectedConversationId
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'border border-[var(--lc-border)] text-[var(--lc-text-primary)]',
+              )}
+              onClick={() => onSelectChannel?.(option.id)}
+            >
+              {channelLabel(option.channel)}
+            </button>
+          ))}
+          <span className="text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
+            View {channelOptions.length} channels
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }

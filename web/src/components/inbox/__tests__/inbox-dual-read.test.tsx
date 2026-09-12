@@ -98,6 +98,30 @@ describe('MessageBubble + PortalSourceChip (AGT-INB-002)', () => {
     expect(screen.getByText('Hi from Bayut')).toBeInTheDocument()
   })
 
+  it('renders image, audio, and PDF attachments inside the bubble', () => {
+    render(
+      <MessageBubble
+        message={{
+          id: 'm-media',
+          direction: 'inbound',
+          content: '',
+          status: 'received',
+          created_at: '2026-09-08T08:12:00Z',
+          image_url: 'https://cdn.example/plan.jpg',
+          audio_url: 'https://cdn.example/note.ogg',
+          attachments: [
+            { url: 'https://cdn.example/offer.pdf', mime: 'application/pdf', filename: 'offer.pdf', kind: 'pdf' },
+          ],
+        }}
+        conversationChannel="whatsapp"
+        conversationSource="bayut"
+      />,
+    )
+    expect(screen.getByAltText(/plan.jpg/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/note\.ogg/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/offer.pdf/i)).toBeInTheDocument()
+  })
+
   it('PortalSourceChip hides for direct/unknown', () => {
     const { container } = render(<PortalSourceChip source="direct" />)
     expect(container.firstChild).toBeNull()

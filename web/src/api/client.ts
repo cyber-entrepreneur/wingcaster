@@ -167,6 +167,7 @@ export interface InboxConversation {
   linked_listing_label?: string | null
   created_at?: string
   updated_at?: string
+  archived_at?: string | null
 }
 
 export interface InboxConversationMessage {
@@ -188,6 +189,18 @@ export interface InboxConversationMessage {
   failed_reason?: string | null
   is_first_inbound?: boolean
   system_event_type?: string | null
+  image_url?: string | null
+  audio_url?: string | null
+  attachments?: Array<{
+    id?: string
+    url: string
+    mime?: string | null
+    filename?: string | null
+    size_bytes?: number | null
+    kind?: string | null
+  }>
+  metadata?: { attachments?: InboxConversationMessage['attachments'] } | null
+  suggested_reply?: string | null
 }
 
 export interface InboxConversationDetail extends InboxConversation {
@@ -1024,10 +1037,34 @@ export const api = {
     fetchJson(`/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getConversations: (): Promise<InboxConversation[]> => fetchJson('/conversations'),
   getConversation: (id: string): Promise<InboxConversationDetail> => fetchJson(`/conversations/${id}`),
-  sendConversationMessage: (id: string, content: string, options?: { content_type?: string; image_url?: string; subject?: string }) =>
+  sendConversationMessage: (
+    id: string,
+    content: string,
+    options?: {
+      content_type?: string
+      image_url?: string
+      audio_url?: string
+      subject?: string
+      attachments?: Array<{ url: string; mime?: string; filename?: string; size_bytes?: number }>
+      template_id?: string
+    },
+  ) =>
     fetchJson(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content, ...(options || {}) }) }),
   retryConversationMessage: (id: string, messageId: string) =>
     fetchJson(`/conversations/${id}/messages/${messageId}/retry`, { method: 'POST', body: '{}' }),
+  bulkConversations: (payload: {
+    conversation_ids: string[]
+    action: 'mark_read' | 'mark_unread' | 'assign' | 'archive'
+    assign_to_agent_id?: string
+  }) => fetchJson('/conversations/bulk', { method: 'POST', body: JSON.stringify(payload) }),
+  getAgentPreferences: (): Promise<{ inbox_merge_mode: 'merged' | 'separate' }> =>
+    fetchJson('/agent-preferences'),
+  patchAgentPreferences: (payload: { inbox_merge_mode: 'merged' | 'separate' }) =>
+    fetchJson('/agent-preferences', { method: 'PATCH', body: JSON.stringify(payload) }),
+  getConversationAiSuggestions: (
+    id: string,
+  ): Promise<{ enabled: boolean; suggestions: string[]; source?: string | null }> =>
+    fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
 
   getListingComments: (
     listingId: string,
