@@ -1410,6 +1410,22 @@ export const api = {
     fetchJson('/pricing/report-comparable', { method: 'POST', body: JSON.stringify(data) }),
   getMyComparableReports: () => fetchJson('/pricing/my-comparable-reports'),
   getMyAgentPriceReports: (): Promise<AgentPriceReport[]> => fetchJson('/pricing/my-agent-price-reports'),
+  /** AGT-REC-002 — preferred user-scoped by-id (falls back in hooks when absent). */
+  getMyComparableReportOutcome: (reportId: string) =>
+    fetchJson(`/users/me/comparable-reports/${encodeURIComponent(reportId)}`),
+  withdrawComparableReport: (reportId: string) =>
+    fetchJson(`/users/me/comparable-reports/${encodeURIComponent(reportId)}/withdraw`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  /** AGT-REC-003 — preferred user-scoped by-id (falls back in hooks when absent). */
+  getMyPriceReportOutcome: (reportId: string) =>
+    fetchJson(`/users/me/price-reports/${encodeURIComponent(reportId)}`),
+  withdrawPriceReport: (reportId: string) =>
+    fetchJson(`/users/me/price-reports/${encodeURIComponent(reportId)}/withdraw`, {
+      method: 'POST',
+      body: '{}',
+    }),
   getAgentPricingPortfolio: (): Promise<AgentPricingPortfolio> => fetchJson('/agent/pricing/portfolio'),
   getAgencyPricingPortfolio: (): Promise<AgencyPricingPortfolio> => fetchJson('/agency/pricing/portfolio'),
   keepAgentListingPrice: (propertyId: string, reason?: string): Promise<PricingDecision> =>

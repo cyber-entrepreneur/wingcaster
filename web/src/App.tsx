@@ -47,6 +47,10 @@ import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
+import {
+  ComparableReportOutcomePage,
+  PriceReportOutcomePage,
+} from '@/pages/agent/reports'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -107,6 +111,15 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* AGT-REC-002 comparable-report outcome + matrix-legacy alias */}
+      <Route
+        path="/reports/comparables/:reportId/outcome"
+        element={<ComparableReportOutcomePage />}
+      />
+      <Route path="/agent/comparable-reports/:id" element={<ComparableReportOutcomePage />} />
+      {/* AGT-REC-003 price-report outcome + matrix-legacy alias */}
+      <Route path="/reports/prices/:reportId/outcome" element={<PriceReportOutcomePage />} />
+      <Route path="/agent/pricing/reports/:id/outcome" element={<PriceReportOutcomePage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
