@@ -14,7 +14,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
-import { InboxPage } from '@/pages/InboxPage'
+import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
@@ -109,10 +109,13 @@ function AppRoutes() {
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
-      <Route path="/dashboard/inbox" element={<InboxPage />} />
-      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
-      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
+          Must stay BEFORE /inbox/:conversationId so "applications" is not captured. */}
       <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/dashboard/inbox" element={<InboxPage />} />
+      <Route path="/dashboard/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
