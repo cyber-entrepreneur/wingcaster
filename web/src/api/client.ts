@@ -341,6 +341,24 @@ export const api = {
   searchAgencies: (q: string) => fetchJson(`/agencies/search?q=${encodeURIComponent(q)}`),
   applyToAgency: (agencyId: string, data: Record<string, string>) =>
     fetchJson('/agencies/apply', { method: 'POST', body: JSON.stringify({ agency_id: agencyId, ...data }) }),
+  /** AGT-REC-004 — applicant-scoped outcome payload (404 if not caller’s). */
+  getMyAgencyApplicationOutcome: (applicationId: string) =>
+    fetchJson(`/users/me/agency-applications/${encodeURIComponent(applicationId)}`),
+  acceptMyAgencyApplication: (applicationId: string) =>
+    fetchJson(`/users/me/agency-applications/${encodeURIComponent(applicationId)}/accept`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  declineMyAgencyApplication: (applicationId: string) =>
+    fetchJson(`/users/me/agency-applications/${encodeURIComponent(applicationId)}/decline`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  withdrawMyAgencyApplication: (applicationId: string) =>
+    fetchJson(`/users/me/agency-applications/${encodeURIComponent(applicationId)}/withdraw`, {
+      method: 'POST',
+      body: '{}',
+    }),
   createAgency: (data: Record<string, unknown>) =>
     fetchJson('/agencies', { method: 'POST', body: JSON.stringify(data) }),
   getMyAgency: () => fetchJson('/agencies/my'),

@@ -32,7 +32,7 @@ export type CtaAction = {
   /** In-flight action. */
   loading?: boolean
   disabled?: boolean
-  /** Opens Dialog before firing. */
+  /** Opens Dialog before firing (focus trap + Escape). */
   confirm?: {
     title: string
     body: string
@@ -62,6 +62,7 @@ export type PrimaryCtaPerStateProps = {
   tertiary?: CtaAction
   /** stacked = mobile / sidebar; inline = desktop bottom. */
   layout: 'stacked' | 'inline'
+  className?: string
 }
 
 type PendingConfirm = {
@@ -115,7 +116,7 @@ function ActionButton({
     className,
   )
 
-  if (action.href && !action.confirm && !action.onClick) {
+  if (action.href && !action.confirm && !action.onClick && !action.disabled) {
     return (
       <Button
         asChild
@@ -123,7 +124,6 @@ function ActionButton({
         variant={variant}
         className={buttonClassName}
         aria-busy={action.loading || undefined}
-        aria-disabled={action.disabled || undefined}
       >
         <a href={action.href}>{content}</a>
       </Button>
@@ -137,6 +137,7 @@ function ActionButton({
       variant={variant}
       className={buttonClassName}
       disabled={action.disabled}
+      aria-disabled={action.disabled || undefined}
       aria-busy={action.loading || undefined}
       onClick={handleClick}
     >
@@ -150,6 +151,7 @@ export function PrimaryCtaPerState({
   secondary,
   tertiary,
   layout,
+  className,
 }: PrimaryCtaPerStateProps) {
   const [pending, setPending] = useState<PendingConfirm | null>(null)
 
@@ -175,10 +177,11 @@ export function PrimaryCtaPerState({
           'flex w-full max-w-[320px] flex-col gap-[var(--lc-space-sm)]',
         layout === 'inline' &&
           'flex w-full flex-row flex-wrap items-center justify-end gap-[var(--lc-space-sm)]',
+        className,
       )}
       data-rec-cta-layout={layout}
     >
-      {/* Stacked mobile sticky bar: tertiary → secondary → primary (top → bottom). */}
+      {/* Stacked: tertiary → secondary → primary (top → bottom). */}
       {layout === 'stacked' && tertiaryAction ? (
         <ActionButton
           action={tertiaryAction}

@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
+import { formatAbsoluteTimestamp } from './formatRelativeAbsolute'
 
 /**
  * Decision message from the resolver (agency owner / PA / system).
@@ -26,6 +27,7 @@ export type ResolverMessageProps = {
   message: string | null
   /** Default: "No message provided." */
   empty_state_copy?: string
+  className?: string
 }
 
 function initials(name: string): string {
@@ -35,20 +37,8 @@ function initials(name: string): string {
   return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
 }
 
-function formatTimestampStub(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 /**
- * Strict Markdown-subset stub (no react-markdown dependency in prep PR).
+ * Strict Markdown-subset renderer.
  * Allows: paragraphs, line breaks, links, **bold** / *italic*.
  * Strips: images, headings, lists, tables, code fences.
  */
@@ -81,7 +71,6 @@ function renderMarkdownSubset(source: string): ReactNode[] {
 }
 
 function inlineNodes(text: string, keyPrefix: string): ReactNode[] {
-  // Links then bold/italic — simple sequential tokenizer for stub fidelity.
   const nodes: ReactNode[] = []
   const pattern =
     /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)/g
@@ -132,14 +121,16 @@ export function ResolverMessage({
   decided_at,
   message,
   empty_state_copy = 'No message provided.',
+  className,
 }: ResolverMessageProps) {
   const isEmpty = message == null || message.trim() === ''
-  const decidedLabel = formatTimestampStub(decided_at)
+  const decidedLabel = formatAbsoluteTimestamp(decided_at)
 
   return (
     <article
       className={cn(
-        'rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)] shadow-sm',
+        'rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)] shadow-[var(--lc-elevation-sm)]',
+        className,
       )}
       aria-label={`Message from ${resolver.display_name}, ${resolver.role_label}, decided ${decidedLabel}`}
     >
