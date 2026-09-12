@@ -69,6 +69,11 @@ export function CelebrationHeader({
       >
         {title}
       </h1>
+      {tone === 'loud' ? (
+        <span className="sr-only" role="status" aria-live="polite">
+          {title}
+        </span>
+      ) : null}
 
       {body ? (
         <p

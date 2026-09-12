@@ -84,6 +84,7 @@ import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPa
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
 import type { ComponentType } from 'react'
+import { Act001WelcomeSurface, Onb001WelcomeSurface } from '@/theme/wave4a-fixtures'
 
 const pages: Array<[string, ComponentType]> = [
   ['Login', LoginPage],
@@ -179,5 +180,37 @@ describe.each(['light', 'dark'] as const)('Broadcast %s mode — existing screen
     expect(page === '' || /^#/i.test(page)).toBe(true)
     expect(inlineHexHits(view.container)).toEqual([])
     view.unmount()
+  })
+})
+
+const WAVE4A_RTL_PAGES: Array<[string, ComponentType, string]> = [
+  ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
+  ['Activate', Act001WelcomeSurface, '/activate'],
+]
+
+describe.each(['light', 'dark'] as const)('Broadcast %s mode — Wave 4A funnel', (mode) => {
+  it(`renders /onboarding/welcome and /activate without throwing (${mode})`, () => {
+    applyLcMode(mode)
+    document.documentElement.dir = 'rtl'
+    document.documentElement.lang = 'ar'
+    const failures: string[] = []
+    for (const [name, Page, path] of WAVE4A_RTL_PAGES) {
+      try {
+        const view = render(
+          <MemoryRouter initialEntries={[path]}>
+            <BrandProvider>
+              <ToastProvider>
+                <Page />
+              </ToastProvider>
+            </BrandProvider>
+          </MemoryRouter>,
+        )
+        expect(inlineHexHits(view.container)).toEqual([])
+        view.unmount()
+      } catch (err) {
+        failures.push(`${name}: ${(err as Error).message}`)
+      }
+    }
+    expect(failures).toEqual([])
   })
 })

@@ -35,39 +35,49 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius
   const offset = circumference * (1 - pct)
   const done = clamped >= safeTotal
+  const label = ariaLabel ?? `${clamped} of ${safeTotal} steps complete`
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className={cn('shrink-0 -rotate-90', className)}
-      role="img"
-      aria-label={ariaLabel ?? `${clamped} of ${safeTotal} steps complete`}
+    // AGT-ONB-005: ring is a progressbar (not a decorative img).
+    <span
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={safeTotal}
+      aria-valuenow={clamped}
+      aria-label={label}
+      className={cn('inline-flex shrink-0', className)}
       data-progress-completed={clamped}
       data-progress-total={safeTotal}
     >
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="var(--lc-border)"
-        strokeWidth={strokeWidth}
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke={
-          done ? 'var(--lc-status-published-fg)' : 'var(--lc-action-primary)'
-        }
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-      />
-    </svg>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+        aria-hidden="true"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--lc-border)"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={
+            done ? 'var(--lc-status-published-fg)' : 'var(--lc-action-primary)'
+          }
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+    </span>
   )
 }

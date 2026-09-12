@@ -1,4 +1,5 @@
 ﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 describe('broadcast session channel', () => {
@@ -31,6 +32,8 @@ describe('broadcast session channel', () => {
     // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
     ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
       MockBroadcastChannel as unknown as typeof BroadcastChannel
+    globalThis.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
+    window.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
   })
 
   afterEach(() => {

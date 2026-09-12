@@ -53,6 +53,7 @@ import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import { Act001WelcomeSurface, Onb001WelcomeSurface } from '@/theme/wave4a-fixtures'
 
 const pages: Array<[string, ComponentType, string]> = [
   ['Dashboard', AgentDashboardPage, '/dashboard'],
@@ -94,15 +95,42 @@ describe('Broadcast a11y — top 10 pages', () => {
       </MemoryRouter>,
     )
     await waitFor(async () => {
-      // React 18 useId() emits colon-bearing ids (`:r0:`) that axe 4.x flags as
-      // invalid aria-controls targets on Radix Tabs — known false positive.
-      expect(
-        await axe(container, {
-          rules: bare
-            ? { 'aria-valid-attr-value': { enabled: false } }
-            : undefined,
-        }),
-      ).toHaveNoViolations()
+      // LoginPage renders its own <main> + Radix Tabs colon ids (`radix-:rN:`).
+      // Same harness/Radix exemptions as nav-chrome.a11y.test.tsx — not Wave 4A scope.
+      const axeOptions =
+        name === 'Login'
+          ? {
+              rules: {
+                'aria-valid-attr-value': { enabled: false },
+                'landmark-main-is-top-level': { enabled: false },
+                'landmark-no-duplicate-main': { enabled: false },
+                'landmark-unique': { enabled: false },
+              },
+            }
+          : undefined
+      expect(await axe(container, axeOptions)).toHaveNoViolations()
     })
+  })
+})
+
+describe('Broadcast a11y — Wave 4A /onboarding/welcome and /activate', () => {
+  it.each([
+    ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
+    ['Activate', Act001WelcomeSurface, '/activate'],
+  ] as const)('%s has no axe violations (rtl)', async (_name, Page, path) => {
+    document.documentElement.lang = 'ar'
+    document.documentElement.dir = 'rtl'
+    const { container } = render(
+      <MemoryRouter initialEntries={[path]}>
+        <BrandProvider>
+          <ToastProvider>
+            <main>
+              <Page />
+            </main>
+          </ToastProvider>
+        </BrandProvider>
+      </MemoryRouter>,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

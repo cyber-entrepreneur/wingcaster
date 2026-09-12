@@ -85,13 +85,30 @@ export function IntakePathCard({
       tabIndex={disabled ? -1 : 0}
       onClick={() => {
         if (disabled) return
-        onSelect?.()
+        if (selected && onCta) onCta()
+        else onSelect?.()
       }}
       onKeyDown={(event) => {
         if (disabled) return
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onSelect?.()
+          if (selected && onCta) onCta()
+          else onSelect?.()
+          return
+        }
+        // AGT-ONB-001: arrow keys move focus within the parent radiogroup.
+        if (isNextAction) return
+        const group = event.currentTarget.closest('[role="radiogroup"]')
+        if (!group) return
+        const radios = [...group.querySelectorAll<HTMLElement>('[role="radio"]')]
+        const index = radios.indexOf(event.currentTarget)
+        if (index < 0) return
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault()
+          radios[(index + 1) % radios.length]?.focus()
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          radios[(index - 1 + radios.length) % radios.length]?.focus()
         }
       }}
       className={cn(
@@ -124,12 +141,12 @@ export function IntakePathCard({
       </div>
 
       <div className="flex flex-1 flex-col gap-1">
-        <h3
+        <p
           className="text-[var(--lc-text-heading)]"
           style={{ font: 'var(--lc-type-heading-3)' }}
         >
           {label}
-        </h3>
+        </p>
         <p
           className="text-[var(--lc-text-secondary)]"
           style={{ font: 'var(--lc-type-body-sm)' }}
@@ -147,7 +164,7 @@ export function IntakePathCard({
       </div>
 
       <div className={cn('min-h-tap', !showCta && 'opacity-0')} aria-hidden={!showCta}>
-        {showCta ? (
+        {showCta && isNextAction ? (
           <Button
             type="button"
             variant="default"
@@ -160,8 +177,20 @@ export function IntakePathCard({
             }}
           >
             {ctaLabel}
-            {!isNextAction ? <ArrowRight className="ms-2 h-4 w-4" aria-hidden="true" /> : null}
           </Button>
+        ) : showCta ? (
+          // Radio cards: visual CTA only — parent radio is the interactive control
+          // (nested-interactive). Enter on a selected card fires onCta.
+          <span
+            className={cn(
+              'inline-flex w-full min-h-tap items-center justify-center rounded-md px-8',
+              'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]',
+              'text-sm font-medium',
+            )}
+          >
+            {ctaLabel}
+            <ArrowRight className="ms-2 h-4 w-4" aria-hidden="true" />
+          </span>
         ) : (
           <div className="flex min-h-tap items-center justify-center text-[var(--lc-text-muted)]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
