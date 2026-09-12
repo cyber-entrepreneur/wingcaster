@@ -183,6 +183,62 @@ describe('buildSettingsIndex — menu contains/excludes expected items', () => {
     expect(body.capabilities.password).toBe(false)
   })
 
+  it('embeds nested security + billing capabilities from the snapshot', () => {
+    const body = buildSettingsIndex({
+      memberships: [personalOwner()],
+      user: { id: 'u1', password_hash: 'x', totp_enabled: true },
+      snapshot: {
+        two_factor_enrolled: true,
+        active_session_count: 3,
+        plan: 'semsar',
+        display_name: 'Semsar',
+        renews_at: '2026-10-01T00:00:00Z',
+        past_due: false,
+      },
+    })
+    expect(body.capabilities.security).toEqual({
+      two_factor_enrolled: true,
+      active_session_count: 3,
+    })
+    expect(body.capabilities.billing).toMatchObject({
+      plan: 'semsar',
+      display_name: 'Semsar',
+      past_due: false,
+    })
+    const twoFa = body.groups.flatMap((g) => g.items).find((i) => i.id === 'two_factor')
+    expect(twoFa.badge).toBeNull()
+    const sessions = body.groups.flatMap((g) => g.items).find((i) => i.id === 'sessions')
+    expect(sessions.badge).toEqual({ kind: 'count', value: 3 })
+  })
+
+  it('embeds nested security + billing capabilities from the snapshot', () => {
+    const body = buildSettingsIndex({
+      memberships: [personalOwner()],
+      user: { id: 'u1', password_hash: 'x', totp_enabled: true },
+      snapshot: {
+        two_factor_enrolled: true,
+        active_session_count: 3,
+        plan: 'semsar',
+        display_name: 'Semsar',
+        renews_at: '2026-10-01T00:00:00Z',
+        past_due: false,
+      },
+    })
+    expect(body.capabilities.security).toEqual({
+      two_factor_enrolled: true,
+      active_session_count: 3,
+    })
+    expect(body.capabilities.billing).toMatchObject({
+      plan: 'semsar',
+      display_name: 'Semsar',
+      past_due: false,
+    })
+    const twoFa = body.groups.flatMap((g) => g.items).find((i) => i.id === 'two_factor')
+    expect(twoFa.badge).toBeNull()
+    const sessions = body.groups.flatMap((g) => g.items).find((i) => i.id === 'sessions')
+    expect(sessions.badge).toEqual({ kind: 'count', value: 3 })
+  })
+
   it('does not return empty groups', () => {
     const body = buildSettingsIndex({
       memberships: [agencyMembership('guest')],
@@ -226,15 +282,17 @@ describe('buildSettingsIndex — menu contains/excludes expected items', () => {
     expect(danger.items).toEqual([expect.objectContaining({
       id: 'delete_account',
       label: 'Delete account',
-      route: '/settings/delete-account',
+      route: '/settings/danger/delete-account',
     })])
-    expect(body.capabilities).toEqual({
+    expect(body.capabilities).toMatchObject({
       account: true,
-      security: true,
-      billing: true,
-      team: false,
       danger: true,
       password: true,
+      identity: { oauth_only: false, signin_method: 'email' },
+      security: { two_factor_enrolled: false, active_session_count: 0 },
+      billing: { plan: null, past_due: false },
+      team: false,
+      env: 'live',
     })
   })
 })
