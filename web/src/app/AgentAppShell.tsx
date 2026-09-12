@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { BottomTabBar } from '@/components/nav/BottomTabBar'
 import { LanguageSelector } from '@/components/nav/LanguageSelector'
+import { ModeChip } from '@/components/nav/ModeChip'
 import { SideDrawer } from '@/components/nav/SideDrawer'
 import { TenantSwitcher } from '@/components/nav/TenantSwitcher'
 import { TopBar } from '@/components/nav/TopBar'
@@ -68,6 +69,7 @@ export function AgentAppShell({ children, className, viewport: viewportProp }: A
         notifications={notifications}
         onMarkAllNotificationsRead={markAllRead}
         onSignOut={logout}
+        modeChip={<ModeChip />}
       />
 
       <div className="flex min-h-0 flex-1">

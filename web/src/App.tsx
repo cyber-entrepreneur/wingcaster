@@ -8,16 +8,19 @@ import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
+import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
-import { InboxPage } from '@/pages/InboxPage'
+import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
@@ -59,6 +62,7 @@ import {
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
+import { PreferencesPage } from '@/pages/PreferencesPage'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
@@ -102,6 +106,8 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
       <Route path="/listings" element={<ListingsPage />} />
+      <Route path="/listings/new" element={<ManualListingComposerPage />} />
+      <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
@@ -109,13 +115,17 @@ function AppRoutes() {
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
-      <Route path="/dashboard/inbox" element={<InboxPage />} />
-      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
-      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
+          Must stay BEFORE /inbox/:conversationId so "applications" is not captured. */}
       <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/dashboard/inbox" element={<InboxPage />} />
+      <Route path="/dashboard/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
+      <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
@@ -143,6 +153,7 @@ function AppRoutes() {
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
       <Route path="/settings/2fa" element={<TotpSettingsPage />} />
+      <Route path="/settings/preferences" element={<PreferencesPage />} />
       <Route path="/settings/channels" element={<SocialChannelsPage />} />
       <Route path="/settings/routing" element={<RoutingSettingsPage />} />
       <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
@@ -186,6 +197,7 @@ function AppRoutes() {
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
+      <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />

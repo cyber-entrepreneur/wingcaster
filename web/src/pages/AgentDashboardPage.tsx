@@ -21,8 +21,22 @@ import { ListingFormModal } from '@/components/ListingFormModal'
 import { KpiAnalyticsPanel } from '@/components/dashboard/KpiAnalyticsPanel'
 import { ListingRow } from '@/components/dashboard/ListingRow'
 import { PromoteDistributeModal, PLATFORM_META, SOCIAL_PROMOTE_PLATFORMS } from '@/components/dashboard/PromoteDistributeModal'
+import { AgentDashboardProGate } from '@/pages/agent/dashboard/AgentDashboardModeMount'
 
+// Wave-8 Pro dashboard (AGT-DSH-002) — also used by AgentDashboardProGate.
+export { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
+
+/**
+ * AGT-DSH-001 Guided dashboard + D-S-06 Pro mount gate (AGT-DSH-002).
+ * Pro renders only when server `ui_mode === 'pro'` AND viewport ≥768px.
+ */
 export function AgentDashboardPage() {
+  return (
+    <AgentDashboardProGate guided={<GuidedAgentDashboard />} />
+  )
+}
+
+function GuidedAgentDashboard() {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
   usePageTitle('Dashboard')
@@ -528,7 +542,7 @@ export function AgentDashboardPage() {
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]" data-dashboard-mode="guided" data-testid="guided-dashboard">
       {/* Header */}
       <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
