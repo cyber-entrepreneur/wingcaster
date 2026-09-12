@@ -18,6 +18,7 @@ import { addAgencyMembership, createAgencyWithOwner, getAgencyMembership } from 
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import {
   runOwnershipTransferExpiryTick,
+  runOwnershipTransferReversalExpiringTick,
   runOwnershipTransferReversalCloseTick,
 } from './workers/ownership-transfer-expiry.js'
 
@@ -154,11 +155,20 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
       'ownership_transfer.initiator-accepted',
       'ownership_transfer.target-invited',
       'ownership_transfer.target-declined',
+      'ownership_transfer.target-expired',
       'ownership_transfer.transfer-executed',
+      'ownership_transfer.transfer-reversed',
       'ownership_transfer.reversal-window-expiring',
     ]) {
       expect(codes.has(code), `missing template ${code}`).toBe(true)
     }
+
+    const actionKind = await pool().query(
+      `SELECT pg_get_constraintdef(c.oid) AS def
+         FROM pg_constraint c
+        WHERE c.conname = 'chk_approval_requests_action_kind'`,
+    )
+    expect(actionKind.rows[0]?.def || '').toContain('CAPABILITY_PACK_FINANCE_GRANT')
   })
 
   it('happy path: initiate → accept flips roles → reverse within window', async () => {
@@ -270,6 +280,42 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
       [transferId],
     )
     expect(row.rows[0].status).toBe('expired')
+  })
+
+  it('reversal-expiring tick notifies at T-1 day and is idempotent', async () => {
+    const ctx = await seedAgencyWithAdmin('Expiring Window Agency')
+    const app = buildApp()
+    const otp1 = await sendOtp(app, { agencyId: ctx.agencyId, token: ctx.owner.token })
+    const init = await initiate(app, { ...ctx, otpCode: otp1.body.__test_code })
+    const transferId = init.body.transfer.id
+
+    const otp2 = await sendOtp(app, { agencyId: ctx.agencyId, token: ctx.admin.token })
+    const accept = await request(app)
+      .post(`/api/agencies/${ctx.agencyId}/ownership-transfer/${transferId}/accept`)
+      .set('Authorization', `Bearer ${ctx.admin.token}`)
+      .set('x-elevated-token', ctx.admin.elevated)
+      .send({ otp_code: otp2.body.__test_code, typed_agency_name: ctx.agencyName })
+    expect(accept.status).toBe(201)
+
+    await pool().query(
+      `UPDATE public.ownership_transfer_requests
+          SET reversal_deadline_at = NOW() + INTERVAL '12 hours',
+              data = COALESCE(data, '{}'::jsonb) - 'reversal_expiring_notified'
+        WHERE id = $1`,
+      [transferId],
+    )
+
+    const first = await runOwnershipTransferReversalExpiringTick()
+    expect(first.notified).toBeGreaterThanOrEqual(1)
+    const stamped = await pool().query(
+      `SELECT data->>'reversal_expiring_notified' AS notified
+         FROM public.ownership_transfer_requests WHERE id = $1`,
+      [transferId],
+    )
+    expect(stamped.rows[0].notified).toBe('true')
+
+    const second = await runOwnershipTransferReversalExpiringTick()
+    expect(second.notified).toBe(0)
   })
 
   it('reverse after deadline returns 410; close tick marks permanent', async () => {

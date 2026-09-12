@@ -1,7 +1,7 @@
 /**
  * WF-31 / BE-BLOCKER-31 — ownership transfer notifications.
  *
- * Template codes seeded by 341_ownership_transfer_templates.sql.
+ * Template codes seeded by 341_ownership_transfer_templates.sql (+ 356 follow-ups).
  * Best-effort: missing templates / dispatch failures must not roll back
  * the ownership flip transaction (callers invoke after commit or via
  * safe wrappers).
@@ -16,7 +16,9 @@ export const OWNERSHIP_TRANSFER_TEMPLATE_CODES = Object.freeze({
   'initiator-accepted': 'ownership_transfer.initiator-accepted',
   'target-invited': 'ownership_transfer.target-invited',
   'target-declined': 'ownership_transfer.target-declined',
+  'target-expired': 'ownership_transfer.target-expired',
   'transfer-executed': 'ownership_transfer.transfer-executed',
+  'transfer-reversed': 'ownership_transfer.transfer-reversed',
   'reversal-window-expiring': 'ownership_transfer.reversal-window-expiring',
 })
 
@@ -33,9 +35,17 @@ const FALLBACK_COPY = Object.freeze({
     subject: '{{target_name}} declined ownership of {{agency_name}}',
     text_body: 'Reason: {{decline_reason}}',
   },
+  'target-expired': {
+    subject: 'Ownership transfer for {{agency_name}} expired',
+    text_body: 'The transfer request expired without a response. Start a new transfer if you still want to proceed.',
+  },
   'transfer-executed': {
     subject: 'Ownership of {{agency_name}} has transferred',
     text_body: '{{new_owner_name}} is now the owner. Reversal open until {{reversal_deadline}}.',
+  },
+  'transfer-reversed': {
+    subject: 'Ownership of {{agency_name}} was reversed',
+    text_body: '{{restored_owner_name}} is the owner again. {{demoted_owner_name}} is now an Admin.',
   },
   'reversal-window-expiring': {
     subject: 'Reversal window for {{agency_name}} closes soon',
@@ -47,7 +57,7 @@ function deepLinkFor(variant, transferId) {
   if (variant === 'target-invited') {
     return `wingcaster://ownership-transfer/incoming/${transferId}`
   }
-  if (variant === 'target-declined') {
+  if (variant === 'target-declined' || variant === 'target-expired') {
     return 'wingcaster://agency/settings/ownership-transfer'
   }
   return `wingcaster://ownership-transfer/outcome/${transferId}`
