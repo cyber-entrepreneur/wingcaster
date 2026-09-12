@@ -1820,8 +1820,42 @@ export interface SettingsIndexActivity {
   at: string
 }
 
+export interface SettingsIndexSecurityCapabilities {
+  two_factor_enrolled?: boolean
+  active_session_count?: number
+}
+
+export interface SettingsIndexBillingCapabilities {
+  plan?: string | null
+  past_due?: boolean
+  display_name?: string | null
+  renews_at?: string | null
+}
+
+export interface SettingsIndexIdentityCapabilities {
+  oauth_only?: boolean
+  signin_method?: string
+}
+
+export interface SettingsIndexTeamCapabilities {
+  role?: string
+  member_count?: number | null
+  pending_invite_count?: number
+}
+
+export interface SettingsIndexCapabilities {
+  account?: boolean
+  danger?: boolean
+  password?: boolean
+  env?: string
+  identity?: SettingsIndexIdentityCapabilities
+  security?: SettingsIndexSecurityCapabilities
+  billing?: SettingsIndexBillingCapabilities | false
+  team?: SettingsIndexTeamCapabilities | false
+}
+
 export interface SettingsIndexResponse {
-  capabilities?: Record<string, unknown>
+  capabilities?: SettingsIndexCapabilities
   groups: SettingsIndexGroup[]
   recent_activity?: SettingsIndexActivity[]
 }

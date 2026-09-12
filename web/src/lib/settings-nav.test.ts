@@ -26,7 +26,7 @@ describe('navGroupsFromIndex', () => {
       {
         id: 'danger',
         label: 'Danger zone',
-        items: [{ id: 'delete_account', label: 'Delete account', route: '/settings/delete-account', icon: 'trash-2' }],
+        items: [{ id: 'delete_account', label: 'Delete account', route: '/settings/danger/delete-account', icon: 'trash-2' }],
       },
     ])
     expect(nav[0].items[0].danger).toBe(true)

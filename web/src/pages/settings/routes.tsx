@@ -26,11 +26,11 @@ export const settingsRoutes = (
     <Route path="sessions" element={<SessionsPage />} />
     <Route path="security/sessions" element={<Navigate to="/settings/sessions" replace />} />
     <Route path="billing" element={<BillingPage />} />
-    <Route path="notifications/billing" element={<BillingPage section="channels" />} />
-    <Route path="notifications" element={<Navigate to="/settings/notifications/billing" replace />} />
-    <Route path="delete-account" element={<DeleteAccountPage />} />
-    <Route path="danger/delete-account" element={<Navigate to="/settings/delete-account" replace />} />
-    <Route path="account/delete" element={<Navigate to="/settings/delete-account" replace />} />
+    <Route path="notifications" element={<BillingPage section="channels" />} />
+    <Route path="notifications/billing" element={<Navigate to="/settings/notifications" replace />} />
+    <Route path="danger/delete-account" element={<DeleteAccountPage />} />
+    <Route path="delete-account" element={<Navigate to="/settings/danger/delete-account" replace />} />
+    <Route path="account/delete" element={<Navigate to="/settings/danger/delete-account" replace />} />
     <Route path="security/2fa" element={<Navigate to="/settings/2fa" replace />} />
     <Route path="security/2fa/*" element={<Navigate to="/settings/2fa" replace />} />
     <Route path="*" element={<SettingsUnavailablePage />} />

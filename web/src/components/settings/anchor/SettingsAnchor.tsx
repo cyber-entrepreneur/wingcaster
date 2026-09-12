@@ -113,7 +113,7 @@ export function SettingsAnchor({
       <SettingsActivityList items={activity ?? []} locale={locale} />
 
       <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-        <Link to="/settings/delete-account" className="hover:text-[var(--lc-text-brand)]">
+        <Link to="/settings/danger/delete-account" className="hover:text-[var(--lc-text-brand)]">
           {copy['anchor.danger.hint']} →
         </Link>
       </p>

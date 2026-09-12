@@ -82,9 +82,10 @@ export function SessionsPage() {
   }, [load])
 
   const current = sessions.find((s) => s.is_current)
-  const foreign = sessions.some(
+  const foreignCountry = sessions.find(
     (s) => !s.is_current && current?.ip_country && s.ip_country && s.ip_country !== current.ip_country,
-  )
+  )?.ip_country
+  const foreign = Boolean(foreignCountry)
 
   async function signOutOne(id: string) {
     setBusyId(id)
@@ -175,8 +176,8 @@ export function SessionsPage() {
           role="status"
           className="mb-[var(--lc-space-lg)] rounded-[var(--lc-radius-md)] bg-[var(--lc-status-underOffer-bg)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)] text-[var(--lc-status-underOffer-fg)]"
         >
-          {foreign
-            ? `A session is signed in from ${sessions.find((s) => !s.is_current && s.ip_country !== current?.ip_country)?.ip_country} — different from this device. Review it below.`
+          {foreign && foreignCountry
+            ? `A session is signed in from ${foreignCountry} — different from this device. Review it below.`
             : `You have ${sessions.length} active sessions. Review anything you don't recognize.`}
         </div>
       ) : null}
