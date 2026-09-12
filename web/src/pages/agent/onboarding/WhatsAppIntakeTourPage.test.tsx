@@ -149,7 +149,8 @@ describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
     renderPage()
-    expect(await screen.findByText(/Code expired/i)).toBeInTheDocument()
+    // Visible status + sr-only countdown both mention expiry.
+    expect((await screen.findAllByText(/Code expired/i)).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /Get a new code/i })).toBeInTheDocument()
     expect(navigateMock).not.toHaveBeenCalled()
   })
