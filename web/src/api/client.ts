@@ -3,7 +3,6 @@ import type {
   StepUpResult,
   TotpEnrolmentResult,
   TotpSetup,
-  TwoFactorMethod,
   TwoFactorStatus,
 } from '@/types/twoFactor'
 import type {
@@ -357,10 +356,7 @@ export const api = {
   regenerateBackupCodes: (): Promise<{ backup_codes: string[]; backup_codes_remaining: number }> =>
     fetchJson('/auth/2fa/backup-codes/regenerate', { method: 'POST', body: '{}' }),
   /** Redeems a sign-in challenge. Unauthenticated — there is no session yet. */
-  twoFactorChallenge: (
-    challenge_id: string,
-    code: string,
-  ): Promise<{ token: string; agent?: unknown; factor_used?: TwoFactorMethod }> =>
+  twoFactorChallenge: (challenge_id: string, code: string) =>
     fetchJson('/auth/2fa/challenge', { method: 'POST', body: JSON.stringify({ challenge_id, code }) }),
   stepUp: (): Promise<StepUpChallenge> => fetchJson('/auth/step-up', { method: 'POST', body: '{}' }),
   stepUpVerify: (challenge_id: string, code: string): Promise<StepUpResult> =>
