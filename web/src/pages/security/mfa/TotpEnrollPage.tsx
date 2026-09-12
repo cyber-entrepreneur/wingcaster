@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import QRCode from 'qrcode'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { api } from '@/api/client'
+import { mutateSettingsIndex } from '@/hooks/useSettingsIndex'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import {
@@ -119,6 +120,7 @@ export function TotpEnrollPage() {
     setVerifying(true)
     try {
       const result = await api.totpVerify(setup.secret, code)
+      void mutateSettingsIndex()
       setSuccessFlash(true)
       window.setTimeout(() => {
         const next: BackupCodesLocationState = {

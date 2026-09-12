@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { api, setAuthToken } from '@/api/client'
+import { mutateSettingsIndex } from '@/hooks/useSettingsIndex'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -72,6 +73,7 @@ export function DisableTwoFactorModal({
     try {
       const result = await api.totpDisable(code.trim())
       if (result.token) setAuthToken(result.token)
+      void mutateSettingsIndex()
       onOpenChange(false)
       onDisabled()
     } catch (err: unknown) {
