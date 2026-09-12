@@ -25,6 +25,9 @@ export type { SettingsCardListProps } from './SettingsCardList'
 export { SettingsCardRow } from './SettingsCardRow'
 export type { SettingsCardRowProps } from './SettingsCardRow'
 
+export { InterfaceModeCard } from './InterfaceModeCard'
+export type { InterfaceModeCardProps } from './InterfaceModeCard'
+
 export type {
   SettingsFooterSlot,
   SettingsNavBadge,

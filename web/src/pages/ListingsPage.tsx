@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Building2, Grid3x3, List, LayoutGrid, Plus, Search, Loader2, MapPin,
   Eye, Filter,
@@ -18,6 +18,9 @@ import { Badge } from '@/components/ui/badge'
 import { PropertyCard } from '@/components/PropertyCard'
 import { ListingFormModal } from '@/components/ListingFormModal'
 import type { Property } from '@/types'
+import { useUiMode } from '@/hooks/useUiMode'
+import { useTenant } from '@/hooks/useTenant'
+import { ProListingsTable } from '@/pages/agent/listings/ProListingsTable'
 
 type ViewMode = 'card' | 'list' | 'gallery'
 type StatusFilter = 'all' | ListingStatus
@@ -26,6 +29,9 @@ export function ListingsPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { effectiveMode, isProCapable } = useUiMode()
+  const { activeTenant } = useTenant()
   usePageTitle('Listings')
 
   const [listings, setListings] = useState<Property[]>([])
@@ -35,6 +41,13 @@ export function ListingsPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'sale' | 'rent'>('all')
   const [query, setQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  /** Local override so Cards toggle can leave Pro table without changing server ui_mode. */
+  const [forceGuidedCards, setForceGuidedCards] = useState(false)
+
+  const wantTable =
+    !forceGuidedCards &&
+    isProCapable &&
+    (effectiveMode === 'pro' || searchParams.get('view') === 'table')
 
   useEffect(() => {
     if (authLoading) return
@@ -98,6 +111,35 @@ export function ListingsPage() {
         <Link to="/login" className="mt-4 inline-block">
           <Button>Sign in</Button>
         </Link>
+      </div>
+    )
+  }
+
+  // AGT-LST-002 Pro table — only at ≥768px; `?view=table` ignored below that.
+  if (wantTable) {
+    return (
+      <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+        <ProListingsTable
+          listings={filtered}
+          totalCount={listings.length}
+          showOwnerColumn={activeTenant?.kind === 'agency'}
+          onCreate={() => setCreateOpen(true)}
+          onShowCards={() => {
+            setForceGuidedCards(true)
+            if (searchParams.get('view') === 'table') {
+              const next = new URLSearchParams(searchParams)
+              next.delete('view')
+              setSearchParams(next, { replace: true })
+            }
+          }}
+        />
+        {createOpen && (
+          <ListingFormModal
+            open={createOpen}
+            onClose={() => setCreateOpen(false)}
+            onSaved={() => { setCreateOpen(false); loadListings() }}
+          />
+        )}
       </div>
     )
   }
