@@ -1,18 +1,19 @@
 /**
  * Agency application HTTP surface (BE-BLOCKER-06 / AGN-MEM-005).
  *
- * POST /api/agencies/:slug/applications  — public join apply (auth required)
+ * POST /api/agencies/:slug/applications  — public join apply
+ *   - Authenticated: create application for session user (guest_signup ignored)
+ *   - Anonymous + guest_signup: atomic user create + application (one transaction)
  * POST /api/agencies/apply               — legacy alias → 410 Gone
  * GET  /api/agencies/:id/applications    — owner/admin queue
  * POST /api/agencies/:id/applications/:appId/approve
  * POST /api/agencies/:id/applications/:appId/reject
  *
- * Guest signup-on-apply is intentionally deferred; callers must be signed in.
  * expected_response_by uses +2 calendar days (no business-day helper in-repo).
  */
 
 import { randomUUID } from 'node:crypto'
-import { authMiddleware } from '../../auth.js'
+import { authMiddleware, optionalAuthMiddleware } from '../../auth.js'
 import { signToken } from '../../auth.js'
 import { findAll, findOne, insert, query, update } from '../../db.js'
 import { assertCanJoinAgency } from '../../platformModel.js'
@@ -25,6 +26,11 @@ import { updateUser, findUserById, findAgentForUser } from '../../identity.js'
 import logger from '../logger.js'
 import { agencyApplicationCreateSchema, validate } from '../validation.js'
 import { agencyApplicationExpiresAt } from '../../workers/agency-application-expiry.js'
+import {
+  buildApplicationRow,
+  createGuestUserAndApplication,
+  guestSignupHttpError,
+} from './guest-signup-apply.js'
 import { safeEmitAgencyApplicationResolved } from './notify-application-resolved.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
@@ -177,7 +183,26 @@ async function buildApplicantOutcomePayload(appRecord) {
   }
 }
 
-export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } = {}) {
+function applicationSuccessPayload(agency, application, session = null) {
+  const payload = {
+    application: {
+      id: application.id,
+      agency_id: agency.id,
+      agency_name: agency.name,
+      status: application.status,
+      created_at: application.created_at,
+      expected_response_by: application.expected_response_by,
+    },
+    redirect_to: `/applications/${application.id}`,
+  }
+  if (session) payload.session = session
+  return payload
+}
+
+export function registerAgencyApplicationRoutes(app, {
+  auth = authMiddleware,
+  optionalAuth = optionalAuthMiddleware,
+} = {}) {
   app.post('/api/agencies/apply', (_req, res) => {
     res.status(410).json({
       error: 'Gone',
@@ -188,7 +213,7 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
 
   app.post(
     '/api/agencies/:slug/applications',
-    auth,
+    optionalAuth,
     validate(agencyApplicationCreateSchema),
     async (req, res, next) => {
       try {
@@ -204,64 +229,102 @@ export function registerAgencyApplicationRoutes(app, { auth = authMiddleware } =
         }
 
         const body = req.validated
-        const agentEmail = String(req.user.email || '').trim().toLowerCase()
-        const existing = await findOne(
-          'agency_applications',
-          pendingMatch({ agencyId: agency.id, userId: req.user.id, email: agentEmail }),
-        )
-        if (existing) {
-          return res.status(409).json({
-            error: 'You already have a pending application to this agency',
-            code: 'ALREADY_APPLIED',
+        const guestSignup = req.body?.guest_signup
+
+        // Authenticated path — guest_signup must be null/ignored.
+        if (req.user) {
+          const agentEmail = String(req.user.email || '').trim().toLowerCase()
+          const existing = await findOne(
+            'agency_applications',
+            pendingMatch({ agencyId: agency.id, userId: req.user.id, email: agentEmail }),
+          )
+          if (existing) {
+            return res.status(409).json({
+              error: 'You already have a pending application to this agency',
+              code: 'ALREADY_APPLIED',
+              existing_application_id: existing.id,
+              existing_status: existing.status,
+            })
+          }
+
+          const now = new Date()
+          const application = buildApplicationRow({
+            agency,
+            user: req.user,
+            body,
+            now,
           })
+          if (!application.id) application.id = randomUUID()
+          await insert('agency_applications', application)
+
+          logger.info(
+            {
+              application_id: application.id,
+              agency: agency.name,
+              agency_id: agency.id,
+              applicant_user_id: req.user.id,
+              agent_email: agentEmail,
+            },
+            'Agency application received',
+          )
+
+          return res.status(201).json(applicationSuccessPayload(agency, application))
         }
 
-        const now = new Date()
-        const createdAt = now.toISOString()
-        const application = {
-          id: randomUUID(),
-          agency_id: agency.id,
-          applicant_user_id: req.user.id,
-          agent_email: agentEmail,
-          agent_name: req.user.name || '',
-          agent_phone: '',
-          message: body.message,
-          current_listings_count: body.current_listings_count ?? null,
-          portfolio_url: body.portfolio_url ?? null,
-          availability: body.availability ?? null,
-          referral_source: body.referral_source ?? null,
-          profile_share_consent: true,
-          invitation_code: body.invitation_code ?? null,
-          expected_response_by: expectedResponseBy(now),
-          expires_at: agencyApplicationExpiresAt(now),
-          status: 'pending',
-          created_at: createdAt,
-          updated_at: createdAt,
+        // Anonymous: require guest_signup for atomic signup-on-apply.
+        if (guestSignup == null) {
+          return res.status(401).json({ error: 'Unauthorized' })
         }
-        await insert('agency_applications', application)
+
+        const emailHint = (() => {
+          if (typeof guestSignup !== 'object' || !guestSignup) return ''
+          const id = String(guestSignup.identifier || guestSignup.email || '').trim().toLowerCase()
+          return id.includes('@') ? id : ''
+        })()
+
+        if (emailHint) {
+          const existing = await findOne(
+            'agency_applications',
+            pendingMatch({ agencyId: agency.id, email: emailHint }),
+          )
+          if (existing) {
+            return res.status(409).json({
+              error: 'You already have a pending application to this agency',
+              code: 'ALREADY_APPLIED',
+              existing_application_id: existing.id,
+              existing_status: existing.status,
+            })
+          }
+        }
+
+        let result
+        try {
+          result = await createGuestUserAndApplication({
+            agency,
+            guestSignup,
+            body,
+          })
+        } catch (err) {
+          const handled = guestSignupHttpError(err, res)
+          if (handled) return handled
+          throw err
+        }
 
         logger.info(
           {
-            application_id: application.id,
+            application_id: result.application.id,
             agency: agency.name,
             agency_id: agency.id,
-            applicant_user_id: req.user.id,
-            agent_email: agentEmail,
+            applicant_user_id: result.user.id,
+            agent_email: result.user.email,
+            guest_signup: true,
           },
-          'Agency application received',
+          'Agency application received (guest signup)',
         )
 
-        return res.status(201).json({
-          application: {
-            id: application.id,
-            agency_id: agency.id,
-            agency_name: agency.name,
-            status: application.status,
-            created_at: application.created_at,
-            expected_response_by: application.expected_response_by,
-          },
-          redirect_to: `/applications/${application.id}`,
-        })
+        return res.status(201).json(
+          applicationSuccessPayload(agency, result.application, result.session),
+        )
       } catch (err) {
         return next(err)
       }

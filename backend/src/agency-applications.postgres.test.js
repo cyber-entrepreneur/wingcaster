@@ -23,6 +23,7 @@ import {
   expectedResponseBy,
   registerAgencyApplicationRoutes,
 } from './lib/agencies/applications-routes.js'
+import { createGuestUserAndApplication } from './lib/agencies/guest-signup-apply.js'
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), 'persistence/migrations')
 
@@ -304,5 +305,100 @@ finPostgresSuite('agency applications uplift', { seed: false }, ({ pool }) => {
       .send({ agency_id: 'x', agent_email: 'a@b.com' })
     expect(res.status).toBe(410)
     expect(res.body.code).toBe('ROUTE_MOVED')
+  })
+
+  it('guest_signup creates user + application atomically and returns session', async () => {
+    const agency = await ownerAgency({ name: 'Guest Apply Co', slug: 'guest-apply' })
+    const app = buildApp()
+    const email = `guest-${randomUUID().slice(0, 8)}@x.test`
+
+    const res = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .send({
+        ...applyBody,
+        guest_signup: {
+          type: 'email',
+          identifier: email,
+          credentials: { password: 'secret12' },
+          name: 'Guest Applicant',
+        },
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.application).toMatchObject({
+      agency_id: agency.agencyId,
+      agency_name: agency.name,
+      status: 'pending',
+    })
+    expect(res.body.session?.token).toBeTruthy()
+    expect(res.body.redirect_to).toMatch(/^\/applications\//)
+
+    const appRow = await pool().query(
+      `SELECT applicant_user_id, agent_email, status
+         FROM public.agency_applications WHERE id = $1`,
+      [res.body.application.id],
+    )
+    expect(appRow.rows).toHaveLength(1)
+    expect(appRow.rows[0].agent_email).toBe(email)
+    expect(appRow.rows[0].status).toBe('pending')
+
+    const userRow = await pool().query(
+      `SELECT id, email FROM public.users WHERE id = $1`,
+      [appRow.rows[0].applicant_user_id],
+    )
+    expect(userRow.rows).toHaveLength(1)
+    expect(userRow.rows[0].email).toBe(email)
+  })
+
+  it('guest path rolls back user when application insert fails', async () => {
+    const agency = await ownerAgency({ name: 'Rollback Co', slug: 'rollback-co' })
+    const email = `rollback-${randomUUID().slice(0, 8)}@x.test`
+
+    await expect(
+      createGuestUserAndApplication({
+        agency: { id: agency.agencyId, name: agency.name },
+        guestSignup: {
+          type: 'email',
+          identifier: email,
+          credentials: { password: 'secret12' },
+          name: 'Rollback Guest',
+        },
+        body: applyBody,
+        afterUserCreate: async () => {
+          throw new Error('simulated apply failure')
+        },
+      }),
+    ).rejects.toThrow('simulated apply failure')
+
+    const users = await pool().query(
+      `SELECT id FROM public.users WHERE email = $1`,
+      [email],
+    )
+    expect(users.rows).toHaveLength(0)
+
+    const apps = await pool().query(
+      `SELECT id FROM public.agency_applications WHERE agent_email = $1`,
+      [email],
+    )
+    expect(apps.rows).toHaveLength(0)
+  })
+
+  it('guest_signup field errors use guest_signup.* keys', async () => {
+    const agency = await ownerAgency({ name: 'Guest Valid Co', slug: 'guest-valid' })
+    const app = buildApp()
+    const res = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .send({
+        ...applyBody,
+        guest_signup: {
+          type: 'email',
+          identifier: 'not-an-email',
+          credentials: { password: 'secret12' },
+          name: 'Valid Name',
+        },
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('VALIDATION_FAILED')
+    expect(res.body.field_errors['guest_signup.identifier']).toBe('invalid_email')
   })
 })
