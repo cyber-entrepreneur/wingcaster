@@ -1247,6 +1247,15 @@ function StatusCell({ status }: { status: ListingStatus }) {
   return <Badge status={status}>{meta.label}</Badge>
 }
 
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename || 'listings-export.csv'
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
 function BulkBtn({
   icon,
   label,
