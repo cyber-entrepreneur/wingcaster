@@ -258,11 +258,8 @@ function serialize(root: HTMLElement): string {
     .replace(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4}(?:,\s*\d{1,2}:\d{2}(?:\s*[AP]M)?)?/gi, '__ABS__')
     .replace(/__ABS__\s+[A-Z]{2,5}\b/g, '__ABS__')
     .replace(/title="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'title="__ISO__"')
-    .replace(/datetime="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'datetime="__ISO__"')    .replace(
-      /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+at\s+\d{1,2}:\d{2}(?:\s+[A-Z]{2,5})?/g,
-      '__ABS__',
-    )
-    .replace(/__ABS__\\s+[A-Z]{2,5}\\b/g, '__ABS__')
+    .replace(/datetime="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'datetime="__ISO__"')
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z/g, '__ISO__')
   return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 
