@@ -45,6 +45,47 @@ vi.mock('@/hooks/useTenant', () => ({
   }),
 }))
 
+vi.mock('@/api/client', () => ({
+  API_BASE: '/api',
+  api: {
+    getDashboardLayout: vi.fn(async () => ({
+      layout: [],
+      density: 'comfortable',
+      updated_at: null,
+      tenant_id: 'personal:a1',
+    })),
+    patchDashboardLayout: vi.fn(async (body: unknown) => body),
+    getDashboardStats: vi.fn(async () => ({ listings: 4, totalViews: 10, inquiries: 2 })),
+    getProperties: vi.fn(async () => []),
+    getInquiries: vi.fn(async () => ({ items: [] })),
+    getViewings: vi.fn(async () => []),
+    getConversations: vi.fn(async () => []),
+    getDashboardOperations: vi.fn(async () => null),
+    getDashboardAnalytics: vi.fn(async () => null),
+    getListPrefs: vi.fn(async () => ({ listings: {}, updated_at: null, tenant_id: 'personal:a1' })),
+    patchListPrefs: vi.fn(async () => ({ listings: {}, updated_at: null, tenant_id: 'personal:a1' })),
+    getSavedViews: vi.fn(async () => ({ views: [] })),
+    createSavedView: vi.fn(),
+    updateSavedView: vi.fn(),
+    deleteSavedView: vi.fn(),
+    bulkArchiveProperties: vi.fn(),
+    bulkPublishProperties: vi.fn(),
+    bulkDeleteProperties: vi.fn(),
+    bulkExportProperties: vi.fn(),
+    updateProperty: vi.fn(),
+  },
+}))
+
+beforeEach(() => {
+  // jsdom lacks ResizeObserver used by ProDashboard grid host
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(globalThis as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+})
+
 function wrap(ui: ReactElement) {
   return render(
     <MemoryRouter>

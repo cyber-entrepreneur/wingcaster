@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useTenant } from '@/hooks/useTenant'
+import { api } from '@/api/client'
 import { Numeric } from '@/components/ui/numeric'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -14,11 +15,17 @@ import {
   KpiCard,
   QuickActionsBar,
   WidgetCard,
-  type DashboardDensity,
 } from './pro/ProDashboardParts'
+import { useDashboardLayout } from '@/hooks/useDashboardLayout'
+import { WidgetGrid } from '@/components/dashboard/pro/WidgetGrid'
+import {
+  WidgetPaletteDrawer,
+  WIDGET_CATALOG,
+} from '@/components/dashboard/pro/WidgetPaletteDrawer'
+import { formatPrice } from '@/lib/format'
+import { normalizeStatus } from '@/lib/listingStatus'
 
 export interface ProDashboardProps {
-  /** Optional stats override (tests / Agent 5 mount). */
   stats?: {
     listings?: number
     totalViews?: number
@@ -41,28 +48,133 @@ const SHORTCUTS = [
   { keys: 'Esc', label: 'Exit fullscreen / edit' },
 ] as const
 
+const WIDGET_TITLES: Record<string, string> = Object.fromEntries(
+  WIDGET_CATALOG.map((w) => [w.id, w.title.replace(/ KPI$/, '').replace(/ value$/, '')]),
+)
+
 function greetingForHour(hour: number): string {
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
 }
 
+type LiveData = {
+  stats: { listings: number; totalViews: number; inquiries: number; activeListings: number }
+  listings: Array<Record<string, unknown>>
+  inquiries: Array<Record<string, unknown>>
+  viewings: Array<Record<string, unknown>>
+  conversations: Array<Record<string, unknown>>
+  operations: Record<string, unknown> | null
+  analytics: Record<string, unknown> | null
+}
+
 /**
- * AGT-DSH-002 — Pro dashboard delta (tablet + desktop ≥768px).
- *
- * Agent 5 owns mounting this from AGT-DSH-001 / AgentDashboardPage when
- * `ui_mode === 'pro'` AND viewport ≥768px. Export is stable for that mount.
- *
- * TODO(Agent 5 / feat/wave-8-dsh-mount): in AgentDashboardPage, when
- * `useUiMode().effectiveMode === 'pro'`, render `<ProDashboard />` instead of
- * the Guided shell. Do not mount Pro below 768px.
+ * AGT-DSH-002 — Pro dashboard (≥768px + ui_mode=pro).
+ * Drag-to-arrange via react-grid-layout, layout persist, palette, 1–9 fullscreen,
+ * density persistence, live Zone-2/3 data mounts.
  */
-export function ProDashboard({ stats, greetingName, className }: ProDashboardProps) {
+export function ProDashboard({ stats: statsProp, greetingName, className }: ProDashboardProps) {
   const { agent } = useAuth()
   const { activeTenant } = useTenant()
   const navigate = useNavigate()
-  const [density, setDensity] = useState<DashboardDensity>('comfortable')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const {
+    layout,
+    density,
+    saveState,
+    setLayout,
+    setDensity,
+    resetLayout,
+    removeWidget,
+    addWidget,
+  } = useDashboardLayout(activeTenant?.id)
+
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [editMode, setEditMode] = useState(true)
+  const [gridWidth, setGridWidth] = useState(1100)
+  const gridHostRef = useRef<HTMLDivElement>(null)
+  const goChord = useRef(false)
+
+  const fullscreenId = searchParams.get('widget')
+  const setFullscreenId = useCallback(
+    (id: string | null) => {
+      const next = new URLSearchParams(searchParams)
+      if (id) next.set('widget', id)
+      else next.delete('widget')
+      setSearchParams(next, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
+  const [live, setLive] = useState<LiveData>({
+    stats: {
+      listings: statsProp?.listings ?? 0,
+      totalViews: statsProp?.totalViews ?? 0,
+      inquiries: statsProp?.inquiries ?? 0,
+      activeListings: statsProp?.activeListings ?? statsProp?.listings ?? 0,
+    },
+    listings: [],
+    inquiries: [],
+    viewings: [],
+    conversations: [],
+    operations: null,
+    analytics: null,
+  })
+
+  useEffect(() => {
+    if (!agent) return
+    let cancelled = false
+    Promise.all([
+      api.getDashboardStats().catch(() => ({ listings: 0, totalViews: 0, inquiries: 0 })),
+      api.getProperties({ agent_id: agent.id }).catch(() => []),
+      api.getInquiries({ limit: '20' }).catch(() => ({ items: [] })),
+      api.getViewings().catch(() => []),
+      api.getConversations().catch(() => []),
+      api.getDashboardOperations().catch(() => null),
+      api.getDashboardAnalytics().catch(() => null),
+    ]).then(([dashStats, props, inqs, viewings, conversations, ops, analytics]) => {
+      if (cancelled) return
+      const allProps = Array.isArray(props) ? props : []
+      const mine = allProps.filter((p: { agent_id?: string }) => p.agent_id === agent.id)
+      const inquiryItems = (inqs as { items?: unknown[] })?.items || inqs || []
+      setLive({
+        stats: {
+          listings: (dashStats as { listings?: number }).listings ?? mine.length,
+          totalViews: (dashStats as { totalViews?: number }).totalViews ?? 0,
+          inquiries:
+            (dashStats as { inquiries?: number }).inquiries ??
+            (Array.isArray(inquiryItems) ? inquiryItems.length : 0),
+          activeListings:
+            (dashStats as { listings?: number }).listings ??
+            mine.filter((p: { status?: string }) => normalizeStatus(p.status) === 'published').length,
+        },
+        listings: mine as Array<Record<string, unknown>>,
+        inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
+        viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
+        conversations: (Array.isArray(conversations) ? conversations : []) as Array<
+          Record<string, unknown>
+        >,
+        operations: ops as Record<string, unknown> | null,
+        analytics: analytics as Record<string, unknown> | null,
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [agent])
+
+  useEffect(() => {
+    const el = gridHostRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 0) setGridWidth(Math.floor(w))
+    })
+    ro.observe(el)
+    setGridWidth(Math.floor(el.getBoundingClientRect().width) || 1100)
+    return () => ro.disconnect()
+  }, [])
 
   const name = greetingName || agent?.name?.split(' ')[0] || 'there'
   const greeting = useMemo(() => greetingForHour(new Date().getHours()), [])
@@ -76,45 +188,339 @@ export function ProDashboard({ stats, greetingName, className }: ProDashboardPro
     [],
   )
 
-  const kpis = [
-    {
-      label: 'Active listings',
-      value: stats?.activeListings ?? stats?.listings ?? 0,
-      delta: { direction: 'up' as const, label: '+3 vs last week' },
-    },
-    {
-      label: 'Views (MTD)',
-      value: stats?.totalViews ?? 0,
-      delta: { direction: 'up' as const, label: '+12% vs last month' },
-    },
-    {
-      label: 'Inquiries',
-      value: stats?.inquiries ?? 0,
-      delta: { direction: 'down' as const, label: '−2 vs yesterday' },
-    },
-    {
-      label: 'Pipeline value',
-      value: '—',
-      delta: { direction: 'flat' as const, label: 'Estimate pending' },
-    },
-  ]
-
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const tag = target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+
       if (event.key === '?' && !event.metaKey && !event.ctrlKey) {
         event.preventDefault()
         setShortcutsOpen(true)
+        return
+      }
+      if (event.key === 'Escape') {
+        if (fullscreenId) {
+          event.preventDefault()
+          setFullscreenId(null)
+          return
+        }
+        if (paletteOpen) {
+          setPaletteOpen(false)
+          return
+        }
+        if (editMode) setEditMode(false)
+        return
+      }
+      if (event.key === 'e' || event.key === 'E') {
+        event.preventDefault()
+        setEditMode((v) => !v)
+        return
+      }
+      if (event.key === '/') {
+        event.preventDefault()
+        document
+          .querySelector<HTMLInputElement>('[data-global-search-input], input[type="search"]')
+          ?.focus()
+        return
+      }
+      if (event.key === 'g' || event.key === 'G') {
+        goChord.current = true
+        window.setTimeout(() => {
+          goChord.current = false
+        }, 800)
+        return
+      }
+      if (goChord.current) {
+        const k = event.key.toLowerCase()
+        if (k === 'd') navigate('/dashboard')
+        if (k === 'i') navigate('/inbox')
+        if (k === 'l') navigate('/listings')
+        if (k === 'c') navigate('/contacts')
+        if (k === 't') navigate('/tasks')
+        goChord.current = false
+        return
+      }
+      if (/^[1-9]$/.test(event.key)) {
+        const index = Number(event.key) - 1
+        const id = layout[index]?.i
+        if (id) {
+          event.preventDefault()
+          setFullscreenId(fullscreenId === id ? null : id)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [editMode, fullscreenId, layout, navigate, paletteOpen, setFullscreenId])
 
-  const densityPad =
-    density === 'compact' ? 'gap-[var(--lc-space-sm)]' : density === 'spacious' ? 'gap-[var(--lc-space-xl)]' : 'gap-[var(--lc-space-md)]'
+  const unreadThreads = useMemo(
+    () =>
+      live.conversations
+        .filter((c) => Number(c.unread_count || 0) > 0)
+        .slice(0, 5),
+    [live.conversations],
+  )
+
+  const recentListings = useMemo(() => live.listings.slice(0, 8), [live.listings])
+
+  const todayTasks = useMemo(() => {
+    const opsTasks = (live.operations as { tasks?: unknown[] } | null)?.tasks
+    if (Array.isArray(opsTasks) && opsTasks.length) return opsTasks.slice(0, 6)
+    return live.viewings.slice(0, 6)
+  }, [live.operations, live.viewings])
+
+  const funnel = useMemo(() => {
+    const leads = live.inquiries.length
+    const viewings = live.viewings.length
+    const offers = live.inquiries.filter((i) =>
+      ['negotiating', 'closed_won'].includes(String(i.status || '')),
+    ).length
+    const closed = live.inquiries.filter((i) => String(i.status) === 'closed_won').length
+    return [
+      { label: 'Leads', value: leads },
+      { label: 'Viewings', value: viewings },
+      { label: 'Offers', value: offers },
+      { label: 'Closed', value: closed },
+    ]
+  }, [live.inquiries, live.viewings])
+
+  const renderWidget = (id: string) => {
+    switch (id) {
+      case 'kpi-active':
+        return (
+          <KpiCard
+            label="Active listings"
+            value={live.stats.activeListings}
+            delta={{ direction: 'up', label: 'Live count' }}
+            onClick={() => navigate('/listings')}
+          />
+        )
+      case 'kpi-views':
+        return (
+          <KpiCard
+            label="Views (MTD)"
+            value={live.stats.totalViews}
+            delta={{ direction: 'up', label: 'From dashboard stats' }}
+          />
+        )
+      case 'kpi-inquiries':
+        return (
+          <KpiCard
+            label="Inquiries"
+            value={live.stats.inquiries}
+            delta={{ direction: 'flat', label: 'Open pipeline' }}
+            onClick={() => navigate('/inbox')}
+          />
+        )
+      case 'kpi-pipeline':
+      case 'kpi-bazaar':
+        return (
+          <KpiCard
+            label={id === 'kpi-bazaar' ? 'Bazaar-driven leads' : 'Pipeline value'}
+            value={
+              id === 'kpi-bazaar'
+                ? live.inquiries.filter((i) => String(i.source || '').includes('bazaar')).length ||
+                  live.stats.inquiries
+                : live.stats.listings * 1000
+            }
+            delta={{ direction: 'flat', label: id === 'kpi-bazaar' ? 'Lead sources' : 'Estimate' }}
+          />
+        )
+      case 'urgent':
+        return (
+          <div className="space-y-2">
+            {live.inquiries.slice(0, 4).length === 0 ? (
+              <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                No urgent items right now.
+              </p>
+            ) : (
+              live.inquiries.slice(0, 4).map((inq) => (
+                <div
+                  key={String(inq.id)}
+                  className="flex items-center justify-between gap-2 border-b border-[var(--lc-border)] py-1"
+                >
+                  <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
+                    {String(inq.name || inq.contact_name || inq.message || 'Inquiry')}
+                  </span>
+                  <Badge variant="secondary">{String(inq.status || 'new')}</Badge>
+                </div>
+              ))
+            )}
+            <Link to="/inbox" className="inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+              Open inbox
+            </Link>
+          </div>
+        )
+      case 'quota': {
+        const credits = (live.operations as { credits_remaining?: number } | null)?.credits_remaining
+        return (
+          <div>
+            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+              Credits & channel headroom
+            </p>
+            <div className="mt-[var(--lc-space-sm)]">
+              <Numeric style={{ font: 'var(--lc-type-data)' }}>
+                {credits ?? live.stats.listings}
+              </Numeric>
+            </div>
+            <Link to="/credits" className="mt-2 inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-caption)' }}>
+              Manage credits
+            </Link>
+          </div>
+        )
+      }
+      case 'recent-listings':
+        return (
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {recentListings.length === 0 ? (
+              <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                No listings yet.
+              </p>
+            ) : (
+              recentListings.map((p) => (
+                <Link
+                  key={String(p.id)}
+                  to={`/listings/${p.id}`}
+                  className="min-w-[160px] shrink-0 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] p-2 hover:bg-[var(--lc-surface-selected)]"
+                >
+                  <div className="line-clamp-2 text-[var(--lc-text-primary)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                    {String(p.title || 'Listing')}
+                  </div>
+                  <div className="mt-1 text-[var(--lc-text-muted)]">
+                    <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>
+                      {formatPrice(
+                        Number(p.price) || 0,
+                        p.type === 'rent' ? 'rent' : 'sale',
+                        String(p.price_unit || ''),
+                      )}
+                    </Numeric>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )
+      case 'inbox-preview':
+        return (
+          <ul className="space-y-2">
+            {unreadThreads.length === 0 ? (
+              <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                No unread threads.
+              </li>
+            ) : (
+              unreadThreads.map((c) => (
+                <li key={String(c.id)} className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
+                      {String(c.contact_name || c.title || 'Thread')}
+                    </div>
+                    <div className="truncate text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                      {String(c.last_message || c.snippet || '')}
+                    </div>
+                  </div>
+                  <Badge variant="secondary">{String(c.platform || c.source || 'inbox')}</Badge>
+                </li>
+              ))
+            )}
+          </ul>
+        )
+      case 'tasks':
+        return (
+          <ul className="space-y-2">
+            {todayTasks.length === 0 ? (
+              <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                No tasks for today.
+              </li>
+            ) : (
+              todayTasks.map((t, idx) => (
+                <li key={String((t as { id?: string }).id || idx)} className="flex justify-between gap-2 border-b border-[var(--lc-border)] py-1">
+                  <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
+                    {String(
+                      (t as { title?: string; property_title?: string }).title ||
+                        (t as { property_title?: string }).property_title ||
+                        'Task',
+                    )}
+                  </span>
+                  <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                    {String((t as { status?: string; scheduled_at?: string }).status || (t as { scheduled_at?: string }).scheduled_at || '')}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        )
+      case 'funnel':
+        return (
+          <div className="space-y-2">
+            {funnel.map((stage) => {
+              const max = Math.max(...funnel.map((f) => f.value), 1)
+              const pct = Math.round((stage.value / max) * 100)
+              return (
+                <div key={stage.label}>
+                  <div className="mb-1 flex justify-between" style={{ font: 'var(--lc-type-caption)' }}>
+                    <span>{stage.label}</span>
+                    <Numeric>{stage.value}</Numeric>
+                  </div>
+                  <div className="h-2 rounded-pill bg-[var(--lc-surface-sunken)]">
+                    <div
+                      className="h-2 rounded-pill bg-[var(--lc-action-primary)]"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      case 'activity':
+        return (
+          <ul className="space-y-1">
+            {live.inquiries.slice(0, 8).map((inq) => (
+              <li key={String(inq.id)} className="flex justify-between gap-2 border-b border-[var(--lc-border)] py-1">
+                <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
+                  Inquiry · {String(inq.name || inq.contact_name || inq.id)}
+                </span>
+                <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                  {String(inq.created_at || inq.status || '')}
+                </span>
+              </li>
+            ))}
+            {live.inquiries.length === 0 ? (
+              <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                Activity feed empty.
+              </li>
+            ) : null}
+          </ul>
+        )
+      case 'calendar':
+        return (
+          <ul className="space-y-2">
+            {live.viewings.slice(0, 7).map((v) => (
+              <li key={String(v.id)} className="flex justify-between gap-2">
+                <span style={{ font: 'var(--lc-type-body-sm)' }}>
+                  {String(v.property_title || v.title || 'Viewing')}
+                </span>
+                <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                  {String(v.scheduled_at || '')}
+                </span>
+              </li>
+            ))}
+            {live.viewings.length === 0 ? (
+              <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                No upcoming viewings.
+              </li>
+            ) : null}
+          </ul>
+        )
+      default:
+        return (
+          <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+            Widget unavailable.
+          </p>
+        )
+    }
+  }
 
   return (
     <div
@@ -126,14 +532,19 @@ export function ProDashboard({ stats, greetingName, className }: ProDashboardPro
       <QuickActionsBar
         density={density}
         onDensityChange={setDensity}
+        saveState={saveState}
         onAction={(id) => {
           if (id === 'listing') navigate('/listings')
           if (id === 'inbox') navigate('/inbox')
           if (id === 'contact') navigate('/contacts')
+          if (id === 'task') navigate('/tasks')
+          if (id === 'publish') navigate('/listings?view=table')
           if (id === 'search') {
-            const input = document.querySelector<HTMLInputElement>('[data-global-search-input], input[type="search"]')
-            input?.focus()
+            document
+              .querySelector<HTMLInputElement>('[data-global-search-input], input[type="search"]')
+              ?.focus()
           }
+          if (id === 'add-widget') setPaletteOpen(true)
         }}
       />
 
@@ -150,80 +561,66 @@ export function ProDashboard({ stats, greetingName, className }: ProDashboardPro
               {dateLabel}
             </p>
           </div>
-          <Badge variant="secondary" className="capitalize">
-            {activeTenant?.kind === 'agency' ? 'Agency' : 'Personal'}
-            {activeTenant?.name ? ` · ${activeTenant.name}` : ''}
-          </Badge>
-        </div>
-
-        <div className={`grid grid-cols-12 ${densityPad}`}>
-          {kpis.map((kpi) => (
-            <KpiCard
-              key={kpi.label}
-              className="col-span-12 sm:col-span-6 lg:col-span-3"
-              label={kpi.label}
-              value={kpi.value}
-              delta={kpi.delta}
-              onClick={kpi.label === 'Active listings' ? () => navigate('/listings') : undefined}
-            />
-          ))}
-
-          <WidgetCard title="Urgent" span={8}>
-            <p className="text-[var(--lc-text-secondary)]" style={{ font: 'var(--lc-type-body)' }}>
-              Same urgent signals as Guided — denser layout for power users.
-            </p>
-            <Link
-              to="/inbox"
-              className="mt-[var(--lc-space-sm)] inline-flex text-[var(--lc-text-brand)]"
-              style={{ font: 'var(--lc-type-body-sm)' }}
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="capitalize">
+              {activeTenant?.kind === 'agency' ? 'Agency' : 'Personal'}
+              {activeTenant?.name ? ` · ${activeTenant.name}` : ''}
+            </Badge>
+            <button
+              type="button"
+              className="min-h-tap rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] px-3 text-[var(--lc-text-muted)]"
+              style={{ font: 'var(--lc-type-caption)' }}
+              onClick={() => {
+                if (window.confirm('Reset dashboard to default layout? Your current arrangement will be lost.')) {
+                  resetLayout()
+                }
+              }}
             >
-              Open inbox
-            </Link>
-          </WidgetCard>
-
-          <WidgetCard title="Quota" span={4}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Credits & channel headroom
-            </p>
-            <div className="mt-[var(--lc-space-sm)]">
-              <Numeric style={{ font: 'var(--lc-type-data)' }}>—</Numeric>
-            </div>
-          </WidgetCard>
-
-          <WidgetCard title="Recent listings" span={6}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Horizontal browse lives here once Agent 5 mounts live listing data.
-            </p>
-            <Link to="/listings" className="mt-[var(--lc-space-sm)] inline-flex text-[var(--lc-text-brand)]">
-              View listings
-            </Link>
-          </WidgetCard>
-
-          <WidgetCard title="Inbox preview" span={6}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Last unread threads appear here when inbox Wave-8 lands.
-            </p>
-          </WidgetCard>
-
-          <WidgetCard title="Today's tasks" span={6}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Dense task rows — shared data with Guided Zone 6.
-            </p>
-          </WidgetCard>
-
-          <WidgetCard title="Funnel" span={6}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Leads → viewings → offers → closed
-            </p>
-          </WidgetCard>
-
-          <WidgetCard title="Recent activity" span={12}>
-            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Activity stream (filterable) — same feed endpoints as Guided.
-            </p>
-          </WidgetCard>
+              Reset layout
+            </button>
+          </div>
         </div>
+
+        {layout.length === 0 ? (
+          <div className="rounded-[var(--lc-radius-lg)] border border-dashed border-[var(--lc-border)] px-[var(--lc-space-xl)] py-[var(--lc-space-3xl)] text-center">
+            <p style={{ font: 'var(--lc-type-heading-3)' }} className="text-[var(--lc-text-heading)]">
+              No widgets yet. Press `Add widget +` or use `/` to search.
+            </p>
+            <button
+              type="button"
+              className="mt-4 min-h-tap rounded-[var(--lc-radius-md)] bg-[var(--lc-action-primary)] px-4 text-[var(--lc-action-primary-text)]"
+              onClick={() => setPaletteOpen(true)}
+            >
+              Add widget
+            </button>
+          </div>
+        ) : (
+          <div ref={gridHostRef}>
+            <WidgetGrid
+              layout={layout}
+              editMode={editMode}
+              density={density}
+              fullscreenId={fullscreenId}
+              onLayoutChange={setLayout}
+              onFullscreen={setFullscreenId}
+              onRemove={removeWidget}
+              renderWidget={renderWidget}
+              titles={WIDGET_TITLES}
+              width={gridWidth}
+            />
+          </div>
+        )}
       </div>
+
+      <WidgetPaletteDrawer
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        presentIds={layout.map((l) => l.i)}
+        onAdd={(id, defaults) => {
+          addWidget(id, defaults)
+          setPaletteOpen(false)
+        }}
+      />
 
       <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
         <DialogContent className="max-w-md">

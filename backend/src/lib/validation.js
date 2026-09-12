@@ -223,7 +223,7 @@ export const propertyCreateSchema = z.object({
   permissible_buildup_area: z.coerce.number().nonnegative().max(1000000).optional().nullable().default(null),
   developed_by: z.string().max(120).optional().default(''),
   interior_design_by: z.string().max(120).optional().default(''),
-  status: z.enum(['active', 'draft', 'sold', 'rented', 'withdrawn', 'expired', 'hold', 'unpublished']).optional().default('active'),
+  status: z.enum(['active', 'draft', 'sold', 'rented', 'withdrawn', 'expired', 'hold', 'unpublished', 'archived', 'published']).optional().default('active'),
   permit_number: z.string().max(80).optional().default(''),
   reference: z.string().max(80).optional().default(''),
   featured: z.boolean().optional().default(false),

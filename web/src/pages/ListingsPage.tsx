@@ -124,6 +124,7 @@ export function ListingsPage() {
           totalCount={listings.length}
           showOwnerColumn={activeTenant?.kind === 'agency'}
           onCreate={() => setCreateOpen(true)}
+          onRefresh={() => void loadListings()}
           onShowCards={() => {
             setForceGuidedCards(true)
             if (searchParams.get('view') === 'table') {
