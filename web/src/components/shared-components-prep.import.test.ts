@@ -151,6 +151,7 @@ describe('shared components prep — family exports exist', () => {
     }
     expectComponent('PortalStatusPill(ui)', PortalStatusPill)
     expectComponent('ChannelMark', ChannelMark)
+    expectComponent('SourceMark', Portals.SourceMark)
   })
 
   it('PII + audit primitives', () => {
