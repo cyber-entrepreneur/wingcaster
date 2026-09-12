@@ -21,10 +21,62 @@ import { ListingFormModal } from '@/components/ListingFormModal'
 import { KpiAnalyticsPanel } from '@/components/dashboard/KpiAnalyticsPanel'
 import { ListingRow } from '@/components/dashboard/ListingRow'
 import { PromoteDistributeModal, PLATFORM_META, SOCIAL_PROMOTE_PLATFORMS } from '@/components/dashboard/PromoteDistributeModal'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
+import {
+  OnboardingChecklistWidget,
+  shouldRenderOnboardingChecklist,
+} from '@/pages/agent/onboarding'
+
+function agentUiMode(agent: unknown): string {
+  const source = agent as { ui_mode?: unknown; uiMode?: unknown } | null | undefined
+  const raw = source?.ui_mode ?? source?.uiMode
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : 'guided'
+}
+
+function dashboardZone3Urgent(input: {
+  inquiries: any[]
+  operations: any
+  queuedDistributions: any[]
+}): { label: string; title: string; sub?: string; to?: string } | null {
+  const lead = input.inquiries.find((i) => i?.status === 'new' || i?.sla_overdue)
+  if (lead) {
+    return {
+      label: lead.sla_overdue ? 'SLA OVERDUE' : 'NEW LEAD',
+      title: `${lead.name || 'A client'} asked about ${lead.property_title || 'a listing'}`,
+      sub: lead.message ? String(lead.message) : undefined,
+      to: '/dashboard/inbox',
+    }
+  }
+  const sla = Number(input.operations?.sla_breached_count || 0)
+  if (sla > 0) {
+    return {
+      label: 'SLA BREACHED',
+      title: `${sla} conversation${sla === 1 ? '' : 's'} need a reply`,
+      to: '/dashboard/inbox',
+    }
+  }
+  const overdue = Number(input.operations?.tasks?.overdue_count ?? input.operations?.overdue_follow_ups ?? 0)
+  if (overdue > 0) {
+    return {
+      label: 'OVERDUE TASKS',
+      title: `${overdue} task${overdue === 1 ? '' : 's'} overdue`,
+      to: '/tasks',
+    }
+  }
+  const failed = input.queuedDistributions.find((d) => d?.status === 'failed')
+  if (failed) {
+    return {
+      label: 'PUBLISH FAILED',
+      title: `We couldn't post to ${failed.platform || 'a channel'}`,
+    }
+  }
+  return null
+}
 
 export function AgentDashboardPage() {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  const onboarding = useOnboardingState()
   usePageTitle('Dashboard')
   const [activeTab, setActiveTab] = useState('listings')
   const [myListings, setMyListings] = useState<any[]>([])
@@ -527,6 +579,13 @@ export function AgentDashboardPage() {
     .filter((d: any) => d?.owner_type === 'agent' && (d?.status === 'pending_retry' || d?.status === 'failed'))
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
+  const isProUi = agentUiMode(agent) === 'pro'
+  const showOnboardingChecklist =
+    !onboarding.isError &&
+    (onboarding.isLoading || shouldRenderOnboardingChecklist(onboarding.state))
+  const zone3Urgent = dashboardZone3Urgent({ inquiries, operations, queuedDistributions })
+  const showZone3 = Boolean(zone3Urgent) || (!isProUi && showOnboardingChecklist)
+
   return (
     <div className="min-h-screen bg-[var(--lc-bg-page)]">
       {/* Header */}
@@ -550,6 +609,9 @@ export function AgentDashboardPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {isProUi && showOnboardingChecklist ? (
+                <OnboardingChecklistWidget variant="pill" />
+              ) : null}
               <Link to="/dashboard/inbox">
                 <Button variant="outline" className="gap-2">
                   <Inbox className="h-4 w-4" />
@@ -597,6 +659,39 @@ export function AgentDashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        {showZone3 ? (
+          <div data-dashboard-zone="3" className="mb-6 space-y-4">
+            {zone3Urgent ? (
+              <Card
+                data-dashboard-urgent-card
+                className="border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]"
+              >
+                <CardHeader className="pb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {zone3Urgent.label}
+                  </p>
+                  <CardTitle className="text-base">{zone3Urgent.title}</CardTitle>
+                  {zone3Urgent.sub ? <CardDescription>{zone3Urgent.sub}</CardDescription> : null}
+                </CardHeader>
+                {zone3Urgent.to ? (
+                  <CardContent>
+                    <Button asChild>
+                      <Link to={zone3Urgent.to}>
+                        {zone3Urgent.label === 'NEW LEAD' || zone3Urgent.label === 'SLA OVERDUE' || zone3Urgent.label === 'SLA BREACHED'
+                          ? 'Reply now'
+                          : 'Open'}
+                      </Link>
+                    </Button>
+                  </CardContent>
+                ) : null}
+              </Card>
+            ) : null}
+            {!isProUi && showOnboardingChecklist ? (
+              <OnboardingChecklistWidget variant="card" />
+            ) : null}
+          </div>
+        ) : null}
 
         <KpiAnalyticsPanel
           analytics={analyticsForPanel}
