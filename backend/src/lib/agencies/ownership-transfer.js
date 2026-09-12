@@ -422,23 +422,14 @@ async function assertTypedAgencyName(agency, typed) {
   }
 }
 
-async function capabilityPacksColumnExists(client) {
-  const { rows } = await client.query(
-    `SELECT 1
-       FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'tenant_memberships'
-        AND column_name = 'capability_packs'
-      LIMIT 1`,
-  )
-  return rows.length > 0
-}
-
 /**
  * Atomic ownership flip inside an open transaction client.
  * Demotes current owner to admin; promotes target to owner.
- * Updates agencies.owner_id + legacy agency_members. Tolerates missing
- * capability_packs (Agent 1 lands packs in parallel).
+ * Updates agencies.owner_id + legacy agency_members.
+ *
+ * Capability packs: packs move with the person. Role flip does not
+ * redistribute, clear, or rewrite `tenant_memberships.capability_packs` —
+ * each membership keeps whatever pack assignment it already had.
  */
 export async function flipOwnershipRoles(client, {
   agencyId,
@@ -448,10 +439,6 @@ export async function flipOwnershipRoles(client, {
   requireTargetAdmin = true,
 }) {
   const tenantId = agencyTenantId(agencyId)
-  const hasPacks = await capabilityPacksColumnExists(client)
-  const packsFragment = hasPacks
-    ? `, capability_packs = COALESCE(capability_packs, '[]'::jsonb)`
-    : ''
 
   const { rows: fromRows } = await client.query(
     `SELECT * FROM public.tenant_memberships
@@ -478,13 +465,13 @@ export async function flipOwnershipRoles(client, {
   }
 
   // Promote target first, then demote former owner (deferred owner-continuity trigger).
+  // Intentionally omit capability_packs — packs move with the person.
   await client.query(
     `UPDATE public.tenant_memberships
         SET role = 'owner',
             affiliation_mode = 'exclusive',
             updated_at = $2::timestamptz,
             data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('role', 'owner')
-            ${packsFragment}
       WHERE id = $1`,
     [toMem.id, nowIso],
   )
@@ -494,7 +481,6 @@ export async function flipOwnershipRoles(client, {
             affiliation_mode = 'exclusive',
             updated_at = $2::timestamptz,
             data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('role', 'admin')
-            ${packsFragment}
       WHERE id = $1`,
     [fromMem.id, nowIso],
   )
@@ -977,6 +963,32 @@ export async function reverseOwnershipTransfer({
     })
 
     return updated[0]
+  })
+
+  // Post-commit notifications (mirror acceptOwnershipTransfer) — never roll back the flip.
+  const restoredOwner = await userDisplay(result.initiator_user_id)
+  const demotedOwner = await userDisplay(result.target_user_id)
+  await safeEmitOwnershipTransferNotification({
+    userId: result.initiator_user_id,
+    variant: 'transfer-reversed',
+    transferId,
+    variables: {
+      agency_name: agency.name,
+      restored_owner_name: restoredOwner.display_name || 'You',
+      demoted_owner_name: demotedOwner.display_name || 'The previous owner',
+      transfer_id: transferId,
+    },
+  })
+  await safeEmitOwnershipTransferNotification({
+    userId: result.target_user_id,
+    variant: 'transfer-reversed',
+    transferId,
+    variables: {
+      agency_name: agency.name,
+      restored_owner_name: restoredOwner.display_name || 'The restored owner',
+      demoted_owner_name: demotedOwner.display_name || 'You',
+      transfer_id: transferId,
+    },
   })
 
   return { transfer: await enrichTransfer(result) }

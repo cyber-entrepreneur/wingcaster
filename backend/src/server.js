@@ -55,6 +55,7 @@ import {
 } from './workers/agency-application-expiry.js'
 import {
   runOwnershipTransferExpiryTick,
+  runOwnershipTransferReversalExpiringTick,
   runOwnershipTransferReversalCloseTick,
 } from './workers/ownership-transfer-expiry.js'
 import {
@@ -8557,14 +8558,22 @@ const startServer = async () => {
       }
     }
 
-    // WF-31: 14-day pending → expired (default every 6h) + mark reversal window permanent.
+    // WF-31: 14-day pending → expired + T-1 reversal warning + mark reversal permanent.
     if (OWNERSHIP_TRANSFER_EXPIRY_ENABLED) {
       ownershipTransferExpiryTimer = setInterval(async () => {
         try {
           const expiredResult = await runOwnershipTransferExpiryTick()
+          const expiringResult = await runOwnershipTransferReversalExpiringTick()
           const closeResult = await runOwnershipTransferReversalCloseTick()
-          if ((expiredResult.expired || 0) > 0 || (closeResult.closed || 0) > 0) {
-            logger.info({ ...expiredResult, ...closeResult }, 'Ownership transfer expiry worker tick')
+          if (
+            (expiredResult.expired || 0) > 0
+            || (expiringResult.notified || 0) > 0
+            || (closeResult.closed || 0) > 0
+          ) {
+            logger.info(
+              { ...expiredResult, ...expiringResult, ...closeResult },
+              'Ownership transfer expiry worker tick',
+            )
           }
         } catch (err) {
           logger.error({ err: err.message || String(err) }, 'Ownership transfer expiry worker failed')

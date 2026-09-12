@@ -2,7 +2,9 @@
  * Ownership-transfer expiry / reversal-window workers (BE-BLOCKER-31).
  *
  * 1. Pending requests past expires_at → expired (14-day request TTL)
- * 2. Executed transfers past reversal_deadline_at → mark data.reversal_permanent
+ * 2. Executed transfers within T-1 day of reversal_deadline_at →
+ *    fire `reversal-window-expiring` (once)
+ * 3. Executed transfers past reversal_deadline_at → mark data.reversal_permanent
  *    (endpoint already returns 410 after the deadline; this cron stamps permanence)
  */
 
@@ -60,12 +62,10 @@ export async function runOwnershipTransferExpiryTick(opts = {}) {
         for (const userId of [row.initiator_user_id, row.target_user_id]) {
           await safeEmitOwnershipTransferNotification({
             userId,
-            variant: 'target-declined',
+            variant: 'target-expired',
             transferId: row.id,
             variables: {
               agency_name: agencyName,
-              target_name: 'the recipient',
-              decline_reason: 'The transfer request expired without a response.',
               transfer_id: row.id,
             },
           })
@@ -85,6 +85,73 @@ export async function runOwnershipTransferExpiryTick(opts = {}) {
   }
 
   return { now: nowIso, expired, skipped }
+}
+
+/**
+ * Notify both parties T-1 day before reversal_deadline_at (once per transfer).
+ * Window: now < deadline <= now + 1 day, not yet permanent, not yet notified.
+ * @param {{ now?: Date|string|number }} [opts]
+ */
+export async function runOwnershipTransferReversalExpiringTick(opts = {}) {
+  const now = opts.now ? new Date(opts.now) : new Date()
+  const nowIso = now.toISOString()
+  const windowEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+
+  let notified = 0
+  try {
+    const due = await query(
+      `UPDATE public.ownership_transfer_requests
+          SET data = COALESCE(data, '{}'::jsonb)
+                || jsonb_build_object(
+                     'reversal_expiring_notified', true,
+                     'reversal_expiring_notified_at', $1::text
+                   ),
+              updated_at = $1::timestamptz
+        WHERE status = 'executed'
+          AND reversal_deadline_at IS NOT NULL
+          AND reversal_deadline_at > $1::timestamptz
+          AND reversal_deadline_at <= $2::timestamptz
+          AND COALESCE((data->>'reversal_permanent')::boolean, false) = false
+          AND COALESCE((data->>'reversal_expiring_notified')::boolean, false) = false
+        RETURNING id, agency_id, initiator_user_id, target_user_id, reversal_deadline_at`,
+      [nowIso, windowEnd],
+    )
+    notified = due.length
+    if (due.length) {
+      const names = await agencyNamesByIds(due.map((r) => r.agency_id))
+      for (const row of due) {
+        const agencyName = names.get(row.agency_id) || 'the agency'
+        const deadline = row.reversal_deadline_at
+          ? new Date(row.reversal_deadline_at).toISOString()
+          : ''
+        for (const userId of [row.initiator_user_id, row.target_user_id]) {
+          await safeEmitOwnershipTransferNotification({
+            userId,
+            variant: 'reversal-window-expiring',
+            transferId: row.id,
+            variables: {
+              agency_name: agencyName,
+              reversal_deadline: deadline,
+              days_remaining: '1',
+              transfer_id: row.id,
+            },
+          })
+        }
+      }
+    }
+  } catch (err) {
+    logger.error(
+      { err: err.message || String(err) },
+      'ownership transfer reversal-expiring tick failed',
+    )
+    throw err
+  }
+
+  if (notified > 0) {
+    logger.info({ notified, now: nowIso }, 'ownership transfer reversal-expiring tick')
+  }
+
+  return { now: nowIso, notified }
 }
 
 /**
