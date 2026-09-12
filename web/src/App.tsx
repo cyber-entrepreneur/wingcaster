@@ -43,6 +43,8 @@ import { MessageTemplatesPage as PlatformMessageTemplatesPage } from '@/pages/ad
 import { TemplateEditPage as PlatformTemplateEditPage } from '@/pages/admin/platform-templates/TemplateEditPage'
 import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/AdminWhatsAppListingsPage'
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
+import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
+import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
@@ -126,6 +128,11 @@ function AppRoutes() {
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
       <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
       <Route path="/agency" element={<AgencyManagementPage />} />
+      <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
+      <Route
+        path="/agency/members/applications/:applicationId"
+        element={<ApplicationDetailPage />}
+      />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />

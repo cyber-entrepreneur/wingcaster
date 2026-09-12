@@ -9,8 +9,12 @@ import { cn } from '@/lib/utils'
 /** Risk-tier filter values shared across PA queue consumers. */
 export type PAQueueRiskTier = 'any' | 'low' | 'medium' | 'high'
 
-/** Submitted-within window options (PA-MOD-001 default: `7d`). */
-export type PAQueueSubmittedWithin = '24h' | '7d' | '30d' | 'all'
+/**
+ * Submitted-within window options.
+ * PA-MOD-001 default: `7d` (options: 24h · 7d · 30d · all).
+ * AGN-MEM-002 uses 7d · 30d · 90d · all — pass `withinOptions` to override.
+ */
+export type PAQueueSubmittedWithin = '24h' | '7d' | '30d' | '90d' | 'all'
 
 /** Status tab option rendered in the filter strip. */
 export interface PAQueueStatusOption {
@@ -52,6 +56,19 @@ export interface PAQueueFilterStripProps {
   className?: string
   /** Disable all controls (loading / error). */
   disabled?: boolean
+  /**
+   * Hide the risk-tier select (agency applications queue has no risk axis).
+   * Default false — PA-MOD-001 keeps risk tier visible.
+   */
+  hideRiskTier?: boolean
+  /** Override submitted-within options (AGN-MEM-002: 7d / 30d / 90d / all). */
+  withinOptions?: ReadonlyArray<{ value: PAQueueSubmittedWithin; label: string }>
+  /** Label for the within picker (default "Submitted within"; AGN-MEM-002: "Applied within"). */
+  withinLabel?: string
+  /** Search input placeholder. */
+  searchPlaceholder?: string
+  /** Search input aria-label. */
+  searchAriaLabel?: string
 }
 
 const WITHIN_OPTIONS: { value: PAQueueSubmittedWithin; label: string }[] = [
@@ -90,6 +107,11 @@ export function PAQueueFilterStrip({
   'aria-label': ariaLabel = 'Filter queue',
   className,
   disabled = false,
+  hideRiskTier = false,
+  withinOptions = WITHIN_OPTIONS,
+  withinLabel = 'Submitted within',
+  searchPlaceholder = 'Search…',
+  searchAriaLabel = 'Search queue',
 }: PAQueueFilterStripProps) {
   const patch = (partial: Partial<PAQueueFilterValues>) => {
     onChange?.({ ...values, ...partial })
@@ -129,7 +151,7 @@ export function PAQueueFilterStrip({
 
       <div className="flex flex-wrap items-end gap-[var(--lc-space-sm)]">
         <div className="flex min-w-[9rem] flex-col gap-1">
-          <Label htmlFor="pa-queue-within">Submitted within</Label>
+          <Label htmlFor="pa-queue-within">{withinLabel}</Label>
           <select
             id="pa-queue-within"
             className={selectClassName}
@@ -137,7 +159,7 @@ export function PAQueueFilterStrip({
             disabled={disabled}
             onChange={(e) => patch({ submittedWithin: e.target.value as PAQueueSubmittedWithin })}
           >
-            {WITHIN_OPTIONS.map((o) => (
+            {withinOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -145,22 +167,24 @@ export function PAQueueFilterStrip({
           </select>
         </div>
 
-        <div className="flex min-w-[8rem] flex-col gap-1">
-          <Label htmlFor="pa-queue-risk">Risk tier</Label>
-          <select
-            id="pa-queue-risk"
-            className={selectClassName}
-            value={values.riskTier}
-            disabled={disabled}
-            onChange={(e) => patch({ riskTier: e.target.value as PAQueueRiskTier })}
-          >
-            {RISK_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!hideRiskTier ? (
+          <div className="flex min-w-[8rem] flex-col gap-1">
+            <Label htmlFor="pa-queue-risk">Risk tier</Label>
+            <select
+              id="pa-queue-risk"
+              className={selectClassName}
+              value={values.riskTier}
+              disabled={disabled}
+              onChange={(e) => patch({ riskTier: e.target.value as PAQueueRiskTier })}
+            >
+              {RISK_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {customFilters}
 
@@ -173,9 +197,9 @@ export function PAQueueFilterStrip({
             type="search"
             disabled={disabled}
             value={values.search}
-            placeholder="Search…"
+            placeholder={searchPlaceholder}
             className="ps-9"
-            aria-label="Search queue"
+            aria-label={searchAriaLabel}
             onChange={(e) => patch({ search: e.target.value })}
           />
         </div>

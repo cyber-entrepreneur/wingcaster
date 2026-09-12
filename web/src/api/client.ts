@@ -390,6 +390,86 @@ export const api = {
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  /** AGN-MEM-002 — list agency applications (raw array today; client normalizes). */
+  listAgencyApplications: (agencyId: string) =>
+    fetchJson(`/agencies/${agencyId}/applications`),
+  /** AGN-MEM-002 / 002b — approve creates membership; requires role + affiliation_mode. */
+  approveAgencyApplication: (
+    agencyId: string,
+    applicationId: string,
+    data: { role: string; affiliation_mode: string },
+  ) =>
+    fetchJson(`/agencies/${agencyId}/applications/${applicationId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  /** AGN-MEM-002 / 002b — reject; reason forwarded for Agent 4 outcome deep-link. */
+  rejectAgencyApplication: (
+    agencyId: string,
+    applicationId: string,
+    data: { reason: string },
+  ) =>
+    fetchJson(`/agencies/${agencyId}/applications/${applicationId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  /**
+   * AGN-MEM-002b — audited contact reveal. Must succeed (2xx) before the UI unmasks.
+   * Writes public.audit_log server-side.
+   */
+  revealAgencyApplicationContact: (
+    agencyId: string,
+    applicationId: string,
+    data?: { field?: 'contact' | 'email' | 'phone' },
+  ) =>
+    fetchJson(`/agencies/${agencyId}/applications/${applicationId}/reveal-contact`, {
+      method: 'POST',
+      body: JSON.stringify(data || { field: 'contact' }),
+    }),
+  /**
+   * AGN-MEM-002 — server CSV export (same filters as the queue: status, within, q).
+   * Authenticated fetch + blob download — never builds CSV client-side.
+   */
+  exportAgencyApplicationsCsv: async (
+    agencyId: string,
+    params: { status?: string; within?: string; q?: string } = {},
+  ) => {
+    const qs = new URLSearchParams()
+    if (params.status) qs.set('status', params.status)
+    if (params.within) qs.set('within', params.within)
+    if (params.q) qs.set('q', params.q)
+    const path = `/agencies/${agencyId}/applications.csv${qs.toString() ? `?${qs}` : ''}`
+    const url = `${API_BASE}${path}`
+    const downloadHeaders = headers()
+    delete downloadHeaders['Content-Type']
+    const res = await fetch(url, { headers: downloadHeaders })
+    if (!res.ok) {
+      const bodyText = await res.text()
+      let message = `Request failed (${res.status})`
+      try {
+        const parsed = JSON.parse(bodyText) as { error?: string }
+        if (parsed?.error) message = parsed.error
+      } catch {
+        /* non-JSON error body */
+      }
+      const error = new Error(message) as Error & { status?: number }
+      error.status = res.status
+      throw error
+    }
+    const blob = await res.blob()
+    const disposition = res.headers.get('Content-Disposition') || ''
+    const match = /filename="([^"]+)"/i.exec(disposition)
+    const filename =
+      match?.[1]
+      || `agency-applications-${params.status || 'all'}-${params.within || 'all'}.csv`
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(objectUrl)
+    return { ok: true as const, filename }
+  },
   inviteMember: (agencyId: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${agencyId}/members`, { method: 'POST', body: JSON.stringify(data) }),
   updateMember: (agencyId: string, memberId: string, data: Record<string, unknown>) =>

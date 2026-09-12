@@ -2,14 +2,15 @@
  * PA queue-family primitives (`web/src/components/queue/`).
  *
  * Anchor brief: PA-MOD-001 (portal moderation queue).
- * Consumers: PA-MOD-001, PA-ACR-001, PA-PVA-008, PA-PVA-009, PA-PKG-003
- * (and PA-APR-001 generic approvals queue when wired).
+ * Consumers: AGN-MEM-002 (first agency-side consumer), PA-MOD-001, PA-ACR-001,
+ * PA-PVA-008, PA-PVA-009, PA-PKG-003 (and PA-APR-001 when wired).
  *
  * ## QUEUE_INVARIANTS (7 — do not weaken in consumers)
  *
  * 1. **env-badge-always-visible + env-scoped data** — Env badge (PA-NAV-001) remains
  *    visible for the lifetime of any PA queue screen. List + action calls are scoped
  *    to the current env (`X-Wingcaster-Env`); LIVE and TEST rows never co-mingle.
+ *    Agency consumers may omit the env-badge slot when not on a PA surface.
  *
  * 2. **two-person rule** — Approvals of one's own submissions (or high-value cases
  *    requiring a second approver) are blocked server-side and hidden / disabled in UI.
@@ -35,9 +36,13 @@
  *
  * ### Bulk omission (family deviation)
  * Set `PAQueueBulkBar` / table `showBulk={false}` / `selectable={false}` for
- * WF-04 (PA-ACR-001) and WF-05 (PA-PVA-008) — PII / market-impact safety.
+ * WF-04 (PA-ACR-001), WF-05 (PA-PVA-008), and Wave-1 AGN-MEM-002 (bulk deferred
+ * to Phase 2 per CURSOR_SCREEN_WAVE_1_WF02_SIGNUP §8) — PII / market-impact /
+ * hiring-wave safety.
  *
- * Stub visuals + prop types only — no real API. Business logic lands per consumer wave.
+ * Additive filter props (`hideRiskTier`, `withinOptions`, `withinLabel`,
+ * `searchPlaceholder`) keep PA-MOD-001 importable verbatim while letting
+ * AGN-MEM-002 configure Applied-within + hide risk.
  */
 
 export {
