@@ -38,6 +38,7 @@ export interface SettingsShellProps {
   /** Sticky mobile search slot rendered above the card list. */
   mobileSearch?: ReactNode
   searchInputRef?: Ref<HTMLInputElement>
+  onSearchSubmit?: () => void
   /**
    * Mobile layout mode. `list` = grouped cards (settings home);
    * `detail` = full-screen child pane (SHR-SET-002/003/004/005).
@@ -80,6 +81,7 @@ export function SettingsShell({
   mobileNav,
   mobileSearch,
   searchInputRef,
+  onSearchSubmit,
   mobileView = 'list',
   contentId = 'settings-content',
   className,
@@ -96,6 +98,7 @@ export function SettingsShell({
       emptyState={emptyState}
       footer={footer}
       searchInputRef={searchInputRef}
+      onSearchSubmit={onSearchSubmit}
     />
   )
 
