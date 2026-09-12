@@ -1,8 +1,8 @@
 ﻿// @vitest-environment jsdom
 /**
- * jest-axe pass on the ten highest-traffic screens. Pages are mounted
- * without the app chrome; each is wrapped in <main> so landmark rules
- * match production (App.tsx renders routes inside <main>).
+ * jest-axe pass on the ten highest-traffic screens.
+ * Bare-chrome routes (login/register) own their own <main> in production;
+ * app-chrome routes are wrapped here to mirror App.tsx landmarks.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
@@ -54,23 +54,6 @@ import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
 
-const pages: Array<[string, ComponentType, string]> = [
-  ['Dashboard', AgentDashboardPage, '/dashboard'],
-  ['Listings', ListingsPage, '/listings'],
-  ['Listing detail', ListingProfilePage, '/listings/listing-1'],
-  ['Inbox', InboxPage, '/dashboard/inbox'],
-  ['Contacts', ContactsPage, '/contacts'],
-  ['Contact detail', ContactDetailPage, '/contacts/contact-1'],
-  ['Login', LoginPage, '/login'],
-  ['Register', RegisterPage, '/register'],
-  ['Settings', TotpSettingsPage, '/settings/2fa'],
-  ['Command Center', CommandCenterPage, '/command-center'],
-
-/**
- * Bare-chrome routes (login/register) own their own <main> in production
- * (App.tsx skips the shell wrapper). App-chrome routes are wrapped in <main>
- * here to mirror App.tsx guest/shell landmark layout.
- */
 const pages: Array<[string, ComponentType, string, boolean]> = [
   ['Dashboard', AgentDashboardPage, '/dashboard', true],
   ['Listings', ListingsPage, '/listings', true],
@@ -79,55 +62,32 @@ const pages: Array<[string, ComponentType, string, boolean]> = [
   ['Contacts', ContactsPage, '/contacts', true],
   ['Contact detail', ContactDetailPage, '/contacts/contact-1', true],
   ['Login', LoginPage, '/login', false],
-  ['Register', AgentRegisterPage, '/register', false],
+  ['Register', RegisterPage, '/register', false],
   ['Settings', TotpSettingsPage, '/settings/2fa', true],
   ['Command Center', CommandCenterPage, '/command-center', true],
-
 ]
-
-/** Auth surfaces ship their own `<main>`; wrapping again nests landmarks. */
-const BARE_LANDMARK_PAGES = new Set(['Login', 'Register'])
 
 describe('Broadcast a11y — top 10 pages', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
   })
 
-  it.each(pages)('%s has no axe violations', async (name, Page, path) => {
+  it.each(pages)('%s has no axe violations', async (_name, Page, path, wrapInMain) => {
     document.documentElement.lang = 'en'
-    const bare = BARE_LANDMARK_PAGES.has(name)
+    const page = <Page />
     const { container } = render(
       <MemoryRouter initialEntries={[path]}>
         <BrandProvider>
-          <ToastProvider>
-            {bare ? (
-              <Page />
-            ) : (
-              <main>
-              </main>
-            )}
-          </ToastProvider>
-
-  it.each(pages)('%s has no axe violations', async (_name, Page, path, wrapInMain) => {
-    const page = <Page />
           <ToastProvider>{wrapInMain ? <main>{page}</main> : page}</ToastProvider>
-
         </BrandProvider>
       </MemoryRouter>,
     )
+
     await waitFor(async () => {
-      // React 18 useId() emits colon-bearing ids (`:r0:`) that axe 4.x flags as
-      // invalid aria-controls targets on Radix Tabs — known false positive.
+      // Radix Tabs uses colon ids (`radix-:rN:-*`) that axe 4.x can flag even though browsers accept them.
       expect(
         await axe(container, {
-          rules: bare
-            ? { 'aria-valid-attr-value': { enabled: false } }
-            : undefined,
-
-      // Radix Tabs uses colon ids (`radix-:rN:-*`) which axe flags as
-      // aria-valid-attr-value even though browsers accept them.
           rules: { 'aria-valid-attr-value': { enabled: false } },
-
         }),
       ).toHaveNoViolations()
     })

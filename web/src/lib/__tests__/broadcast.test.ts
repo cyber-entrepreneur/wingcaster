@@ -1,8 +1,5 @@
-﻿﻿// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 
 describe('broadcast session channel', () => {
   let listeners: Set<(event: MessageEvent) => void>
@@ -38,16 +35,14 @@ describe('broadcast session channel', () => {
     // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
     ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
       MockBroadcastChannel as unknown as typeof BroadcastChannel
-
-
+    globalThis.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
+    window.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-
     vi.resetModules()
-
   })
 
   it('publishes and receives tenant-switched events on wingcaster-session', async () => {

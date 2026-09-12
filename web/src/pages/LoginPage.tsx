@@ -379,10 +379,6 @@ export function LoginPage() {
           role="tablist"
           aria-label="Identifier type"
           className="grid h-auto w-full grid-cols-3 rounded-none bg-transparent p-0"
-
-          aria-label={t('tab.email', locale)}
-          className="grid h-auto w-full grid-cols-3"
-
         >
           {(['email', 'username', 'phone'] as const).map((tab) => {
             const selected = identifierType === tab
@@ -401,13 +397,6 @@ export function LoginPage() {
                     ? 'border-[var(--lc-action-primary)] text-[var(--lc-text-primary)]'
                     : 'border-transparent text-[var(--lc-text-muted)]',
                 )}
-
-                id={`login-tab-${tab}`}
-                className={
-                    ? 'inline-flex min-h-tap items-center justify-center border-b-2 border-[var(--lc-action-primary)] px-3 py-1.5 text-sm font-medium text-[var(--lc-text-primary)]'
-                    : 'inline-flex min-h-tap items-center justify-center border-b-2 border-transparent px-3 py-1.5 text-sm font-medium text-[var(--lc-text-muted)]'
-                }
-
               >
                 {t(`tab.${tab}`, locale)}
               </button>
