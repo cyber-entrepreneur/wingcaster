@@ -316,6 +316,63 @@ export const api = {
   rejectAccountRecoveryCase: (caseId: string, notes = '') =>
     fetchJson(`/admin/account-recovery/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ notes }) }),
 
+  // Portal moderation detail (PA-MOD-002) — env-scoped via X-Wingcaster-Env
+  getPortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}`),
+  getPortalModerationSibling: (
+    submissionId: string,
+    direction: 'next' | 'prev',
+    query: Record<string, string | undefined> = {},
+  ) => {
+    const params = new URLSearchParams({ direction })
+    for (const [k, v] of Object.entries(query)) {
+      if (v != null && v !== '') params.set(k, v)
+    }
+    return fetchJson(
+      `/admin/moderation/portals/${encodeURIComponent(submissionId)}/sibling?${params.toString()}`,
+    )
+  },
+  getPortalModerationHistory: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/history`),
+  getPortalModerationAudit: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/audit`),
+  approvePortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  rejectPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes?: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  requestInfoPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  undoPortalModerationApprove: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  undoPortalModerationReject: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-reject`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  revealPortalModerationContact: (submissionId: string, field: 'phone' | 'email') =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reveal-contact`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
+
   // Two-factor / step-up (Phase 7f)
   twoFactorStatus: (): Promise<TwoFactorStatus> => fetchJson('/auth/2fa/status'),
   totpSetup: (current_password: string): Promise<TotpSetup> =>
@@ -621,6 +678,16 @@ export const api = {
     fetchJson('/admin/notifications/retry-pending', { method: 'POST', body: JSON.stringify({ limit }) }),
 
   getActivityLog: () => fetchJson('/activity-log'),
+
+  // Publishing tracker (AGT-PUB-006 / BE-BLOCKER-11)
+  getPublishingTracker: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker${qs}`)
+  },
+  getPublishingTrackerSummary: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker/summary${qs}`)
+  },
 
   // Distribution Hub
   getPlatforms: () => fetchJson('/platforms'),
@@ -1095,6 +1162,43 @@ export const api = {
     fetchJson(`/properties/${propertyId}/submit-to-fi`, { method: 'POST', body: JSON.stringify({ platforms, message }) }),
   getMySubmissions: () => fetchJson('/my-submissions'),
   getDistributionPerformance: () => fetchJson('/distribution/performance'),
+
+  /** Dynamic portal_registry picker (AGT-PUB-005) — no hardcoded portal arrays. */
+  getPortalRegistry: (): Promise<{
+    portals: Array<{
+      code: string
+      display_name: string
+      description: string | null
+      logo_url: string | null
+      country_codes: string[]
+      primary_language: string | null
+      is_active: boolean
+      deprecated_at: string | null
+      sla_hours: number | null
+    }>
+  }> => fetchJson('/portals'),
+
+  /**
+   * Create a publishing job + pending_moderation destinations.
+   * Returns jobId compatible with GET /api/publishing/jobs/:jobId (AGT-PUB-003).
+   */
+  createPublishingJob: (
+    propertyId: string,
+    portals: Array<string | { code: string; country_code?: string }>,
+    message?: string,
+  ): Promise<{
+    jobId: string
+    job: { id: string; aggregate?: string; listing_id?: string }
+    destinations: unknown[]
+  }> =>
+    fetchJson('/publishing/jobs', {
+      method: 'POST',
+      body: JSON.stringify({
+        property_id: propertyId,
+        portals,
+        message: message || undefined,
+      }),
+    }),
 
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),
@@ -1680,6 +1784,28 @@ export const api = {
       prorate,
     }),
   }),
+
+  // ============================================================
+  // Publishing jobs (AGT-PUB-003 / BE-BLOCKER-10)
+  // ============================================================
+  getPublishingJob: (jobId: string): Promise<PublishingJobPayload> =>
+    fetchJson(`/publishing/jobs/${encodeURIComponent(jobId)}`),
+  retryPublishingDestination: (
+    jobId: string,
+    destinationId: string,
+  ): Promise<PublishingDestinationRetryResult> =>
+    fetchJson(
+      `/publishing/jobs/${encodeURIComponent(jobId)}/destinations/${encodeURIComponent(destinationId)}/retry`,
+      { method: 'POST', body: '{}' },
+    ),
+  retryAllPublishingDestinations: (
+    jobId: string,
+    errorClassesToRetry: string[] = ['PORTAL_DOWN', 'UNKNOWN_ERROR'],
+  ): Promise<PublishingJobRetryAllResult> =>
+    fetchJson(`/publishing/jobs/${encodeURIComponent(jobId)}/retry-all`, {
+      method: 'POST',
+      body: JSON.stringify({ error_classes_to_retry: errorClassesToRetry }),
+    }),
 }
 
 export interface FeatureQuota {
@@ -1772,4 +1898,97 @@ export interface TenantPlanPreview {
   net: number
   currency: string
   new_monthly_price_minor: number
+}
+
+/** AGT-PUB-003 / BE-BLOCKER-10 publishing job receipt payload. */
+export type PublishingAggregate =
+  | 'all_succeeded'
+  | 'mixed'
+  | 'all_failed'
+  | 'in_review_only'
+  | 'partial'
+
+export type PublishingDestinationStatus = 'succeeded' | 'in_review' | 'failed'
+
+export type PublishingErrorClass =
+  | 'AUTH_EXPIRED'
+  | 'PORTAL_RULES_VIOLATION'
+  | 'PORTAL_DOWN'
+  | 'QUOTA_EXCEEDED'
+  | 'INVALID_CONTENT'
+  | 'UNKNOWN_ERROR'
+
+export interface PublishingJobSummary {
+  id: string
+  listing_id: string | null
+  listing_short_ref: string | null
+  aggregate: PublishingAggregate
+  submitted_at: string | null
+  completed_at: string | null
+  counts: {
+    succeeded: number
+    in_review: number
+    failed: number
+    total: number
+  }
+  credits: {
+    total_charged: number
+    total_reserved: number
+  }
+}
+
+export interface PublishingDestinationPortal {
+  code: string | null
+  display_name: string | null
+  logo_url: string | null
+  country_code: string | null
+  all_country_codes: string[]
+}
+
+export interface PublishingDestinationTimelineEntry {
+  id?: string
+  status?: string
+  error_class?: string | null
+  error_message?: string | null
+  attempted_at?: string | null
+  key?: string
+  label?: string
+  timestamp?: string
+  state?: 'complete' | 'current' | 'pending' | 'skipped'
+}
+
+export interface PublishingDestination {
+  id: string
+  portal: PublishingDestinationPortal
+  channel_type?: string
+  status: PublishingDestinationStatus
+  error_class: PublishingErrorClass | null
+  portal_message: string | null
+  credit_charged: number
+  credit_reserved: number
+  credit_held?: number
+  credit_released?: number
+  event_at: string | null
+  live_url: string | null
+  retry_available: boolean
+  fix_deep_link: string | null
+  moderation_queue_deep_link: string | null
+  correlation_id: string | null
+  timeline: PublishingDestinationTimelineEntry[]
+}
+
+export interface PublishingJobPayload {
+  job: PublishingJobSummary
+  destinations: PublishingDestination[]
+}
+
+export interface PublishingDestinationRetryResult {
+  destination: PublishingDestination
+  job: PublishingJobSummary | null
+  destinations: PublishingDestination[]
+}
+
+export interface PublishingJobRetryAllResult extends PublishingJobPayload {
+  retried_destination_ids: string[]
+  skipped: Array<{ id: string; reason: string; error_class?: string | null }>
 }

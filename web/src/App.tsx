@@ -47,9 +47,14 @@ import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
+import { PublishReceiptPage } from '@/pages/agent/PublishReceiptPage'
+import { PortalTrackerPage } from '@/pages/agent/PortalTrackerPage'
+import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
+import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
+import { PortalModerationDetailPage } from '@/pages/admin/PortalModerationDetailPage'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
@@ -103,6 +108,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<AgentDashboardPage />} />
       <Route path="/listings" element={<ListingsPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
+      <Route path="/listings/:id/portals/submit" element={<PortalSubmitPage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -155,6 +161,11 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
+      <Route
+        path="/admin/moderation/portals/:submissionId"
+        element={<PortalModerationDetailPage />}
+      />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
@@ -180,6 +191,8 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      <Route path="/publish/receipts/:jobId" element={<PublishReceiptPage />} />
+      <Route path="/publish/tracker" element={<PortalTrackerPage />} />
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
