@@ -2,7 +2,9 @@
 
 **Author:** Architect-owner
 **Created:** 2026-09-05
-**Last revised:** 2026-09-12 (Rev 9.3 — Backend Week 8+ BE-BLOCKER-36 marked RESOLVED in §5a with merge SHA `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` / PR #134. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
+**Last revised:** 2026-09-12 (Rev 9.4 — Wave 8 quality a11y/visual landed on `feat/wave-8-quality`; BE-BLOCKER-36 marked UI-CONSUMED. Phase A + e2e still open — **not** PHASE 1 SHIPPED. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
+
+**Rev 9.4 — 2026-09-12.** Wave 8 quality (a11y + Chromatic stand-ins) ready to merge. BE-BLOCKER-04 already UI-CONSUMED; BE-BLOCKER-36 now UI-CONSUMED. Status remains **APPROVED — in flight** until Phase A PRs + #152 e2e merge to `main`; prefer wording **Wave 8 quality landed / ready to merge** over PHASE 1 SHIPPED.
 
 **Rev 8 — 2026-09-06.** User resolved every remaining open decision. D-S-03/04/05/06/07/09 all APPROVED. AGT-ACT-001..005 added (slate 53 → 58). Branding-cleanup PR bundled into Wave 0. Blue Door removed. Agent-matrix backend-prereq retrofit scheduled.
 
@@ -11,7 +13,7 @@
 **Rev 6 — 2026-09-06.** Absorbed fifth audit (feedback log governance) + user directive for dynamic portal catalog. Added [BE-BLOCKER-03/04], [BE-DESIGN-01] dynamic `portal_registry`, locked portal list per D19 PF-Group critical path. Restructured Week 2 with 4 backend prereqs. Added PA-POR-001..003 to Week 6.
 
 **Rev 5 — 2026-09-06.** Absorbed fourth independent audit: full four-persona cross-matrix. Identified fifth deadlock cycle (WF-04). Restructured §6 from persona-domain waves to workflow-cluster Week 0..8+ dispatch per PA matrix D5 model.
-**Status:** **APPROVED 2026-09-06** — user locked D-S-01 (53-screen Rev-6 slate) + D-S-10 (Week 0..8+ workflow-cluster dispatch). Wave 0 brief authoring begins next.
+**Status:** **APPROVED — in flight** (locked 2026-09-06). Wave 8 quality landed / ready to merge; do **not** claim PHASE 1 SHIPPED until Wave 8 Phase A + e2e land on `main`.
 
 Companion documents:
 - [SCREEN_MATRIX_SHARED.md](SCREEN_MATRIX_SHARED.md) — 46 shared screens
@@ -260,7 +262,7 @@ All RESOLVED:
 
 **[MATRIX-DRIFT-02] AGT-ACT and AGT-VLA missing matrix sections.** Briefs exist for AGT-ACT-001..005 (activation wizard, Phase-1 add-on per Rev 8) but no matrix section. AGT-VLA-* referenced from AGT-LST but no matrix section. **Owner:** architect-owner. **Slot:** before Wave 4 dispatch (blocking for AGT-ACT).
 
-**[BE-BLOCKER-36] `contact_relationships` CRUD routes. RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` (#134) 2026-09-12.** Seven endpoints shipped (`backend/src/lib/contacts/relationships-routes.js`): list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…` + accept/reject). Consent link uses `signed-token.js` purpose `relationship_consent` (same HMAC family as `webhook-verify.js`). Unblocks Wave 8+ AGT-CTC-007.
+**[BE-BLOCKER-36] `contact_relationships` CRUD routes. UI-CONSUMED — backend `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` (#134); UI Wave 8 relationships + quality 2026-09-12.** Seven endpoints shipped (`backend/src/lib/contacts/relationships-routes.js`): list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…` + accept/reject). Consent link uses `signed-token.js` purpose `relationship_consent` (same HMAC family as `webhook-verify.js`). Consumed by AGT-CTC-007 editor + public consent landing.
 
 **[BE-BLOCKER-35] `portal_registry` schema extensions + state tables.** [BE-DESIGN-01] core schema covers `id/code/display_name/country_codes[]/adapter_class_name/publisher_config/inbound_config/is_active`. PA-POR-002 form additionally writes: `description`, `logo_url`, `primary_language`, `validator_ref`, `effective_from`, `deprecated_at`. Plus two new tables: `portal_registry_pending_activations` (state machine for activation approvals) + `portal_activation_history` (for PA-POR-003 timeline). Estimated 1.5 days. **Slot: Week 6 (bundled with [BE-DESIGN-01] Week 2 or as an extension migration in Week 6).**
 
@@ -460,6 +462,7 @@ All RESOLVED:
 - AGT-INB-001..002 (inbox anchor for "Catch") — one PR.
 - AGT-CTC-007 (contact relationships editor) — one PR.
 - Mobile-first pass on top 8 agent screens if scope allows.
+- **Quality (Agent 7):** a11y + Chromatic stand-ins on `feat/wave-8-quality` — Wave 8 quality landed / ready to merge (not PHASE 1 SHIPPED until Phase A + e2e merge).
 - **Unblocks:** full v1 experience.
 
 ### Post-Week-8 open items

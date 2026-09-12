@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { api } from '@/api/client'
 import { Numeric } from '@/components/ui/numeric'
+import { readChannel, readSource } from '@/lib/channel-source'
+import { channelLabel, sourceLabel } from '@/lib/inbox-labels'
 
 type Listing = any
 
@@ -210,14 +212,21 @@ export function ListingRow({
           {panel === 'inquiries' && !busy && (
             <div className="space-y-3">
               {inquiries.length === 0 && <p className="text-sm text-muted-foreground">No inquiries for this listing yet.</p>}
-              {inquiries.map((inq) => (
+              {inquiries.map((inq) => {
+                const channelKey = readChannel(inq)
+                const sourceKey = readSource(inq)
+                const origin =
+                  channelKey || sourceKey
+                    ? ` · ${channelLabel(channelKey)}${sourceKey && sourceKey !== 'direct' ? ` · ${sourceLabel(sourceKey)}` : ''}`
+                    : ''
+                return (
                 <div key={inq.id} className="rounded-md border bg-[var(--lc-surface)] p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">{inq.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {inq.email}{inq.phone ? ` · ${inq.phone}` : ''}
-                        {inq.channel || inq.source ? ` · ${inq.channel || inq.source}` : ''}
+                        {origin}
                         {inq.status ? ` · ${inq.status}` : ''}
                       </p>
                     </div>
@@ -247,7 +256,8 @@ export function ListingRow({
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">&ldquo;{inq.message}&rdquo;</p>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

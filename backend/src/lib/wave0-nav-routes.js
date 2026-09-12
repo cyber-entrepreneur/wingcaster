@@ -31,9 +31,64 @@ const switchTenantSchema = z.object({
 
 const patchMeSchema = z.object({
   preferred_locale: z.enum(['en', 'ar']).optional(),
+  /** Per-tenant UI density mode — stored on tenant_memberships.data.ui_mode (D-S-06 / AGT-SET-002). */
+  ui_mode: z.enum(['guided', 'pro']).optional(),
 }).refine((body) => Object.keys(body).length > 0, {
   message: 'At least one field is required',
 })
+
+function membershipDataBag(row) {
+  const raw = row?.data
+  if (!raw) return {}
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+  return typeof raw === 'object' && !Array.isArray(raw) ? { ...raw } : {}
+}
+
+function normalizeUiMode(value) {
+  return value === 'pro' ? 'pro' : 'guided'
+}
+
+/**
+ * Write ui_mode into the acting tenant membership's JSONB `data` column.
+ * Preference is per-tenant-context, not a new column and not per-user global.
+ */
+async function persistMembershipUiMode(userId, uiMode) {
+  const user = await findUserById(userId)
+  if (!user) return null
+  const tenantId = await resolveActiveTenantId(user)
+  const membership = await findOne(
+    'tenant_memberships',
+    (row) => row.user_id === userId && row.tenant_id === tenantId && row.status === 'active',
+  )
+  if (!membership) return null
+
+  const nextData = {
+    ...membershipDataBag(membership),
+    ui_mode: normalizeUiMode(uiMode),
+  }
+  const now = new Date().toISOString()
+  await update(
+    'tenant_memberships',
+    (row) => row.id === membership.id,
+    (row) => ({
+      ...row,
+      data: nextData,
+      updated_at: now,
+    }),
+  )
+  return {
+    tenant_id: tenantId,
+    data: nextData,
+    updated_at: now,
+  }
+}
 
 const searchSchema = z.object({
   query: z.string().min(1).max(200),
@@ -129,6 +184,7 @@ export async function listAccessibleTenants(userId) {
       countTenantListings(tenant.id),
       countTenantAgents(tenant),
     ])
+    const dataBag = membershipDataBag(membership)
     items.push({
       id: tenant.id,
       name: tenant.name,
@@ -138,6 +194,7 @@ export async function listAccessibleTenants(userId) {
       agentsCount,
       isActive: tenant.id === activeTenantId,
       tenantType: tenant.tenant_type,
+      uiMode: normalizeUiMode(dataBag.ui_mode),
     })
   }
 
@@ -600,12 +657,44 @@ export function registerWave0NavRoutes(app, deps) {
     if (req.validated.preferred_locale !== undefined) {
       patch.preferred_locale = req.validated.preferred_locale
     }
-    const updated = await updateUser(req.user.id, patch)
+    const updated = Object.keys(patch).length > 0
+      ? await updateUser(req.user.id, patch)
+      : await findUserById(req.user.id)
     if (!updated) return res.status(404).json({ error: 'User not found' })
+
+    let tenantMembership = null
+    if (req.validated.ui_mode !== undefined) {
+      tenantMembership = await persistMembershipUiMode(req.user.id, req.validated.ui_mode)
+      if (!tenantMembership) {
+        return res.status(404).json({ error: 'Active tenant membership not found' })
+      }
+    } else {
+      const tenantId = await resolveActiveTenantId(updated)
+      const membership = await findOne(
+        'tenant_memberships',
+        (row) => row.user_id === req.user.id && row.tenant_id === tenantId && row.status === 'active',
+      )
+      if (membership) {
+        tenantMembership = {
+          tenant_id: tenantId,
+          data: membershipDataBag(membership),
+          updated_at: membership.updated_at || null,
+        }
+      }
+    }
+
+    const uiMode = normalizeUiMode(tenantMembership?.data?.ui_mode)
     res.json({
       id: updated.id,
       preferred_locale: updated.preferred_locale || 'en',
       active_tenant_id: updated.active_tenant_id || personalTenantId(updated.id),
+      ui_mode: uiMode,
+      tenant_membership: tenantMembership
+        ? {
+            tenant_id: tenantMembership.tenant_id,
+            data: tenantMembership.data,
+          }
+        : null,
     })
   })
 
