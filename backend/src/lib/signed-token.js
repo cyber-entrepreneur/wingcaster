@@ -135,3 +135,40 @@ export function signScheduledDeletionViewToken({ deletionRequestId, userId }) {
 export function verifyScheduledDeletionViewToken(token) {
   return verifyPurposeToken(token, { purpose: SCHEDULED_DELETION_VIEW_PURPOSE })
 }
+
+/**
+ * Relationship consent tokens.
+ *
+ * Dispatch docs mention webhook-verify.js with type='relationship_consent'.
+ * We reuse this same HMAC family (createHmac + timingSafeEqual) via purpose
+ * tokens — purpose/type = `relationship_consent`. Do not invent a parallel
+ * crypto stack.
+ */
+export const RELATIONSHIP_CONSENT_PURPOSE = 'relationship_consent'
+
+/** 7-day TTL for relationship consent Accept/Reject links. */
+export const RELATIONSHIP_CONSENT_TTL_SECONDS = 7 * 24 * 60 * 60
+
+export function signRelationshipConsentToken({
+  relationshipId,
+  contactId,
+  jti,
+  ttlSeconds = RELATIONSHIP_CONSENT_TTL_SECONDS,
+}) {
+  if (!relationshipId) throw new Error('relationshipId is required')
+  if (!contactId) throw new Error('contactId is required')
+  if (!jti) throw new Error('jti is required')
+  return signPurposeToken({
+    purpose: RELATIONSHIP_CONSENT_PURPOSE,
+    ttlSeconds,
+    claims: {
+      relationship_id: relationshipId,
+      contact_id: contactId,
+      jti: String(jti),
+    },
+  })
+}
+
+export function verifyRelationshipConsentToken(token) {
+  return verifyPurposeToken(token, { purpose: RELATIONSHIP_CONSENT_PURPOSE })
+}

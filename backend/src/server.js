@@ -67,6 +67,7 @@ import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
+import { registerPublicPricingRoutes } from './lib/packages/public-pricing-routes.js'
 import { wingcasterEnvMiddleware, fromAnyEnv, normalizeClientEnv } from './lib/session-env.js'
 import {
   registerWave0NavRoutes,
@@ -209,7 +210,9 @@ import { registerRoutes as registerActivationStateRoutes } from './lib/activatio
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
+import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
+import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -733,6 +736,7 @@ registerFinPackagesAdminRoutes(app, {
   authMiddleware,
   requirePlatformAdmin,
 })
+registerPublicPricingRoutes(app)
 registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
@@ -744,7 +748,9 @@ registerAgencyOnboardingStateRoutes(app)
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
+registerAgencyCapabilityPackRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
+registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
