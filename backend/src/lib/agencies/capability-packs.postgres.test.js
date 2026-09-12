@@ -93,7 +93,7 @@ async function twoOwnerAgency() {
 }
 
 finPostgresSuite('agency capability packs (BE-BLOCKER-29)', { seed: false }, ({ pool }) => {
-  it('migration 339 adds capability_packs + seeds 4 pack definitions + finance action_kind', async () => {
+  it('migration 342 adds capability_packs + seeds 4 pack definitions + finance action_kind', async () => {
     const col = await pool().query(
       `SELECT column_name, is_nullable, data_type
          FROM information_schema.columns
@@ -123,7 +123,7 @@ finPostgresSuite('agency capability packs (BE-BLOCKER-29)', { seed: false }, ({ 
     )
     expect(financeCaps.rows[0].capabilities.some((c) => c.is_financial === true)).toBe(true)
 
-    const sql = await readFile(join(migrationsDir, '339_capability_packs.sql'), 'utf8')
+    const sql = await readFile(join(migrationsDir, '342_capability_packs.sql'), 'utf8')
     expect(sql).toContain('CAPABILITY_PACK_FINANCE_GRANT')
 
     const check = await pool().query(
