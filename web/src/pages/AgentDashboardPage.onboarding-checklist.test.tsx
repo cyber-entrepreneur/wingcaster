@@ -77,7 +77,7 @@ const authMock = vi.hoisted(() => ({
 
 const apiMock = vi.hoisted(() => ({
   getProperties: vi.fn(async () => []),
-  getInquiries: vi.fn(async () => ({ items: [] })),
+  getInquiries: vi.fn(async () => ({ items: [] as Array<Record<string, unknown>> })),
   getViewings: vi.fn(async () => []),
   getDashboardStats: vi.fn(async () => ({ listings: 0, totalViews: 0, inquiries: 0 })),
   getDashboardOperations: vi.fn(async () => null),

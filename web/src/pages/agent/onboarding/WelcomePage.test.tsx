@@ -8,24 +8,7 @@ import type { OnboardingState } from '@/components/onboarding/useOnboardingState
 
 const navigateMock = vi.hoisted(() => vi.fn())
 const hook = vi.hoisted(() => ({
-  state: {
-    user_id: 'usr_test',
-    step: 'welcome' as const,
-    path: null as null,
-    started_at: '2026-09-09T10:00:00.000Z',
-    updated_at: '2026-09-09T10:00:00.000Z',
-    completed_at: null as string | null,
-    dismissed_forever: false,
-    checklist: {
-      welcome_seen: true,
-      first_listing_drafted: false,
-      first_listing_published: false,
-      channels_connected: false,
-      notifications_enabled: false,
-      profile_completed: false,
-      subscription_active: false,
-    },
-  },
+  state: null as unknown as OnboardingState,
   isLoading: false,
   isError: false,
   patch: vi.fn(async (body: Record<string, unknown>) => body),
@@ -65,7 +48,7 @@ vi.mock('@/components/ui/color-mode-toggle', () => ({
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
-const agentCountMock = vi.hoisted(() => vi.fn(async () => 2499))
+const agentCountMock = vi.hoisted(() => vi.fn<() => Promise<number | null>>(async () => 2499))
 vi.mock('./onboardingApi', () => ({
   getMarketingAgentCount: () => agentCountMock(),
   trackOnboardingEvent: vi.fn(),

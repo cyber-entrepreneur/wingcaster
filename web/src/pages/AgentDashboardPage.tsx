@@ -27,8 +27,9 @@ import {
   shouldRenderOnboardingChecklist,
 } from '@/pages/agent/onboarding'
 
-function agentUiMode(agent: { ui_mode?: unknown; uiMode?: unknown } | null | undefined): string {
-  const raw = agent?.ui_mode ?? agent?.uiMode
+function agentUiMode(agent: unknown): string {
+  const source = agent as { ui_mode?: unknown; uiMode?: unknown } | null | undefined
+  const raw = source?.ui_mode ?? source?.uiMode
   return typeof raw === 'string' && raw.trim() ? raw.trim() : 'guided'
 }
 
