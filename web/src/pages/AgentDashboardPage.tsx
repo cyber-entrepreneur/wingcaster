@@ -22,6 +22,11 @@ import { KpiAnalyticsPanel } from '@/components/dashboard/KpiAnalyticsPanel'
 import { ListingRow } from '@/components/dashboard/ListingRow'
 import { PromoteDistributeModal, PLATFORM_META, SOCIAL_PROMOTE_PLATFORMS } from '@/components/dashboard/PromoteDistributeModal'
 
+// Wave-8 Pro dashboard (AGT-DSH-002) — export for Agent 5 mount wiring.
+// TODO(Agent 5 / feat/wave-8-dsh-mount): when useUiMode().effectiveMode === 'pro'
+// (≥768px + ui_mode=pro), render <ProDashboard /> instead of this Guided page.
+export { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
+
 export function AgentDashboardPage() {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
