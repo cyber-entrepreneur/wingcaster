@@ -1,12 +1,15 @@
 import {
   useCallback,
+  useEffect,
   useId,
   useRef,
+  useState,
   type ClipboardEvent,
   type KeyboardEvent,
   type ChangeEvent,
 } from 'react'
 import { cn } from '@/lib/utils'
+import './otp-input.css'
 
 export interface OtpInputProps {
   /**
@@ -18,6 +21,11 @@ export interface OtpInputProps {
   value?: string
   /** Fires with the normalized digit string after each change. */
   onChange?: (value: string) => void
+  /**
+   * Fires when all cells are filled (paste or last digit). Parent owns Verify —
+   * this is for focusing the CTA, never auto-submit.
+   */
+  onComplete?: (value: string) => void
   /** When true, cells are non-interactive (verifying / rate-limited). */
   disabled?: boolean
   /** Error visual: danger border + optional shake class. */
@@ -35,19 +43,22 @@ function onlyDigits(raw: string): string {
 }
 
 /**
- * 6-cell OTP code input with paste, backspace, and auto-advance.
+ * 6-cell OTP code input with paste, backspace, auto-advance, and
+ * screen-reader digit announcements.
  *
  * Used by: SHR-MFA-003, SHR-MFA-004, SHR-MFA-007 (and SHR-AUT-002).
- * Stub visual + interaction shape only — no TOTP crypto / API.
  *
  * Invariants:
  * - Cells stay LTR even in RTL layouts (Western digits from authenticator apps).
  * - Do NOT auto-submit on 6th digit — parent owns Verify.
+ * - Live region announces completion / multi-digit paste, not every keystroke
+ *   (each cell already names itself "Digit N of 6").
  */
 export function OtpInput({
   count = 6,
   value = '',
   onChange,
+  onComplete,
   disabled = false,
   error = false,
   autoFocus = false,
@@ -57,14 +68,52 @@ export function OtpInput({
 }: OtpInputProps) {
   const reactId = useId()
   const groupId = id ?? reactId
-  const digits = onlyDigits(value).slice(0, count).padEnd(count, ' ').split('').map((c) => (c === ' ' ? '' : c))
+  const digits = onlyDigits(value)
+    .slice(0, count)
+    .padEnd(count, ' ')
+    .split('')
+    .map((c) => (c === ' ' ? '' : c))
   const refs = useRef<Array<HTMLInputElement | null>>([])
+  const filled = digits.filter(Boolean).length
+  const prevFilled = useRef<number | null>(null)
+  const [progressAnnounce, setProgressAnnounce] = useState('')
+
+  /**
+   * SHR-MFA-004: paste (or a jump of ≥2 digits) announces progression once.
+   * Single keystrokes are already spoken by the focused cell's accessible
+   * name ("Digit N of 6") — do not also push "1 of 6", "2 of 6" into the
+   * live region on every character.
+   */
+  useEffect(() => {
+    const prev = prevFilled.current
+    if (prev === null) {
+      prevFilled.current = filled
+      return
+    }
+    const jumped = filled - prev
+    prevFilled.current = filled
+    if (filled === count && jumped > 0) {
+      setProgressAnnounce(`${count}-digit code entered`)
+      return
+    }
+    if (jumped >= 2 && filled > 0) {
+      setProgressAnnounce(`${filled} of ${count} digits entered`)
+      return
+    }
+    if (jumped !== 0) {
+      setProgressAnnounce('')
+    }
+  }, [filled, count])
 
   const emit = useCallback(
-    (nextDigits: string[]) => {
-      onChange?.(nextDigits.join('').slice(0, count))
+    (nextDigits: string[], source: 'type' | 'paste' | 'backspace') => {
+      const next = nextDigits.join('').slice(0, count)
+      onChange?.(next)
+      if (next.length === count && (source === 'paste' || source === 'type')) {
+        onComplete?.(next)
+      }
     },
-    [count, onChange],
+    [count, onChange, onComplete],
   )
 
   const focusAt = (index: number) => {
@@ -79,7 +128,7 @@ export function OtpInput({
     if (!raw) {
       const next = [...digits]
       next[index] = ''
-      emit(next)
+      emit(next, 'backspace')
       return
     }
     const next = [...digits]
@@ -87,7 +136,8 @@ export function OtpInput({
     for (let i = 0; i < chars.length && index + i < count; i += 1) {
       next[index + i] = chars[i]!
     }
-    emit(next)
+    const source = chars.length > 1 ? 'paste' : 'type'
+    emit(next, source)
     const advanceTo = Math.min(count - 1, index + chars.length)
     focusAt(advanceTo)
   }
@@ -98,12 +148,12 @@ export function OtpInput({
       if (digits[index]) {
         const next = [...digits]
         next[index] = ''
-        emit(next)
+        emit(next, 'backspace')
       } else if (index > 0) {
         e.preventDefault()
         const next = [...digits]
         next[index - 1] = ''
-        emit(next)
+        emit(next, 'backspace')
         focusAt(index - 1)
       }
     } else if (e.key === 'ArrowLeft') {
@@ -124,7 +174,7 @@ export function OtpInput({
     for (let i = 0; i < pasted.length && index + i < count; i += 1) {
       next[index + i] = pasted[i]!
     }
-    emit(next)
+    emit(next, 'paste')
     focusAt(Math.min(count - 1, index + pasted.length))
   }
 
@@ -134,9 +184,21 @@ export function OtpInput({
       aria-label={ariaLabel}
       id={groupId}
       dir="ltr"
+      aria-invalid={error || undefined}
       className={cn('flex gap-[var(--lc-space-xs)]', className)}
       data-otp-error={error || undefined}
     >
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-otp-progress=""
+        data-otp-announce=""
+        data-testid="otp-progress"
+      >
+        {progressAnnounce}
+      </span>
       {digits.map((digit, index) => (
         <input
           key={`${groupId}-${index}`}
@@ -155,13 +217,13 @@ export function OtpInput({
           onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={(e) => handlePaste(index, e)}
           className={cn(
-            'h-14 w-10 text-center font-[family-name:var(--lc-font-mono)] text-[length:var(--lc-type-heading-3)] tabular-nums',
-            'sm:w-12',
+            'h-12 w-10 text-center font-[family-name:var(--lc-font-mono)] text-[length:var(--lc-type-heading-3)] tabular-nums',
+            'sm:h-14 sm:w-12',
             'rounded-[var(--lc-radius-md)] border-2 bg-[var(--lc-surface-raised)] text-[var(--lc-text-primary)]',
             'border-[var(--lc-border-strong)]',
             'focus-visible:border-[var(--lc-action-primary)] focus-visible:outline-none',
             'disabled:cursor-not-allowed disabled:opacity-50',
-            error && 'border-[var(--lc-status-danger-fg)]',
+            error && 'border-[var(--lc-status-danger-fg)] motion-reduce:transition-none',
           )}
         />
       ))}

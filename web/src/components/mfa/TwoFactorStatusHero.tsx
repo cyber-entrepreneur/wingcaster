@@ -1,4 +1,5 @@
 import { ShieldCheck, ShieldOff } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 export type TwoFactorStatus = 'on' | 'off' | 'loading'
@@ -21,7 +22,6 @@ export interface TwoFactorStatusHeroProps {
  * Used by: SHR-MFA-001, SHR-AUT-005 (recovery landing), SHR-SET-004 reuse.
  * Tokens: `--lc-surface-raised` + `--lc-elevation-sm`; badge uses
  * `--lc-status-published-*` (on) or `--lc-status-draft-*` (off).
- * Stub visual only.
  */
 export function TwoFactorStatusHero({
   status,
@@ -36,8 +36,8 @@ export function TwoFactorStatusHero({
         aria-busy="true"
         aria-label="Loading two-factor status"
         className={cn(
-          'rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]',
-          'shadow-[var(--lc-elevation-sm)]',
+          'min-h-24 rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]',
+          'shadow-[var(--lc-elevation-sm)] md:min-h-24',
           className,
         )}
       >
@@ -60,8 +60,8 @@ export function TwoFactorStatusHero({
   return (
     <div
       className={cn(
-        'rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]',
-        'shadow-[var(--lc-elevation-sm)]',
+        'min-h-28 rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]',
+        'shadow-[var(--lc-elevation-sm)] md:min-h-24',
         className,
       )}
       aria-label={`Status: ${resolvedTitle}${enabled ? ', authenticator app active' : ''}`}
@@ -72,43 +72,34 @@ export function TwoFactorStatusHero({
             'flex h-10 w-10 items-center justify-center rounded-[var(--lc-radius-md)]',
             enabled
               ? 'bg-[var(--lc-status-published-bg)] text-[var(--lc-status-published-fg)]'
-              : 'bg-[var(--lc-status-draft-bg)] text-[var(--lc-status-draft-fg)]',
+              : 'bg-[var(--lc-status-draft-bg)] text-[var(--lc-text-muted)]',
           )}
         >
-          <Icon className="h-5 w-5" aria-hidden />
+          <Icon className="h-6 w-5" aria-hidden />
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="font-[family-name:var(--lc-font-ui)] text-[length:var(--lc-type-heading-3)] text-[var(--lc-text-heading)]">
-            {resolvedTitle}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-[family-name:var(--lc-font-ui)] text-[length:var(--lc-type-heading-3)] text-[var(--lc-text-heading)]">
+              {resolvedTitle}
+            </p>
+            <Badge status={enabled ? 'published' : 'draft'} className="rounded-[var(--lc-radius-pill)]">
+              {enabled ? 'On' : 'Off'}
+            </Badge>
+          </div>
           <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-secondary)]">
             {resolvedSubtitle}
           </p>
         </div>
 
-        {(badgeLabel || enabled) && (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 rounded-[var(--lc-radius-pill)] px-2.5 py-1',
-              'text-[length:var(--lc-type-caption)]',
-              enabled
-                ? 'bg-[var(--lc-status-published-bg)] text-[var(--lc-status-published-fg)]'
-                : 'bg-[var(--lc-status-draft-bg)] text-[var(--lc-status-draft-fg)]',
-            )}
+        {enabled ? (
+          <Badge
+            status="published"
+            className="hidden shrink-0 rounded-[var(--lc-radius-pill)] sm:inline-flex"
           >
-            <span
-              className={cn(
-                'h-1.5 w-1.5 rounded-full',
-                enabled
-                  ? 'bg-[var(--lc-status-published-dot)]'
-                  : 'bg-[var(--lc-status-draft-dot)]',
-              )}
-              aria-hidden
-            />
-            {badgeLabel ?? (enabled ? 'Recommended' : 'Off')}
-          </span>
-        )}
+            {badgeLabel ?? 'Recommended'}
+          </Badge>
+        ) : null}
       </div>
     </div>
   )

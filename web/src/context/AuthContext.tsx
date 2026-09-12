@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completeTwoFactor = async (challengeId: string, code: string) => {
     const res = await api.twoFactorChallenge(challengeId, code)
-    await adoptSession(res)
+    await adoptSession({ token: res.token, agent: res.agent as Agent | undefined })
   }
 
   const register = async (data: Record<string, unknown>) => {
