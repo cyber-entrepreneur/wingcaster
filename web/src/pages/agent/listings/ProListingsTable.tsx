@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import type { Property } from '@/types'
 import { formatPrice } from '@/lib/format'
+import { downloadCsv } from '@/lib/downloadCsv'
 import {
   LISTING_STATUS_META,
   LISTING_STATUSES,
@@ -1245,15 +1246,6 @@ function SortHeader({
 function StatusCell({ status }: { status: ListingStatus }) {
   const meta = LISTING_STATUS_META[status]
   return <Badge status={status}>{meta.label}</Badge>
-}
-
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename || 'listings-export.csv'
-  link.click()
-  URL.revokeObjectURL(link.href)
 }
 
 function BulkBtn({
