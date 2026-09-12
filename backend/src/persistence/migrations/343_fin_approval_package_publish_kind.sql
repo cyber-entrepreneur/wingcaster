@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-34 PACKAGE_PUBLISH action_kind
+-- BE-BLOCKER-34 PACKAGE_PUBLISH action_kind
 ALTER TABLE fin.approval_requests DROP CONSTRAINT IF EXISTS chk_approval_requests_action_kind;
 ALTER TABLE fin.approval_requests ADD CONSTRAINT chk_approval_requests_action_kind CHECK (action_kind IN (
   'LARGE_GRANT', 'LARGE_REFUND', 'NEGATIVE_ADJUSTMENT', 'FACILITY_OPS',

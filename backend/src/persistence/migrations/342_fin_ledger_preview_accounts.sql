@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-34 ledger preview accounts
+-- BE-BLOCKER-34 ledger preview accounts
 CREATE TABLE IF NOT EXISTS fin.ledger_preview_accounts (
   account_code TEXT PRIMARY KEY,
   account_label TEXT NOT NULL,

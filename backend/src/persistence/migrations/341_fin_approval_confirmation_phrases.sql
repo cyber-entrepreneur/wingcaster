@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-34 confirmation phrases
+-- BE-BLOCKER-34 confirmation phrases
 CREATE TABLE IF NOT EXISTS fin.approval_confirmation_phrases (
   id UUID PRIMARY KEY,
   request_id UUID NOT NULL REFERENCES fin.approval_requests(id) ON DELETE CASCADE,

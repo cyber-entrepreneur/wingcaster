@@ -1,4 +1,4 @@
-﻿/** BE-BLOCKER-34 — workflow_code map for WF-20 execute. */
+/** BE-BLOCKER-34 — workflow_code map for WF-20 execute. */
 export const VALUE_TIERS = Object.freeze({ STANDARD: 'standard', ELEVATED: 'elevated', HIGH_VALUE: 'high_value' })
 export const ACTION_KIND_TO_WORKFLOW = Object.freeze({
   LARGE_GRANT: 'WF-08', PACKAGE_PUBLISH: 'WF-07', VENDOR_RATE_CHANGE: 'WF-09',

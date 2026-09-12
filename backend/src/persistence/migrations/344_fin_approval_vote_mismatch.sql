@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-34 vote-mismatch columns
+-- BE-BLOCKER-34 vote-mismatch columns
 ALTER TABLE fin.approval_requests
   ADD COLUMN IF NOT EXISTS escalation_case_id UUID,
   ADD COLUMN IF NOT EXISTS vote_mismatch_at TIMESTAMPTZ;

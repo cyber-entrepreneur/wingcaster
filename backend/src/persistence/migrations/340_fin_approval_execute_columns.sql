@@ -1,4 +1,4 @@
-﻿-- BE-BLOCKER-34 execute columns
+-- BE-BLOCKER-34 execute columns
 ALTER TABLE fin.approval_requests
   ADD COLUMN IF NOT EXISTS workflow_code TEXT,
   ADD COLUMN IF NOT EXISTS value_tier TEXT,
