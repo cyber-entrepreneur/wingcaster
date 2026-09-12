@@ -68,6 +68,19 @@ finPostgresSuite('admin/routes-approvals', {}, ({ url, pool, world }) => {
     expect(approve.body.error).toBe('USE_EXECUTE')
   })
 
+  it('legacy /reject returns 410 USE_EXECUTE', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const rejected = await request(app)
+      .post('/api/admin/fin/approvals/00000000-0000-0000-0000-000000000001/reject')
+      .set(writeHeaders(token))
+      .send({ reason_code: 'TEST' })
+    expect(rejected.status).toBe(410)
+    expect(rejected.body.code).toBe('USE_EXECUTE')
+    expect(rejected.body.error).toBe('USE_EXECUTE')
+    expect(rejected.body.dl).toBe('DL-166')
+  })
+
   it('execute-preview: high_value returns phrase + ledger; self-approval 403', async () => {
     const id = await insertGrantApproval(pool(), world(), {
       units: 50_000, valueTier: 'high_value', submitterId: ADMIN_ID,
@@ -223,20 +236,4 @@ finPostgresSuite('admin/routes-approvals', {}, ({ url, pool, world }) => {
     expect(second.body).toEqual(first.body)
   })
 
-  it('reject: marks REJECTED and writes audit', async () => {
-    const id = await insertGrantApproval(pool(), world(), {
-      units: 1_000, valueTier: 'standard', minApprovers: 1,
-    })
-    const row = await pool().query(
-      `SELECT version FROM fin.approval_requests WHERE id = $1`, [id],
-    )
-    const { app, elevate } = await makeOpsApp(url())
-    const token = elevate()
-    const res = await request(app)
-      .post(`/api/admin/fin/approvals/${id}/reject`)
-      .set(writeHeaders(token, { ifMatch: `"${row.rows[0].version}"` }))
-      .send({ reason_code: 'TEST' })
-    expect(res.status).toBe(200)
-    expect(res.body.status).toBe('REJECTED')
-  })
 })

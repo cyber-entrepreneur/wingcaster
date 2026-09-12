@@ -63,7 +63,7 @@ async function executeApprovalTx(client, input) {
 
   const actor = { actorType, actorId: callerId, actorEmail, reasonCode }
   const fingerprint = requestFingerprint({
-    cmd: 'ApprovalExecute', approvalId,
+    cmd: 'ApprovalExecute', approvalId, callerId,
     workflowCode: requestedWorkflow || null,
     confirmationPhrase: confirmationPhrase || null,
     expectedVersion,
