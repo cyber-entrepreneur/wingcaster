@@ -135,8 +135,18 @@ describe('Admin Route Registration', () => {
     expect(paths).toContain('POST /api/admin/pricing/recalculate')
     expect(paths).toContain('GET /api/admin/pricing/agent-price-reports')
     expect(paths).toContain('POST /api/admin/pricing/agent-price-reports/:id/review')
+    expect(paths).toContain('GET /api/admin/pricing/agent-price-reports/:id')
+    expect(paths).toContain('GET /api/admin/pricing/benchmarks/:segmentId/series')
     expect(paths).toContain('GET /api/admin/pricing/reports')
+    expect(paths).toContain('GET /api/admin/pricing/reports.csv')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/reporter-history')
+    expect(paths).toContain('GET /api/admin/pricing/reports/:reportId/audit-trail')
     expect(paths).toContain('POST /api/admin/pricing/reports/:id/review')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/confirm-remove')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/confirm-quarantine')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/reject-as-invalid')
+    expect(paths).toContain('POST /api/admin/pricing/reports/:reportId/request-info')
   })
 
   it('CSV import route imports valid rows and logs failures', async () => {
@@ -244,6 +254,29 @@ describe('Admin Route Registration', () => {
     expect(reports[0].reviewed_by).toBe('admin-1')
     expect(reports[0].review_notes).toBe('Looks good')
   })
+
+  it('agent price report review via admin service supports request_info', async () => {
+    const { app, routes } = fakeExpress()
+    const review = vi.fn().mockResolvedValue({ success: true, status: 'request_info' })
+    registerAdminRoutes(app, {
+      agentPriceReportAdminService: { reviewReport: review },
+      logger,
+    })
+
+    const reviewRoute = routes.find((r) => r.path === '/api/admin/pricing/agent-price-reports/:id/review')
+    const req = {
+      user: { id: 'admin-1' },
+      params: { id: 'rpt-1' },
+      body: { status: 'request_info', reason_code: 'need_comps', notes: 'More comps' },
+      get: () => 'live',
+    }
+    const res = mockRes()
+    const handler = reviewRoute.handlers[reviewRoute.handlers.length - 1]
+    await handler(req, res, () => {})
+
+    expect(review).toHaveBeenCalled()
+    expect(res.json).toHaveBeenCalledWith({ success: true, status: 'request_info' })
+  })
 })
 
 describe('Public Route Registration', () => {
@@ -345,7 +378,7 @@ describe('Public Route Registration', () => {
       sold_price: 420000,
       currency: 'USD',
       sold_date: '2026-01-15',
-      status: 'pending',
+      status: 'pending_review',
     })
     expect(inserted[0].expires_at).toBeTruthy()
     expect(new Date(inserted[0].expires_at).getTime()).toBeGreaterThan(new Date(inserted[0].created_at).getTime())

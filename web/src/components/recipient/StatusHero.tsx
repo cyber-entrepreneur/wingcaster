@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Numeric } from '@/components/ui/numeric'
+import { formatRelativeAbsolute } from './formatRelativeAbsolute'
 
 /**
  * REC-family status hero — glyph + label + timestamp band.
@@ -28,6 +29,11 @@ export type StatusHeroProps = {
   label: string
   /** ISO 8601; rendered as relative + absolute via `<Numeric>`. */
   timestamp?: string
+  /**
+   * Optional verb prefix before the relative clock, e.g. "Decided", "Submitted".
+   * Renders `{prefix} {relative} · {absolute}`.
+   */
+  timestampPrefix?: string
   /** Override; default per state (see resolveSurface). */
   glyph?: LucideIcon
   /**
@@ -35,6 +41,7 @@ export type StatusHeroProps = {
    * `'default'` = calm / provisional surfaces (quarantined, signal-only).
    */
   emphasis?: 'default' | 'loud'
+  className?: string
 }
 
 type SurfaceSpec = {
@@ -130,37 +137,32 @@ function resolveSurface(
   }
 }
 
-/** Stub relative+absolute display; consumer waves may swap in a real formatter. */
-function formatTimestampStub(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function StatusHero({
   state,
   label,
   timestamp,
+  timestampPrefix,
   glyph,
   emphasis = 'default',
+  className,
 }: StatusHeroProps) {
   const surface = resolveSurface(state, emphasis)
   const Glyph = glyph ?? surface.Glyph
   const labelId = 'status-hero-label'
+  const displayTs = timestamp
+    ? formatRelativeAbsolute(timestamp, timestampPrefix)
+    : null
 
   return (
     <section
       aria-labelledby={labelId}
+      data-rec-status={state}
+      data-rec-emphasis={emphasis}
       className={cn(
-        'w-full px-[var(--lc-space-md)] py-[var(--lc-space-lg)] transition-colors duration-base ease-out motion-reduce:transition-none',
+        'w-full px-[var(--lc-space-md)] py-[var(--lc-space-xl)] transition-colors duration-[var(--lc-duration-base)] ease-[var(--lc-easing-out)] motion-reduce:transition-none',
         surface.bandClass,
         surface.inkClass,
+        className,
       )}
     >
       <div className="mx-auto flex max-w-[1200px] items-start gap-[var(--lc-space-md)]">
@@ -176,15 +178,11 @@ export function StatusHero({
         <div className="min-w-0 flex-1 text-start">
           <h1
             id={labelId}
-            className="text-start"
-            style={{
-              font: 'var(--lc-type-heading-2)',
-              letterSpacing: 'var(--lc-tracking-heading-2)',
-            }}
+            className="text-start [font:var(--lc-type-heading-2)] [letter-spacing:var(--lc-tracking-heading-2)] md:[font:var(--lc-type-heading-1)] md:[letter-spacing:var(--lc-tracking-heading-1)]"
           >
             {label}
           </h1>
-          {timestamp ? (
+          {displayTs ? (
             <Numeric
               className={cn(
                 'mt-[var(--lc-space-xs)] block',
@@ -193,9 +191,9 @@ export function StatusHero({
                   : 'text-[var(--lc-action-primary-text)] opacity-90',
               )}
               style={{ font: 'var(--lc-type-caption)' }}
-              aria-label={`Status timestamp ${formatTimestampStub(timestamp)}`}
+              aria-label={`Status timestamp ${displayTs}`}
             >
-              {formatTimestampStub(timestamp)}
+              {displayTs}
             </Numeric>
           ) : null}
         </div>

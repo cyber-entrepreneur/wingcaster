@@ -6,10 +6,14 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import {
   SCHEDULED_DELETION_VIEW_PURPOSE,
   SCHEDULED_DELETION_VIEW_TTL_SECONDS,
+  RELATIONSHIP_CONSENT_PURPOSE,
+  RELATIONSHIP_CONSENT_TTL_SECONDS,
   signPurposeToken,
   signScheduledDeletionViewToken,
+  signRelationshipConsentToken,
   verifyPurposeToken,
   verifyScheduledDeletionViewToken,
+  verifyRelationshipConsentToken,
 } from './signed-token.js'
 
 function craftExpiredToken(secret = process.env.JWT_SECRET) {
@@ -77,5 +81,20 @@ describe('signed-token', () => {
     expect(verified.ok).toBe(true)
     expect(verified.payload.purpose).toBe('scheduled_deletion_view')
     expect(verified.payload.exp - verified.payload.iat).toBe(SCHEDULED_DELETION_VIEW_TTL_SECONDS)
+  })
+
+  it('relationship consent helper uses relationship_consent purpose', () => {
+    const token = signRelationshipConsentToken({
+      relationshipId: 'rel_1',
+      contactId: 'cnt_1',
+      jti: 'jti_1',
+    })
+    const verified = verifyRelationshipConsentToken(token)
+    expect(verified.ok).toBe(true)
+    expect(verified.payload.purpose).toBe(RELATIONSHIP_CONSENT_PURPOSE)
+    expect(verified.payload.relationship_id).toBe('rel_1')
+    expect(verified.payload.contact_id).toBe('cnt_1')
+    expect(verified.payload.jti).toBe('jti_1')
+    expect(verified.payload.exp - verified.payload.iat).toBe(RELATIONSHIP_CONSENT_TTL_SECONDS)
   })
 })

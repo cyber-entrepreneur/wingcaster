@@ -27,6 +27,7 @@ export function createComparableService({ dal, adapter, currencyService, config,
     // Load internal candidates using PostGIS radius when coordinates are available.
     let internalCandidates = await findInternalCandidates(targetProperty, matchConfig, area)
     internalCandidates = internalCandidates.filter((p) => p.id !== targetProperty.id)
+    internalCandidates = internalCandidates.filter((p) => !p?.data?.pricing_comparable_excluded)
 
     // Numeric filters
     internalCandidates = internalCandidates.filter((p) => matchesNumericFilters(p, targetProperty, matchConfig))
@@ -207,7 +208,7 @@ export function createComparableService({ dal, adapter, currencyService, config,
   async function findAgentReportCandidates(targetProperty, matchConfig, area, rules) {
     const reports = await dal.findAll(
       Collections.AGENT_PRICE_REPORTS,
-      (r) => r.status === 'verified'
+      (r) => r.status === 'verified' || r.status === 'incorporated'
     )
     if (reports.length === 0) return []
 

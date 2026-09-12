@@ -1,12 +1,12 @@
+﻿// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 describe('broadcast session channel', () => {
   let listeners: Set<(event: MessageEvent) => void>
-  let MockBroadcastChannel: typeof BroadcastChannel
 
   beforeEach(() => {
     listeners = new Set()
-    MockBroadcastChannel = class {
+    class MockBroadcastChannel {
       name: string
       constructor(name: string) {
         this.name = name
@@ -24,19 +24,23 @@ describe('broadcast session channel', () => {
       close() {
         listeners.clear()
       }
-    } as unknown as typeof BroadcastChannel
+    }
 
     vi.resetModules()
-    globalThis.BroadcastChannel = MockBroadcastChannel
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel)
+    // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
+    ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
+      MockBroadcastChannel as unknown as typeof BroadcastChannel
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
   it('publishes and receives tenant-switched events on wingcaster-session', async () => {
     const { publishSessionEvent, subscribeSessionEvents, SESSION_BROADCAST_CHANNEL } =
-      await import('./broadcast')
+      await import('../broadcast')
 
     expect(SESSION_BROADCAST_CHANNEL).toBe('wingcaster-session')
 

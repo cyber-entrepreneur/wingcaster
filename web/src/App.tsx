@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
-import { AgentRegisterPage } from '@/pages/AgentRegisterPage'
+import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
@@ -43,8 +43,11 @@ import { MessageTemplatesPage as PlatformMessageTemplatesPage } from '@/pages/ad
 import { TemplateEditPage as PlatformTemplateEditPage } from '@/pages/admin/platform-templates/TemplateEditPage'
 import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/AdminWhatsAppListingsPage'
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
+import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
+import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
+import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -63,6 +66,7 @@ import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
 import { PublicAgentPortfolioPage } from '@/pages/PublicAgentPortfolioPage'
 import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
 import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPage'
+import { PublicAgencyApplyPage } from '@/pages/PublicAgencyApplyPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { PlansPage } from '@/pages/PlansPage'
@@ -83,6 +87,8 @@ const BARE_CHROME_PREFIXES = [
   '/register',
   '/site/',
   '/public/',
+  '/agencies/',
+  '/join/',
   '/terms',
   '/privacy',
   '/onboarding',
@@ -104,11 +110,15 @@ function AppRoutes() {
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
-      <Route path="/register" element={<AgentRegisterPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
@@ -123,6 +133,11 @@ function AppRoutes() {
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
       <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
       <Route path="/agency" element={<AgencyManagementPage />} />
+      <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
+      <Route
+        path="/agency/members/applications/:applicationId"
+        element={<ApplicationDetailPage />}
+      />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />
@@ -175,6 +190,8 @@ function AppRoutes() {
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
+      <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />

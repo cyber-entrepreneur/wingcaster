@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Numeric } from '@/components/ui/numeric'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { clearElevatedToken } from '@/api/client'
 import type { TwoFactorRequired } from '@/types/twoFactor'
@@ -374,19 +374,35 @@ export function LoginPage() {
         className="flex flex-col gap-[var(--lc-space-sm)] rounded-[var(--lc-radius-xl)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-md)] shadow-sm"
         noValidate
       >
-        <Tabs value={identifierType} onValueChange={onTabChange}>
-          <TabsList className="grid h-auto w-full grid-cols-3 rounded-none bg-transparent p-0">
-            {(['email', 'username', 'phone'] as const).map((tab) => (
-              <TabsTrigger
+        {/* Manual tablist (no Radix TabsContent) — avoids orphan aria-controls for axe. */}
+        <div
+          role="tablist"
+          aria-label="Identifier type"
+          className="grid h-auto w-full grid-cols-3 rounded-none bg-transparent p-0"
+        >
+          {(['email', 'username', 'phone'] as const).map((tab) => {
+            const selected = identifierType === tab
+            return (
+              <button
                 key={tab}
-                value={tab}
-                className="rounded-none border-b-2 border-transparent bg-transparent shadow-none data-[state=active]:border-[var(--lc-action-primary)] data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => onTabChange(tab)}
+                className={cn(
+                  'inline-flex min-h-tap items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-medium',
+                  'rounded-none border-b-2 bg-transparent transition-all duration-fast ease-out focus-visible:outline-none',
+                  selected
+                    ? 'border-[var(--lc-action-primary)] text-[var(--lc-text-primary)]'
+                    : 'border-transparent text-[var(--lc-text-muted)]',
+                )}
               >
                 {t(`tab.${tab}`, locale)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+              </button>
+            )
+          })}
+        </div>
 
         <div className="space-y-2 transition-opacity duration-base ease-out">
           <Label htmlFor="login-identifier">{identifierLabel}</Label>

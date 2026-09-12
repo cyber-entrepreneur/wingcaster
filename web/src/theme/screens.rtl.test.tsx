@@ -42,7 +42,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
 import { AccountRecoveryCompletePage } from '@/pages/AccountRecoveryCompletePage'
-import { AgentRegisterPage } from '@/pages/AgentRegisterPage'
+import { RegisterPage } from '@/pages/RegisterPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { PlansPage } from '@/pages/PlansPage'
@@ -91,7 +91,7 @@ const pages: Array<[string, ComponentType]> = [
   ['Reset password', ResetPasswordPage],
   ['Account recovery', AccountRecoveryPage],
   ['Account recovery complete', AccountRecoveryCompletePage],
-  ['Register', AgentRegisterPage],
+  ['Register', RegisterPage],
   ['Terms', TermsPage],
   ['Privacy', PrivacyPage],
   ['Plans', PlansPage],

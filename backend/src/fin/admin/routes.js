@@ -32,6 +32,14 @@ import { approveDebitNote, draftDebitNote, issueDebitNote } from '../billing/deb
 import { applyPayment, recordPayment, reversePayment } from '../billing/payment-allocation.js'
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
+import { buildExecutePreview } from './approvals/execute-preview.js'
+import { executeApproval, rejectApproval } from './approvals/execute.js'
+import {
+  ApprovalActionError,
+  escalateApproval,
+  listEligibleEscalationTargets,
+  withdrawApproval,
+} from './approvals-escalate-withdraw.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -46,11 +54,21 @@ function adminCsp(_req, res, next) {
 }
 
 function sendFinError(res, error) {
+  if (error instanceof ApprovalActionError) {
+    return res.status(error.httpStatus).json(error.toJSON())
+  }
   if (error instanceof FinError && error.httpStatus === 412) {
     return sendPreconditionFailed(res, error.details || {})
   }
   if (error instanceof FinError) {
-    return res.status(error.httpStatus).json(error.toJSON())
+    const body = error.toJSON()
+    if (error.details?.error) body.error = error.details.error
+    if (error.details?.message) body.message = error.details.message
+    if (error.details?.current_version != null) body.current_version = error.details.current_version
+    if (error.details?.escalation_case_id) body.escalation_case_id = error.details.escalation_case_id
+    if (error.details?.delta != null) body.delta = error.details.delta
+    if (error.code && !body.error) body.error = error.code
+    return res.status(error.httpStatus).json(body)
   }
   throw error
 }
@@ -279,12 +297,107 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return notImplemented(res, 'DL-165', 'resolveDrift')
   }))
 
-  app.post('/api/admin/fin/approvals/:id/approve', writeGuards, wrap(async (_req, res) => {
-    return notImplemented(res, 'DL-166', 'approveRequest')
+  app.get('/api/admin/fin/approvals/:id/execute-preview', readGuards, wrap(async (req, res) => {
+    const payload = await buildExecutePreview({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      callerId: req.user?.id || null,
+      callerDisplayName: req.user?.name || req.user?.email || null,
+      now: req.fin.now,
+      actorType: 'USER',
+      actorEmail: req.user?.email || 'admin@fin.local',
+    })
+    setETag(res, payload.request.version)
+    return res.status(200).json(payload)
   }))
 
-  app.post('/api/admin/fin/approvals/:id/reject', writeGuards, wrap(async (_req, res) => {
-    return notImplemented(res, 'DL-166', 'rejectRequest')
+  app.post('/api/admin/fin/approvals/:id/execute', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const result = await executeApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      callerId: req.user?.id || null,
+      workflowCode: pick(body, 'workflow_code', 'workflowCode'),
+      confirmationPhrase: pick(body, 'confirmation_phrase', 'confirmationPhrase'),
+      expectedVersion: req.expectedVersion,
+      idempotencyKey: req.get('Idempotency-Key') || pick(body, 'idempotency_key', 'idempotencyKey'),
+      now: req.fin.now,
+      actorType: 'USER',
+      actorEmail: req.user?.email || 'admin@fin.local',
+      reasonCode: pick(body, 'reason_code', 'reasonCode') || 'ADMIN_EXECUTE',
+    })
+    return res.status(200).json(result)
+  }))
+
+  app.post('/api/admin/fin/approvals/:id/approve', writeGuards, wrap(async (_req, res) => {
+    return res.status(410).json({
+      code: 'USE_EXECUTE',
+      error: 'USE_EXECUTE',
+      message: 'POST /api/admin/fin/approvals/:id/approve is retired. Use POST .../execute (BE-APR-EXEC-01).',
+      dl: 'DL-166',
+    })
+  }))
+
+  app.post('/api/admin/fin/approvals/:id/reject', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const result = await rejectApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      callerId: req.user?.id || null,
+      expectedVersion: req.expectedVersion,
+      now: req.fin.now,
+      actorType: 'USER',
+      actorEmail: req.user?.email || 'admin@fin.local',
+      reasonCode: pick(body, 'reason_code', 'reasonCode') || 'ADMIN_REJECT',
+    })
+    return res.status(200).json(result)
+  }))
+
+  // BE-BLOCKER-33 / PA-APR-005 — escalate (brief contract preferred; prompt aliases accepted)
+  app.get('/api/admin/fin/approvals/:id/eligible-escalation-targets', readGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const payload = await listEligibleEscalationTargets({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      requestType: req.query.request_type || req.query.requestType || null,
+      q: req.query.q || null,
+      limit: req.query.limit,
+    })
+    return res.status(200).json(payload)
+  }))
+
+  app.post('/api/admin/fin/approvals/:id/escalate', writeGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const result = await escalateApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      actorEmail: actor.actorEmail,
+      actorType: actor.actorType,
+      body: commandBody(req),
+      now: req.fin.now,
+      expectedVersion: req.expectedVersion,
+    })
+    if (result.approval_request?.version != null) setETag(res, result.approval_request.version)
+    return res.status(201).json(result)
+  }))
+
+  // BE-BLOCKER-33 / PA-APR-006 — withdraw (submitter-only)
+  app.post('/api/admin/fin/approvals/:id/withdraw', writeGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const result = await withdrawApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      actorEmail: actor.actorEmail,
+      actorType: actor.actorType,
+      body: commandBody(req),
+      now: req.fin.now,
+      expectedVersion: req.expectedVersion,
+    })
+    if (result.approval_request?.version != null) setETag(res, result.approval_request.version)
+    return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/dunning/cases/:id/advance', writeGuards, wrap(async (req, res) => {

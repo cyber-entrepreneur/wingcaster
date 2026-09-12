@@ -77,6 +77,15 @@ const TABLE_MAP = {
       'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
     ],
   },
+  ownership_transfer_requests: {
+    schema: 'public',
+    table: 'ownership_transfer_requests',
+    columns: [
+      'agency_id', 'initiator_user_id', 'target_user_id', 'status', 'rationale', 'decline_reason',
+      'initiated_at', 'expires_at', 'decided_at', 'executed_at', 'reversed_at', 'reversal_deadline_at',
+      'acknowledged_by_initiator', 'acknowledged_by_target', 'acknowledged_at',
+    ],
+  },
   agency_members: {
     schema: 'public',
     table: 'agency_members',
@@ -92,7 +101,14 @@ const TABLE_MAP = {
     table: 'tenant_memberships',
     columns: [
       'tenant_id', 'user_id', 'role', 'affiliation_mode', 'status', 'public_profile', 'lead_eligible',
-      'capabilities', 'legacy_agency_member_id', 'invited_by', 'joined_at', 'ended_at', 'end_reason',
+      'capabilities', 'capability_packs', 'legacy_agency_member_id', 'invited_by', 'joined_at', 'ended_at', 'end_reason',
+    ],
+  },
+  capability_pack_definitions: {
+    schema: 'public',
+    table: 'capability_pack_definitions',
+    columns: [
+      'slug', 'name', 'description', 'capabilities', 'is_seeded', 'is_custom', 'editable', 'sort_order',
     ],
   },
   tenant_lead_routing_policies: {
@@ -112,6 +128,7 @@ const TABLE_MAP = {
       'scope', 'status', 'consent_record', 'starts_at', 'ends_at',
     ],
   },
+  // contacts.cross_tenant_visibility added in 339_contact_relationships_crud
   lead_assignments: {
     schema: 'public',
     table: 'lead_assignments',
@@ -191,7 +208,10 @@ const TABLE_MAP = {
   contacts: {
     schema: 'public',
     table: 'contacts',
-    columns: ['email', 'phone', 'name', 'assigned_agent_id', 'agency_id', 'status', 'source', 'first_touch_channel', 'first_touch_at', 'tags', 'last_activity_at'],
+    columns: [
+      'email', 'phone', 'name', 'assigned_agent_id', 'agency_id', 'status', 'source',
+      'first_touch_channel', 'first_touch_at', 'tags', 'last_activity_at', 'cross_tenant_visibility',
+    ],
   },
   contact_notes: { schema: 'public', table: 'contact_notes', columns: ['contact_id', 'agent_id', 'content'] },
   inquiries: {
@@ -534,6 +554,8 @@ const TABLE_MAP = {
     columns: [
       'reporter_id', 'comparable_id', 'comparable_type', 'reason', 'notes', 'status',
       'reviewed_by', 'reviewed_at', 'expires_at',
+      'decision_reason_code', 'decision_notes',
+      'quarantine_until', 'approval_request_id', 'requested_evidence',
     ],
   },
   agent_price_reports: {
@@ -543,13 +565,32 @@ const TABLE_MAP = {
       'reporter_id', 'agent_id', 'property_id', 'external_property_title', 'external_property_location',
       'property_type', 'bedrooms', 'bathrooms', 'area_sqm', 'sold_price', 'currency',
       'sold_price_normalized_usd', 'sold_date', 'source', 'notes', 'supporting_document_url',
-      'status', 'reviewed_by', 'reviewed_at', 'review_notes', 'expires_at',
+      'status', 'reviewed_by', 'reviewed_at', 'review_notes',
+      'env', 'segment_id', 'segment_label', 'country_code',
+      'recommendation_price_low', 'recommendation_price_high', 'recommendation_price_point',
+      'reason_code', 'incorporated', 'incorporated_at', 'approval_request_id', 'expires_at', 'resubmit_of',
     ],
   },
   csv_import_logs: {
     schema: 'market_pricing',
     table: 'csv_import_logs',
     columns: ['uploaded_by', 'source', 'filename', 'rows_received', 'rows_imported', 'rows_failed', 'errors'],
+  },
+  pricing_benchmarks: {
+    schema: 'market_pricing',
+    table: 'pricing_benchmarks',
+    columns: [
+      'segment_id', 'country_code', 'currency', 'price_point', 'price_low', 'price_high',
+      'source_report_id', 'computed_at', 'env',
+    ],
+  },
+  pricing_benchmark_snapshots: {
+    schema: 'market_pricing',
+    table: 'pricing_benchmark_snapshots',
+    columns: [
+      'segment_id', 'env', 'snapshot_date', 'price', 'confidence_low', 'confidence_high',
+      'currency', 'source_report_id',
+    ],
   },
   pricing_recalculation_jobs: {
     schema: 'market_pricing',

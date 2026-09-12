@@ -2,7 +2,7 @@
 
 **Author:** Architect-owner
 **Created:** 2026-09-05
-**Last revised:** 2026-09-09 (Rev 9.1 — Backend Week 3 BE-BLOCKER-21/22 marked RESOLVED in §5a with merge SHAs. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
+**Last revised:** 2026-09-12 (Rev 9.3 — Backend Week 8+ BE-BLOCKER-36 marked RESOLVED in §5a with merge SHA `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` / PR #134. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
 
 **Rev 8 — 2026-09-06.** User resolved every remaining open decision. D-S-03/04/05/06/07/09 all APPROVED. AGT-ACT-001..005 added (slate 53 → 58). Branding-cleanup PR bundled into Wave 0. Blue Door removed. Agent-matrix backend-prereq retrofit scheduled.
 
@@ -196,6 +196,20 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 - BE-BLOCKER-22 — two-person cast-vote for account-recovery approve — **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
 - BE-BLOCKER-21 — WF-04 account-recovery backend bundle — **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
 
+### Backend Week 5 (WF-05 + WF-06) — RESOLVED 2026-09-09
+
+All RESOLVED:
+
+- BE-BLOCKER-24 — `comparable_reports.expires_at` + auto-expire cron — **RESOLVED — `311885fb5773359dcf8e13a4e42f468c201bb605` — 2026-09-09 — PR #93**
+- BE-BLOCKER-25 — `agent_price_reports.expires_at` + auto-expire cron — **RESOLVED — `311885fb5773359dcf8e13a4e42f468c201bb605` — 2026-09-09 — PR #93** (shared cron with BE-24)
+- BE-BLOCKER-26 — WF-06 PA-PVA-009 backend bundle — **RESOLVED — `ef1e627b5db8ac4c6011db1cfb4cc18f9b046ce9` — 2026-09-09 — PR #95**
+- BE-BLOCKER-27 — Seed `valuation.price_reports.submit` on Pro tiers — **RESOLVED — `8bdebaa09d08593d030a5dc145458460c83bec3a` — 2026-09-09 — PR #87**
+- BE-BLOCKER-28 — WF-05 PA-PVA-008 backend bundle — **RESOLVED — `65ca361ac9801ec4fbfc274cf8e600704a0b4447` — 2026-09-09 — PR #92** (core `#98` `b46884acddf726658973cc32bb39166dce2334e7`; decisions `#97` `f66c43520aafbca3a28437ed882820cde9c82195`)
+
+### Backend Week 8+ (contact relationships) — RESOLVED 2026-09-12
+
+- BE-BLOCKER-36 — `contact_relationships` CRUD routes — **RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` — 2026-09-12 — PR #134**
+
 **[BE-BLOCKER-01] Portal publishers stubbed.** `backend/src/lib/notifications/realestate.js` throws `NOT_IMPLEMENTED`. WF-03 (portal submission → moderation → outcome) cannot function end-to-end without real portal-publisher integration for the Phase-1 portal list (from `PORTAL_LIST_RESEARCH_2026-09-04.md`). Scope of the fix: implement per-portal publishers for at least the Phase-1 must-have list (Bayut, Property Finder, Dubizzle for UAE; Aqar.fm for KSA — coordinate with B3 portal list). Estimated effort: 2-3 weeks of Cursor work per portal + integration tests. **This is not a screen; it's a required backend prerequisite for Week 2 (WF-03 cluster).**
 
 **[BE-VERIFY-01] `distribution_attempts.status` failure-class enumeration.** AGT-PUB-003/006 need to render 6 failure classes (auth-expired, portal-rules-violation, portal-down, quota-exceeded, invalid-content, unknown-error). Verify the schema carries these values before Week 2 dispatch. Grep the migrations + `lib/publishing/*` to confirm.
@@ -246,7 +260,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 **[MATRIX-DRIFT-02] AGT-ACT and AGT-VLA missing matrix sections.** Briefs exist for AGT-ACT-001..005 (activation wizard, Phase-1 add-on per Rev 8) but no matrix section. AGT-VLA-* referenced from AGT-LST but no matrix section. **Owner:** architect-owner. **Slot:** before Wave 4 dispatch (blocking for AGT-ACT).
 
-**[BE-BLOCKER-36] `contact_relationships` CRUD routes.** Table exists in migration 028 (with rich schema) and in `backend/src/persistence/table-mapper.js`, but grep finds ZERO route handlers touching it. AGT-CTC-007 needs 7 endpoints: list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…`). Consent link piggybacks existing HMAC-token pattern (`backend/src/lib/webhook-verify.js`) with new `type='relationship_consent'` variant. Estimated 2-3 days. **Slot: Week 8+ (before AGT-CTC-007 dispatch).**
+**[BE-BLOCKER-36] `contact_relationships` CRUD routes. RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` (#134) 2026-09-12.** Seven endpoints shipped (`backend/src/lib/contacts/relationships-routes.js`): list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…` + accept/reject). Consent link uses `signed-token.js` purpose `relationship_consent` (same HMAC family as `webhook-verify.js`). Unblocks Wave 8+ AGT-CTC-007.
 
 **[BE-BLOCKER-35] `portal_registry` schema extensions + state tables.** [BE-DESIGN-01] core schema covers `id/code/display_name/country_codes[]/adapter_class_name/publisher_config/inbound_config/is_active`. PA-POR-002 form additionally writes: `description`, `logo_url`, `primary_language`, `validator_ref`, `effective_from`, `deprecated_at`. Plus two new tables: `portal_registry_pending_activations` (state machine for activation approvals) + `portal_activation_history` (for PA-POR-003 timeline). Estimated 1.5 days. **Slot: Week 6 (bundled with [BE-DESIGN-01] Week 2 or as an extension migration in Week 6).**
 
@@ -266,19 +280,19 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 **[BE-BLOCKER-29] Capability packs — schema + endpoints.** D1 Path B chose JSONB capability_packs on `tenant_memberships`. Today only `role IN ('owner', 'admin', 'member', 'guest')` exists. Needs: `capability_packs JSONB` column, seed pack definitions (Finance / Marketer / Read-only / Custom), `GET /api/agency/capability-packs[/:id]`, `PATCH /api/agency/members/:userId/capability-packs`. Estimated 3-4 days. **Slot: Week 7 (before AGN-ROL-001/002 dispatch).** Two-person infra (`fin.approval_requests`) already exists for pack edits granting Financial capabilities.
 
-**[BE-BLOCKER-28] WF-05 PA-PVA-008 backend bundle (12-14 days).** Existing `GET /api/admin/pricing/reports` (list only, no filters/pagination) + `POST /:id/review` (generic tri-state). Needs: list-response extension (masking flags + market impact + evidence + reporter/comparable objects + is_own + env + pagination + counts), REPLACE generic `/review` with four WF-05 decision endpoints (`/confirm-remove`, `/confirm-quarantine`, `/reject-as-invalid`, `/request-info`) + bulk-reject-as-invalid + bulk-request-info + undo endpoints + affected-valuations endpoint + reporter-history endpoint + audit-trail endpoint + single-item `GET /:reportId`. **Slot: Week 5 (parallel with BE-BLOCKER-26 WF-06 bundle).**
+**[BE-BLOCKER-28] WF-05 PA-PVA-008 backend bundle (12-14 days). RESOLVED — `65ca361ac9801ec4fbfc274cf8e600704a0b4447` (#92) 2026-09-09** (core `#98` / decisions `#97`). Existing `GET /api/admin/pricing/reports` (list only, no filters/pagination) + `POST /:id/review` (generic tri-state). Needs: list-response extension (masking flags + market impact + evidence + reporter/comparable objects + is_own + env + pagination + counts), REPLACE generic `/review` with four WF-05 decision endpoints (`/confirm-remove`, `/confirm-quarantine`, `/reject-as-invalid`, `/request-info`) + bulk-reject-as-invalid + bulk-request-info + undo endpoints + affected-valuations endpoint + reporter-history endpoint + audit-trail endpoint + single-item `GET /:reportId`. **Slot: Week 5 (parallel with BE-BLOCKER-26 WF-06 bundle).**
 
 **Wave 5 WF-05 family deviations from PA-MOD-001 (justified):** (1) Bulk confirm-remove OMITTED — removal re-runs valuations across market; bad bulk-confirm could invalidate thousands. Bulk is Reject-invalid + Request-info only. (2) No inline row Approve/Reject — all four decision affordances live on -008b detail, mirroring PA-ACR arbitration discipline. (3) Two-person rule triggered by market-impact tier (not tenure risk); high-impact confirmed removals record as `REMOVE_PROPOSED` and surface in PA-APR-001 for a second PA, with recalculation deferred until second approval lands. (4) Reporter-pattern amber dot as new WF-05 signal for coordinated reporting (informational, not policy gate).
 
-**[BE-BLOCKER-27] Seed `valuation.price_reports.submit` feature code on Pro tiers.** New migration (numbered per actual state at branch time — Prompt 1 packages-marketing-fields takes 316; use next unused ≥317) seeding the feature onto Pro-tier package versions in the existing `package_feature_flags` registry from PRs #33-#39. Gates AGT-APR-005 tier check. Estimated 0.5 day. **Slot: Week 5 (before AGT-APR-005 dispatch).**
+**[BE-BLOCKER-27] Seed `valuation.price_reports.submit` feature code on Pro tiers. RESOLVED — `8bdebaa09d08593d030a5dc145458460c83bec3a` (#87) 2026-09-09.** New migration (numbered per actual state at branch time — Prompt 1 packages-marketing-fields takes 316; use next unused ≥317) seeding the feature onto Pro-tier package versions in the existing `package_feature_flags` registry from PRs #33-#39. Gates AGT-APR-005 tier check. Estimated 0.5 day. **Slot: Week 5 (before AGT-APR-005 dispatch).**
 
 **Wave 5 shared components added:** `<EvidenceUploader>` (file-upload grid with progress/error tiles, `max_files` prop) at `web/src/components/forms/EvidenceUploader.tsx`, `<ContextEchoCard>` (read-only "here's what you're acting on" reassurance card) at `web/src/components/forms/ContextEchoCard.tsx`. Both used by AGT-APR-004/005 and reusable by future PA-CRD-005 grant initiator. Build once in a prep PR ahead of Week 5 WF-05+WF-06 cluster.
 
-**[BE-BLOCKER-26] WF-06 PA-PVA-009 backend bundle (8 items).** Backend PARTIAL: `GET /api/admin/pricing/agent-price-reports` (list — no pagination/filters/joins) + `POST /:id/review` (accepts `{status: 'verified'|'rejected', notes}` — no `request_info`, no `incorporate` semantics). Needs: list-route pagination + filters + joins, per-item detail route, benchmark-series route, extend `POST /:id/review` with `incorporate: boolean` (true → benchmark write; single-approver commit when |delta|<10%, otherwise two-person via `fin.approval_requests`), benchmark-refresh worker enqueue, benchmark writer in the module, `request_info` state. Estimated 5-7 days. **Slot: Week 5 (parallel with WF-05 backend).**
+**[BE-BLOCKER-26] WF-06 PA-PVA-009 backend bundle (8 items). RESOLVED — `ef1e627b5db8ac4c6011db1cfb4cc18f9b046ce9` (#95) 2026-09-09.** Backend PARTIAL: `GET /api/admin/pricing/agent-price-reports` (list — no pagination/filters/joins) + `POST /:id/review` (accepts `{status: 'verified'|'rejected', notes}` — no `request_info`, no `incorporate` semantics). Needs: list-route pagination + filters + joins, per-item detail route, benchmark-series route, extend `POST /:id/review` with `incorporate: boolean` (true → benchmark write; single-approver commit when |delta|<10%, otherwise two-person via `fin.approval_requests`), benchmark-refresh worker enqueue, benchmark writer in the module, `request_info` state. Estimated 5-7 days. **Slot: Week 5 (parallel with WF-05 backend).**
 
-**[BE-BLOCKER-25] `agent_price_reports.expires_at` + auto-expire cron.** WF-06 EXPIRED state needs schema column + daily cron flipping pending → expired. Estimated 0.5 day. **Slot: Week 5.**
+**[BE-BLOCKER-25] `agent_price_reports.expires_at` + auto-expire cron. RESOLVED — `311885fb5773359dcf8e13a4e42f468c201bb605` (#93) 2026-09-09.** WF-06 EXPIRED state needs schema column + daily cron flipping pending → expired. Estimated 0.5 day. **Slot: Week 5.**
 
-**[BE-BLOCKER-24] `comparable_reports.expires_at` + auto-expire cron.** WF-05 EXPIRED state needs schema column + daily cron. Estimated 0.5 day. **Slot: Week 5.**
+**[BE-BLOCKER-24] `comparable_reports.expires_at` + auto-expire cron. RESOLVED — `311885fb5773359dcf8e13a4e42f468c201bb605` (#93) 2026-09-09.** WF-05 EXPIRED state needs schema column + daily cron. Estimated 0.5 day. **Slot: Week 5.**
 
 **Wave 5 REC-family anchor extension:** `<StatusHero>` needs new `emphasis="default"` variant on approved states (for REC-002 APPROVED-AND-QUARANTINED and REC-003 APPROVED-AS-SIGNAL-ONLY) — sunken surface with `CheckCircle2` in `--lc-accent-bold-edge`. One PR to AGT-REC-004 anchor covers both. Screen-local panels added: `ImpactPanel` (REC-002), `WeightingPanel role="meter"` (REC-003), shared `OriginalReportAccordion` pattern. New endpoints: `GET /api/users/me/comparable-reports/:id` and `/price-reports/:id` (thin aliases for /api/users/me/* convention symmetry). Two new push templates: `comparable_report.resolved`, `price_report.resolved`.
 

@@ -54,6 +54,10 @@ import {
   runAgencyApplicationExpiryTick,
 } from './workers/agency-application-expiry.js'
 import {
+  runOwnershipTransferExpiryTick,
+  runOwnershipTransferReversalCloseTick,
+} from './workers/ownership-transfer-expiry.js'
+import {
   runReportExpiryTick,
 } from './workers/report-expiry-worker.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
@@ -63,6 +67,8 @@ import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
+import { registerPublicPricingRoutes } from './lib/packages/public-pricing-routes.js'
+import { registerPortalAdminRoutes } from './lib/portals/admin-routes.js'
 import { wingcasterEnvMiddleware, fromAnyEnv, normalizeClientEnv } from './lib/session-env.js'
 import {
   registerWave0NavRoutes,
@@ -204,7 +210,10 @@ import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-sta
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
+import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
+import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
+import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -728,6 +737,11 @@ registerFinPackagesAdminRoutes(app, {
   authMiddleware,
   requirePlatformAdmin,
 })
+registerPublicPricingRoutes(app)
+registerPortalAdminRoutes(app, {
+  authMiddleware,
+  requirePlatformAdmin,
+})
 registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
@@ -738,7 +752,10 @@ registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
+registerOwnershipTransferRoutes(app)
+registerAgencyCapabilityPackRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
+registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -782,6 +799,11 @@ const AGENCY_APPLICATION_EXPIRY_INTERVAL_MS = Math.max(
   60_000,
   Number(process.env.AGENCY_APPLICATION_EXPIRY_INTERVAL_MS || 24 * 60 * 60 * 1000),
 )
+const OWNERSHIP_TRANSFER_EXPIRY_ENABLED = process.env.OWNERSHIP_TRANSFER_EXPIRY_ENABLED !== 'false'
+const OWNERSHIP_TRANSFER_EXPIRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.OWNERSHIP_TRANSFER_EXPIRY_INTERVAL_MS || 6 * 60 * 60 * 1000),
+)
 const REPORT_EXPIRY_ENABLED = process.env.REPORT_EXPIRY_ENABLED !== 'false'
 const REPORT_EXPIRY_INTERVAL_MS = Math.max(
   60_000,
@@ -792,6 +814,7 @@ let creditsMirrorTimer = null
 let creditsBillingCycleTimer = null
 let scheduledDeletionReminderTimer = null
 let agencyApplicationExpiryTimer = null
+let ownershipTransferExpiryTimer = null
 let reportExpiryTimer = null
 
 async function runCommentClassifierBatch() {
@@ -8531,6 +8554,24 @@ const startServer = async () => {
       }, AGENCY_APPLICATION_EXPIRY_INTERVAL_MS)
       if (typeof agencyApplicationExpiryTimer.unref === 'function') {
         agencyApplicationExpiryTimer.unref()
+      }
+    }
+
+    // WF-31: 14-day pending → expired (default every 6h) + mark reversal window permanent.
+    if (OWNERSHIP_TRANSFER_EXPIRY_ENABLED) {
+      ownershipTransferExpiryTimer = setInterval(async () => {
+        try {
+          const expiredResult = await runOwnershipTransferExpiryTick()
+          const closeResult = await runOwnershipTransferReversalCloseTick()
+          if ((expiredResult.expired || 0) > 0 || (closeResult.closed || 0) > 0) {
+            logger.info({ ...expiredResult, ...closeResult }, 'Ownership transfer expiry worker tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Ownership transfer expiry worker failed')
+        }
+      }, OWNERSHIP_TRANSFER_EXPIRY_INTERVAL_MS)
+      if (typeof ownershipTransferExpiryTimer.unref === 'function') {
+        ownershipTransferExpiryTimer.unref()
       }
     }
 

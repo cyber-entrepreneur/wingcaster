@@ -36,9 +36,18 @@ export const ReportReason = {
 
 export const ReportStatus = {
   PENDING: 'pending',
+  /** @deprecated legacy tri-state — use WF-05 statuses below */
   REVIEWED: 'reviewed',
+  /** @deprecated legacy tri-state — use WF-05 statuses below */
   DISMISSED: 'dismissed',
+  /** @deprecated legacy tri-state — use WF-05 statuses below */
   ACTIONED: 'actioned',
+  CONFIRMED_REMOVED: 'confirmed_removed',
+  CONFIRMED_QUARANTINED: 'confirmed_quarantined',
+  REJECTED: 'rejected',
+  AWAITING_INFO: 'awaiting_info',
+  EXPIRED: 'expired',
+  REMOVE_PROPOSED: 'remove_proposed',
 }
 
 export const DEFAULT_MATCH_CONFIG = {
