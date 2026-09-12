@@ -74,6 +74,7 @@ import {
   registerWave0NavRoutes,
   resolveLoginUser,
 } from './lib/wave0-nav-routes.js'
+import { registerWave8ProRoutes } from './lib/wave8-pro-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
@@ -709,6 +710,10 @@ registerWave0NavRoutes(app, {
   requirePlatformAdmin,
   buildAuthSession,
   startSigninChallengeIfRequired,
+})
+
+registerWave8ProRoutes(app, {
+  authMiddleware,
 })
 
 // BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).

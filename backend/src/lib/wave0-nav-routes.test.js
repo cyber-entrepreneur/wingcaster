@@ -191,6 +191,82 @@ describe('wave0 nav routes', () => {
     expect(res.body.preferred_locale).toBe('ar')
   })
 
+  it('PATCH /api/users/me persists ui_mode on tenant_memberships.data', async () => {
+    dal.findOne.mockImplementation(async (collection, filter) => {
+      if (collection === 'tenant_memberships') {
+        const row = {
+          id: 'mem-1',
+          user_id: 'user-1',
+          tenant_id: 'personal:user-1',
+          status: 'active',
+          data: { ui_mode: 'guided' },
+        }
+        return filter(row) ? row : null
+      }
+      return null
+    })
+
+    const res = await request(buildApp())
+      .patch('/api/users/me')
+      .send({ ui_mode: 'pro' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.ui_mode).toBe('pro')
+    expect(res.body.tenant_membership).toMatchObject({
+      tenant_id: 'personal:user-1',
+      data: { ui_mode: 'pro' },
+    })
+    expect(dal.update).toHaveBeenCalled()
+    const updater = dal.update.mock.calls.find((c) => c[0] === 'tenant_memberships')?.[2]
+    expect(typeof updater).toBe('function')
+    expect(updater({ id: 'mem-1', data: { ui_mode: 'guided' } }).data.ui_mode).toBe('pro')
+  })
+
+  it('GET /api/auth/me/tenants includes per-membership uiMode', async () => {
+    dal.findAll.mockImplementation(async (collection) => {
+      if (collection === 'tenant_memberships') {
+        return [{
+          id: 'mem-1',
+          user_id: 'user-1',
+          tenant_id: 'personal:user-1',
+          status: 'active',
+          role: 'owner',
+          data: { ui_mode: 'pro' },
+        }]
+      }
+      if (collection === 'tenants') {
+        return [{
+          id: 'personal:user-1',
+          name: 'Personal',
+          status: 'active',
+          tenant_type: 'personal',
+          settings: {},
+          data: {},
+        }]
+      }
+      if (collection === 'properties') return []
+      return []
+    })
+    dal.findOne.mockImplementation(async (collection, filter) => {
+      if (collection === 'tenant_memberships') {
+        const row = {
+          id: 'mem-1',
+          user_id: 'user-1',
+          tenant_id: 'personal:user-1',
+          status: 'active',
+          role: 'owner',
+          data: { ui_mode: 'pro' },
+        }
+        return filter(row) ? row : null
+      }
+      return null
+    })
+
+    const res = await request(buildApp()).get('/api/auth/me/tenants')
+    expect(res.status).toBe(200)
+    expect(res.body.tenants[0].uiMode).toBe('pro')
+  })
+
   it('notification list + mark-all-read', async () => {
     dal.findAll.mockImplementation(async (collection) => {
       if (collection === 'notifications') {

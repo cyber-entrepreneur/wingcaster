@@ -24,6 +24,13 @@ const CHANNEL_ALIAS: Record<string, LcChannel> = {
   twitter: 'x',
   linkedin: 'linkedin',
   olx: 'olx',
+  bayut: 'olx',
+  propertyfinder: 'olx',
+  'property finder': 'olx',
+  pf: 'olx',
+  dubizzle: 'olx',
+  aqar: 'olx',
+  bazaar: 'olx',
 }
 
 export function resolveLcChannel(value: string | null | undefined): LcChannel | null {
