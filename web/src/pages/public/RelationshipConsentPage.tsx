@@ -133,7 +133,11 @@ export function RelationshipConsentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-10">
+    <main
+      className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-10"
+      data-screen="AGT-CTC-007b"
+      data-public-viewer="true"
+    >
       <div className="mx-auto w-full max-w-lg">
         <div className="mb-6 flex items-center gap-2 text-[var(--lc-text-muted)]">
           <Handshake className="h-5 w-5" aria-hidden />
@@ -238,7 +242,7 @@ export function RelationshipConsentPage() {
           </section>
         ) : null}
       </div>
-    </div>
+    </main>
   )
 }
 
