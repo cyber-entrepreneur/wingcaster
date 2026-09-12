@@ -1736,7 +1736,12 @@ app.get('/api/properties', validateQuery(propertyQuerySchema), async (req, res) 
   if (q.minPrice != null) props = props.filter(p => p.price >= q.minPrice)
   if (q.maxPrice != null) props = props.filter(p => p.price <= q.maxPrice)
   if (q.bedrooms != null) props = props.filter(p => p.bedrooms >= q.bedrooms)
-  if (q.agentId) props = props.filter(p => p.agent_id === q.agentId)
+  const agentId = q.agentId || q.agent_id
+  if (agentId) props = props.filter(p => p.agent_id === agentId)
+  if (q.tenant_id && !String(q.tenant_id).startsWith('personal:')) {
+    props = props.filter(p => p.agency_id === q.tenant_id)
+  }
+  if (q.owning_agent) props = props.filter(p => p.agent_id === q.owning_agent)
   if (q.featured) props = props.filter(p => p.featured === 1 || p.featured === true)
   if (q.search) {
     const s = q.search.toLowerCase()

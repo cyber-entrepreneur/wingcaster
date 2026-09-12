@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
+import { LC_CHANNEL_SHORT, lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
 
 interface ChannelMarkProps {
   channel: string | LcChannel
@@ -12,6 +12,7 @@ export function ChannelMark({ channel, className, label }: ChannelMarkProps) {
   const resolved = resolveLcChannel(channel)
   if (!resolved) return null
   const style = lcChannelStyle(resolved)
+  const mark = label ? label.slice(0, 2) : LC_CHANNEL_SHORT[resolved]
   return (
     <span
       className={cn(
@@ -22,7 +23,7 @@ export function ChannelMark({ channel, className, label }: ChannelMarkProps) {
       title={label || resolved}
       aria-label={label || resolved}
     >
-      {label ? label.slice(0, 2) : resolved.slice(0, 2)}
+      {mark}
     </span>
   )
 }

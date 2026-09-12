@@ -76,6 +76,19 @@ export interface Property {
   views: number
   status?: string
   offers?: Array<Partial<Property>>
+  /** Optional Wave-8+ list fields — degrade gracefully when absent. */
+  inquiries_new_count?: number
+  days_on_market?: number
+  last_activity_at?: string
+  owning_agent_id?: string
+  owning_agent_name?: string
+  syndications?: Array<{
+    channel: string
+    status: string
+    last_synced_at?: string
+    error?: string
+    url?: string
+  }>
 }
 
 export interface Transaction {

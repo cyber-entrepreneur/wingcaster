@@ -362,6 +362,9 @@ export const propertyQuerySchema = z.object({
   propertyType: z.string().max(60).optional(),
   property_type: z.string().max(60).optional(),
   include_unsyndicated: z.string().max(10).optional(),
+  agent_id: z.string().max(80).optional(),
+  tenant_id: z.string().max(80).optional(),
+  owning_agent: z.string().max(80).optional(),
 })
 
 export const notificationPrefsUpdateSchema = z.object({
