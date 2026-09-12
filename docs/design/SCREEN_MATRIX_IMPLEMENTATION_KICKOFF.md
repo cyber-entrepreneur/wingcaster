@@ -2,7 +2,7 @@
 
 **Author:** Architect-owner
 **Created:** 2026-09-05
-**Last revised:** 2026-09-09 (Rev 9.2 — Backend Week 5 BE-BLOCKER-24/25/26/27/28 marked RESOLVED in §5a with merge SHAs. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
+**Last revised:** 2026-09-12 (Rev 9.3 — Backend Week 8+ BE-BLOCKER-36 marked RESOLVED in §5a with merge SHA `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` / PR #134. Companion catalog: [BACKEND_BLOCKER_INDEX.md](BACKEND_BLOCKER_INDEX.md).)
 
 **Rev 8 — 2026-09-06.** User resolved every remaining open decision. D-S-03/04/05/06/07/09 all APPROVED. AGT-ACT-001..005 added (slate 53 → 58). Branding-cleanup PR bundled into Wave 0. Blue Door removed. Agent-matrix backend-prereq retrofit scheduled.
 
@@ -206,6 +206,10 @@ All RESOLVED:
 - BE-BLOCKER-27 — Seed `valuation.price_reports.submit` on Pro tiers — **RESOLVED — `8bdebaa09d08593d030a5dc145458460c83bec3a` — 2026-09-09 — PR #87**
 - BE-BLOCKER-28 — WF-05 PA-PVA-008 backend bundle — **RESOLVED — `65ca361ac9801ec4fbfc274cf8e600704a0b4447` — 2026-09-09 — PR #92** (core `#98` `b46884acddf726658973cc32bb39166dce2334e7`; decisions `#97` `f66c43520aafbca3a28437ed882820cde9c82195`)
 
+### Backend Week 8+ (contact relationships) — RESOLVED 2026-09-12
+
+- BE-BLOCKER-36 — `contact_relationships` CRUD routes — **RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` — 2026-09-12 — PR #134**
+
 **[BE-BLOCKER-01] Portal publishers stubbed.** `backend/src/lib/notifications/realestate.js` throws `NOT_IMPLEMENTED`. WF-03 (portal submission → moderation → outcome) cannot function end-to-end without real portal-publisher integration for the Phase-1 portal list (from `PORTAL_LIST_RESEARCH_2026-09-04.md`). Scope of the fix: implement per-portal publishers for at least the Phase-1 must-have list (Bayut, Property Finder, Dubizzle for UAE; Aqar.fm for KSA — coordinate with B3 portal list). Estimated effort: 2-3 weeks of Cursor work per portal + integration tests. **This is not a screen; it's a required backend prerequisite for Week 2 (WF-03 cluster).**
 
 **[BE-VERIFY-01] `distribution_attempts.status` failure-class enumeration.** AGT-PUB-003/006 need to render 6 failure classes (auth-expired, portal-rules-violation, portal-down, quota-exceeded, invalid-content, unknown-error). Verify the schema carries these values before Week 2 dispatch. Grep the migrations + `lib/publishing/*` to confirm.
@@ -256,7 +260,7 @@ All RESOLVED:
 
 **[MATRIX-DRIFT-02] AGT-ACT and AGT-VLA missing matrix sections.** Briefs exist for AGT-ACT-001..005 (activation wizard, Phase-1 add-on per Rev 8) but no matrix section. AGT-VLA-* referenced from AGT-LST but no matrix section. **Owner:** architect-owner. **Slot:** before Wave 4 dispatch (blocking for AGT-ACT).
 
-**[BE-BLOCKER-36] `contact_relationships` CRUD routes.** Table exists in migration 028 (with rich schema) and in `backend/src/persistence/table-mapper.js`, but grep finds ZERO route handlers touching it. AGT-CTC-007 needs 7 endpoints: list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…`). Consent link piggybacks existing HMAC-token pattern (`backend/src/lib/webhook-verify.js`) with new `type='relationship_consent'` variant. Estimated 2-3 days. **Slot: Week 8+ (before AGT-CTC-007 dispatch).**
+**[BE-BLOCKER-36] `contact_relationships` CRUD routes. RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` (#134) 2026-09-12.** Seven endpoints shipped (`backend/src/lib/contacts/relationships-routes.js`): list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…` + accept/reject). Consent link uses `signed-token.js` purpose `relationship_consent` (same HMAC family as `webhook-verify.js`). Unblocks Wave 8+ AGT-CTC-007.
 
 **[BE-BLOCKER-35] `portal_registry` schema extensions + state tables.** [BE-DESIGN-01] core schema covers `id/code/display_name/country_codes[]/adapter_class_name/publisher_config/inbound_config/is_active`. PA-POR-002 form additionally writes: `description`, `logo_url`, `primary_language`, `validator_ref`, `effective_from`, `deprecated_at`. Plus two new tables: `portal_registry_pending_activations` (state machine for activation approvals) + `portal_activation_history` (for PA-POR-003 timeline). Estimated 1.5 days. **Slot: Week 6 (bundled with [BE-DESIGN-01] Week 2 or as an extension migration in Week 6).**
 

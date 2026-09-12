@@ -6,6 +6,7 @@
 **Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
 **Rev 2.1 — 2026-09-09.** Backend Week 3 (BE-BLOCKER-21/22) marked RESOLVED with merge SHAs.
 **Rev 3 — 2026-09-09.** Backend Week 5 (BE-BLOCKER-24/25/26/27/28) marked RESOLVED with merge SHAs.
+**Rev 3.1 — 2026-09-12.** Backend Week 8+ BE-BLOCKER-36 (`contact_relationships` CRUD) marked RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` — PR #134.
 
 ---
 
@@ -256,9 +257,9 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-36 — `contact_relationships` CRUD routes
 
-**Slot:** Week 8+ · **Est:** 2-3 days
+**Slot:** Week 8+ · **Est:** 2-3 days · **Status:** RESOLVED · **Merge:** `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` (#134) — 2026-09-12
 **Unblocks:** AGT-CTC-007
-**File(s):** 7 endpoints — list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…`). Consent link piggybacks HMAC-token infra (`backend/src/lib/webhook-verify.js`) with new `type='relationship_consent'`.
+**File(s):** 7 endpoints — list-mine, list-other-redacted, create, patch, delete-pending, resend-consent-link, public consent landing (`GET /public/relationships/consent?token=…`). Consent link piggybacks HMAC-token infra (`backend/src/lib/signed-token.js` purpose `relationship_consent`; same HMAC family as `webhook-verify.js`).
 
 ---
 
