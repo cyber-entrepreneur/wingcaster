@@ -22,7 +22,7 @@ export type SeverityTier = 'low' | 'medium' | 'high' | 'critical'
 
 export type MarketImpactTier = 'none' | 'low' | 'medium' | 'high'
 
-export type SubmittedWithin = '24h' | '7d' | '30d' | 'all'
+export type SubmittedWithin = '24h' | '7d' | '30d' | '90d' | 'all'
 
 export interface AgencyRef {
   id: string
