@@ -313,6 +313,8 @@ export async function updateAgencyMembership({
     const current = rows[0]
     if (!current) throw new Error('Membership not found')
     if (current.status !== 'active') throw new Error('Only active memberships can be updated')
+    // Owner role flips are exclusively performed by
+    // lib/agencies/ownership-transfer.js (WF-31). This guard must stay.
     if (current.role === 'owner') {
       throw new Error('Owner membership changes require the ownership transfer workflow')
     }
