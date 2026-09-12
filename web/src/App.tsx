@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { StepUpProvider } from '@/context/StepUpContext'
+import { StepUpProvider as MfaStepUpProvider } from '@/components/mfa'
 import { BrandProvider } from '@/context/BrandContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -22,7 +23,6 @@ import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
-import { LoginPage } from '@/pages/LoginPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
@@ -58,7 +58,7 @@ import {
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
-import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
+import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
@@ -74,6 +74,8 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { settingsRoutes } from '@/pages/settings/routes'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -122,7 +124,7 @@ function AppRoutes() {
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      {mfaRoutes}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
@@ -142,10 +144,13 @@ function AppRoutes() {
       <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
-      <Route path="/settings/2fa" element={<TotpSettingsPage />} />
-      <Route path="/settings/channels" element={<SocialChannelsPage />} />
-      <Route path="/settings/routing" element={<RoutingSettingsPage />} />
-      <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
+      <Route path="/settings" element={<SettingsPage />}>
+        {mfaSettingsChildRoutes}
+        {settingsRoutes}
+        <Route path="channels" element={<SocialChannelsPage />} />
+        <Route path="routing" element={<RoutingSettingsPage />} />
+        <Route path="historical-transactions" element={<HistoricalTransactionsPage />} />
+      </Route>
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/operations" element={<CommandCenterPage />} />
       <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
@@ -233,7 +238,9 @@ function App() {
           <AuthProvider>
             {/* Inside AuthProvider: step-up acts on the current session. */}
             <StepUpProvider>
-              <AppShell />
+              <MfaStepUpProvider>
+                <AppShell />
+              </MfaStepUpProvider>
             </StepUpProvider>
           </AuthProvider>
         </ToastProvider>
