@@ -626,11 +626,12 @@ describe('Wave 8 funnel — inbox dual-read + reply', () => {
     await user.click(screen.getByRole('button', { name: /Sara Al-Mansoori/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Is the 2BR still available?')).toBeInTheDocument()
+      expect(screen.getAllByText('Is the 2BR still available?').length).toBeGreaterThan(0)
     })
     expect(screen.getAllByLabelText(/WhatsApp from Bayut/i).length).toBeGreaterThan(0)
 
     const compose = screen.getByLabelText('Compose message')
+    await user.clear(compose)
     await user.type(compose, 'Yes — still available this week.')
     await user.click(screen.getByRole('button', { name: /Send message/i }))
 
