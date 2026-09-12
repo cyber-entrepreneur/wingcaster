@@ -29,6 +29,8 @@ export interface SettingsSidebarProps {
   footer?: ReactNode
   /** Optional ref to the search input for `Cmd+/` / `Ctrl+/` focus. */
   searchInputRef?: Ref<HTMLInputElement>
+  /** Enter in the search field jumps to the first visible match. */
+  onSearchSubmit?: () => void
   className?: string
 }
 
@@ -51,6 +53,7 @@ export function SettingsSidebar({
   emptyState,
   footer,
   searchInputRef,
+  onSearchSubmit,
   className,
 }: SettingsSidebarProps) {
   const hasVisibleItems = groups.some((g) => g.items.length > 0)
@@ -91,6 +94,10 @@ export function SettingsSidebar({
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               onSearchChange?.('')
+            }
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onSearchSubmit?.()
             }
           }}
           placeholder={searchPlaceholder}
