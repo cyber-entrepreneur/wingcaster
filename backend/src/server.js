@@ -204,6 +204,7 @@ import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-sta
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
+import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -739,6 +740,7 @@ registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
+registerAgencyCapabilityPackRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
