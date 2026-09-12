@@ -71,3 +71,40 @@ describe('write path never carries the secret', () => {
     expect(row.totp_secret_encrypted).toBeUndefined()
   })
 })
+
+describe('fromRow — JSONB extras for comparable_reports', () => {
+  it('surfaces top-level decision from the data blob (ImpactPanel contract)', () => {
+    const report = fromRow('comparable_reports', {
+      id: 'r1',
+      status: 'confirmed_removed',
+      reporter_id: 'u1',
+      data: {
+        id: 'r1',
+        status: 'confirmed_removed',
+        reporter_id: 'u1',
+        decision: { action: 'confirm_remove', decision_label: 'CONFIRM_REMOVE' },
+      },
+    })
+    expect(report.decision).toEqual({
+      action: 'confirm_remove',
+      decision_label: 'CONFIRM_REMOVE',
+    })
+    // Nested `data` key inside the blob is wiped by hydration — writers must
+    // not rely on report.data.decision after a DAL read.
+    expect(report.data).toBeUndefined()
+  })
+
+  it('drops nested data.decision when the blob itself nests a data bag', () => {
+    const report = fromRow('comparable_reports', {
+      id: 'r2',
+      status: 'confirmed_removed',
+      data: {
+        id: 'r2',
+        status: 'confirmed_removed',
+        data: { decision: { action: 'confirm_remove' } },
+      },
+    })
+    expect(report.decision).toBeUndefined()
+    expect(report.data).toBeUndefined()
+  })
+})

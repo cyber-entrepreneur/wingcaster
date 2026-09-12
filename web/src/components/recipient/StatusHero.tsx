@@ -19,9 +19,14 @@ import { formatRelativeAbsolute } from './formatRelativeAbsolute'
  * AGT-PUB-003 (via AggregateOutcomeHero adapter).
  *
  * `emphasis="loud"` may run `--lc-action-primary` as the band background
- * (approval / incorporated moments only). REC-002 APPROVED-AND-QUARANTINED
- * and REC-003 APPROVED-AS-SIGNAL-ONLY must pass `emphasis="default"` even
- * when `state="approved"`.
+ * (APPROVED-AND-REMOVED / APPROVED-AND-INCORPORATED only). Defaults to
+ * `'default'` so accidental loud orange cannot happen.
+ *
+ * Wave 5 consumers of calm approved surfaces (must pass `emphasis="default"`
+ * or omit the prop even when `state="approved"`):
+ * - AGT-REC-002 APPROVED-AND-QUARANTINED — sunken + CheckCircle2 in
+ *   `--lc-accent-bold-edge`
+ * - AGT-REC-003 APPROVED-AS-SIGNAL-ONLY — same provisional grammar
  */
 export type StatusHeroProps = {
   state: 'pending' | 'approved' | 'rejected' | 'expired' | 'withdrawn' | 'superseded' | 'more_info'
@@ -38,7 +43,8 @@ export type StatusHeroProps = {
   glyph?: LucideIcon
   /**
    * `'loud'` = allowed to run `--lc-action-primary` as bg (approval only).
-   * `'default'` = calm / provisional surfaces (quarantined, signal-only).
+   * `'default'` (prop default) = calm / provisional surfaces for
+   * REC-002 quarantine + REC-003 signal-only.
    */
   emphasis?: 'default' | 'loud'
   className?: string
@@ -82,7 +88,8 @@ function resolveSurface(
         timestampMuted: true,
       }
     case 'approved':
-      // emphasis="default" — quarantine / signal-only provisional acceptance
+      // emphasis="default" — REC-002 APPROVED-AND-QUARANTINED /
+      // REC-003 APPROVED-AS-SIGNAL-ONLY provisional acceptance
       return {
         Glyph: CheckCircle2,
         bandClass: 'bg-[var(--lc-surface-sunken)]',

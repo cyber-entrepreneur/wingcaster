@@ -91,7 +91,22 @@ export const REQUEST_INFO_REASON_CODES = Object.freeze([
 ])
 
 /**
- * Undo-compatible decision snapshot stored under `report.data.decision`.
+ * Read the decision snapshot from a hydrated report.
+ *
+ * Postgres `fromRow` flattens JSONB `data` onto the entity and deletes the
+ * nested `data` key — so after a real-DB round-trip the snapshot lives at
+ * `report.decision`. In-memory DAL keeps the nested `report.data.decision`
+ * form writers historically used. Accept both.
+ */
+export function readDecision(report) {
+  if (report?.decision && typeof report.decision === 'object') return report.decision
+  if (report?.data?.decision && typeof report.data.decision === 'object') return report.data.decision
+  return null
+}
+
+/**
+ * Undo-compatible decision snapshot stored under `report.data.decision`
+ * (and promoted to top-level `report.decision` for Postgres fromRow).
  * Shared with Agent 6 undo / bulk so merge can keep one writer.
  */
 export function buildDecisionSnapshot(report, {
@@ -122,9 +137,7 @@ export function buildDecisionSnapshot(report, {
 }
 
 export function summarizeReport(report) {
-  const decision = report?.data?.decision && typeof report.data.decision === 'object'
-    ? report.data.decision
-    : null
+  const decision = readDecision(report)
   return {
     id: report.id,
     status: report.status,
@@ -174,7 +187,8 @@ export class DecisionError extends Error {
   }
 
   toJSON() {
-    return { error: this.message, code: this.code, ...this.extra }
+    // Canonical `code` must win over any alias in `extra` (e.g. step_up_required).
+    return { error: this.message, ...this.extra, code: this.code }
   }
 }
 
@@ -226,7 +240,7 @@ export function assertStepUp(req, { maxAgeSeconds = ELEVATION_TTL_SECONDS } = {}
       message,
       {
         httpStatus: 401,
-        extra: { code: 'step_up_required', max_age_seconds: maxAgeSeconds },
+        extra: { step_up_required: true, max_age_seconds: maxAgeSeconds },
       },
     )
   }
@@ -545,15 +559,27 @@ export function createComparableReportDecisionService({
     await dal.update(
       Collections.COMPARABLE_REPORTS,
       (r) => r.id === reportId,
-      (r) => ({
-        ...r,
-        ...patch,
-        data: {
-          ...(r.data || {}),
-          ...(patch.data || {}),
-        },
-        updated_at: nowIsoLocal(),
-      }),
+      (r) => {
+        // Callers nest extras under `data` (decision snapshots, etc.). Postgres
+        // `fromRow` spreads JSONB then deletes `.data`, so nested-only writes
+        // vanish on read. Promote `data` keys to top-level for round-trip, and
+        // keep nested `data` for in-memory DAL / legacy readers.
+        const { data: patchData, ...restPatch } = patch
+        const mergedExtras = {
+          ...(r.data && typeof r.data === 'object' ? r.data : {}),
+          ...(patchData && typeof patchData === 'object' ? patchData : {}),
+        }
+        return {
+          ...r,
+          ...restPatch,
+          ...mergedExtras,
+          data: {
+            ...(r.data && typeof r.data === 'object' ? r.data : {}),
+            ...mergedExtras,
+          },
+          updated_at: nowIsoLocal(),
+        }
+      },
     )
     return loadReport(reportId)
   }
@@ -990,7 +1016,7 @@ export function createComparableReportDecisionService({
 
   async function undoDecision(reportId, { actorId: _actorId } = {}) {
     const report = await loadReport(reportId)
-    const decision = report.data?.decision
+    const decision = readDecision(report)
     if (!decision?.decided_at) throw decisionError(REPORT_ERROR.NO_DECISION, 'No reversible decision on this report')
     if (await isRecalcCommitted(decision)) throw decisionError(REPORT_ERROR.RECALC_COMMITTED, 'Cannot undo — recalculation has committed')
     const decidedMs = Date.parse(decision.decided_at)
@@ -1007,6 +1033,8 @@ export function createComparableReportDecisionService({
       requested_evidence: null,
       reviewed_by: decision.previous_reviewed_by ?? null,
       reviewed_at: decision.previous_reviewed_at ?? null,
+      // Clear promoted top-level snapshot (Postgres fromRow) as well as nested data.
+      decision: null,
       data: previousData,
     })
     if (decision.recalc_job_id && recalculationJobService?.cancel) {

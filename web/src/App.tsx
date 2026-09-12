@@ -14,6 +14,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import { BadComparableReportPage, PriceReportPage } from '@/pages/agent/reports'
 import { InboxPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
@@ -50,6 +51,10 @@ import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
+import {
+  BadComparableQueuePage,
+  BadComparableDetailPage,
+} from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
@@ -107,6 +112,12 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
+      <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+      <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/agent/comparable-reports/new" element={<BadComparableReportPage />} />
+      <Route path="/reports/prices/new" element={<PriceReportPage />} />
+      <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
@@ -155,6 +166,14 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route
+        path="/admin/valuation/comparable-reports"
+        element={<BadComparableQueuePage />}
+      />
+      <Route
+        path="/admin/valuation/comparable-reports/:reportId"
+        element={<BadComparableDetailPage />}
+      />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
