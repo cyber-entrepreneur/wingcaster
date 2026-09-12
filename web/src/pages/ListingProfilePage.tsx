@@ -309,7 +309,6 @@ export function ListingProfilePage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="portals">
             Portals
-            <Badge variant="outline" className="ml-2 text-[10px]">Phase 10</Badge>
           </TabsTrigger>
           <TabsTrigger value="comms">
             Comms
@@ -362,12 +361,26 @@ export function ListingProfilePage() {
         </TabsContent>
 
         <TabsContent value="portals">
-          <StubTab
-            icon={Globe2}
-            title="Property portals"
-            phase="Phase 10"
-            body="Toggle publish to Bayut, Property Finder, dubizzle, Aqar.fm, OpenSooq, OLX and more. Free 1 · Paid 3 + add-ons · Agency 6 + add-ons · Enterprise unlimited. Ships as part of the portal syndication module."
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Globe2 className="h-5 w-5 text-[var(--lc-action-primary)]" />
+                Property portals
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-[var(--lc-text-muted)]">
+              <p>
+                Submit this listing to real-estate portals from the live portal registry.
+                Submissions create a publishing job and open the outcome receipt when done.
+              </p>
+              <Link to={`/listings/${property.id}/portals/submit`}>
+                <Button className="gap-1.5 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]">
+                  <Globe2 className="h-4 w-4" />
+                  Submit to portals
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="comms" className="space-y-6">
