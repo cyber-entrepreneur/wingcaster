@@ -18,6 +18,8 @@ import { InboxPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
@@ -116,6 +118,7 @@ function AppRoutes() {
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
+      <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
@@ -186,6 +189,7 @@ function AppRoutes() {
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
+      <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />
