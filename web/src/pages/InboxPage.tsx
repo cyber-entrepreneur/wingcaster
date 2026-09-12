@@ -88,9 +88,9 @@ function normalizeConversation(raw: InboxConversation): InboxConversation & { ch
 function substituteTemplate(body: string, conversation: InboxConversation | null): string {
   const first = (conversation?.contact_name || '').split(' ')[0] || ''
   return body
-    .replaceAll('{contact.first_name}', first)
-    .replaceAll('{contact.name}', conversation?.contact_name || '')
-    .replaceAll('{listing.address}', conversation?.linked_listing_label || '')
+    .split('{contact.first_name}').join(first)
+    .split('{contact.name}').join(conversation?.contact_name || '')
+    .split('{listing.address}').join(conversation?.linked_listing_label || '')
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
