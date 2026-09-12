@@ -16,6 +16,9 @@ export {
 } from './registry.js'
 export { PackageError, PACKAGE_ERROR, PACKAGE_HTTP_STATUS } from './errors.js'
 export { registerFinPackagesAdminRoutes } from './admin-routes.js'
+export { getActiveTierCatalog, TierConfigSchema } from './tier-config.js'
+export { registerPublicPricingRoutes } from './public-pricing-routes.js'
+export { triggerMarketingRevalidate } from './marketing-revalidate.js'
 export {
   createPackageDraft, createDraftVersion, addQuota, addFlag, updateDraft,
   submitForApproval, approvePublish, rejectPublish, publishVersion, deprecateVersion,
