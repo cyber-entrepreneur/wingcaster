@@ -10,6 +10,8 @@ export async function makeOpsApp(databaseUrl, {
   role = 'platform_admin',
   finEnvironment = 'LIVE',
   authenticated = true,
+  userId = ADMIN_ID,
+  email = 'admin@example.test',
 } = {}) {
   process.env.JWT_SECRET = SECRET
   process.env.VITEST = '1'
@@ -25,10 +27,10 @@ export async function makeOpsApp(databaseUrl, {
       return res.status(401).json({ error: 'unauthenticated' })
     }
     req.user = {
-      id: ADMIN_ID,
+      id: userId,
       token_version: 0,
       platform_role: role,
-      email: 'admin@example.test',
+      email,
       fin_environment: finEnvironment,
     }
     next()
@@ -44,7 +46,8 @@ export async function makeOpsApp(databaseUrl, {
   })
   return {
     app,
-    elevate: () => sign({ userId: ADMIN_ID, tokenVersion: 0 }),
+    userId,
+    elevate: () => sign({ userId, tokenVersion: 0 }),
   }
 }
 

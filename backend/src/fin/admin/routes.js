@@ -34,6 +34,12 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval, rejectApproval } from './approvals/execute.js'
+import {
+  ApprovalActionError,
+  escalateApproval,
+  listEligibleEscalationTargets,
+  withdrawApproval,
+} from './approvals-escalate-withdraw.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -48,6 +54,9 @@ function adminCsp(_req, res, next) {
 }
 
 function sendFinError(res, error) {
+  if (error instanceof ApprovalActionError) {
+    return res.status(error.httpStatus).json(error.toJSON())
+  }
   if (error instanceof FinError && error.httpStatus === 412) {
     return sendPreconditionFailed(res, error.details || {})
   }
@@ -341,6 +350,53 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       actorEmail: req.user?.email || 'admin@fin.local',
       reasonCode: pick(body, 'reason_code', 'reasonCode') || 'ADMIN_REJECT',
     })
+    return res.status(200).json(result)
+  }))
+
+  // BE-BLOCKER-33 / PA-APR-005 — escalate (brief contract preferred; prompt aliases accepted)
+  app.get('/api/admin/fin/approvals/:id/eligible-escalation-targets', readGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const payload = await listEligibleEscalationTargets({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      requestType: req.query.request_type || req.query.requestType || null,
+      q: req.query.q || null,
+      limit: req.query.limit,
+    })
+    return res.status(200).json(payload)
+  }))
+
+  app.post('/api/admin/fin/approvals/:id/escalate', writeGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const result = await escalateApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      actorEmail: actor.actorEmail,
+      actorType: actor.actorType,
+      body: commandBody(req),
+      now: req.fin.now,
+      expectedVersion: req.expectedVersion,
+    })
+    if (result.approval_request?.version != null) setETag(res, result.approval_request.version)
+    return res.status(201).json(result)
+  }))
+
+  // BE-BLOCKER-33 / PA-APR-006 — withdraw (submitter-only)
+  app.post('/api/admin/fin/approvals/:id/withdraw', writeGuards, wrap(async (req, res) => {
+    const actor = actorFrom(req)
+    const result = await withdrawApproval({
+      approvalId: req.params.id,
+      environment: sessionEnvironment(req),
+      actorId: actor.actorId,
+      actorEmail: actor.actorEmail,
+      actorType: actor.actorType,
+      body: commandBody(req),
+      now: req.fin.now,
+      expectedVersion: req.expectedVersion,
+    })
+    if (result.approval_request?.version != null) setETag(res, result.approval_request.version)
     return res.status(200).json(result)
   }))
 
