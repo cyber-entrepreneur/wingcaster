@@ -5,12 +5,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { StepUpProvider } from '@/components/mfa'
 import { TwoFactorSettingsPage } from './TwoFactorSettingsPage'
 import { TotpEnrollPage } from './TotpEnrollPage'
 import { BackupCodesViewerPage } from './BackupCodesViewerPage'
+import { mfaSettingsChildRoutes } from './routes'
 
 const apiMock = vi.hoisted(() => ({
   twoFactorStatus: vi.fn(),
@@ -186,5 +187,37 @@ describe('SHR-MFA-006 disable requires step-up + typed DISABLE', () => {
 
     await user.click(turnOff)
     await waitFor(() => expect(apiMock.totpDisable).toHaveBeenCalledWith('123456'))
+  })
+})
+
+describe('SHR-MFA nested under Settings layout', () => {
+  it('renders 2FA as a child of /settings Outlet, not a top-level twin', async () => {
+    render(
+      <ToastProvider>
+        <StepUpProvider>
+          <MemoryRouter initialEntries={['/settings/2fa']}>
+            <Routes>
+              <Route
+                path="/settings"
+                element={
+                  <div data-testid="settings-layout">
+                    <Outlet />
+                  </div>
+                }
+              >
+                {mfaSettingsChildRoutes}
+                <Route path="*" element={<div>settings unavailable</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </StepUpProvider>
+      </ToastProvider>,
+    )
+
+    expect(screen.getByTestId('settings-layout')).toBeInTheDocument()
+    expect(
+      (await screen.findAllByRole('heading', { name: /Two-factor authentication/i }))[0],
+    ).toBeInTheDocument()
+    expect(screen.queryByText('settings unavailable')).not.toBeInTheDocument()
   })
 })
