@@ -3,14 +3,6 @@ import dotenv from 'dotenv'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { findAgentForUser, findUserById } from './identity.js'
-import {
-  clientIp,
-  createUserSession,
-  findActiveSession,
-  isSessionActive,
-  scheduleTouchLastActive,
-  sessionIdFromToken,
-} from './lib/auth/user-sessions.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: join(__dirname, '../../.env') })
@@ -41,41 +33,6 @@ export function verifyToken(token) {
   } catch {
     return null
   }
-}
-
-/**
- * Mint a session JWT and persist a `user_sessions` row.
- *
- * `reuseSessionId` is for re-issues that must not spawn a second device row
- * (tenant switch, env switch, 2FA disable / password change that keep THIS
- * browser signed in). A missing or already-revoked id falls through to a
- * fresh insert.
- */
-export async function issueAuthToken(user, extraClaims = {}, { req = null, reuseSessionId = null } = {}) {
-  let sessionId = reuseSessionId || null
-  if (sessionId) {
-    const existing = await findActiveSession(sessionId, user.id)
-    if (!existing) sessionId = null
-  }
-  if (!sessionId) {
-    const row = await createUserSession({
-      userId: user.id,
-      userAgent: req?.get?.('user-agent') || req?.headers?.['user-agent'] || null,
-      ip: clientIp(req),
-    })
-    sessionId = row.id
-  }
-  const { verified_at: verifiedOverride, ...rest } = extraClaims
-  return signToken({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    token_version: Number(user.token_version ?? 0),
-    verified_at: verifiedOverride ?? isoTimestamp(user.verified_at),
-    ...rest,
-    session_id: sessionId,
-    jti: sessionId,
-  })
 }
 
 /** Default lifetime of an elevation token, in seconds. */
@@ -203,23 +160,6 @@ async function attachAuthenticatedUser(req, decoded) {
     return { status: 401, error: 'Session expired. Please sign in again.' }
   }
 
-  // Legacy JWTs (issued before user_sessions) have no session_id/jti and
-  // remain valid until they expire or token_version bumps. New tokens always
-  // carry session_id; a revoked row kills that JWT without touching others.
-  const sessionId = sessionIdFromToken(decoded)
-  if (sessionId) {
-    let active
-    try {
-      active = await isSessionActive(sessionId, user.id)
-    } catch (err) {
-      return { error: err }
-    }
-    if (!active) {
-      return { status: 401, error: 'Session expired. Please sign in again.', code: 'SESSION_REVOKED' }
-    }
-    scheduleTouchLastActive(sessionId)
-  }
-
   const sessionEnv = (() => {
     const claim = decoded.env || decoded.fin_environment || user.env || user.fin_environment
     if (claim === 'TEST' || claim === 'test') return 'test'
@@ -236,8 +176,6 @@ async function attachAuthenticatedUser(req, decoded) {
     platform_role: user.platform_role || null,
     active_tenant_id: decoded.active_tenant_id || user.active_tenant_id || null,
     preferred_locale: user.preferred_locale || 'en',
-    session_id: sessionId,
-    token_version: userTokenVersion,
     // PA-NAV-001 / fin admin session env (LIVE|TEST). Session claim wins;
     // account-recovery env scoping reads fin_environment / environment.
     env: sessionEnv,
@@ -262,12 +200,7 @@ export async function authMiddleware(req, res, next) {
 
   const failure = await attachAuthenticatedUser(req, decoded)
   if (failure?.error && !failure.status) return next(failure.error)
-  if (failure) {
-    return res.status(failure.status).json({
-      error: failure.error,
-      ...(failure.code ? { code: failure.code } : {}),
-    })
-  }
+  if (failure) return res.status(failure.status).json({ error: failure.error })
   next()
 }
 

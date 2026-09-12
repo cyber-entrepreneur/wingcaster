@@ -16,16 +16,6 @@ const identity = vi.hoisted(() => ({
 }))
 vi.mock('./identity.js', () => identity)
 
-const sessions = vi.hoisted(() => ({
-  clientIp: vi.fn(() => null),
-  createUserSession: vi.fn(),
-  findActiveSession: vi.fn(),
-  isSessionActive: vi.fn(async () => true),
-  scheduleTouchLastActive: vi.fn(),
-  sessionIdFromToken: (decoded) => decoded?.session_id || decoded?.jti || null,
-}))
-vi.mock('./lib/auth/user-sessions.js', () => sessions)
-
 const originalSecret = process.env.JWT_SECRET
 const VERIFIED_AT = '2026-08-16T10:20:11.123Z'
 
@@ -42,9 +32,6 @@ beforeEach(async () => {
   identity.findUserById.mockReset()
   identity.findAgentForUser.mockReset()
   identity.findAgentForUser.mockResolvedValue({ id: 'agent-1', user_id: 'user-1' })
-  sessions.isSessionActive.mockReset()
-  sessions.isSessionActive.mockResolvedValue(true)
-  sessions.scheduleTouchLastActive.mockReset()
 })
 
 afterEach(() => {
@@ -134,18 +121,6 @@ describe('authMiddleware — verified_at claim comparison', () => {
 
     const res = await request(createApp()).get('/protected').set('Authorization', `Bearer ${token()}`)
     expect(res.status).toBe(401)
-  })
-
-  it('rejects a revoked session_id even when token_version still matches', async () => {
-    identity.findUserById.mockResolvedValue(user({ verified_at: new Date(VERIFIED_AT) }))
-    sessions.isSessionActive.mockResolvedValueOnce(false)
-
-    const res = await request(createApp())
-      .get('/protected')
-      .set('Authorization', `Bearer ${token({ session_id: 'sess-revoked', jti: 'sess-revoked' })}`)
-
-    expect(res.status).toBe(401)
-    expect(res.body).toMatchObject({ code: 'SESSION_REVOKED' })
   })
 
   it('rejects when the account no longer exists', async () => {
