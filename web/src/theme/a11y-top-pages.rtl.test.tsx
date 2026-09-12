@@ -48,7 +48,7 @@ import { InboxPage } from '@/pages/InboxPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
 import { LoginPage } from '@/pages/LoginPage'
-import { AgentRegisterPage } from '@/pages/AgentRegisterPage'
+import { RegisterPage } from '@/pages/RegisterPage'
 import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
@@ -62,7 +62,7 @@ const pages: Array<[string, ComponentType, string]> = [
   ['Contacts', ContactsPage, '/contacts'],
   ['Contact detail', ContactDetailPage, '/contacts/contact-1'],
   ['Login', LoginPage, '/login'],
-  ['Register', AgentRegisterPage, '/register'],
+  ['Register', RegisterPage, '/register'],
   ['Settings', TotpSettingsPage, '/settings/2fa'],
   ['Command Center', CommandCenterPage, '/command-center'],
 ]
