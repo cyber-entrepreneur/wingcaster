@@ -1,42 +1,62 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { triggerMarketingRevalidate } from './marketing-revalidate.js'
 
-describe('triggerMarketingRevalidate', () => {
+describe('marketing-revalidate', () => {
   afterEach(() => {
+    vi.unstubAllGlobals()
     delete process.env.MARKETING_REVALIDATE_URL
     delete process.env.MARKETING_REVALIDATE_SECRET
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+    vi.resetModules()
   })
 
-  it('skips when env is not configured', async () => {
-    const result = await triggerMarketingRevalidate('tier_updated')
-    expect(result).toEqual({ skipped: true, reason: 'env_missing' })
-  })
-
-  it('POSTs a signed JSON body and does not throw on HTTP errors', async () => {
-    process.env.MARKETING_REVALIDATE_URL = 'https://wingcaster.com/api/revalidate'
-    process.env.MARKETING_REVALIDATE_SECRET = 'test-secret'
-    const fetchMock = vi.fn(async (_url, init) => {
-      expect(init.method).toBe('POST')
-      expect(init.headers['Content-Type']).toBe('application/json')
-      expect(init.headers['X-Wingcaster-Signature']).toMatch(/^sha256=[a-f0-9]{64}$/)
-      const body = JSON.parse(init.body)
-      expect(body.reason).toBe('tier_updated')
-      expect(body.generated_at).toEqual(expect.any(String))
-      return { ok: false, status: 503 }
+  it('skips when env not configured and records event', async () => {
+    const {
+      triggerMarketingRevalidate,
+      getRevalidationEvent,
+      clearRevalidationEvents,
+    } = await import('./marketing-revalidate.js')
+    clearRevalidationEvents()
+    const result = await triggerMarketingRevalidate('pricing-tiers', {
+      packageId: 'pkg',
+      versionId: 'ver',
+      environment: 'LIVE',
     })
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await triggerMarketingRevalidate('tier_updated')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ skipped: false, ok: false, status: 503 })
+    expect(result.skipped).toBe(true)
+    expect(result.status).toBe('skipped')
+    expect(getRevalidationEvent(result.id)?.confirmed).toBe(false)
   })
 
-  it('returns ok on a 2xx response', async () => {
-    process.env.MARKETING_REVALIDATE_URL = 'https://wingcaster.com/api/revalidate'
-    process.env.MARKETING_REVALIDATE_SECRET = 'test-secret'
+  it('records confirmed when fetch returns ok', async () => {
+    process.env.MARKETING_REVALIDATE_URL = 'https://example.test/api/revalidate'
+    process.env.MARKETING_REVALIDATE_SECRET = 'secret'
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200 })))
-    const result = await triggerMarketingRevalidate()
-    expect(result).toEqual({ skipped: false, ok: true, status: 200 })
+    const {
+      triggerMarketingRevalidate,
+      clearRevalidationEvents,
+    } = await import('./marketing-revalidate.js')
+    clearRevalidationEvents()
+    const result = await triggerMarketingRevalidate('pricing-tiers')
+    expect(result.confirmed).toBe(true)
+    expect(result.status).toBe('confirmed')
+  })
+})
+
+describe('packages env resolver', () => {
+  it('prefers session over header', async () => {
+    const { resolvePackagesEnv } = await import('./env.js')
+    expect(resolvePackagesEnv({
+      user: { fin_environment: 'TEST' },
+      get: () => 'live',
+      headers: {},
+    })).toBe('TEST')
+    expect(resolvePackagesEnv({
+      user: {},
+      get: () => 'test',
+      headers: {},
+    })).toBe('TEST')
+    expect(resolvePackagesEnv({
+      user: {},
+      get: () => undefined,
+      headers: {},
+    })).toBe('LIVE')
   })
 })

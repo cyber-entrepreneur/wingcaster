@@ -8,16 +8,22 @@ import { transaction } from '../../db.js'
 import { requireIfMatch } from '../../fin/middleware/if-match.js'
 import { adminMutationLimiter } from '../admin-limiter.js'
 import { PACKAGE_ERROR, PACKAGE_HTTP_STATUS, PackageError } from './errors.js'
+import { resolvePackagesEnv } from './env.js'
 import {
   addFlag, addQuota, approvePublish, asUuid, createDraftVersion, createPackageDraft,
-  deprecateVersion, publishVersion, rejectPublish, removeFlag, removeQuota,
-  submitForApproval, updateDraft, updateMeteredFeature, updatePackage, writeAudit,
+  deprecateVersion, importPackagesFromLive, publishVersion, recallPublish, rejectPublish,
+  removeFlag, removeQuota, submitForApproval, undoRejectPublish, updateDraft,
+  updateMeteredFeature, updatePackage, writeAudit,
   PUBLISH_ACTION_KIND,
 } from './authoring.js'
 import { PACKAGES_ENVIRONMENT } from './helpers.js'
+import {
+  getRevalidationEvent,
+  triggerMarketingRevalidate,
+} from './marketing-revalidate.js'
 import { previewCycleGrant } from './preview.js'
 import {
-  getMeteredFeature, getPackage, getSubscriptionDetail, getVersionDetail,
+  diffPackageVersions, getMeteredFeature, getPackage, getSubscriptionDetail, getVersionDetail,
   listMeteredFeaturesAdmin, listPackages, listPendingApprovals, listSubscriptions,
 } from './reads.js'
 import {
@@ -37,6 +43,10 @@ function actorOf(req) {
     actorId: asUuid(req.user?.id) || req.user?.id,
     actorEmail: req.user?.email || 'packages@admin',
   }
+}
+
+function envOf(req) {
+  return resolvePackagesEnv(req)
 }
 
 function sendPackageError(res, error) {
@@ -94,22 +104,62 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   ]
 
   app.get('/api/admin/fin/packages/pending-approvals', readGuards, wrap(async (req, res) => {
-    const rows = await run((client) => listPendingApprovals(client))
-    return res.status(200).json({ approvals: rows })
+    const environment = envOf(req)
+    const rows = await run((client) => listPendingApprovals(client, {
+      environment,
+      viewerActorId: asUuid(req.user?.id),
+    }))
+    return res.status(200).json({ approvals: rows, env: environment.toLowerCase() })
+  }))
+
+  app.get('/api/admin/fin/packages/revalidation-events/:eventId', readGuards, wrap(async (req, res) => {
+    const event = getRevalidationEvent(req.params.eventId)
+    if (!event) return res.status(404).json({ error: 'Revalidation event not found', code: 'NOT_FOUND' })
+    return res.status(200).json({ event })
   }))
 
   app.get('/api/admin/fin/packages', readGuards, wrap(async (req, res) => {
-    const packages = await run((client) => listPackages(client, req.query))
-    return res.status(200).json({ packages })
+    const environment = envOf(req)
+    const packages = await run((client) => listPackages(client, { ...req.query, environment }))
+    let test_env_hint
+    if (environment === 'TEST') {
+      const liveCount = await run(async (client) => {
+        const { rows } = await client.query(
+          `SELECT COUNT(*)::int AS n FROM public.product_packages WHERE environment = 'LIVE'`,
+        )
+        return Number(rows[0]?.n || 0)
+      })
+      test_env_hint = { live_has_packages: liveCount > 0 }
+    }
+    return res.status(200).json({
+      packages,
+      env: environment.toLowerCase(),
+      ...(test_env_hint ? { test_env_hint } : {}),
+    })
+  }))
+
+  app.post('/api/admin/fin/packages/import-from-live', writeGuards, wrap(async (req, res) => {
+    if (envOf(req) !== 'TEST') {
+      throw new PackageError(
+        PACKAGE_ERROR.IMPORT_LIVE_ONLY_FROM_TEST,
+        'import-from-live is only allowed when X-Wingcaster-Env is TEST',
+      )
+    }
+    const result = await run((client) => importPackagesFromLive(client, {
+      ...actorOf(req), now: req.body?.now,
+    }))
+    return res.status(200).json({ ...result, env: 'test' })
   }))
 
   app.post('/api/admin/fin/packages', writeGuards, wrap(async (req, res) => {
-    const row = await run((client) => createPackageDraft(client, { ...actorOf(req), ...req.body }))
+    const row = await run((client) => createPackageDraft(client, {
+      ...actorOf(req), ...req.body, environment: envOf(req),
+    }))
     return res.status(200).json(row)
   }))
 
   app.get('/api/admin/fin/packages/:id', readGuards, wrap(async (req, res) => {
-    const row = await run((client) => getPackage(client, req.params.id))
+    const row = await run((client) => getPackage(client, req.params.id, { environment: envOf(req) }))
     return res.status(200).json(row)
   }))
 
@@ -133,9 +183,24 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
     return res.status(200).json(preview)
   }))
 
+  app.get('/api/admin/fin/packages/:id/versions/:a/diff/:b', readGuards, wrap(async (req, res) => {
+    const diff = await run((client) => diffPackageVersions(
+      client, req.params.id, req.params.a, req.params.b, { environment: envOf(req) },
+    ))
+    return res.status(200).json(diff)
+  }))
+
   app.get('/api/admin/fin/packages/:id/versions/:vid', readGuards, wrap(async (req, res) => {
-    const row = await run((client) => getVersionDetail(client, req.params.id, req.params.vid))
-    return res.status(200).json(row)
+    const row = await run((client) => getVersionDetail(client, req.params.id, req.params.vid, {
+      environment: envOf(req),
+    }))
+    const viewer = asUuid(req.user?.id)
+    const isOwn = Boolean(
+      row.approval?.created_by_actor_id
+      && viewer
+      && String(row.approval.created_by_actor_id) === String(viewer),
+    )
+    return res.status(200).json({ ...row, is_own_submission: isOwn })
   }))
 
   app.patch('/api/admin/fin/packages/:id/versions/:vid', writeGuards, wrap(async (req, res) => {
@@ -191,15 +256,50 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
     const result = await run((client) => rejectPublish(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
       reason: req.body?.reason,
+      now: req.body?.now,
+    }))
+    return res.status(200).json({
+      ...result,
+      undo_reject_grace_ms: 5_000,
+      undo_reject_path: `/api/admin/fin/packages/${req.params.id}/versions/${req.params.vid}/undo-reject`,
+    })
+  }))
+
+  app.post('/api/admin/fin/packages/:id/versions/:vid/undo-reject', writeGuards, wrap(async (req, res) => {
+    const result = await run((client) => undoRejectPublish(client, {
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
+      now: req.body?.now,
+    }))
+    return res.status(200).json(result)
+  }))
+
+  app.post('/api/admin/fin/packages/:id/versions/:vid/recall', writeGuards, wrap(async (req, res) => {
+    const result = await run((client) => recallPublish(client, {
+      packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
+      now: req.body?.now,
     }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/packages/:id/versions/:vid/publish', writeGuards, wrap(async (req, res) => {
+    const environment = envOf(req)
     const row = await run((client) => publishVersion(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req), ...req.body,
     }))
-    return res.status(200).json(row)
+    const revalidation = await triggerMarketingRevalidate('pricing-tiers', {
+      packageId: req.params.id,
+      versionId: req.params.vid,
+      environment,
+    })
+    return res.status(200).json({
+      ...row,
+      marketing_revalidation: {
+        event_id: revalidation.id,
+        status: revalidation.status,
+        confirmed: Boolean(revalidation.confirmed),
+        poll_path: `/api/admin/fin/packages/revalidation-events/${revalidation.id}`,
+      },
+    })
   }))
 
   app.post('/api/admin/fin/packages/:id/versions/:vid/deprecate', writeGuards, wrap(async (req, res) => {
@@ -212,7 +312,37 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
 
   app.get('/api/admin/fin/metered-features', readGuards, wrap(async (req, res) => {
     const features = await run((client) => listMeteredFeaturesAdmin(client, req.query))
-    return res.status(200).json({ features })
+    return res.status(200).json({ features, env_agnostic: true })
+  }))
+
+  // Brief aliases (PA-PKG contract paths without /fin).
+  app.get('/api/admin/packages/pending-approvals', readGuards, wrap(async (req, res) => {
+    const environment = envOf(req)
+    const rows = await run((client) => listPendingApprovals(client, {
+      environment, viewerActorId: asUuid(req.user?.id),
+    }))
+    return res.status(200).json({ approvals: rows, env: environment.toLowerCase() })
+  }))
+  app.get('/api/admin/packages', readGuards, wrap(async (req, res) => {
+    const environment = envOf(req)
+    const packages = await run((client) => listPackages(client, { ...req.query, environment }))
+    return res.status(200).json({ packages, env: environment.toLowerCase() })
+  }))
+  app.post('/api/admin/packages/import-from-live', writeGuards, wrap(async (req, res) => {
+    if (envOf(req) !== 'TEST') {
+      throw new PackageError(
+        PACKAGE_ERROR.IMPORT_LIVE_ONLY_FROM_TEST,
+        'import-from-live is only allowed when X-Wingcaster-Env is TEST',
+      )
+    }
+    const result = await run((client) => importPackagesFromLive(client, {
+      ...actorOf(req), now: req.body?.now,
+    }))
+    return res.status(200).json({ ...result, env: 'test' })
+  }))
+  app.get('/api/admin/feature-registry', readGuards, wrap(async (req, res) => {
+    const features = await run((client) => listMeteredFeaturesAdmin(client, req.query))
+    return res.status(200).json({ features, env_agnostic: true })
   }))
 
   app.get('/api/admin/fin/metered-features/:id', readGuards, wrap(async (req, res) => {
