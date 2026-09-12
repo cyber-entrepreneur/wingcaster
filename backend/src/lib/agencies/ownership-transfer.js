@@ -272,6 +272,18 @@ async function createOtpChallenge({ userId, ip = null }) {
   return { id, code, expiresAt }
 }
 
+function otpResendCooldownSeconds() {
+  const raw = process.env.OWNERSHIP_TRANSFER_OTP_COOLDOWN_SECONDS
+  if (raw != null && String(raw).trim() !== '') {
+    const n = Number(raw)
+    return Number.isFinite(n) && n >= 0 ? n : OTP_RESEND_COOLDOWN_SECONDS
+  }
+  // Vitest runs many OTP sends for the same user within one case; skip the
+  // production resend cooldown so suites exercise business rules, not waits.
+  if (process.env.NODE_ENV === 'test') return 0
+  return OTP_RESEND_COOLDOWN_SECONDS
+}
+
 async function assertOtpRateLimit(userId) {
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const recent = await query(
@@ -286,9 +298,10 @@ async function assertOtpRateLimit(userId) {
   if (recent.length >= OTP_MAX_PER_HOUR) {
     throw new OwnershipTransferError(429, 'RATE_LIMITED', 'Too many OTP sends this hour')
   }
-  if (recent[0]) {
+  const cooldownSeconds = otpResendCooldownSeconds()
+  if (cooldownSeconds > 0 && recent[0]) {
     const last = new Date(recent[0].created_at).getTime()
-    const waitMs = OTP_RESEND_COOLDOWN_SECONDS * 1000 - (Date.now() - last)
+    const waitMs = cooldownSeconds * 1000 - (Date.now() - last)
     if (waitMs > 0) {
       throw new OwnershipTransferError(429, 'RATE_LIMITED', 'Please wait before requesting another code', {
         retry_after_seconds: Math.ceil(waitMs / 1000),
@@ -646,6 +659,19 @@ export async function acceptOwnershipTransfer({
   const agency = await findOne('agencies', (a) => a.id === agencyId)
   if (!agency) throw new OwnershipTransferError(404, 'NOT_FOUND', 'Agency not found')
 
+  // Authz / status before OTP: wrong party must get 403 without burning a code.
+  const existing = await loadTransfer(agencyId, transferId)
+  if (!existing) throw new OwnershipTransferError(404, 'NOT_FOUND', 'Transfer not found')
+  if (existing.target_user_id !== callerUserId) {
+    throw new OwnershipTransferError(403, 'FORBIDDEN', 'Only the target can accept this transfer')
+  }
+  if (existing.status !== 'pending') {
+    throw new OwnershipTransferError(409, 'INVALID_STATUS', `Transfer is ${existing.status}`)
+  }
+  if (new Date(existing.expires_at).getTime() <= Date.now()) {
+    throw new OwnershipTransferError(410, 'EXPIRED', 'Transfer request has expired')
+  }
+
   await assertTypedAgencyName(agency, typedAgencyName)
   await consumeOwnershipTransferOtp(callerUserId, otpCode)
 
@@ -750,7 +776,8 @@ export async function declineOwnershipTransfer({
   }
 
   const nowIso = new Date().toISOString()
-  const { rows } = await query(
+  // `query()` returns the rows array (not pg's `{ rows }`).
+  const rows = await query(
     `UPDATE public.ownership_transfer_requests
         SET status = 'declined',
             decline_reason = $3,
@@ -804,7 +831,8 @@ export async function cancelOwnershipTransfer({
   logActivity,
 }) {
   const nowIso = new Date().toISOString()
-  const { rows } = await query(
+  // `query()` returns the rows array (not pg's `{ rows }`).
+  const rows = await query(
     `UPDATE public.ownership_transfer_requests
         SET status = 'cancelled',
             decided_at = $3::timestamptz,
@@ -856,7 +884,8 @@ export async function acknowledgeOwnershipTransfer({
   }
 
   const nowIso = new Date().toISOString()
-  const { rows } = await query(
+  // `query()` returns the rows array (not pg's `{ rows }`).
+  const rows = await query(
     `UPDATE public.ownership_transfer_requests
         SET acknowledged_by_initiator = CASE WHEN $3 THEN TRUE ELSE acknowledged_by_initiator END,
             acknowledged_by_target = CASE WHEN $4 THEN TRUE ELSE acknowledged_by_target END,
@@ -866,6 +895,9 @@ export async function acknowledgeOwnershipTransfer({
       RETURNING *`,
     [transferId, agencyId, isInitiator, isTarget, nowIso],
   )
+  if (!rows.length) {
+    throw new OwnershipTransferError(404, 'NOT_FOUND', 'Transfer not found')
+  }
 
   return { transfer: await enrichTransfer(rows[0]) }
 }

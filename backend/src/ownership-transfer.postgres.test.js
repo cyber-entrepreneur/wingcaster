@@ -47,15 +47,37 @@ async function agentAccount(label = 'Agent') {
     },
     agent: { id: userId, email, name: label },
   })
+  return resignSession({
+    userId,
+    email,
+    name: label,
+    verifiedAt: now,
+    tokenVersion: 0,
+  })
+}
+
+/** Mint Bearer + elevated tokens bound to the current token_version. */
+function resignSession({ userId, email, name, verifiedAt, tokenVersion }) {
   const token = signToken({
     id: userId,
     email,
-    name: label,
-    token_version: 0,
-    verified_at: now,
+    name,
+    token_version: tokenVersion,
+    verified_at: verifiedAt,
   })
-  const elevated = signElevatedToken({ userId, tokenVersion: 0 })
-  return { userId, token, elevated, email, name: label }
+  const elevated = signElevatedToken({ userId, tokenVersion })
+  return { userId, token, elevated, email, name, verifiedAt, tokenVersion }
+}
+
+/**
+ * Accept/reverse bump token_version for both parties. Re-mint so subsequent
+ * elevated calls are not rejected as stale sessions / step_up_required.
+ */
+function afterOwnershipFlip(account) {
+  return resignSession({
+    ...account,
+    tokenVersion: Number(account.tokenVersion ?? 0) + 1,
+  })
 }
 
 async function seedAgencyWithAdmin(agencyName = 'Elite Real Estate') {
@@ -171,6 +193,10 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
     expect(accept.body.transfer.status).toBe('executed')
     expect(accept.body.transfer.reversal_deadline_at).toBeTruthy()
 
+    // Role flip bumps token_version for both parties — re-mint before reverse.
+    const formerOwner = afterOwnershipFlip(ctx.owner)
+    const newOwner = afterOwnershipFlip(ctx.admin)
+
     const ownerMem = await getAgencyMembership(ctx.agencyId, ctx.owner.userId)
     const adminMem = await getAgencyMembership(ctx.agencyId, ctx.admin.userId)
     expect(ownerMem.role).toBe('admin')
@@ -179,11 +205,12 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
     const agency = await pool().query(`SELECT owner_id FROM public.agencies WHERE id = $1`, [ctx.agencyId])
     expect(agency.rows[0].owner_id).toBe(ctx.admin.userId)
 
-    const otp3 = await sendOtp(app, { agencyId: ctx.agencyId, token: ctx.owner.token })
+    const otp3 = await sendOtp(app, { agencyId: ctx.agencyId, token: formerOwner.token })
+    expect(otp3.status).toBe(200)
     const reverse = await request(app)
       .post(`/api/agencies/${ctx.agencyId}/ownership-transfer/${transferId}/reverse`)
-      .set('Authorization', `Bearer ${ctx.owner.token}`)
-      .set('x-elevated-token', ctx.owner.elevated)
+      .set('Authorization', `Bearer ${formerOwner.token}`)
+      .set('x-elevated-token', formerOwner.elevated)
       .send({
         otp_code: otp3.body.__test_code,
         typed_agency_name: ctx.agencyName,
@@ -191,8 +218,8 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
     expect(reverse.status).toBe(201)
     expect(reverse.body.transfer.status).toBe('reversed')
 
-    const ownerAfter = await getAgencyMembership(ctx.agencyId, ctx.owner.userId)
-    const adminAfter = await getAgencyMembership(ctx.agencyId, ctx.admin.userId)
+    const ownerAfter = await getAgencyMembership(ctx.agencyId, formerOwner.userId)
+    const adminAfter = await getAgencyMembership(ctx.agencyId, newOwner.userId)
     expect(ownerAfter.role).toBe('owner')
     expect(adminAfter.role).toBe('admin')
   })
@@ -260,6 +287,9 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
       .send({ otp_code: otp2.body.__test_code, typed_agency_name: ctx.agencyName })
     expect(accept.status).toBe(201)
 
+    // Accept bumps token_version; re-mint so reverse reaches the deadline check.
+    const formerOwner = afterOwnershipFlip(ctx.owner)
+
     await pool().query(
       `UPDATE public.ownership_transfer_requests
           SET reversal_deadline_at = NOW() - INTERVAL '1 minute'
@@ -267,11 +297,12 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
       [transferId],
     )
 
-    const otp3 = await sendOtp(app, { agencyId: ctx.agencyId, token: ctx.owner.token })
+    const otp3 = await sendOtp(app, { agencyId: ctx.agencyId, token: formerOwner.token })
+    expect(otp3.status).toBe(200)
     const reverse = await request(app)
       .post(`/api/agencies/${ctx.agencyId}/ownership-transfer/${transferId}/reverse`)
-      .set('Authorization', `Bearer ${ctx.owner.token}`)
-      .set('x-elevated-token', ctx.owner.elevated)
+      .set('Authorization', `Bearer ${formerOwner.token}`)
+      .set('x-elevated-token', formerOwner.elevated)
       .send({ otp_code: otp3.body.__test_code, typed_agency_name: ctx.agencyName })
     expect(reverse.status).toBe(410)
     expect(reverse.body.code).toBe('REVERSAL_WINDOW_CLOSED')
@@ -361,14 +392,13 @@ finPostgresSuite('ownership transfer WF-31 (BE-BLOCKER-31)', { seed: false }, ({
     const otpOut = await sendOtp(app, { agencyId: ctx.agencyId, token: outsider.token })
     expect(otpOut.status).toBe(403)
 
-    // Owner (initiator) cannot accept their own transfer
-    const otpOwner2 = await sendOtp(app, { agencyId: ctx.agencyId, token: ctx.owner.token })
+    // Owner (initiator) cannot accept their own transfer — authz before OTP.
     const badAccept = await request(app)
       .post(`/api/agencies/${ctx.agencyId}/ownership-transfer/${transferId}/accept`)
       .set('Authorization', `Bearer ${ctx.owner.token}`)
       .set('x-elevated-token', ctx.owner.elevated)
       .send({
-        otp_code: otpOwner2.body.__test_code,
+        otp_code: '000000',
         typed_agency_name: ctx.agencyName,
       })
     expect(badAccept.status).toBe(403)
