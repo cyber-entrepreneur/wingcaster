@@ -33,7 +33,7 @@ export function AgentDashboardModeMount({
           </div>
         }
       >
-        <ProDashboard agentName={agentName} />
+        <ProDashboard greetingName={agentName} />
       </Suspense>
     )
   }
