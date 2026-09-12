@@ -1,5 +1,6 @@
 import { insertAudit, insertOutbox } from '../../fin/ledger/write.js'
 
+/** Default when no request env is in scope (workers / system paths). */
 export const PACKAGES_ENVIRONMENT = 'LIVE'
 
 export async function writeTransitionArtifacts(client, {
@@ -12,10 +13,11 @@ export async function writeTransitionArtifacts(client, {
   reason = null,
   extra = {},
   now,
+  environment = PACKAGES_ENVIRONMENT,
 }) {
   const ts = now || new Date().toISOString()
   await insertAudit(client, {
-    environment: PACKAGES_ENVIRONMENT,
+    environment,
     actorType: actorId ? 'USER' : 'SYSTEM',
     actorId,
     actorEmail: 'packages@system',
@@ -29,7 +31,7 @@ export async function writeTransitionArtifacts(client, {
   })
   try {
     await insertOutbox(client, {
-      environment: PACKAGES_ENVIRONMENT,
+      environment,
       topic,
       dedupeKey: `${topic}:${subscription.id}:${ts}:${action}`,
       payload: {
@@ -47,10 +49,12 @@ export async function writeTransitionArtifacts(client, {
   }
 }
 
-export async function writeOutbox(client, { topic, dedupeKey, payload, now }) {
+export async function writeOutbox(client, {
+  topic, dedupeKey, payload, now, environment = PACKAGES_ENVIRONMENT,
+}) {
   try {
     await insertOutbox(client, {
-      environment: PACKAGES_ENVIRONMENT,
+      environment,
       topic,
       dedupeKey,
       payload,
