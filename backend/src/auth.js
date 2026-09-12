@@ -212,10 +212,10 @@ async function attachAuthenticatedUser(req, decoded) {
     try {
       active = await isSessionActive(sessionId, user.id)
     } catch (err) {
-      return next(err)
+      return { error: err }
     }
     if (!active) {
-      return res.status(401).json({ error: 'Session expired. Please sign in again.', code: 'SESSION_REVOKED' })
+      return { status: 401, error: 'Session expired. Please sign in again.', code: 'SESSION_REVOKED' }
     }
     scheduleTouchLastActive(sessionId)
   }
@@ -262,7 +262,12 @@ export async function authMiddleware(req, res, next) {
 
   const failure = await attachAuthenticatedUser(req, decoded)
   if (failure?.error && !failure.status) return next(failure.error)
-  if (failure) return res.status(failure.status).json({ error: failure.error })
+  if (failure) {
+    return res.status(failure.status).json({
+      error: failure.error,
+      ...(failure.code ? { code: failure.code } : {}),
+    })
+  }
   next()
 }
 
