@@ -401,4 +401,105 @@ finPostgresSuite('agency applications uplift', { seed: false }, ({ pool }) => {
     expect(res.body.error).toBe('VALIDATION_FAILED')
     expect(res.body.field_errors['guest_signup.identifier']).toBe('invalid_email')
   })
+
+  it('POST reveal-contact writes public.audit_log and rejects non-admins', async () => {
+    const agency = await ownerAgency({ name: 'Reveal Agency', slug: 'reveal-agency' })
+    const applicant = await agentAccount('RevealApplicant')
+    const outsider = await agentAccount('Outsider')
+    const app = buildApp()
+
+    const created = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .set('Authorization', `Bearer ${applicant.token}`)
+      .send(applyBody)
+    expect(created.status).toBe(201)
+    const appId = created.body.application.id
+
+    const forbidden = await request(app)
+      .post(`/api/agencies/${agency.agencyId}/applications/${appId}/reveal-contact`)
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .set('User-Agent', 'vitest-reveal/1.0')
+      .send({ field: 'contact' })
+    expect(forbidden.status).toBe(403)
+
+    const revealed = await request(app)
+      .post(`/api/agencies/${agency.agencyId}/applications/${appId}/reveal-contact`)
+      .set('Authorization', `Bearer ${agency.token}`)
+      .set('User-Agent', 'vitest-reveal/1.0')
+      .send({ field: 'contact' })
+    expect(revealed.status).toBe(200)
+    expect(revealed.body).toMatchObject({
+      success: true,
+      field: 'contact',
+      application_id: appId,
+    })
+
+    const audits = await pool().query(
+      `SELECT agent_id, agency_id, type, action, entity_type, entity_id, user_agent, metadata
+         FROM public.audit_log
+        WHERE entity_id = $1 AND action = 'reveal' AND entity_type = 'agency_application'`,
+      [appId],
+    )
+    expect(audits.rows).toHaveLength(1)
+    expect(audits.rows[0]).toMatchObject({
+      agent_id: agency.userId,
+      agency_id: agency.agencyId,
+      type: 'agency_application_pii_viewed',
+      action: 'reveal',
+      entity_type: 'agency_application',
+      entity_id: appId,
+      user_agent: 'vitest-reveal/1.0',
+    })
+    const meta = typeof audits.rows[0].metadata === 'string'
+      ? JSON.parse(audits.rows[0].metadata)
+      : audits.rows[0].metadata
+    expect(meta.field).toBe('contact')
+    expect(meta.reviewer_id).toBe(agency.userId)
+  })
+
+  it('GET applications.csv exports filtered rows with attachment headers', async () => {
+    const agency = await ownerAgency({ name: 'Csv Agency', slug: 'csv-agency' })
+    const pendingA = await agentAccount('CsvPendingA')
+    const pendingB = await agentAccount('CsvPendingB')
+    const approved = await agentAccount('CsvApproved')
+    const app = buildApp()
+
+    const a = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .set('Authorization', `Bearer ${pendingA.token}`)
+      .send({ ...applyBody, message: 'Pending A wants to join the team.' })
+    expect(a.status).toBe(201)
+
+    const b = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .set('Authorization', `Bearer ${pendingB.token}`)
+      .send({ ...applyBody, message: 'Pending B wants to join the team.' })
+    expect(b.status).toBe(201)
+
+    const c = await request(app)
+      .post(`/api/agencies/${agency.slug}/applications`)
+      .set('Authorization', `Bearer ${approved.token}`)
+      .send({ ...applyBody, message: 'Will be approved.' })
+    expect(c.status).toBe(201)
+    await request(app)
+      .post(`/api/agencies/${agency.agencyId}/applications/${c.body.application.id}/approve`)
+      .set('Authorization', `Bearer ${agency.token}`)
+      .send({ role: 'member', affiliation_mode: 'non_exclusive' })
+
+    const csvRes = await request(app)
+      .get(`/api/agencies/${agency.agencyId}/applications.csv`)
+      .query({ status: 'pending', within: 'all', q: 'CsvPendingA' })
+      .set('Authorization', `Bearer ${agency.token}`)
+
+    expect(csvRes.status).toBe(200)
+    expect(csvRes.headers['content-type']).toMatch(/text\/csv/)
+    expect(csvRes.headers['content-disposition']).toMatch(
+      /attachment; filename="agency-applications-pending-all\.csv"/,
+    )
+    expect(csvRes.headers['x-agency-applications-export-rows']).toBe('1')
+    expect(csvRes.text).toContain('id,applicant_name,applicant_city,applied_at,listings_count,status,message,decided_at,decided_by,reason')
+    expect(csvRes.text).toContain(a.body.application.id)
+    expect(csvRes.text).not.toContain(b.body.application.id)
+    expect(csvRes.text).not.toContain(c.body.application.id)
+  })
 })
