@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement } from 'react'
@@ -29,7 +29,11 @@ const THEME_CSS = readFileSync(
   'utf8',
 )
 
+/** Freeze wall clock so relative timestamps match CI (UTC) and local dev. */
+const FIXED_NOW = new Date('2026-09-12T12:00:00.000Z')
+
 beforeAll(() => {
+  process.env.TZ = 'UTC'
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
@@ -186,10 +190,16 @@ function themeFromId(id: string): { mode: Mode; dir: Dir } {
 
 describe('Wave 2 WF-03 visual matrix — Chromatic stand-ins', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXED_NOW)
     document.documentElement.lang = 'en'
     document.documentElement.dir = 'ltr'
     applyLcMode('light')
     document.body.querySelectorAll('[data-radix-portal]').forEach((n) => n.remove())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   for (const fixture of FIXTURES) {
@@ -206,6 +216,15 @@ describe('Wave 2 WF-03 visual matrix — Chromatic stand-ins', () => {
 })
 
 describe('Wave 2 WF-03 visual — viewport attribute smoke', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXED_NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('receipt mobile vs desktop widths differ in fixture attrs', () => {
     applyLcMode('light')
     const mobile = wrap(<Wf03ReceiptFixture aggregate="MIXED" viewport="mobile" />)
