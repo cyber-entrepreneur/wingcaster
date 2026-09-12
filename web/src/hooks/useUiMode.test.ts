@@ -68,6 +68,15 @@ describe('useUiMode', () => {
     const { result } = renderHook(() => useUiMode({ forceProCapable: true }))
     expect(result.current.mode).toBe('pro')
     expect(result.current.effectiveMode).toBe('pro')
+    expect(result.current.shouldRenderPro).toBe(true)
+  })
+
+  it('shouldRenderPro is false when ui_mode=pro but viewport <768 (preference preserved)', () => {
+    tenantMock.activeTenant.uiMode = 'pro'
+    const { result } = renderHook(() => useUiMode({ forceProCapable: false }))
+    expect(result.current.mode).toBe('pro')
+    expect(result.current.effectiveMode).toBe('guided')
+    expect(result.current.shouldRenderPro).toBe(false)
   })
 
   it('setMode blocks pro when not viewport-capable', async () => {

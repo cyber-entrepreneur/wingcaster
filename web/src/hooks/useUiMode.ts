@@ -46,6 +46,8 @@ export interface UseUiModeResult {
    * Pro only when server mode is `pro` AND viewport ≥768px (D-S-06).
    */
   effectiveMode: UiMode
+  /** True when Pro layout should mount (`effectiveMode === 'pro'`). */
+  shouldRenderPro: boolean
   isProCapable: boolean
   loading: boolean
   switching: boolean
@@ -108,6 +110,7 @@ export function useUiMode(options?: { forceProCapable?: boolean }): UseUiModeRes
   return {
     mode,
     effectiveMode,
+    shouldRenderPro: effectiveMode === 'pro',
     isProCapable,
     loading: Boolean(agent) && (authLoading || tenantLoading),
     switching,
