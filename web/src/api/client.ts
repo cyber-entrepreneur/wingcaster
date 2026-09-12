@@ -1550,9 +1550,51 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
+  getAdminAgentPriceReports: (params?: Record<string, string | number | undefined>) => {
+    const cleaned: Record<string, string> = {}
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue
+        cleaned[k] = String(v)
+      }
+    }
+    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
+    return fetchJson(`/admin/pricing/agent-price-reports${qs}`)
+  },
+  getAdminAgentPriceReport: (id: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}`),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
+    fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  bulkReviewAdminAgentPriceReports: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/agent-price-reports/bulk-review', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  undoAdminAgentPriceReportReview: (id: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}/undo-review`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getAdminAgentPriceReportEvidenceUrl: (reportId: string, evidenceId: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${reportId}/evidence/${evidenceId}/url`),
+  getAdminPricingBenchmarkSeries: (segmentId: string, window = '90d') =>
+    fetchJson(
+      `/admin/pricing/benchmarks/${encodeURIComponent(segmentId)}/series?window=${encodeURIComponent(window)}`,
+    ),
+  exportAdminAgentPriceReportsCsv: (params?: Record<string, string | number | undefined>) => {
+    const cleaned: Record<string, string> = {}
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue
+        cleaned[k] = String(v)
+      }
+    }
+    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
+    return `/admin/pricing/agent-price-reports.csv${qs}`
+  },
 
   submitAgentPriceReport: (data: Record<string, unknown>) =>
     fetchJson('/pricing/agent-price-reports', { method: 'POST', body: JSON.stringify(data) }),
