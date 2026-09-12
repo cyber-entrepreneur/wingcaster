@@ -21,6 +21,26 @@ const apiMock = vi.hoisted(() => ({
   regenerateBackupCodes: vi.fn(),
   stepUp: vi.fn(),
   stepUpVerify: vi.fn(),
+  getSettingsIndex: vi.fn(),
+}))
+
+vi.mock('@/components/ui/checkbox', () => ({
+  Checkbox: ({
+    id,
+    checked,
+    onCheckedChange,
+  }: {
+    id?: string
+    checked?: boolean
+    onCheckedChange?: (value: boolean) => void
+  }) => (
+    <input
+      id={id}
+      type="checkbox"
+      checked={Boolean(checked)}
+      onChange={(e) => onCheckedChange?.(e.target.checked)}
+    />
+  ),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -90,6 +110,7 @@ beforeEach(() => {
     backup_codes_remaining: 10,
   })
   apiMock.totpDisable.mockResolvedValue({ totp_enabled: false, token: 'new-token' })
+  apiMock.getSettingsIndex.mockResolvedValue({ groups: [], capabilities: {} })
   apiMock.stepUp.mockResolvedValue({
     challenge_id: 'step-1',
     method: 'totp',
