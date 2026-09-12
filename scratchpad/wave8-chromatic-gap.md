@@ -15,6 +15,7 @@ see `scratchpad/wave0-chromatic-gap.md`). `package.json` has no `chromatic` /
 | Layer | Location | Notes |
 |---|---|---|
 | A11y contract | `web/src/theme/wave8-activation.a11y.test.tsx` | Pro dashboard keyboard + density; Pro listings table semantics / j-k / space; Guided fallback `<768` with `ui_mode=pro`; public consent (no auth chrome); inbox dual-badge + relationships smoke; RTL + dark; jest-axe |
+| A11y (isolated) | `web/src/theme/wave8-listings-fallback.a11y.test.tsx` | Full `ListingsPage` Guided fallback `<768` (separate file — ListingsPage module graph hangs shared jsdom workers) |
 | Visual matrix | `web/src/theme/wave8-activation.visual.test.tsx` | **12** Vitest DOM snapshots = Chromatic stand-ins |
 | Fixtures | `web/src/theme/wave8-fixtures.ts` | Sample listings, consent terms, inbox row, relationships |
 | Phase A discovery | `web/src/theme/wave8-phase-a-discovery.ts` | Confirms Agents 1–5 page modules (`readyCount: 10`) |

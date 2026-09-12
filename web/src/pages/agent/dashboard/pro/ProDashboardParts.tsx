@@ -106,12 +106,12 @@ export function WidgetCard({ title, children, className, span = 6, onFullscreen 
       data-testid="widget-card"
     >
       <header className="flex items-center gap-2 border-b border-[var(--lc-border)] px-[var(--lc-space-lg)] py-[var(--lc-space-sm)]">
-        <h3
+        <h2
           className="min-w-0 flex-1 text-[var(--lc-text-heading)]"
           style={{ font: 'var(--lc-type-heading-3)', letterSpacing: 'var(--lc-tracking-heading-3)' }}
         >
           {title}
-        </h3>
+        </h2>
         <button
           type="button"
           className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--lc-text-brand)]"
