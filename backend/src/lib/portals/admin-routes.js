@@ -3,9 +3,7 @@
  * Mirrors packages admin registration style.
  */
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, extname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { authMiddleware as defaultAuthMiddleware, requireElevated } from '../../auth.js'
 import { requirePlatformAdmin } from '../auth-guards.js'
 import { adminMutationLimiter } from '../admin-limiter.js'
@@ -29,8 +27,6 @@ import {
 } from './activation-gates.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const LOGO_DIR = join(HERE, '../../../assets/portals')
-
 const ERROR_STATUS = {
   NOT_FOUND: 404,
   OWN_SUBMISSION: 403,
@@ -207,28 +203,12 @@ export function registerPortalAdminRoutes(app, {
     }))
   }))
 
-  app.post('/api/admin/portals/logo-upload', writeGuards, wrap(async (req, res) => {
-    const { code, filename, data_base64: dataBase64, content_type: contentType } = req.body || {}
-    if (!code || !dataBase64) {
-      return res.status(400).json({ error: 'code and data_base64 required', code: 'INVALID_INPUT' })
-    }
-    const portal = await getPortalByCode(code)
-    if (!portal) {
-      return res.status(404).json({ error: 'portal not found', code: 'NOT_FOUND' })
-    }
-    const raw = String(dataBase64).replace(/^data:[^;]+;base64,/, '')
-    const buf = Buffer.from(raw, 'base64')
-    if (buf.length > 200 * 1024) {
-      return res.status(400).json({ error: 'Logo max 200KB', code: 'LOGO_TOO_LARGE' })
-    }
-    const ext = (filename && extname(filename))
-      || (String(contentType || '').includes('png') ? '.png' : '.svg')
-    await mkdir(LOGO_DIR, { recursive: true })
-    const outName = `${code}${ext === '.png' ? '.png' : '.svg'}`
-    await writeFile(join(LOGO_DIR, outName), buf)
-    const logoUrl = `/assets/portals/${outName}`
-    await updatePortal(code, { logo_url: logoUrl }, { actorId: actorId(req) })
-    return res.status(200).json({ logo_url: logoUrl })
+  app.post('/api/admin/portals/logo-upload', writeGuards, wrap(async (_req, res) => {
+    // Ephemeral container FS cannot retain logos; wait for object storage / CDN.
+    return res.status(501).json({
+      error: 'Logo upload is not available until object storage ships',
+      code: 'LOGO_STORAGE_NOT_READY',
+    })
   }))
 
   app.get('/api/admin/portals/adapters/:className/schema', readGuards, wrap(async (req, res) => {
