@@ -74,6 +74,8 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { settingsRoutes } from '@/pages/settings/routes'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -142,10 +144,15 @@ function AppRoutes() {
       <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
-      <Route path="/settings/2fa" element={<TotpSettingsPage />} />
-      <Route path="/settings/channels" element={<SocialChannelsPage />} />
-      <Route path="/settings/routing" element={<RoutingSettingsPage />} />
-      <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
+      <Route path="/settings" element={<SettingsPage />}>
+        {settingsRoutes}
+        {/* MFA-owned: keep TotpSettingsPage until the MFA agent fills nested 2FA pages. */}
+        <Route path="2fa" element={<TotpSettingsPage />} />
+        <Route path="2fa/*" element={<TotpSettingsPage />} />
+        <Route path="channels" element={<SocialChannelsPage />} />
+        <Route path="routing" element={<RoutingSettingsPage />} />
+        <Route path="historical-transactions" element={<HistoricalTransactionsPage />} />
+      </Route>
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/operations" element={<CommandCenterPage />} />
       <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
