@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod'
-import { findAll, findOne, update } from '../db.js'
+import { findOne, update } from '../db.js'
 import { findUserById } from '../identity.js'
 import { personalTenantId } from '../tenant-authorization.js'
 import { assertOwnsConversation } from './authz.js'
@@ -18,6 +18,10 @@ import {
   markConversationReadByAgent,
   markConversationUnreadByAgent,
 } from '../conversations/orchestrator.js'
+import {
+  createAiSuggestionsLimiter,
+  generateAiSuggestions,
+} from './conversations/ai-suggestions.js'
 
 const MERGE_MODES = ['merged', 'separate']
 
@@ -78,30 +82,11 @@ function inboxAiEnabled() {
   return flag !== '0' && flag !== 'false' && flag !== 'off'
 }
 
-function heuristicSuggestions(lastInbound, contactName) {
-  const first = String(contactName || '').split(' ')[0] || 'there'
-  const text = String(lastInbound?.content || lastInbound?.body || '').toLowerCase()
-  const suggestions = []
-  if (lastInbound?.suggested_reply) suggestions.push(String(lastInbound.suggested_reply).trim())
-  if (/\b(available|availability|still for sale|still on)\b/.test(text)) {
-    suggestions.push('Yes, it is still available. Would you like to schedule a viewing?')
-  }
-  if (/\b(price|asking|offer|discount)\b/.test(text)) {
-    suggestions.push('Happy to walk you through the current asking price and recent comps.')
-  }
-  suggestions.push(`Thanks for reaching out, ${first}. When works for a viewing?`)
-  suggestions.push('I can send the floor plan and latest photos — which would you like first?')
-  const seen = new Set()
-  return suggestions.filter((item) => {
-    if (!item || seen.has(item)) return false
-    seen.add(item)
-    return true
-  }).slice(0, 3)
-}
-
 export function registerInboxAgentRoutes(app, deps) {
   const { authMiddleware } = deps
   if (!authMiddleware) throw new Error('registerInboxAgentRoutes requires authMiddleware')
+
+  const aiSuggestionsLimiter = createAiSuggestionsLimiter()
 
   app.get('/api/agent-preferences', authMiddleware, async (req, res) => {
     const ctx = await loadActiveMembership(req.user.id)
@@ -171,22 +156,26 @@ export function registerInboxAgentRoutes(app, deps) {
     res.json({ updated, failed })
   })
 
-  app.post('/api/conversations/:id/ai-suggestions', authMiddleware, async (req, res) => {
-    if (!inboxAiEnabled()) {
-      return res.json({ enabled: false, suggestions: [], source: null })
-    }
-    const conversation = await assertOwnsConversation(req.user.id, req.params.id)
-    const messages = (await findAll('conversation_messages', (m) => m.conversation_id === conversation.id))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    const lastInbound = messages.find((m) => m.direction === 'inbound')
-    const contact = conversation.contact_id
-      ? await findOne('contacts', (c) => c.id === conversation.contact_id)
-      : null
-    const suggestions = heuristicSuggestions(lastInbound, contact?.name || conversation.contact_name)
-    res.json({
-      enabled: true,
-      suggestions,
-      source: lastInbound?.suggested_reply ? 'stored' : 'heuristic',
-    })
-  })
+  app.post(
+    '/api/conversations/:id/ai-suggestions',
+    authMiddleware,
+    aiSuggestionsLimiter,
+    async (req, res) => {
+      if (!inboxAiEnabled()) {
+        return res.json({ suggestions: [], degraded: true })
+      }
+      try {
+        const result = await generateAiSuggestions({
+          conversationId: req.params.id,
+          userId: req.user.id,
+        })
+        return res.json(result)
+      } catch (err) {
+        if (err?.status === 404 || err?.status === 403) {
+          return res.status(err.status).json({ error: err.message || 'Not found' })
+        }
+        return res.json({ suggestions: [], degraded: true })
+      }
+    },
+  )
 }

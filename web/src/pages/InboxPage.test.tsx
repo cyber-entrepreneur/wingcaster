@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   getAgentPreferences: vi.fn(),
   patchAgentPreferences: vi.fn(),
   getConversationAiSuggestions: vi.fn(),
+  getAiSuggestions: vi.fn(),
   bulkConversations: vi.fn(),
   getMessageTemplates: vi.fn(),
 }))
@@ -26,7 +27,24 @@ vi.mock('@/components/ui/toast', () => ({
 vi.mock('@/api/client', () => ({
   api: apiMocks,
   setAuthToken: vi.fn(),
+  getAuthToken: vi.fn(() => 'test-token'),
   API_BASE: '/api',
+}))
+
+vi.mock('@/lib/inbox/socket', () => ({
+  useInboxSocket: vi.fn(),
+  connectInboxSocket: vi.fn(() => ({ close: vi.fn() })),
+}))
+
+vi.mock('@/lib/inbox/offline-store', () => ({
+  saveConversationList: vi.fn(async () => undefined),
+  getConversationList: vi.fn(async () => null),
+  saveConversation: vi.fn(async () => undefined),
+  saveMessages: vi.fn(async () => undefined),
+  getConversation: vi.fn(async () => undefined),
+  getMessages: vi.fn(async () => []),
+  enqueueOutgoing: vi.fn(async () => undefined),
+  flushOutbox: vi.fn(async () => ({ sent: 0, failed: 0 })),
 }))
 
 vi.mock('@/context/AuthContext', () => ({
@@ -93,7 +111,14 @@ describe('InboxPage AGT-INB-001/002', () => {
     apiMocks.getConversations.mockResolvedValue([legacyConv, modernConv])
     apiMocks.getAgentPreferences.mockResolvedValue({ inbox_merge_mode: 'separate' })
     apiMocks.patchAgentPreferences.mockResolvedValue({ inbox_merge_mode: 'merged' })
-    apiMocks.getConversationAiSuggestions.mockResolvedValue({ enabled: true, suggestions: ['Yes, still available.'] })
+    apiMocks.getConversationAiSuggestions.mockResolvedValue({
+      enabled: true,
+      suggestions: [{ id: 's1', body: 'Yes, still available.', language: 'en' }],
+    })
+    apiMocks.getAiSuggestions.mockResolvedValue({
+      enabled: true,
+      suggestions: [{ id: 's1', body: 'Yes, still available.', language: 'en' }],
+    })
     apiMocks.bulkConversations.mockResolvedValue({ updated: 1, failed: [] })
     apiMocks.getMessageTemplates.mockResolvedValue([])
     apiMocks.getConversation.mockImplementation(async (id: string) => {

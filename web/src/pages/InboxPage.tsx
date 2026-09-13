@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowUpDown, Loader2, Plus, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,17 @@ import { useAuth } from '@/context/AuthContext'
 import { api, type InboxConversation, type InboxConversationMessage } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
+import { useInboxRealtime } from '@/lib/useInboxRealtime'
+import {
+  enqueueOutgoing,
+  flushOutbox,
+  getConversation as getCachedConversation,
+  getConversationList,
+  getMessages as getCachedMessages,
+  saveConversation,
+  saveConversationList,
+  saveMessages,
+} from '@/lib/inbox/offline-store'
 import { cn } from '@/lib/utils'
 import { readChannel, readSource } from '@/lib/channel-source'
 import { groupConversationsForInbox, type InboxMergeMode } from '@/lib/inbox-merge'
@@ -18,6 +29,7 @@ import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import {
   AISuggestedReplyRow,
   ComposeBar,
+  ComposeNewDialog,
   ConversationHeader,
   DayGroupSeparator,
   InboxBulkActionBar,
@@ -144,12 +156,21 @@ export function InboxPage() {
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [aiLoading, setAiLoading] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const replayingOutbox = useRef(false)
 
   const loadConversations = async () => {
     try {
       const data = (await api.getConversations()) as InboxConversation[]
-      setConversations((Array.isArray(data) ? data : []).map(normalizeConversation))
+      const normalized = (Array.isArray(data) ? data : []).map(normalizeConversation)
+      setConversations(normalized)
+      void saveConversationList(normalized)
     } catch (e: unknown) {
+      const cached = await getConversationList<InboxConversation & { channel: string; source: string }>()
+      if (cached?.length) {
+        setConversations(cached)
+        if (!online) return
+      }
       const err = e as { message?: string }
       addToast({
         title: 'Failed to load inbox',
@@ -169,7 +190,15 @@ export function InboxPage() {
       const normalized = normalizeConversation(data)
       setActiveConversation(normalized)
       const rawMessages = data.messages || []
-      setMessages(rawMessages.map((m, i) => toInboxMessage(m, i, rawMessages)))
+      const mapped = rawMessages.map((m, i) => toInboxMessage(m, i, rawMessages))
+      setMessages(mapped)
+      void saveConversation(normalized)
+      void saveMessages(
+        mapped.map((m) => ({
+          ...m,
+          conversation_id: id,
+        })),
+      )
       if (routeConversationId) {
         navigate(`/inbox/${id}`, { replace: true })
       } else {
@@ -178,6 +207,22 @@ export function InboxPage() {
         setSearchParams(next, { replace: true })
       }
     } catch (e: unknown) {
+      const cachedConversation = await getCachedConversation(id)
+      const cachedMessages = await getCachedMessages(id)
+      if (cachedConversation || cachedMessages.length) {
+        if (cachedConversation) {
+          setActiveConversation(
+            cachedConversation as InboxConversation & { channel: string; source: string },
+          )
+        }
+        if (cachedMessages.length) {
+          setMessages(cachedMessages as unknown as InboxMessage[])
+        }
+        if (!online) {
+          setThreadLoading(false)
+          return
+        }
+      }
       const err = e as { message?: string }
       addToast({
         title: 'Failed to load conversation',
@@ -192,9 +237,23 @@ export function InboxPage() {
   const loadAiSuggestions = async (id: string) => {
     setAiLoading(true)
     try {
-      const res = await api.getConversationAiSuggestions(id)
-      setAiEnabled(Boolean(res?.enabled))
-      setAiSuggestions(Array.isArray(res?.suggestions) ? res.suggestions : [])
+      const res = await api.getAiSuggestions(id)
+      if (res?.degraded) {
+        setAiEnabled(false)
+        setAiSuggestions([])
+        return
+      }
+      const raw = Array.isArray(res?.suggestions) ? res.suggestions : []
+      const bodies = raw
+        .map((item) => (typeof item === 'string' ? item : item?.body))
+        .filter((body): body is string => Boolean(body && String(body).trim()))
+      if (bodies.length === 0) {
+        setAiEnabled(false)
+        setAiSuggestions([])
+        return
+      }
+      setAiEnabled(true)
+      setAiSuggestions(bodies)
     } catch {
       setAiEnabled(false)
       setAiSuggestions([])
@@ -234,12 +293,75 @@ export function InboxPage() {
     if (!selectedId) return
     loadThread(selectedId)
     loadAiSuggestions(selectedId)
-    const interval = setInterval(() => {
-      if (!navigator.onLine) return
-      loadThread(selectedId)
-      loadConversations()
-    }, 8000)
-    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
+  useInboxRealtime({
+    enabled: online,
+    onEvent: (event) => {
+      if (
+        event.type === 'conversation.updated' ||
+        event.type === 'conversation.created' ||
+        event.type === 'message.created' ||
+        event.type === 'message.new' ||
+        event.type === 'message.updated'
+      ) {
+        void loadConversations()
+        const cid = event.conversation_id || selectedId
+        if (cid && (cid === selectedId || !selectedId)) {
+          void loadThread(cid)
+        }
+      }
+    },
+    onFallbackPoll: () => {
+      void loadConversations()
+      if (selectedId) void loadThread(selectedId)
+    },
+  })
+
+  const replayOutbox = async () => {
+    if (replayingOutbox.current || !navigator.onLine) return
+    replayingOutbox.current = true
+    try {
+      const result = await flushOutbox(async (entry) => {
+        await api.sendConversationMessage(
+          entry.conversation_id,
+          entry.content,
+          entry.options as Parameters<typeof api.sendConversationMessage>[2],
+        )
+      })
+      if (result.sent > 0) {
+        await loadConversations()
+        if (selectedId) await loadThread(selectedId)
+      }
+    } finally {
+      replayingOutbox.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!online) return
+    void replayOutbox()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online])
+
+  useEffect(() => {
+    const onOnline = () => {
+      void flushOutbox(async (entry) => {
+        await api.sendConversationMessage(
+          entry.conversation_id,
+          entry.content,
+          entry.options as Parameters<typeof api.sendConversationMessage>[2],
+        )
+      }).then((result) => {
+        if (result.sent > 0) {
+          void loadConversations()
+          if (selectedId) void loadThread(selectedId)
+        }
+      })
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
@@ -401,10 +523,25 @@ export function InboxPage() {
       await loadAiSuggestions(activeConversation.id)
     } catch (e: unknown) {
       if (!online) {
+        const clientId = `queued-${Date.now()}`
+        try {
+          await enqueueOutgoing({
+            conversation_id: activeConversation.id,
+            content,
+            options: {
+              image_url: imageUrl,
+              attachments,
+              content_type: imageUrl ? 'image' : 'text',
+            },
+            client_id: clientId,
+          })
+        } catch {
+          // still show queued UI even if IDB write fails
+        }
         setMessages((prev) => [
           ...prev,
           {
-            id: `queued-${Date.now()}`,
+            id: clientId,
             direction: 'outbound',
             channel: readChannel(activeConversation),
             content,
@@ -587,7 +724,12 @@ export function InboxPage() {
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
-            <Button size="sm" className="hidden gap-1.5 lg:inline-flex" disabled aria-label="Compose new conversation">
+            <Button
+              size="sm"
+              className="hidden min-h-11 gap-1.5 lg:inline-flex"
+              aria-label="Compose new conversation"
+              onClick={() => setComposeOpen(true)}
+            >
               <Plus className="h-3.5 w-3.5" /> Compose
             </Button>
           </div>
@@ -731,9 +873,9 @@ export function InboxPage() {
 
           <Button
             size="icon"
-            className="fixed bottom-24 end-6 z-20 h-14 w-14 rounded-[var(--lc-radius-pill)] shadow-[var(--lc-elevation-lg)] lg:hidden"
+            className="fixed bottom-24 end-6 z-20 h-14 min-h-11 w-14 rounded-[var(--lc-radius-pill)] shadow-[var(--lc-elevation-lg)] lg:hidden"
             aria-label="Compose new conversation"
-            disabled
+            onClick={() => setComposeOpen(true)}
           >
             <Plus className="h-6 w-6" />
           </Button>
@@ -796,7 +938,7 @@ export function InboxPage() {
                 )}
               </div>
 
-              {aiEnabled ? (
+              {aiLoading || aiEnabled ? (
                 <AISuggestedReplyRow
                   suggestions={aiSuggestions}
                   loading={aiLoading}
@@ -828,6 +970,14 @@ export function InboxPage() {
           )}
         </div>
       </div>
+
+      <ComposeNewDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        templates={templates}
+        templatesLoading={templatesLoading}
+        onRequestTemplates={loadTemplates}
+      />
     </CrmShell>
   )
 }

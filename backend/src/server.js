@@ -3,6 +3,7 @@ import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync, mkdirSync } from 'fs'
 import { randomBytes, createHash, randomInt, timingSafeEqual } from 'crypto'
+import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -13,7 +14,7 @@ import multer from 'multer'
 import { loadDb, getDb, findAll, findOne, insert, remove, update, transaction } from './db.js'
 import { getPool, query } from './persistence/postgres-adapter.js'
 import { seedData } from './seed.js'
-import { signToken, authMiddleware, requireElevated } from './auth.js'
+import { signToken, authMiddleware, requireElevated, verifyToken } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import {
   castVote,
@@ -205,6 +206,8 @@ import {
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
+import { attachInboxWebSocket } from './ws/inbox.js'
+import { maskEmail, maskPhone } from './account-recovery/mask.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
@@ -3780,8 +3783,21 @@ app.patch('/api/notification-preferences', authMiddleware, validate(notification
 
 // ==================== CONTACTS ====================
 app.get('/api/contacts', authMiddleware, async (req, res) => {
-  const mine = (await findAll('contacts', (c) => c.assigned_agent_id === req.user.id))
-    .sort((a, b) => new Date(b.last_activity_at || b.created_at).getTime() - new Date(a.last_activity_at || a.created_at).getTime())
+  const q = String(req.query.q || '').trim().toLowerCase()
+  let mine = await findAll('contacts', (c) => c.assigned_agent_id === req.user.id)
+  if (q) {
+    mine = mine.filter((c) => {
+      const name = String(c.name || '').toLowerCase()
+      const email = String(c.email || '').toLowerCase()
+      const phone = String(c.phone || '').toLowerCase()
+      return name.includes(q) || email.includes(q) || phone.includes(q)
+    })
+  }
+  mine = mine.sort(
+    (a, b) =>
+      new Date(b.last_activity_at || b.created_at).getTime() -
+      new Date(a.last_activity_at || a.created_at).getTime(),
+  )
   res.json(mine)
 })
 
@@ -4112,6 +4128,85 @@ app.get('/api/conversations', authMiddleware, async (req, res) => {
     .sort((a, b) => new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime())
     .map(withChannelSource)
   res.json(mine)
+})
+
+app.post('/api/conversations', authMiddleware, async (req, res) => {
+  const body = req.body || {}
+  const channel = String(body.channel || '').trim()
+  if (!channel) return res.status(400).json({ error: 'channel is required' })
+
+  try {
+    let contact = null
+    if (body.new_contact && typeof body.new_contact === 'object') {
+      const nc = body.new_contact
+      const name = String(nc.name || '').trim()
+      if (!name) return res.status(400).json({ error: 'new_contact.name is required' })
+      const createdContact = await getOrCreateContact({
+        name,
+        phone: nc.phone || '',
+        email: nc.email || '',
+        assignedAgentId: req.user.id,
+        source: body.source || channel,
+        channel,
+      })
+      contact = createdContact.contact
+    } else if (body.contact_id) {
+      contact = await assertOwnsContact(req.user.id, String(body.contact_id).trim())
+    } else {
+      return res.status(400).json({ error: 'contact_id or new_contact is required' })
+    }
+
+    const { conversation, created } = await getOrCreateConversation({
+      contactId: contact.id,
+      channel,
+      source: body.source,
+      assignedAgentId: req.user.id,
+      subject: body.subject || '',
+    })
+
+    let message = null
+    let dispatch = null
+    const outboundBody = body.body != null ? String(body.body) : ''
+    const attachments = Array.isArray(body.attachments) ? body.attachments : []
+    if (outboundBody.trim() || attachments.length > 0) {
+      const sent = await sendOutboundMessage({
+        conversationId: conversation.id,
+        content: outboundBody,
+        contentType: 'text',
+        attachments,
+        sentByAgentId: req.user.id,
+        subject: body.subject,
+      })
+      message = sent.message
+      dispatch = sent.dispatch
+    }
+
+    const maskedContact = {
+      ...contact,
+      email: contact.email ? maskEmail(contact.email) : contact.email,
+      phone: contact.phone ? maskPhone(contact.phone) : contact.phone,
+    }
+
+    res.status(created ? 201 : 200).json({
+      ...withChannelSource(conversation),
+      created,
+      contact: maskedContact,
+      contact_email: conversation.contact_email
+        ? maskEmail(conversation.contact_email)
+        : conversation.contact_email,
+      contact_phone: conversation.contact_phone
+        ? maskPhone(conversation.contact_phone)
+        : conversation.contact_phone,
+      message,
+      dispatch,
+      template_id: body.template_id || null,
+    })
+  } catch (e) {
+    if (e?.status === 404 || e?.status === 403) {
+      return res.status(e.status).json({ error: e.message || 'Not found' })
+    }
+    res.status(400).json({ error: e.message || 'Failed to create conversation' })
+  }
 })
 
 app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
@@ -8350,7 +8445,18 @@ const startServer = async () => {
     logger.warn({ channels: unverifiableWebhookChannels }, 'Webhook channels are unverifiable until their secrets are configured')
   }
 
-  app.listen(port, () => {
+  const server = http.createServer(app)
+  attachInboxWebSocket(server, {
+    verifyAuth: async (token) => {
+      const decoded = verifyToken(token)
+      if (!decoded?.id) return null
+      const user = await findUserById(decoded.id)
+      if (!user) return null
+      return { id: user.id }
+    },
+  })
+
+  server.listen(port, () => {
     logger.info({
       port,
       env: NODE_ENV,

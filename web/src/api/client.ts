@@ -255,6 +255,11 @@ function getToken() {
   return token
 }
 
+/** Exported for WebSocket auth and other non-fetch clients. */
+export function getAuthToken() {
+  return getToken()
+}
+
 export function clearAuthToken() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem('sa_token')
@@ -1004,7 +1009,10 @@ export const api = {
     }),
 
   // Contacts & Conversation Orchestrator
-  getContacts: () => fetchJson('/contacts'),
+  getContacts: (params?: { q?: string }) => {
+    const qs = params?.q ? `?${new URLSearchParams({ q: params.q }).toString()}` : ''
+    return fetchJson(`/contacts${qs}`)
+  },
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
   updateContact: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -1037,6 +1045,17 @@ export const api = {
     fetchJson(`/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getConversations: (): Promise<InboxConversation[]> => fetchJson('/conversations'),
   getConversation: (id: string): Promise<InboxConversationDetail> => fetchJson(`/conversations/${id}`),
+  createConversation: (payload: {
+    contact_id?: string
+    new_contact?: { name?: string; phone?: string; email?: string }
+    channel: string
+    body?: string
+    source?: string
+    subject?: string
+    template_id?: string
+    attachments?: Array<{ url: string; mime?: string; filename?: string; size_bytes?: number }>
+  }): Promise<InboxConversation & { created?: boolean }> =>
+    fetchJson('/conversations', { method: 'POST', body: JSON.stringify(payload) }),
   sendConversationMessage: (
     id: string,
     content: string,
@@ -1063,8 +1082,25 @@ export const api = {
     fetchJson('/agent-preferences', { method: 'PATCH', body: JSON.stringify(payload) }),
   getConversationAiSuggestions: (
     id: string,
-  ): Promise<{ enabled: boolean; suggestions: string[]; source?: string | null }> =>
-    fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
+  ): Promise<{
+    enabled?: boolean
+    suggestions: Array<string | { id: string; body: string; language?: string }>
+    model?: string
+    latency_ms?: number
+    degraded?: boolean
+    source?: string | null
+  }> => fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
+  /** Alias for getConversationAiSuggestions (Wave 8 dispatch name). */
+  getAiSuggestions: (
+    id: string,
+  ): Promise<{
+    enabled?: boolean
+    suggestions: Array<string | { id: string; body: string; language?: string }>
+    model?: string
+    latency_ms?: number
+    degraded?: boolean
+    source?: string | null
+  }> => fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
 
   getListingComments: (
     listingId: string,

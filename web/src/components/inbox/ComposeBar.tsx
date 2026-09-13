@@ -18,6 +18,7 @@ import {
 import { CharacterCounter, isOverChannelLimit } from '@/components/inbox/CharacterCounter'
 import { channelLabel } from '@/lib/inbox-labels'
 import { formatFileSize } from '@/lib/inbox-media'
+import { isSpeechAvailable, startDictation, type DictationHandle } from '@/lib/voice-dictation'
 import { cn } from '@/lib/utils'
 
 export type ComposeAttachment = {
@@ -59,16 +60,6 @@ export type ComposeBarProps = {
 
 const MAX_BYTES = 25 * 1024 * 1024
 
-type SpeechRec = {
-  continuous: boolean
-  interimResults: boolean
-  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
-  onerror: ((event: { error: string }) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-
 function classifyFile(file: File): ComposeAttachment['kind'] {
   if (file.type.startsWith('image/')) return 'image'
   if (file.type.startsWith('audio/')) return 'audio'
@@ -77,12 +68,126 @@ function classifyFile(file: File): ComposeAttachment['kind'] {
   return 'file'
 }
 
-function SpeechCtor(): (new () => SpeechRec) | null {
-  const w = window as Window & {
-    SpeechRecognition?: new () => SpeechRec
-    webkitSpeechRecognition?: new () => SpeechRec
+export type AttachmentsPickerProps = {
+  attachments: ComposeAttachment[]
+  onAttachmentsChange: (next: ComposeAttachment[]) => void
+  disabled?: boolean
+  triggerClassName?: string
+  triggerLabel?: string
+  includeVoiceNote?: boolean
+  onVoiceNote?: () => void
+}
+
+export function AttachmentsPicker({
+  attachments,
+  onAttachmentsChange,
+  disabled,
+  triggerClassName,
+  triggerLabel = 'Attach',
+  includeVoiceNote = false,
+  onVoiceNote,
+}: AttachmentsPickerProps) {
+  const [attachOpen, setAttachOpen] = useState(false)
+  const photoRef = useRef<HTMLInputElement>(null)
+  const docRef = useRef<HTMLInputElement>(null)
+
+  const addFiles = (files: FileList | null) => {
+    if (!files) return
+    const next = [...attachments]
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_BYTES) continue
+      next.push({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        file,
+        url: URL.createObjectURL(file),
+        mime: file.type,
+        filename: file.name,
+        size_bytes: file.size,
+        kind: classifyFile(file),
+      })
+    }
+    onAttachmentsChange(next)
+    setAttachOpen(false)
   }
-  return w.SpeechRecognition || w.webkitSpeechRecognition || null
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className={cn('min-h-11 gap-2', triggerClassName)}
+        aria-label="Attach a photo, document, or voice note"
+        disabled={disabled}
+        onClick={() => setAttachOpen(true)}
+      >
+        <Paperclip className="h-4 w-4" />
+        {triggerLabel}
+      </Button>
+
+      <Dialog open={attachOpen} onOpenChange={setAttachOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attach</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button className="min-h-11" variant="outline" onClick={() => photoRef.current?.click()}>
+              Photo
+            </Button>
+            <Button className="min-h-11" variant="outline" onClick={() => docRef.current?.click()}>
+              Document
+            </Button>
+            {includeVoiceNote ? (
+              <Button
+                className="min-h-11"
+                variant="outline"
+                onClick={() => {
+                  setAttachOpen(false)
+                  onVoiceNote?.()
+                }}
+              >
+                Voice note
+              </Button>
+            ) : null}
+          </div>
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
+          <input
+            ref={docRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xlsx,application/pdf"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function ListeningWaveform() {
+  return (
+    <span
+      className="inline-flex h-4 items-end gap-0.5"
+      aria-hidden
+      data-listening-waveform="true"
+    >
+      {[0, 1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className="w-0.5 animate-pulse rounded-[var(--lc-radius-pill)] bg-[var(--lc-accent-bold)]"
+          style={{
+            height: `${6 + ((i % 3) + 1) * 3}px`,
+            animationDelay: `${i * 120}ms`,
+          }}
+        />
+      ))}
+    </span>
+  )
 }
 
 export function ComposeBar({
@@ -111,7 +216,12 @@ export function ComposeBar({
   const [templateWarning, setTemplateWarning] = useState<ComposeTemplate | null>(null)
   const [dictating, setDictating] = useState(false)
   const [dictationError, setDictationError] = useState<string | null>(null)
-  const recognitionRef = useRef<SpeechRec | null>(null)
+  const [speechAvailable, setSpeechAvailable] = useState(false)
+  const [partialTranscript, setPartialTranscript] = useState('')
+  const recognitionRef = useRef<DictationHandle | null>(null)
+  const valueRef = useRef(value)
+  const baselineRef = useRef(value)
+  valueRef.current = value
 
   const overLimit = isOverChannelLimit(value, channel)
   const hasAttachments = attachments.length > 0
@@ -121,7 +231,16 @@ export function ComposeBar({
     !disabled &&
     !closed &&
     !overLimit
-  const speechAvailable = typeof window !== 'undefined' && Boolean(SpeechCtor())
+
+  useEffect(() => {
+    let mounted = true
+    isSpeechAvailable().then((available) => {
+      if (mounted) setSpeechAvailable(available)
+    })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -153,51 +272,53 @@ export function ComposeBar({
     onAttachmentsChange?.(attachments.filter((item) => item.id !== id))
   }
 
-  const startDictation = () => {
+  const startVoice = async () => {
     setDictationError(null)
-    const Ctor = SpeechCtor()
-    if (!Ctor) {
-      setDictationError('Voice dictation is not available in this browser.')
-      return
-    }
-    if (!navigator.onLine) {
-      setDictationError('Voice dictation needs an internet connection.')
-      return
-    }
+    setPartialTranscript('')
+    baselineRef.current = valueRef.current
     try {
-      const rec = new Ctor()
-      rec.continuous = true
-      rec.interimResults = true
-      rec.onresult = (event) => {
-        let transcript = ''
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          transcript += event.results[i][0].transcript
-        }
-        if (transcript) onChange(`${value}${value && !value.endsWith(' ') ? ' ' : ''}${transcript}`.trimStart())
-      }
-      rec.onerror = (event) => {
-        setDictating(false)
-        if (event.error === 'not-allowed') {
-          setDictationError('Microphone access needed for voice dictation.')
-        } else {
-          setDictationError('Voice dictation stopped.')
-        }
-      }
-      rec.onend = () => setDictating(false)
-      recognitionRef.current = rec
-      rec.start()
+      const handle = await startDictation(navigator.language || 'ar-AE', {
+        onPartial: (transcript) => {
+          setPartialTranscript(transcript)
+        },
+        onFinal: (transcript) => {
+          const base = baselineRef.current
+          const joined = `${base}${base && !base.endsWith(' ') ? ' ' : ''}${transcript}`.trimStart()
+          onChange(joined)
+          baselineRef.current = joined
+          setPartialTranscript('')
+        },
+        onError: (message) => {
+          setDictationError(message)
+          setDictating(false)
+          setPartialTranscript('')
+        },
+        onEnd: () => {
+          setDictating(false)
+          setPartialTranscript('')
+        },
+      })
+      recognitionRef.current = handle
       setDictating(true)
     } catch {
       setDictationError('Microphone access needed for voice dictation.')
+      setDictating(false)
     }
   }
 
-  const stopDictation = () => {
-    recognitionRef.current?.stop()
+  const stopVoice = async () => {
+    await recognitionRef.current?.stop()
+    recognitionRef.current = null
     setDictating(false)
+    setPartialTranscript('')
   }
 
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  useEffect(
+    () => () => {
+      void recognitionRef.current?.stop()
+    },
+    [],
+  )
 
   const pickTemplate = (template: ComposeTemplate) => {
     const declared = String(template.channel || '').toLowerCase()
@@ -209,12 +330,20 @@ export function ComposeBar({
     setTemplateOpen(false)
   }
 
+  const displayValue =
+    dictating && partialTranscript
+      ? `${baselineRef.current}${baselineRef.current && !baselineRef.current.endsWith(' ') ? ' ' : ''}${partialTranscript}`
+      : value
+
   return (
-    <div className="shrink-0 border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-4 py-3 shadow-[0_-2px_0_rgba(25,21,18,0.06)]">
+    <div className="shrink-0 border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-4 py-3 shadow-[var(--lc-elevation-sm)]">
       {attachments.length > 0 ? (
         <div className="mb-2 flex gap-2 overflow-x-auto" aria-label="Queued attachments">
           {attachments.map((item) => (
-            <div key={item.id} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]">
+            <div
+              key={item.id}
+              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]"
+            >
               {item.kind === 'image' ? (
                 <img src={item.url} alt={item.filename} className="h-full w-full object-cover" />
               ) : (
@@ -236,12 +365,22 @@ export function ComposeBar({
         </div>
       ) : null}
 
+      {dictating ? (
+        <div
+          className="mb-2 flex min-h-11 items-center gap-2 rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] px-3 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]"
+          aria-live="polite"
+        >
+          <ListeningWaveform />
+          Listening…
+        </div>
+      ) : null}
+
       <div className="flex items-end gap-2">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-10 w-10 shrink-0"
+          className="h-11 w-11 shrink-0"
           aria-label="Attach a photo, document, or voice note"
           disabled={closed || disabled}
           onClick={() => setAttachOpen(true)}
@@ -252,7 +391,7 @@ export function ComposeBar({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-10 w-10 shrink-0"
+          className="h-11 w-11 shrink-0"
           aria-label="Insert template"
           disabled={closed || disabled}
           onClick={() => {
@@ -266,8 +405,11 @@ export function ComposeBar({
         <div className="relative min-w-0 flex-1">
           <textarea
             ref={ref}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
+            value={displayValue}
+            onChange={(e) => {
+              if (dictating) return
+              onChange(e.target.value)
+            }}
             onKeyDown={handleKeyDown}
             placeholder={
               contactFirstName
@@ -295,15 +437,26 @@ export function ComposeBar({
             type="button"
             variant="ghost"
             size="icon"
-            className="relative h-10 w-10 shrink-0"
+            className="relative h-11 w-11 shrink-0"
             aria-label={dictating ? 'Stop dictation' : 'Dictate with voice'}
             aria-pressed={dictating}
             disabled={closed || disabled}
-            onClick={dictating ? stopDictation : startDictation}
+            onClick={
+              dictating
+                ? () => {
+                    void stopVoice()
+                  }
+                : () => {
+                    void startVoice()
+                  }
+            }
           >
             {dictating ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {dictating ? (
-              <span className="absolute end-1 top-1 h-2 w-2 rounded-[var(--lc-radius-pill)] bg-[var(--lc-accent-bold)]" aria-hidden />
+              <span
+                className="absolute end-1 top-1 h-2 w-2 rounded-[var(--lc-radius-pill)] bg-[var(--lc-accent-bold)]"
+                aria-hidden
+              />
             ) : null}
           </Button>
         ) : null}
@@ -330,7 +483,11 @@ export function ComposeBar({
         <p className="mt-1.5 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
           Conversation closed —{' '}
           {onReopen ? (
-            <button type="button" onClick={onReopen} className="underline hover:text-[var(--lc-text-primary)]">
+            <button
+              type="button"
+              onClick={onReopen}
+              className="underline hover:text-[var(--lc-text-primary)]"
+            >
               reopen
             </button>
           ) : (
@@ -346,19 +503,30 @@ export function ComposeBar({
             <DialogTitle>Attach</DialogTitle>
           </DialogHeader>
           <div className="grid gap-2">
-            <Button variant="outline" onClick={() => photoRef.current?.click()}>Photo</Button>
-            <Button variant="outline" onClick={() => docRef.current?.click()}>Document</Button>
+            <Button className="min-h-11" variant="outline" onClick={() => photoRef.current?.click()}>
+              Photo
+            </Button>
+            <Button className="min-h-11" variant="outline" onClick={() => docRef.current?.click()}>
+              Document
+            </Button>
             <Button
+              className="min-h-11"
               variant="outline"
               onClick={() => {
                 setAttachOpen(false)
-                startDictation()
+                void startVoice()
               }}
             >
               Voice note
             </Button>
           </div>
-          <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
           <input
             ref={docRef}
             type="file"
@@ -375,7 +543,9 @@ export function ComposeBar({
             <DialogTitle>Insert template</DialogTitle>
           </DialogHeader>
           {templatesLoading ? (
-            <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">Loading templates…</p>
+            <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
+              Loading templates…
+            </p>
           ) : templates.length === 0 ? (
             <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
               No templates yet. Save one from Settings to insert it here.
@@ -386,7 +556,7 @@ export function ComposeBar({
                 <li key={template.id}>
                   <button
                     type="button"
-                    className="w-full rounded-[var(--lc-radius-md)] px-3 py-2 text-start hover:bg-[var(--lc-surface-sunken)]"
+                    className="min-h-11 w-full rounded-[var(--lc-radius-md)] px-3 py-2 text-start hover:bg-[var(--lc-surface-sunken)]"
                     onClick={() => pickTemplate(template)}
                   >
                     <span className="block font-medium">{template.name}</span>
@@ -404,9 +574,12 @@ export function ComposeBar({
       <Dialog open={Boolean(templateWarning)} onOpenChange={() => setTemplateWarning(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>This template isn&apos;t tuned for {channelLabel(channel)}. Send anyway?</DialogTitle>
+            <DialogTitle>
+              This template isn&apos;t tuned for {channelLabel(channel)}. Send anyway?
+            </DialogTitle>
           </DialogHeader>
           <Button
+            className="min-h-11"
             onClick={() => {
               if (templateWarning) onInsertTemplate?.(templateWarning)
               setTemplateWarning(null)

@@ -33,7 +33,7 @@ export function AISuggestedReplyRow({
             variant="outline"
             size="sm"
             disabled={disabled}
-            className="h-8 shrink-0 rounded-[var(--lc-radius-pill)]"
+            className="min-h-11 h-11 shrink-0 rounded-[var(--lc-radius-pill)]"
             onClick={() => onInsert(text)}
           >
             {text}

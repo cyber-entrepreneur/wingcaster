@@ -16,6 +16,33 @@ import {
   matchesConversationChannel,
   readSourceChannel,
 } from './channel-source.js'
+import { broadcastInboxEvent } from '../ws/inbox.js'
+
+/**
+ * Fan-out a message.new event to the conversation assignee and (if different)
+ * the contact's assigned agent.
+ * @param {{ assigned_agent_id?: string | null, id: string }} conversation
+ * @param {{ assigned_agent_id?: string | null } | null | undefined} contact
+ * @param {{ id: string }} message
+ */
+function fanOutMessageNew(conversation, contact, message) {
+  const event = {
+    type: /** @type {const} */ ('message.new'),
+    conversation_id: conversation.id,
+    message_id: message.id,
+    payload: message,
+  }
+  const agentIds = new Set(
+    [conversation.assigned_agent_id, contact?.assigned_agent_id].filter(Boolean),
+  )
+  for (const agentId of agentIds) {
+    try {
+      broadcastInboxEvent(agentId, event)
+    } catch {
+      // realtime is best-effort
+    }
+  }
+}
 
 // Map orchestrator messaging channel → §6 usage-event action_key.
 const IN_ACTION_KEY = {
@@ -270,6 +297,7 @@ export async function ingestInboundMessage({ channel, provider, providerMessageI
     created_at: new Date().toISOString(),
   }
   await insert('conversation_messages', message)
+  fanOutMessageNew(conversation, contact, message)
 
   // Emit inbound usage event — rate-0 always, but records the interaction
   // for the tenant's telemetry and future funnel analysis.
@@ -745,6 +773,7 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     created_at: now,
   }
   await insert('conversation_messages', message)
+  fanOutMessageNew(conversation, contact, message)
 
   // Emit outbound usage event only on successful dispatch. Channel + country
   // resolve the correct §6 action_key; WhatsApp splits utility vs marketing

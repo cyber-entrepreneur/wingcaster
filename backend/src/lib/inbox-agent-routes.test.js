@@ -1,6 +1,6 @@
 import express from 'express'
 import request from 'supertest'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dal = vi.hoisted(() => ({
   findAll: vi.fn(async () => []),
@@ -42,6 +42,14 @@ const authz = vi.hoisted(() => ({
   }),
 }))
 
+const anthropic = vi.hoisted(() => ({
+  create: vi.fn(),
+}))
+
+const usageLogger = vi.hoisted(() => ({
+  recordAiCall: vi.fn(async () => undefined),
+}))
+
 vi.mock('../db.js', () => dal)
 vi.mock('../identity.js', () => identity)
 vi.mock('../tenant-authorization.js', () => ({
@@ -49,6 +57,14 @@ vi.mock('../tenant-authorization.js', () => ({
 }))
 vi.mock('./authz.js', () => authz)
 vi.mock('../conversations/orchestrator.js', () => orchestrator)
+vi.mock('./ai-usage-logger.js', () => usageLogger)
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class Anthropic {
+    constructor() {
+      this.messages = { create: anthropic.create }
+    }
+  },
+}))
 
 import { registerInboxAgentRoutes } from './inbox-agent-routes.js'
 
@@ -64,8 +80,11 @@ function buildApp() {
 }
 
 describe('inbox-agent-routes', () => {
+  const originalKey = process.env.ANTHROPIC_API_KEY
+
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.ANTHROPIC_API_KEY
     dal.findOne.mockImplementation(async (collection, filter) => {
       if (collection === 'tenant_memberships') {
         const row = {
@@ -95,6 +114,11 @@ describe('inbox-agent-routes', () => {
     ])
   })
 
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = originalKey
+  })
+
   it('GET /api/agent-preferences returns merge mode', async () => {
     const res = await request(buildApp()).get('/api/agent-preferences')
     expect(res.status).toBe(200)
@@ -120,11 +144,67 @@ describe('inbox-agent-routes', () => {
     expect(orchestrator.markConversationReadByAgent).toHaveBeenCalledWith('conv-1')
   })
 
-  it('POST /api/conversations/:id/ai-suggestions returns heuristic drafts', async () => {
+  it('POST /api/conversations/:id/ai-suggestions returns degraded when no API key', async () => {
     const res = await request(buildApp()).post('/api/conversations/conv-1/ai-suggestions')
     expect(res.status).toBe(200)
-    expect(res.body.enabled).toBe(true)
-    expect(res.body.suggestions.length).toBeGreaterThan(0)
-    expect(res.body.suggestions[0]).toMatch(/available/i)
+    expect(res.body.degraded).toBe(true)
+    expect(res.body.suggestions).toEqual([])
+    expect(anthropic.create).not.toHaveBeenCalled()
+  })
+
+  it('POST /api/conversations/:id/ai-suggestions uses Anthropic and writes audit when keyed', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    anthropic.create.mockResolvedValue({
+      model: 'claude-haiku-4-5-20251001',
+      content: [{ type: 'text', text: '["Yes, still available.", "Happy to schedule a viewing.", "I can send photos."]' }],
+      usage: { input_tokens: 40, output_tokens: 30 },
+    })
+
+    const res = await request(buildApp()).post('/api/conversations/conv-1/ai-suggestions')
+    expect(res.status).toBe(200)
+    expect(res.body.degraded).toBeUndefined()
+    expect(res.body.model).toBe('claude-haiku-4-5-20251001')
+    expect(res.body.suggestions).toHaveLength(3)
+    expect(res.body.suggestions[0]).toEqual(
+      expect.objectContaining({
+        body: 'Yes, still available.',
+        language: 'en',
+      }),
+    )
+    expect(res.body.suggestions[0].id).toBeTruthy()
+    expect(anthropic.create).toHaveBeenCalled()
+    expect(dal.insert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({
+        type: 'ai_suggestion',
+        action: 'generate',
+        entity_type: 'conversation',
+        entity_id: 'conv-1',
+        metadata: expect.objectContaining({
+          model: 'claude-haiku-4-5-20251001',
+          input_tokens: 40,
+          output_tokens: 30,
+          user_id: 'user-1',
+          tenant_id: 'personal:user-1',
+        }),
+      }),
+    )
+    expect(usageLogger.recordAiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'inbox_ai_suggestions',
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+      }),
+    )
+  })
+
+  it('POST /api/conversations/:id/ai-suggestions returns degraded when Anthropic fails', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    anthropic.create.mockRejectedValue(new Error('upstream down'))
+
+    const res = await request(buildApp()).post('/api/conversations/conv-1/ai-suggestions')
+    expect(res.status).toBe(200)
+    expect(res.body.degraded).toBe(true)
+    expect(res.body.suggestions).toEqual([])
   })
 })
