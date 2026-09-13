@@ -1,6 +1,0 @@
-/** @deprecated Use `ComposeNewDialog` from `@/components/inbox/ComposeNewDialog` */
-export {
-  ComposeNewDialog as ComposeNewConversationDialog,
-  ComposeNewDialog,
-  type ComposeNewDialogProps as ComposeNewConversationDialogProps,
-} from './ComposeNewDialog'

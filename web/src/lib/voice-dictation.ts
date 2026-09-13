@@ -1,9 +1,0 @@
-/**
- * Voice dictation: Capacitor SpeechRecognition on native, Web Speech on desktop.
- */
-export {
-  isSpeechAvailable,
-  startDictation,
-  type DictationCallbacks,
-  type DictationHandle,
-} from '@/lib/inbox/dictation'

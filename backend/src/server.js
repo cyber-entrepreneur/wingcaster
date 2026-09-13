@@ -207,6 +207,7 @@ import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
 import { attachInboxWebSocket } from './ws/inbox.js'
+import { startInboxListener } from './ws/inbox-events.js'
 import { maskEmail, maskPhone } from './account-recovery/mask.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
@@ -8454,6 +8455,12 @@ const startServer = async () => {
       if (!user) return null
       return { id: user.id }
     },
+  })
+  // Cross-instance inbox event delivery: every process LISTENs on the
+  // shared `inbox_events` channel, so a message processed by one instance
+  // reaches WebSocket clients attached to any other instance.
+  startInboxListener().catch((err) => {
+    logger.warn({ err: err?.message || String(err) }, 'inbox pg listener boot failed')
   })
 
   server.listen(port, () => {

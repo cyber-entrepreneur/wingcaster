@@ -16,7 +16,7 @@ import {
   matchesConversationChannel,
   readSourceChannel,
 } from './channel-source.js'
-import { broadcastInboxEvent } from '../ws/inbox.js'
+import { emitInboxEvent } from '../ws/inbox-events.js'
 
 /**
  * Fan-out a message.new event to the conversation assignee and (if different)
@@ -36,11 +36,11 @@ function fanOutMessageNew(conversation, contact, message) {
     [conversation.assigned_agent_id, contact?.assigned_agent_id].filter(Boolean),
   )
   for (const agentId of agentIds) {
-    try {
-      broadcastInboxEvent(agentId, event)
-    } catch {
-      // realtime is best-effort
-    }
+    // fire-and-forget: pg_notify is fanned out to every Node instance's
+    // LISTEN handler, which invokes broadcastInboxEvent locally. A rejection
+    // here would only mean the local publish path failed — event delivery
+    // is best-effort by design.
+    emitInboxEvent(agentId, event).catch(() => { /* best-effort */ })
   }
 }
 

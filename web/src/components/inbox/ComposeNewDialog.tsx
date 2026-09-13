@@ -470,6 +470,3 @@ export function ComposeNewDialog({
     </Dialog>
   )
 }
-
-/** @deprecated Use ComposeNewDialog */
-export const ComposeNewConversationDialog = ComposeNewDialog
