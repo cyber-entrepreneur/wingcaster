@@ -352,6 +352,9 @@ export const api = {
     fetchJson('/auth/2fa/totp/verify', { method: 'POST', body: JSON.stringify({ secret, code }) }),
   totpDisable: (code: string): Promise<{ totp_enabled: false; token: string | null }> =>
     fetchJson('/auth/2fa/totp/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  /** Invalidates existing backup codes and returns a fresh set once. Requires elevation. */
+  regenerateBackupCodes: (): Promise<{ backup_codes: string[]; backup_codes_remaining: number }> =>
+    fetchJson('/auth/2fa/backup-codes/regenerate', { method: 'POST', body: '{}' }),
   /** Redeems a sign-in challenge. Unauthenticated — there is no session yet. */
   twoFactorChallenge: (challenge_id: string, code: string) =>
     fetchJson('/auth/2fa/challenge', { method: 'POST', body: JSON.stringify({ challenge_id, code }) }),
