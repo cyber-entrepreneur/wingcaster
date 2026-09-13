@@ -13,6 +13,7 @@ import { useInboxSocket } from '@/lib/inbox/socket'
 import {
   enqueueOutgoing,
   flushOutbox,
+  flushOutboxOnOnline,
   getConversation as getCachedConversation,
   getConversationList,
   getMessages as getCachedMessages,
@@ -346,22 +347,21 @@ export function InboxPage() {
   }, [online])
 
   useEffect(() => {
-    const onOnline = () => {
-      void flushOutbox(async (entry) => {
+    return flushOutboxOnOnline({
+      sendFn: async (entry) => {
         await api.sendConversationMessage(
           entry.conversation_id,
           entry.content,
           entry.options as Parameters<typeof api.sendConversationMessage>[2],
         )
-      }).then((result) => {
+      },
+      onFlushed: (result) => {
         if (result.sent > 0) {
           void loadConversations()
           if (selectedId) void loadThread(selectedId)
         }
-      })
-    }
-    window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
+      },
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
@@ -764,7 +764,7 @@ export function InboxPage() {
                 placeholder="Search messages, contacts, listings…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 ps-9 text-sm border-[var(--lc-border-strong)]"
+                className="min-h-11 h-11 ps-9 text-sm border-[var(--lc-border-strong)]"
                 aria-label="Search inbox"
               />
             </div>
@@ -893,6 +893,7 @@ export function InboxPage() {
             <>
               <ConversationHeader
                 contactName={activeConversation!.contact_name || 'Unknown'}
+                contactId={activeConversation!.contact_id}
                 contactPhone={activeConversation!.contact_phone}
                 contactEmail={activeConversation!.contact_email}
                 channel={readChannel(activeConversation!)}
@@ -906,6 +907,10 @@ export function InboxPage() {
                 onClose={handleClose}
                 onReopen={handleReopen}
                 closing={closing}
+                onRevealPii={async (ctx) => {
+                  if (!ctx.caseId || ctx.caseId === 'conversation-contact') return
+                  await api.revealContactPii(ctx.caseId, ctx.field)
+                }}
                 channelOptions={channelOptions}
                 selectedConversationId={selectedId}
                 onSelectChannel={handleSelect}

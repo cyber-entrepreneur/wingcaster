@@ -225,6 +225,26 @@ export async function listOutbox(): Promise<Array<OutgoingMessage & { queued_at:
   }
 }
 
+export type FlushOutboxOnOnlineOptions = {
+  sendFn: FlushSendFn
+  onFlushed?: (result: { sent: number; failed: number }) => void
+}
+
+/**
+ * Register `window` online listener that flushes the outbox.
+ * Returns an unsubscribe function.
+ */
+export function flushOutboxOnOnline(options: FlushOutboxOnOnlineOptions): () => void {
+  if (typeof window === 'undefined') return () => {}
+  const onOnline = () => {
+    void flushOutbox(options.sendFn).then((result) => {
+      options.onFlushed?.(result)
+    })
+  }
+  window.addEventListener('online', onOnline)
+  return () => window.removeEventListener('online', onOnline)
+}
+
 /** Open a future DB version for upgrade-path tests without losing stores. */
 export async function openInboxDbAtVersion(version: number) {
   return openDB(DB_NAME, version, {

@@ -47,6 +47,7 @@ vi.mock('@/lib/inbox/offline-store', () => ({
   getMessages: vi.fn(async () => []),
   enqueueOutgoing: vi.fn(async () => undefined),
   flushOutbox: vi.fn(async () => ({ sent: 0, failed: 0 })),
+  flushOutboxOnOnline: vi.fn(() => () => undefined),
 }))
 
 vi.mock('@/context/AuthContext', () => ({

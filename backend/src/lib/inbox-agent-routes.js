@@ -7,10 +7,11 @@
  */
 
 import { z } from 'zod'
-import { findOne, update } from '../db.js'
+import { randomUUID } from 'node:crypto'
+import { findOne, insert, update } from '../db.js'
 import { findUserById } from '../identity.js'
 import { personalTenantId } from '../tenant-authorization.js'
-import { assertOwnsConversation } from './authz.js'
+import { assertOwnsContact, assertOwnsConversation } from './authz.js'
 import { validate } from './validation.js'
 import {
   assignConversation,
@@ -33,6 +34,10 @@ const bulkSchema = z.object({
   conversation_ids: z.array(z.string().min(1).max(80)).min(1).max(200),
   action: z.enum(['mark_read', 'mark_unread', 'assign', 'archive']),
   assign_to_agent_id: z.string().min(1).max(80).optional(),
+})
+
+const revealPiiSchema = z.object({
+  field: z.enum(['phone', 'email', 'name']),
 })
 
 function membershipDataBag(row) {
@@ -175,6 +180,37 @@ export function registerInboxAgentRoutes(app, deps) {
           return res.status(err.status).json({ error: err.message || 'Not found' })
         }
         return res.json({ suggestions: [], degraded: true })
+      }
+    },
+  )
+
+  app.post(
+    '/api/contacts/:id/reveal-pii',
+    authMiddleware,
+    validate(revealPiiSchema),
+    async (req, res) => {
+      try {
+        const contact = await assertOwnsContact(req.user.id, req.params.id)
+        const field = req.validated.field
+        await insert('audit_log', {
+          id: randomUUID(),
+          agent_id: req.user.id,
+          type: 'contact_pii_viewed',
+          action: 'reveal',
+          entity_type: 'contact',
+          entity_id: contact.id,
+          ip: req.ip || null,
+          user_agent: req.get?.('user-agent') || null,
+          metadata: {
+            field,
+            contact_id: contact.id,
+            source: 'inbox',
+          },
+          created_at: new Date().toISOString(),
+        })
+        return res.json({ ok: true, field })
+      } catch (err) {
+        return res.status(err.status || 500).json({ error: err.message || 'Reveal failed' })
       }
     },
   )

@@ -19,11 +19,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
+import { PIIMask, type PIIMaskKind } from '@/components/security/PIIMask'
 import { channelLabel } from '@/lib/inbox-labels'
 import { cn } from '@/lib/utils'
 
 export type ConversationHeaderProps = {
   contactName: string
+  contactId?: string | null
   contactPhone?: string | null
   contactEmail?: string | null
   channel: string
@@ -37,6 +39,7 @@ export type ConversationHeaderProps = {
   onClose?: () => void
   onReopen?: () => void
   closing?: boolean
+  onRevealPii?: (ctx: { caseId: string; field: string; kind: PIIMaskKind }) => void | Promise<void>
   channelOptions?: Array<{ id: string; channel: string }>
   selectedConversationId?: string | null
   onSelectChannel?: (id: string) => void
@@ -54,6 +57,7 @@ function initials(name: string) {
 
 export function ConversationHeader({
   contactName,
+  contactId,
   contactPhone,
   contactEmail,
   channel,
@@ -67,11 +71,13 @@ export function ConversationHeader({
   onClose,
   onReopen,
   closing,
+  onRevealPii,
   channelOptions,
   selectedConversationId,
   onSelectChannel,
   className,
 }: ConversationHeaderProps) {
+  const piiCaseId = contactId || 'conversation-contact'
   return (
     <div
       className={cn(
@@ -84,7 +90,7 @@ export function ConversationHeader({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="min-h-11 min-w-11 lg:hidden"
             onClick={onBack}
             aria-label="Back to inbox"
           >
@@ -115,33 +121,47 @@ export function ConversationHeader({
             </Badge>
             {contactPhone ? (
               <span className="inline-flex items-center gap-0.5">
-                <Phone className="h-3 w-3" />
-                {contactPhone}
+                <Phone className="h-3 w-3 shrink-0" aria-hidden />
+                <PIIMask
+                  value={contactPhone}
+                  kind="phone"
+                  auditContext={{ caseId: piiCaseId, field: 'phone' }}
+                  onReveal={onRevealPii}
+                />
               </span>
             ) : null}
-            {contactEmail ? <span className="truncate">{contactEmail}</span> : null}
+            {contactEmail ? (
+              <span className="min-w-0 truncate">
+                <PIIMask
+                  value={contactEmail}
+                  kind="email"
+                  auditContext={{ caseId: piiCaseId, field: 'email' }}
+                  onReveal={onRevealPii}
+                />
+              </span>
+            ) : null}
           </div>
         </div>
 
         <div className="hidden items-center gap-1 sm:flex">
           {unreadCount > 0 && onMarkRead ? (
-            <Button variant="ghost" size="sm" onClick={onMarkRead} className="h-8 gap-1 text-xs">
+            <Button variant="ghost" size="sm" onClick={onMarkRead} className="min-h-11 gap-1 text-xs">
               <CheckCheck className="h-3.5 w-3.5" /> Read
             </Button>
           ) : null}
           {onAssignMe ? (
-            <Button variant="ghost" size="sm" onClick={onAssignMe} className="h-8 gap-1 text-xs">
+            <Button variant="ghost" size="sm" onClick={onAssignMe} className="min-h-11 gap-1 text-xs">
               <User className="h-3.5 w-3.5" /> Assign me
             </Button>
           ) : null}
           {status === 'closed' ? (
             onReopen ? (
-              <Button variant="outline" size="sm" onClick={onReopen} className="h-8 text-xs">
+              <Button variant="outline" size="sm" onClick={onReopen} className="min-h-11 text-xs">
                 Reopen
               </Button>
             ) : null
           ) : onClose ? (
-            <Button variant="outline" size="sm" onClick={onClose} disabled={closing} className="h-8 gap-1 text-xs">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={closing} className="min-h-11 gap-1 text-xs">
               {closing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
               Close
             </Button>
@@ -150,7 +170,7 @@ export function ConversationHeader({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Conversation actions" className="sm:hidden">
+            <Button variant="ghost" size="icon" aria-label="Conversation actions" className="min-h-11 min-w-11 sm:hidden">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -177,7 +197,7 @@ export function ConversationHeader({
               role="tab"
               aria-selected={option.id === selectedConversationId}
               className={cn(
-                'rounded-[var(--lc-radius-pill)] px-2 py-1 text-[length:var(--lc-type-caption)]',
+                'min-h-11 rounded-[var(--lc-radius-pill)] px-3 py-2 text-[length:var(--lc-type-caption)]',
                 option.id === selectedConversationId
                   ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                   : 'border border-[var(--lc-border)] text-[var(--lc-text-primary)]',

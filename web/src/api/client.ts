@@ -1014,6 +1014,11 @@ export const api = {
     return fetchJson(`/contacts${qs}`)
   },
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
+  revealContactPii: (id: string, field: string) =>
+    fetchJson(`/contacts/${id}/reveal-pii`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
   updateContact: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   mergeContacts: (sourceId: string, targetContactId: string) =>

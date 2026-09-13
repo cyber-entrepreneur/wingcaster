@@ -354,11 +354,11 @@ export function ComposeBar({
               )}
               <button
                 type="button"
-                className="absolute end-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-[var(--lc-radius-pill)] bg-[var(--lc-surface-inverse)] text-[var(--lc-text-inverse)]"
+                className="absolute end-0.5 top-0.5 flex min-h-11 min-w-11 items-center justify-center rounded-[var(--lc-radius-pill)] bg-[var(--lc-surface-inverse)] text-[var(--lc-text-inverse)]"
                 aria-label="Remove attachment"
                 onClick={() => removeAttachment(item.id)}
               >
-                <X className="h-3 w-3" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}

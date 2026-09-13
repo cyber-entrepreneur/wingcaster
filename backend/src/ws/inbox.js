@@ -22,6 +22,12 @@ const MAX_MISSED_PONGS = 3
  * @returns {string}
  */
 export function extractInboxWsToken(req) {
+  const authHeader = String(req.headers?.authorization || '')
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    const bearer = authHeader.slice(7).trim()
+    if (bearer) return bearer
+  }
+
   try {
     const url = new URL(req.url || '', 'http://localhost')
     const fromQuery = url.searchParams.get('token')

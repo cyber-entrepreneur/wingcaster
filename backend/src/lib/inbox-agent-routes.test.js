@@ -40,6 +40,14 @@ const authz = vi.hoisted(() => ({
       contact_name: 'Sara',
     }
   }),
+  assertOwnsContact: vi.fn(async (_userId, id) => {
+    if (id === 'forbidden-contact') {
+      const err = new Error('Forbidden')
+      err.status = 403
+      throw err
+    }
+    return { id, assigned_agent_id: 'user-1', name: 'Sara', phone: '+971500000000' }
+  }),
 }))
 
 const anthropic = vi.hoisted(() => ({
@@ -218,5 +226,24 @@ describe('inbox-agent-routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.degraded).toBe(true)
     expect(res.body.suggestions).toEqual([])
+  })
+
+  it('POST /api/contacts/:id/reveal-pii writes audit_log', async () => {
+    const res = await request(buildApp())
+      .post('/api/contacts/contact-1/reveal-pii')
+      .send({ field: 'phone' })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true, field: 'phone' })
+    expect(authz.assertOwnsContact).toHaveBeenCalledWith('user-1', 'contact-1')
+    expect(dal.insert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({
+        type: 'contact_pii_viewed',
+        action: 'reveal',
+        entity_type: 'contact',
+        entity_id: 'contact-1',
+        metadata: expect.objectContaining({ field: 'phone', source: 'inbox' }),
+      }),
+    )
   })
 })
