@@ -18,7 +18,7 @@ import {
 import { CharacterCounter, isOverChannelLimit } from '@/components/inbox/CharacterCounter'
 import { channelLabel } from '@/lib/inbox-labels'
 import { formatFileSize } from '@/lib/inbox-media'
-import { isSpeechAvailable, startDictation, type DictationHandle } from '@/lib/voice-dictation'
+import { isSpeechAvailable, startDictation, type DictationHandle } from '@/lib/inbox/dictation'
 import { cn } from '@/lib/utils'
 
 export type ComposeAttachment = {

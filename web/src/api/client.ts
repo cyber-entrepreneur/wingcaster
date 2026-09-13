@@ -1084,7 +1084,7 @@ export const api = {
     id: string,
   ): Promise<{
     enabled?: boolean
-    suggestions: Array<string | { id: string; body: string; language?: string }>
+    suggestions: Array<string | { id?: string; body: string; language?: string }>
     model?: string
     latency_ms?: number
     degraded?: boolean
@@ -1095,7 +1095,7 @@ export const api = {
     id: string,
   ): Promise<{
     enabled?: boolean
-    suggestions: Array<string | { id: string; body: string; language?: string }>
+    suggestions: Array<string | { id?: string; body: string; language?: string }>
     model?: string
     latency_ms?: number
     degraded?: boolean

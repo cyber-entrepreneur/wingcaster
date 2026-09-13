@@ -1,19 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 
-const DB_NAME = 'wingcaster-inbox'
+const DB_NAME = 'wc-inbox-v1'
 const DB_VERSION = 1
 const LIST_CACHE_ID = '__inbox_list__'
 
-export type OfflineConversation = {
-  id: string
-  [key: string]: unknown
-}
+export type OfflineConversation = { id: string } & Record<string, unknown>
 
-export type OfflineMessage = {
-  id: string
-  conversation_id: string
-  [key: string]: unknown
-}
+export type OfflineMessage = { id: string; conversation_id: string } & Record<string, unknown>
 
 export type OutgoingMessage = {
   client_id: string
@@ -26,13 +19,13 @@ export type OutgoingMessage = {
 type ConversationListCache = {
   id: typeof LIST_CACHE_ID
   updatedAt: string
-  rows: OfflineConversation[]
+  rows: Array<Record<string, unknown> & { id: string }>
 }
 
 interface InboxOfflineDb extends DBSchema {
   conversations: {
     key: string
-    value: OfflineConversation | ConversationListCache
+    value: (Record<string, unknown> & { id: string }) | ConversationListCache
   }
   messages: {
     key: string
@@ -46,10 +39,23 @@ interface InboxOfflineDb extends DBSchema {
 }
 
 let dbPromise: Promise<IDBPDatabase<InboxOfflineDb>> | null = null
+let openDb: IDBPDatabase<InboxOfflineDb> | null = null
 
-/** Reset cached DB handle â€” used by tests after deleting the database. */
-export function __resetOfflineStoreForTests() {
+/** Reset cached DB handle — used by tests after deleting the database. */
+export async function __resetOfflineStoreForTests() {
+  const pending = dbPromise
   dbPromise = null
+  try {
+    if (openDb) {
+      openDb.close()
+      openDb = null
+    } else if (pending) {
+      const db = await pending
+      db.close()
+    }
+  } catch {
+    // ignore close errors in tests
+  }
 }
 
 function getDb() {
@@ -72,12 +78,15 @@ function getDb() {
           }
         }
       },
+    }).then((db) => {
+      openDb = db
+      return db
     })
   }
   return dbPromise
 }
 
-export async function saveConversation(c: OfflineConversation) {
+export async function saveConversation(c: Record<string, unknown> & { id: string }) {
   if (!c?.id) throw new Error('Conversation id required')
   const db = await getDb()
   await db.put('conversations', c)
@@ -91,12 +100,14 @@ export async function saveMessages(list: OfflineMessage[]) {
   await tx.done
 }
 
-export async function getConversation(id: string): Promise<OfflineConversation | undefined> {
+export async function getConversation(
+  id: string,
+): Promise<(Record<string, unknown> & { id: string }) | undefined> {
   try {
     const db = await getDb()
     const row = await db.get('conversations', id)
     if (!row || row.id === LIST_CACHE_ID) return undefined
-    return row as OfflineConversation
+    return row as Record<string, unknown> & { id: string }
   } catch {
     return undefined
   }
@@ -156,7 +167,7 @@ export async function flushOutbox(sendFn: FlushSendFn): Promise<{ sent: number; 
   return { sent, failed }
 }
 
-export async function saveConversationList(rows: OfflineConversation[]) {
+export async function saveConversationList(rows: Array<Record<string, unknown> & { id: string }>) {
   const db = await getDb()
   const tx = db.transaction('conversations', 'readwrite')
   await tx.store.put({
@@ -170,9 +181,9 @@ export async function saveConversationList(rows: OfflineConversation[]) {
   await tx.done
 }
 
-export async function getConversationList<T extends OfflineConversation = OfflineConversation>(): Promise<
-  T[] | null
-> {
+export async function getConversationList<
+  T extends Record<string, unknown> & { id: string } = Record<string, unknown> & { id: string },
+>(): Promise<T[] | null> {
   try {
     const db = await getDb()
     const cached = await db.get('conversations', LIST_CACHE_ID)
@@ -211,7 +222,7 @@ export async function openInboxDbAtVersion(version: number) {
         }
       }
       if (oldVersion < 2 && version >= 2) {
-        // Future bump placeholder â€” keep existing stores intact.
+        // Future bump placeholder — keep existing stores intact.
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta', { keyPath: 'id' })
         }
@@ -219,5 +230,3 @@ export async function openInboxDbAtVersion(version: number) {
     },
   })
 }
-
-

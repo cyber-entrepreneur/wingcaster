@@ -162,7 +162,7 @@ export function registerInboxAgentRoutes(app, deps) {
     aiSuggestionsLimiter,
     async (req, res) => {
       if (!inboxAiEnabled()) {
-        return res.json({ enabled: false, suggestions: [], source: null })
+        return res.json({ suggestions: [], degraded: true })
       }
       try {
         const result = await generateAiSuggestions({
@@ -174,7 +174,7 @@ export function registerInboxAgentRoutes(app, deps) {
         if (err?.status === 404 || err?.status === 403) {
           return res.status(err.status).json({ error: err.message || 'Not found' })
         }
-        return res.json({ enabled: true, suggestions: [], source: 'heuristic' })
+        return res.json({ suggestions: [], degraded: true })
       }
     },
   )

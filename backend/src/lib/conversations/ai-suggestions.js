@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import rateLimit from 'express-rate-limit'
-import { findAll, findOne, insert } from '../../db.js'
+import { findAll, insert } from '../../db.js'
 import { personalTenantId } from '../../tenant-authorization.js'
 import { assertOwnsConversation } from '../authz.js'
 import { recordAiCall } from '../ai-usage-logger.js'
@@ -15,22 +15,6 @@ export const AI_SUGGESTION_MODEL = 'claude-haiku-4-5-20251001'
 export const AI_SUGGESTION_TIMEOUT_MS = 5_000
 export const AI_SUGGESTION_MAX_BODY = 240
 export const AI_SUGGESTION_MAX_COUNT = 3
-
-export function heuristicSuggestionBodies(lastInbound, contactName, language = 'en') {
-  const first = String(contactName || '').split(' ')[0] || 'there'
-  const text = String(lastInbound?.content || lastInbound?.body || '').toLowerCase()
-  const suggestions = []
-  if (lastInbound?.suggested_reply) suggestions.push(String(lastInbound.suggested_reply).trim())
-  if (/\b(available|availability|still for sale|still on)\b/.test(text)) {
-    suggestions.push('Yes, it is still available. Would you like to schedule a viewing?')
-  }
-  if (/\b(price|asking|offer|discount)\b/.test(text)) {
-    suggestions.push('Happy to walk you through the current asking price and recent comps.')
-  }
-  suggestions.push('Thanks for reaching out, ' + first + '. When works for a viewing?')
-  suggestions.push('I can send the floor plan and latest photos — which would you like first?')
-  return normalizeSuggestionBodies(suggestions, language)
-}
 
 const ARABIC_SCRIPT_RE = /[\u0600-\u06FF]/
 
@@ -148,6 +132,10 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
 
   const conversation = await assertOwns(userId, conversationId)
 
+  if (!apiKey && !createMessage) {
+    return { suggestions: [], degraded: true }
+  }
+
   const allMessages = await findAllFn(
     'conversation_messages',
     (m) => m.conversation_id === conversation.id,
@@ -159,19 +147,6 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
   const lastInbound = [...messages].reverse().find((m) => m.direction === 'inbound')
   const inboundText = String(lastInbound?.content || lastInbound?.body || '')
   const language = detectSuggestionLanguage(inboundText, lastInbound?.language)
-  const contact = conversation.contact_id
-    ? await (deps.findOne || findOne)('contacts', (c) => c.id === conversation.contact_id)
-    : null
-  const contactName = contact?.name || conversation.contact_name
-  const storedSource = lastInbound?.suggested_reply ? 'stored' : 'heuristic'
-  const fallback = () => ({
-    enabled: true,
-    suggestions: heuristicSuggestionBodies(lastInbound, contactName, language),
-    source: storedSource,
-  })
-  if (!apiKey && !createMessage) {
-    return fallback()
-  }
 
   const threadContext = messages
     .map((m) => `${m.direction}: ${String(m.content || m.body || '').slice(0, 240)}`)
@@ -230,14 +205,12 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
       await insertFn('audit_log', {
         id: randomUUID(),
         agent_id: userId,
-        type: 'inbox_ai_suggestion',
+        type: 'ai_suggestion',
         action: 'generate',
         entity_type: 'conversation',
         entity_id: conversation.id,
         metadata: {
           model,
-          source: 'anthropic',
-          suggestion_count: suggestions.length,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           user_id: userId,
@@ -263,14 +236,12 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
     })
 
     return {
-      enabled: true,
       suggestions,
-      source: 'anthropic',
       model,
       latency_ms: latencyMs,
     }
   } catch {
-    return fallback()
+    return { suggestions: [], degraded: true }
   } finally {
     clearTimeout(timer)
   }

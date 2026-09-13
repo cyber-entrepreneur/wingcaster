@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { api, type InboxConversation, type InboxConversationMessage } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
-import { useInboxRealtime } from '@/lib/useInboxRealtime'
+import { useInboxSocket } from '@/lib/inbox/socket'
 import {
   enqueueOutgoing,
   flushOutbox,
@@ -164,11 +164,11 @@ export function InboxPage() {
       const data = (await api.getConversations()) as InboxConversation[]
       const normalized = (Array.isArray(data) ? data : []).map(normalizeConversation)
       setConversations(normalized)
-      void saveConversationList(normalized)
+      void saveConversationList(normalized.map((row) => ({ ...row })))
     } catch (e: unknown) {
-      const cached = await getConversationList<InboxConversation & { channel: string; source: string }>()
+      const cached = await getConversationList()
       if (cached?.length) {
-        setConversations(cached)
+        setConversations(cached.map((row) => normalizeConversation(row as unknown as InboxConversation)))
         if (!online) return
       }
       const err = e as { message?: string }
@@ -192,7 +192,7 @@ export function InboxPage() {
       const rawMessages = data.messages || []
       const mapped = rawMessages.map((m, i) => toInboxMessage(m, i, rawMessages))
       setMessages(mapped)
-      void saveConversation(normalized)
+      void saveConversation({ ...normalized })
       void saveMessages(
         mapped.map((m) => ({
           ...m,
@@ -212,7 +212,7 @@ export function InboxPage() {
       if (cachedConversation || cachedMessages.length) {
         if (cachedConversation) {
           setActiveConversation(
-            cachedConversation as InboxConversation & { channel: string; source: string },
+            cachedConversation as unknown as InboxConversation & { channel: string; source: string },
           )
         }
         if (cachedMessages.length) {
@@ -296,7 +296,7 @@ export function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
-  useInboxRealtime({
+  useInboxSocket({
     enabled: online,
     onEvent: (event) => {
       if (

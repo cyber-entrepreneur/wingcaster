@@ -16,6 +16,8 @@ const apiMocks = vi.hoisted(() => ({
   patchAgentPreferences: vi.fn(),
   getConversationAiSuggestions: vi.fn(),
   getAiSuggestions: vi.fn(),
+  createConversation: vi.fn(),
+  getContacts: vi.fn(),
   bulkConversations: vi.fn(),
   getMessageTemplates: vi.fn(),
 }))
@@ -121,6 +123,8 @@ describe('InboxPage AGT-INB-001/002', () => {
     })
     apiMocks.bulkConversations.mockResolvedValue({ updated: 1, failed: [] })
     apiMocks.getMessageTemplates.mockResolvedValue([])
+    apiMocks.getContacts.mockResolvedValue([])
+    apiMocks.createConversation.mockResolvedValue({ id: 'conv_new' })
     apiMocks.getConversation.mockImplementation(async (id: string) => {
       const base = id === 'conv_legacy' ? legacyConv : modernConv
       return {
