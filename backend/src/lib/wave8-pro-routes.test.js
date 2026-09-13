@@ -288,8 +288,11 @@ describe('wave8-pro-routes', () => {
         entity_type: 'property',
         entity_id: 'p1',
         metadata: expect.objectContaining({
-          property_ids: ['p1'],
+          actor_user_id: 'user-1',
           owner_user_id: 'user-2',
+          batch_id: expect.any(String),
+          before: expect.objectContaining({ agent_id: 'user-1' }),
+          after: expect.objectContaining({ agent_id: 'user-2' }),
         }),
       }),
     )
@@ -301,13 +304,29 @@ describe('wave8-pro-routes', () => {
       .send({ ids: ['p1', 'p2'] })
     expect(res.status).toBe(200)
     expect(res.body.updated).toEqual(['p1', 'p2'])
+    expect(dal.insert).toHaveBeenCalledTimes(2)
     expect(dal.insert).toHaveBeenCalledWith(
       'audit_log',
       expect.objectContaining({
         type: 'property_bulk',
         action: 'archive',
         entity_id: 'p1',
-        metadata: expect.objectContaining({ property_ids: ['p1', 'p2'] }),
+        metadata: expect.objectContaining({
+          actor_user_id: 'user-1',
+          batch_id: expect.any(String),
+          after: { status: 'archived' },
+        }),
+      }),
+    )
+    expect(dal.insert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({
+        type: 'property_bulk',
+        action: 'archive',
+        entity_id: 'p2',
+        metadata: expect.objectContaining({
+          after: { status: 'archived' },
+        }),
       }),
     )
   })

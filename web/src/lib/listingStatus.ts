@@ -78,9 +78,9 @@ export function mapStatusToApi(status: string): string {
     case 'archived':
       return 'archived'
     case 'underOffer':
-      return 'hold'
+      return 'underOffer'
     case 'closed':
-      return 'sold'
+      return 'closed'
     default:
       return status
   }

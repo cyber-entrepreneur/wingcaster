@@ -210,20 +210,32 @@ async function mapOwnedProperties(userId, ids) {
   return { owned, missing }
 }
 
-async function writeBulkAudit(req, action, ids, extra = {}) {
+async function writeBulkAudit(req, { action, entries, extra = {} }) {
   const actorId = req.user.id
-  await insert('audit_log', {
-    id: randomUUID(),
-    agent_id: actorId,
-    type: 'property_bulk',
-    action,
-    entity_type: 'property',
-    entity_id: ids[0] || null,
-    ip: req.ip || null,
-    user_agent: req.get?.('user-agent') || null,
-    metadata: { property_ids: ids, ...extra },
-    created_at: new Date().toISOString(),
-  })
+  const batchId = randomUUID()
+  const membership = await loadActiveMembership(actorId)
+  const tenantId = membership?.tenantId || null
+  for (const entry of entries) {
+    await insert('audit_log', {
+      id: randomUUID(),
+      agent_id: actorId,
+      type: 'property_bulk',
+      action,
+      entity_type: 'property',
+      entity_id: entry.id,
+      ip: req.ip || null,
+      user_agent: req.get?.('user-agent') || null,
+      metadata: {
+        before: entry.before,
+        after: entry.after,
+        batch_id: batchId,
+        actor_user_id: actorId,
+        tenant_id: tenantId,
+        ...extra,
+      },
+      created_at: new Date().toISOString(),
+    })
+  }
 }
 
 export function registerWave8ProRoutes(app, deps) {
@@ -447,25 +459,35 @@ export function registerWave8ProRoutes(app, deps) {
   app.post('/api/properties/bulk/archive', authMiddleware, validate(bulkIdsSchema), async (req, res) => {
     const ids = req.validated.ids
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
+    const entries = []
     for (const prop of owned) {
+      const before = { status: prop.status ?? null }
       await update('properties', (p) => p.id === prop.id, (p) => ({ ...p, status: 'archived' }))
+      entries.push({ id: prop.id, before, after: { status: 'archived' } })
     }
-    await writeBulkAudit(req, 'archive', ids)
+    await writeBulkAudit(req, { action: 'archive', entries })
     res.json({ updated: owned.map((p) => p.id), missing })
   })
 
   app.post('/api/properties/bulk/publish', authMiddleware, validate(bulkPublishSchema), async (req, res) => {
     const ids = req.validated.ids
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
+    const entries = []
     for (const prop of owned) {
+      const before = { status: prop.status ?? null, marketplace_syndicated: prop.marketplace_syndicated ?? null }
       await update('properties', (p) => p.id === prop.id, (p) => ({
         ...p,
         status: 'active',
         marketplace_syndicated: true,
       }))
+      entries.push({
+        id: prop.id,
+        before,
+        after: { status: 'active', marketplace_syndicated: true },
+      })
     }
     const channels = req.validated.channels || []
-    await writeBulkAudit(req, 'publish', ids, { channels })
+    await writeBulkAudit(req, { action: 'publish', entries, extra: { channels } })
     res.json({
       updated: owned.map((p) => p.id),
       missing,
@@ -478,15 +500,18 @@ export function registerWave8ProRoutes(app, deps) {
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     const { mode, value } = req.validated
     const results = []
+    const entries = []
     for (const prop of owned) {
       const current = Number(prop.price) || 0
       const nextPrice = mode === 'percent'
         ? Math.max(0, Math.round(current * (1 + value / 100)))
         : Math.max(0, Math.round(value))
+      const before = { price: prop.price ?? null }
       await update('properties', (p) => p.id === prop.id, (p) => ({ ...p, price: nextPrice }))
       results.push({ id: prop.id, price: nextPrice })
+      entries.push({ id: prop.id, before, after: { price: nextPrice } })
     }
-    await writeBulkAudit(req, 'price_adjust', ids, { mode, value })
+    await writeBulkAudit(req, { action: 'price_adjust', entries, extra: { mode, value } })
     res.json({ updated: results, missing })
   })
 
@@ -500,28 +525,50 @@ export function registerWave8ProRoutes(app, deps) {
     }
     const ids = req.validated.ids
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
+    const entries = []
     for (const prop of owned) {
+      const before = { agent_id: prop.agent_id ?? null }
       await update(
         'properties',
         (p) => p.id === prop.id,
         (p) => ({ ...p, agent_id: req.validated.owner_user_id }),
       )
+      entries.push({
+        id: prop.id,
+        before,
+        after: { agent_id: req.validated.owner_user_id },
+      })
     }
-    await writeBulkAudit(req, 'change_owner', ids, { owner_user_id: req.validated.owner_user_id })
+    await writeBulkAudit(req, {
+      action: 'change_owner',
+      entries,
+      extra: { owner_user_id: req.validated.owner_user_id },
+    })
     res.json({ updated: owned.map((p) => p.id), missing })
   })
 
   app.post('/api/properties/bulk/toggle-bazaar', authMiddleware, validate(bulkBazaarSchema), async (req, res) => {
     const ids = req.validated.ids
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
+    const entries = []
     for (const prop of owned) {
+      const before = { marketplace_syndicated: prop.marketplace_syndicated ?? null }
       await update(
         'properties',
         (p) => p.id === prop.id,
         (p) => ({ ...p, marketplace_syndicated: !!req.validated.enabled }),
       )
+      entries.push({
+        id: prop.id,
+        before,
+        after: { marketplace_syndicated: !!req.validated.enabled },
+      })
     }
-    await writeBulkAudit(req, 'toggle_bazaar', ids, { enabled: !!req.validated.enabled })
+    await writeBulkAudit(req, {
+      action: 'toggle_bazaar',
+      entries,
+      extra: { enabled: !!req.validated.enabled },
+    })
     res.json({ updated: owned.map((p) => p.id), missing, enabled: req.validated.enabled })
   })
 
@@ -535,10 +582,13 @@ export function registerWave8ProRoutes(app, deps) {
       })
     }
     const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
+    const entries = []
     for (const prop of owned) {
+      const before = { status: prop.status ?? null }
       await remove('properties', (p) => p.id === prop.id)
+      entries.push({ id: prop.id, before, after: { deleted: true } })
     }
-    await writeBulkAudit(req, 'delete', ids)
+    await writeBulkAudit(req, { action: 'delete', entries })
     res.json({ deleted: owned.map((p) => p.id), missing })
   })
 
