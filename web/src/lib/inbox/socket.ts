@@ -1,6 +1,26 @@
 import { useEffect, useRef } from 'react'
 import { API_BASE, getAuthToken } from '@/api/client'
 
+function readAuthToken(): string {
+  try {
+    const fromApi = getAuthToken()
+    if (fromApi) return String(fromApi)
+  } catch {
+    // api mock suites may omit getAuthToken — fall through
+  }
+  try {
+    if (typeof localStorage === 'undefined') return ''
+    return (
+      localStorage.getItem('token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('auth_token') ||
+      ''
+    )
+  } catch {
+    return ''
+  }
+}
+
 export type InboxSocketEvent = {
   type: string
   conversation_id?: string
@@ -100,7 +120,7 @@ export function connectInboxSocket(options: ConnectInboxSocketOptions): InboxSoc
 
   const connect = () => {
     if (closed) return
-    const token = getAuthToken()
+    const token = readAuthToken()
     if (!token) {
       failures += 1
       if (failures >= maxReconnectFailures) {

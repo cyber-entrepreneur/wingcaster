@@ -20,6 +20,8 @@ vi.mock('@/context/AuthContext', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
+  API_BASE: '',
+  getAuthToken: () => '',
   api: new Proxy(
     {},
     {
@@ -27,6 +29,10 @@ vi.mock('@/api/client', () => ({
         vi.fn().mockImplementation(async () => {
           if (prop === 'getConversations') return []
           if (prop === 'getConversation') return { messages: [], contact: null }
+          if (prop === 'getAiSuggestions' || prop === 'getConversationAiSuggestions') {
+            return { suggestions: [], degraded: true }
+          }
+          if (prop === 'getAgentPreferences') return { inbox_merge_mode: 'separate' }
           return {}
         }),
     },

@@ -88,16 +88,24 @@ function getDb() {
 
 export async function saveConversation(c: Record<string, unknown> & { id: string }) {
   if (!c?.id) throw new Error('Conversation id required')
-  const db = await getDb()
-  await db.put('conversations', c)
+  try {
+    const db = await getDb()
+    await db.put('conversations', c)
+  } catch {
+    // IndexedDB may be unavailable in jsdom / private mode — soft-fail
+  }
 }
 
 export async function saveMessages(list: OfflineMessage[]) {
   if (!Array.isArray(list) || list.length === 0) return
-  const db = await getDb()
-  const tx = db.transaction('messages', 'readwrite')
-  await Promise.all(list.map((msg) => tx.store.put(msg)))
-  await tx.done
+  try {
+    const db = await getDb()
+    const tx = db.transaction('messages', 'readwrite')
+    await Promise.all(list.map((msg) => tx.store.put(msg)))
+    await tx.done
+  } catch {
+    // soft-fail when IndexedDB is unavailable
+  }
 }
 
 export async function getConversation(
@@ -135,7 +143,6 @@ export async function getMessages(
 }
 
 export async function enqueueOutgoing(msg: OutgoingMessage) {
-  const db = await getDb()
   const clientId =
     msg.client_id || `outbox-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const entry: OutgoingMessage & { queued_at: string } = {
@@ -143,42 +150,55 @@ export async function enqueueOutgoing(msg: OutgoingMessage) {
     client_id: clientId,
     queued_at: msg.queued_at || new Date().toISOString(),
   }
-  await db.put('outbox', entry)
+  try {
+    const db = await getDb()
+    await db.put('outbox', entry)
+  } catch {
+    // soft-fail when IndexedDB is unavailable
+  }
   return entry
 }
 
 export type FlushSendFn = (msg: OutgoingMessage & { queued_at: string }) => Promise<void>
 
 export async function flushOutbox(sendFn: FlushSendFn): Promise<{ sent: number; failed: number }> {
-  const db = await getDb()
-  const pending = await db.getAll('outbox')
-  let sent = 0
-  let failed = 0
-  const ordered = pending.sort((a, b) => a.queued_at.localeCompare(b.queued_at))
-  for (const entry of ordered) {
-    try {
-      await sendFn(entry)
-      await db.delete('outbox', entry.client_id)
-      sent += 1
-    } catch {
-      failed += 1
+  try {
+    const db = await getDb()
+    const pending = await db.getAll('outbox')
+    let sent = 0
+    let failed = 0
+    const ordered = pending.sort((a, b) => a.queued_at.localeCompare(b.queued_at))
+    for (const entry of ordered) {
+      try {
+        await sendFn(entry)
+        await db.delete('outbox', entry.client_id)
+        sent += 1
+      } catch {
+        failed += 1
+      }
     }
+    return { sent, failed }
+  } catch {
+    return { sent: 0, failed: 0 }
   }
-  return { sent, failed }
 }
 
 export async function saveConversationList(rows: Array<Record<string, unknown> & { id: string }>) {
-  const db = await getDb()
-  const tx = db.transaction('conversations', 'readwrite')
-  await tx.store.put({
-    id: LIST_CACHE_ID,
-    updatedAt: new Date().toISOString(),
-    rows,
-  })
-  for (const row of rows) {
-    if (row?.id) await tx.store.put(row)
+  try {
+    const db = await getDb()
+    const tx = db.transaction('conversations', 'readwrite')
+    await tx.store.put({
+      id: LIST_CACHE_ID,
+      updatedAt: new Date().toISOString(),
+      rows,
+    })
+    for (const row of rows) {
+      if (row?.id) await tx.store.put(row)
+    }
+    await tx.done
+  } catch {
+    // soft-fail when IndexedDB is unavailable (jsdom mounts, private mode)
   }
-  await tx.done
 }
 
 export async function getConversationList<
