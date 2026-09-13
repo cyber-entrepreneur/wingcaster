@@ -25,6 +25,7 @@ import { downloadCsv } from '@/lib/downloadCsv'
 import {
   LISTING_STATUS_META,
   LISTING_STATUSES,
+  mapStatusToApi,
   normalizeStatus,
   type ListingStatus,
 } from '@/lib/listingStatus'
@@ -361,8 +362,7 @@ export function ProListingsTable({
 
   const saveInlineStatus = async (id: string, status: string) => {
     try {
-      const mapped =
-        status === 'published' ? 'active' : status === 'archived' ? 'archived' : status
+      const mapped = mapStatusToApi(status)
       await api.updateProperty(id, { status: mapped })
       addToast({ title: 'Status updated', variant: 'default' })
       setStatusEditId(null)

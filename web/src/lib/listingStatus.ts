@@ -65,3 +65,24 @@ export function normalizeStatus(raw: string | undefined | null): ListingStatus {
   if (value === 'inactive') return 'archived'
   return 'draft'
 }
+
+/** Map UI ListingStatus values to backend property status enum (validation.js). */
+export function mapStatusToApi(status: string): string {
+  switch (status) {
+    case 'published':
+      return 'active'
+    case 'unpublished':
+      return 'unpublished'
+    case 'draft':
+      return 'draft'
+    case 'archived':
+      return 'archived'
+    case 'underOffer':
+      return 'hold'
+    case 'closed':
+      return 'sold'
+    default:
+      return status
+  }
+}
+

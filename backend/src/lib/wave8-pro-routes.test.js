@@ -215,4 +215,76 @@ describe('wave8-pro-routes', () => {
     expect(res.body.eligible).toBe(true)
     expect(res.body.listing_count).toBe(20)
   })
+
+  it('bulk change-owner rejects recipient outside active tenant', async () => {
+    const res = await request(buildApp())
+      .post('/api/properties/bulk/change-owner')
+      .send({ ids: ['p1'], owner_user_id: 'outsider-1' })
+    expect(res.status).toBe(403)
+    expect(res.body.error).toMatch(/not a member/i)
+    expect(dal.update).not.toHaveBeenCalled()
+    expect(dal.insert).not.toHaveBeenCalled()
+  })
+
+  it('bulk change-owner succeeds for same-tenant recipient and writes audit', async () => {
+    dal.findOne.mockImplementation(async (collection, filter) => {
+      if (collection === 'tenant_memberships') {
+        const rows = [
+          {
+            id: 'mem-1',
+            user_id: 'user-1',
+            tenant_id: 'personal:user-1',
+            status: 'active',
+            data: {},
+            updated_at: '2026-09-01T00:00:00.000Z',
+          },
+          {
+            id: 'mem-2',
+            user_id: 'user-2',
+            tenant_id: 'personal:user-1',
+            status: 'active',
+            data: {},
+          },
+        ]
+        return rows.find((row) => filter(row)) || null
+      }
+      return null
+    })
+
+    const res = await request(buildApp())
+      .post('/api/properties/bulk/change-owner')
+      .send({ ids: ['p1'], owner_user_id: 'user-2' })
+    expect(res.status).toBe(200)
+    expect(res.body.updated).toEqual(['p1'])
+    expect(dal.insert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({
+        type: 'property_bulk',
+        action: 'change_owner',
+        entity_type: 'property',
+        entity_id: 'p1',
+        metadata: expect.objectContaining({
+          property_ids: ['p1'],
+          owner_user_id: 'user-2',
+        }),
+      }),
+    )
+  })
+
+  it('bulk archive writes audit_log row', async () => {
+    const res = await request(buildApp())
+      .post('/api/properties/bulk/archive')
+      .send({ ids: ['p1', 'p2'] })
+    expect(res.status).toBe(200)
+    expect(res.body.updated).toEqual(['p1', 'p2'])
+    expect(dal.insert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({
+        type: 'property_bulk',
+        action: 'archive',
+        entity_id: 'p1',
+        metadata: expect.objectContaining({ property_ids: ['p1', 'p2'] }),
+      }),
+    )
+  })
 })

@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { findAll, findOne, remove, update } from '../db.js'
+import { findAll, findOne, insert, remove, update } from '../db.js'
 import { findUserById, updateUser } from '../identity.js'
 import { personalTenantId } from '../tenant-authorization.js'
 import { assertOwnsProperty } from './authz.js'
@@ -172,6 +172,22 @@ async function mapOwnedProperties(userId, ids) {
     }
   }
   return { owned, missing }
+}
+
+async function writeBulkAudit(req, action, ids, extra = {}) {
+  const actorId = req.user.id
+  await insert('audit_log', {
+    id: randomUUID(),
+    agent_id: actorId,
+    type: 'property_bulk',
+    action,
+    entity_type: 'property',
+    entity_id: ids[0] || null,
+    ip: req.ip || null,
+    user_agent: req.get?.('user-agent') || null,
+    metadata: { property_ids: ids, ...extra },
+    created_at: new Date().toISOString(),
+  })
 }
 
 export function registerWave8ProRoutes(app, deps) {
@@ -417,15 +433,18 @@ export function registerWave8ProRoutes(app, deps) {
 
   // ── Bulk property mutations (AGT-LST-002) ───────────────────────────────
   app.post('/api/properties/bulk/archive', authMiddleware, validate(bulkIdsSchema), async (req, res) => {
-    const { owned, missing } = await mapOwnedProperties(req.user.id, req.validated.ids)
+    const ids = req.validated.ids
+    const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     for (const prop of owned) {
       await update('properties', (p) => p.id === prop.id, (p) => ({ ...p, status: 'archived' }))
     }
+    await writeBulkAudit(req, 'archive', ids)
     res.json({ updated: owned.map((p) => p.id), missing })
   })
 
   app.post('/api/properties/bulk/publish', authMiddleware, validate(bulkPublishSchema), async (req, res) => {
-    const { owned, missing } = await mapOwnedProperties(req.user.id, req.validated.ids)
+    const ids = req.validated.ids
+    const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     for (const prop of owned) {
       await update('properties', (p) => p.id === prop.id, (p) => ({
         ...p,
@@ -433,15 +452,18 @@ export function registerWave8ProRoutes(app, deps) {
         marketplace_syndicated: true,
       }))
     }
+    const channels = req.validated.channels || []
+    await writeBulkAudit(req, 'publish', ids, { channels })
     res.json({
       updated: owned.map((p) => p.id),
       missing,
-      channels: req.validated.channels || [],
+      channels,
     })
   })
 
   app.post('/api/properties/bulk/price-adjust', authMiddleware, validate(bulkPriceSchema), async (req, res) => {
-    const { owned, missing } = await mapOwnedProperties(req.user.id, req.validated.ids)
+    const ids = req.validated.ids
+    const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     const { mode, value } = req.validated
     const results = []
     for (const prop of owned) {
@@ -452,11 +474,20 @@ export function registerWave8ProRoutes(app, deps) {
       await update('properties', (p) => p.id === prop.id, (p) => ({ ...p, price: nextPrice }))
       results.push({ id: prop.id, price: nextPrice })
     }
+    await writeBulkAudit(req, 'price_adjust', ids, { mode, value })
     res.json({ updated: results, missing })
   })
 
   app.post('/api/properties/bulk/change-owner', authMiddleware, validate(bulkOwnerSchema), async (req, res) => {
-    const { owned, missing } = await mapOwnedProperties(req.user.id, req.validated.ids)
+    const ctx = await loadActiveMembership(req.user.id)
+    if (!ctx) return res.status(404).json({ error: 'Active tenant membership not found' })
+    try {
+      await assertTenantMember(req.validated.owner_user_id, ctx.tenantId)
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message || 'Recipient is not a member of this tenant' })
+    }
+    const ids = req.validated.ids
+    const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     for (const prop of owned) {
       await update(
         'properties',
@@ -464,11 +495,13 @@ export function registerWave8ProRoutes(app, deps) {
         (p) => ({ ...p, agent_id: req.validated.owner_user_id }),
       )
     }
+    await writeBulkAudit(req, 'change_owner', ids, { owner_user_id: req.validated.owner_user_id })
     res.json({ updated: owned.map((p) => p.id), missing })
   })
 
   app.post('/api/properties/bulk/toggle-bazaar', authMiddleware, validate(bulkBazaarSchema), async (req, res) => {
-    const { owned, missing } = await mapOwnedProperties(req.user.id, req.validated.ids)
+    const ids = req.validated.ids
+    const { owned, missing } = await mapOwnedProperties(req.user.id, ids)
     for (const prop of owned) {
       await update(
         'properties',
@@ -476,6 +509,7 @@ export function registerWave8ProRoutes(app, deps) {
         (p) => ({ ...p, marketplace_syndicated: !!req.validated.enabled }),
       )
     }
+    await writeBulkAudit(req, 'toggle_bazaar', ids, { enabled: !!req.validated.enabled })
     res.json({ updated: owned.map((p) => p.id), missing, enabled: req.validated.enabled })
   })
 
@@ -492,6 +526,7 @@ export function registerWave8ProRoutes(app, deps) {
     for (const prop of owned) {
       await remove('properties', (p) => p.id === prop.id)
     }
+    await writeBulkAudit(req, 'delete', ids)
     res.json({ deleted: owned.map((p) => p.id), missing })
   })
 
