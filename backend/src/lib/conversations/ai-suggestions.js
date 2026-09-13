@@ -27,7 +27,7 @@ export function heuristicSuggestionBodies(lastInbound, contactName, language = '
   if (/\b(price|asking|offer|discount)\b/.test(text)) {
     suggestions.push('Happy to walk you through the current asking price and recent comps.')
   }
-  suggestions.push(Thanks for reaching out, . When works for a viewing?)
+  suggestions.push('Thanks for reaching out, ' + first + '. When works for a viewing?')
   suggestions.push('I can send the floor plan and latest photos — which would you like first?')
   return normalizeSuggestionBodies(suggestions, language)
 }
@@ -148,10 +148,6 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
 
   const conversation = await assertOwns(userId, conversationId)
 
-  if (!apiKey && !createMessage) {
-    return { suggestions: [], degraded: true }
-  }
-
   const allMessages = await findAllFn(
     'conversation_messages',
     (m) => m.conversation_id === conversation.id,
@@ -163,6 +159,19 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
   const lastInbound = [...messages].reverse().find((m) => m.direction === 'inbound')
   const inboundText = String(lastInbound?.content || lastInbound?.body || '')
   const language = detectSuggestionLanguage(inboundText, lastInbound?.language)
+  const contact = conversation.contact_id
+    ? await (deps.findOne || findOne)('contacts', (c) => c.id === conversation.contact_id)
+    : null
+  const contactName = contact?.name || conversation.contact_name
+  const storedSource = lastInbound?.suggested_reply ? 'stored' : 'heuristic'
+  const fallback = () => ({
+    enabled: true,
+    suggestions: heuristicSuggestionBodies(lastInbound, contactName, language),
+    source: storedSource,
+  })
+  if (!apiKey && !createMessage) {
+    return fallback()
+  }
 
   const threadContext = messages
     .map((m) => `${m.direction}: ${String(m.content || m.body || '').slice(0, 240)}`)
@@ -221,12 +230,14 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
       await insertFn('audit_log', {
         id: randomUUID(),
         agent_id: userId,
-        type: 'ai_suggestion',
+        type: 'inbox_ai_suggestion',
         action: 'generate',
         entity_type: 'conversation',
         entity_id: conversation.id,
         metadata: {
           model,
+          source: 'anthropic',
+          suggestion_count: suggestions.length,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           user_id: userId,
@@ -252,12 +263,14 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
     })
 
     return {
+      enabled: true,
       suggestions,
+      source: 'anthropic',
       model,
       latency_ms: latencyMs,
     }
   } catch {
-    return { suggestions: [], degraded: true }
+    return fallback()
   } finally {
     clearTimeout(timer)
   }
