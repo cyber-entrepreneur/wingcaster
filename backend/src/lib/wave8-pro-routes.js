@@ -88,13 +88,15 @@ const bulkExportSchema = z.object({
   format: z.enum(['csv']).optional().default('csv'),
 })
 
-function membershipDataBag(row) {
-  const raw = row?.data
+const MEMBERSHIP_PREF_KEYS = ['dashboard_layout', 'dashboard_density', 'column_prefs', 'ui_mode']
+const TENANT_PREF_KEYS = ['saved_views']
+
+function nestedObject(raw) {
   if (!raw) return {}
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object' ? parsed : {}
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
     } catch {
       return {}
     }
@@ -102,8 +104,22 @@ function membershipDataBag(row) {
   return typeof raw === 'object' && !Array.isArray(raw) ? { ...raw } : {}
 }
 
+function overlayPrefKeys(row, bag, keys) {
+  if (!row) return bag
+  for (const key of keys) {
+    if (row[key] !== undefined) bag[key] = row[key]
+  }
+  return bag
+}
+
+function membershipDataBag(row) {
+  // Postgres fromRow() deletes the JSONB `data` column. Prefs must also live
+  // as top-level document keys so GET after PATCH still sees them.
+  return overlayPrefKeys(row, nestedObject(row?.data), MEMBERSHIP_PREF_KEYS)
+}
+
 function tenantDataBag(row) {
-  return membershipDataBag(row)
+  return overlayPrefKeys(row, nestedObject(row?.data), TENANT_PREF_KEYS)
 }
 
 function normalizeDensity(value) {
@@ -127,14 +143,34 @@ async function loadActiveMembership(userId, tenantIdHint) {
   return { user, tenantId, membership, data: membershipDataBag(membership) }
 }
 
+function withDocumentPrefs(row, nextData, keys) {
+  const next = { ...row, data: nextData }
+  for (const key of keys) {
+    if (nextData[key] !== undefined) next[key] = nextData[key]
+  }
+  return next
+}
+
 async function persistMembershipData(membership, nextData) {
   const now = new Date().toISOString()
   await update(
     'tenant_memberships',
     (row) => row.id === membership.id,
     (row) => ({
-      ...row,
-      data: nextData,
+      ...withDocumentPrefs(row, nextData, MEMBERSHIP_PREF_KEYS),
+      updated_at: now,
+    }),
+  )
+  return now
+}
+
+async function persistTenantData(tenant, nextData) {
+  const now = new Date().toISOString()
+  await update(
+    'tenants',
+    (row) => row.id === tenant.id,
+    (row) => ({
+      ...withDocumentPrefs(row, nextData, TENANT_PREF_KEYS),
       updated_at: now,
     }),
   )
@@ -355,15 +391,7 @@ export function registerWave8ProRoutes(app, deps) {
       updated_at: new Date().toISOString(),
     }
     views.push(view)
-    await update(
-      'tenants',
-      (row) => row.id === tenant.id,
-      (row) => ({
-        ...row,
-        data: { ...data, saved_views: views },
-        updated_at: new Date().toISOString(),
-      }),
-    )
+    await persistTenantData(tenant, { ...data, saved_views: views })
     res.status(201).json(view)
   })
 
@@ -391,15 +419,7 @@ export function registerWave8ProRoutes(app, deps) {
       updated_at: new Date().toISOString(),
     }
     views[idx] = next
-    await update(
-      'tenants',
-      (row) => row.id === tenant.id,
-      (row) => ({
-        ...row,
-        data: { ...data, saved_views: views },
-        updated_at: new Date().toISOString(),
-      }),
-    )
+    await persistTenantData(tenant, { ...data, saved_views: views })
     res.json(next)
   })
 
@@ -419,15 +439,7 @@ export function registerWave8ProRoutes(app, deps) {
       return res.status(403).json({ error: 'Only the view owner can delete it' })
     }
     const nextViews = views.filter((v) => v.id !== req.params.viewId)
-    await update(
-      'tenants',
-      (row) => row.id === tenant.id,
-      (row) => ({
-        ...row,
-        data: { ...data, saved_views: nextViews },
-        updated_at: new Date().toISOString(),
-      }),
-    )
+    await persistTenantData(tenant, { ...data, saved_views: nextViews })
     res.json({ success: true })
   })
 

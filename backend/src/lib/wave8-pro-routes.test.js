@@ -95,6 +95,28 @@ describe('wave8-pro-routes', () => {
     })
   })
 
+  it('GET /api/users/me/dashboard-layout reads top-level prefs after fromRow strip', async () => {
+    dal.findOne.mockImplementation(async (collection, filter) => {
+      if (collection === 'tenant_memberships') {
+        const row = {
+          id: 'mem-1',
+          user_id: 'user-1',
+          tenant_id: 'personal:user-1',
+          status: 'active',
+          dashboard_layout: [{ i: 'kpi-active', x: 0, y: 0, w: 3, h: 2 }],
+          dashboard_density: 'compact',
+          updated_at: '2026-09-01T00:00:00.000Z',
+        }
+        return filter(row) ? row : null
+      }
+      return null
+    })
+    const res = await request(buildApp()).get('/api/users/me/dashboard-layout')
+    expect(res.status).toBe(200)
+    expect(res.body.density).toBe('compact')
+    expect(res.body.layout[0].i).toBe('kpi-active')
+  })
+
   it('GET /api/users/me/dashboard-layout returns layout + density', async () => {
     const res = await request(buildApp()).get('/api/users/me/dashboard-layout')
     expect(res.status).toBe(200)
@@ -117,7 +139,9 @@ describe('wave8-pro-routes', () => {
     const updater = dal.update.mock.calls.find((c) => c[0] === 'tenant_memberships')?.[2]
     const next = updater({ id: 'mem-1', data: {} })
     expect(next.data.dashboard_density).toBe('compact')
+    expect(next.dashboard_density).toBe('compact')
     expect(next.data.dashboard_layout[0].i).toBe('urgent')
+    expect(next.dashboard_layout[0].i).toBe('urgent')
   })
 
   it('PATCH /api/users/me/list-prefs merges column prefs', async () => {

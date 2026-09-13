@@ -8,7 +8,7 @@ import { expect, it } from 'vitest'
 import { finPostgresSuite } from '../fin/testing/suite.js'
 import { createAgentAccount } from '../identity.js'
 import { authMiddleware, signToken } from '../auth.js'
-import { personalTenantId } from '../tenant-authorization.js'
+import { addAgencyMembership, agencyTenantId, createAgencyWithOwner, personalTenantId } from '../tenant-authorization.js'
 import { registerWave8ProRoutes } from './wave8-pro-routes.js'
 
 async function agentSession({ name = 'Pro Agent' } = {}) {
@@ -36,7 +36,7 @@ async function agentSession({ name = 'Pro Agent' } = {}) {
     verified_at: now,
     active_tenant_id: tenantId,
   })
-  return { userId, token, tenantId, email }
+  return { userId, token, tenantId, email, name, verifiedAt: now }
 }
 
 async function insertProperty(pool, { id = randomUUID(), agentId, price = 100000, status = 'active' } = {}) {
@@ -51,18 +51,41 @@ async function insertProperty(pool, { id = randomUUID(), agentId, price = 100000
   return id
 }
 
-async function addTenantMember(pool, { tenantId, userId, role = 'agent' }) {
-  const now = new Date().toISOString()
+async function addAgencyPeer(pool, { owner, peerName = 'Peer' }) {
+  const peer = await agentSession({ name: peerName })
+  const agencyId = randomUUID()
+  await createAgencyWithOwner({
+    agency: {
+      id: agencyId,
+      name: `${owner.name || 'Pro'} Agency`,
+      slug: `pro-${agencyId.slice(0, 8)}`,
+    },
+    ownerUserId: owner.userId,
+  })
+  const tenantId = agencyTenantId(agencyId)
+  await addAgencyMembership({
+    agencyId,
+    userId: peer.userId,
+    role: 'member',
+    affiliationMode: 'non_exclusive',
+    invitedBy: owner.userId,
+  })
   await pool.query(
-    `INSERT INTO public.tenant_memberships (
-       id, tenant_id, user_id, role, affiliation_mode, status, public_profile,
-       lead_eligible, capabilities, joined_at, created_at, updated_at, data
-     ) VALUES (
-       $1, $2, $3, $4, 'agency', 'active', true,
-       true, '{}'::jsonb, $5::timestamptz, $5::timestamptz, $5::timestamptz, '{}'::jsonb
-     )`,
-    [`mem-${randomUUID().slice(0, 12)}`, tenantId, userId, role, now],
+    `UPDATE public.users
+        SET active_tenant_id = $2,
+            data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('active_tenant_id', $2::text)
+      WHERE id = $1`,
+    [owner.userId, tenantId],
   )
+  const token = signToken({
+    id: owner.userId,
+    email: owner.email,
+    name: owner.name,
+    token_version: 0,
+    verified_at: owner.verifiedAt,
+    active_tenant_id: tenantId,
+  })
+  return { agencyId, tenantId, peer, token }
 }
 
 function makeApp() {
@@ -153,12 +176,12 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
   it('saved-views CRUD enforces owner and shared_with_tenant visibility', async () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-wave8-pro'
     const owner = await agentSession({ name: 'View Owner' })
-    const peer = await agentSession({ name: 'View Peer' })
-    await addTenantMember(pool(), { tenantId: owner.tenantId, userId: peer.userId })
+    const workspace = await addAgencyPeer(pool(), { owner, peerName: 'View Peer' })
+    const peer = workspace.peer
     const app = makeApp()
 
     const created = await request(app)
-      .post(`/api/tenants/${owner.tenantId}/saved-views`)
+      .post(`/api/tenants/${workspace.tenantId}/saved-views`)
       .set('Authorization', `Bearer ${owner.token}`)
       .send({
         name: 'Below market',
@@ -171,45 +194,45 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
     expect(created.body.shared_with_tenant).toBe(false)
 
     const peerPrivate = await request(app)
-      .get(`/api/tenants/${owner.tenantId}/saved-views`)
+      .get(`/api/tenants/${workspace.tenantId}/saved-views`)
       .set('Authorization', `Bearer ${peer.token}`)
       .expect(200)
     expect(peerPrivate.body.views).toHaveLength(0)
 
     const shared = await request(app)
-      .patch(`/api/tenants/${owner.tenantId}/saved-views/${created.body.id}`)
+      .patch(`/api/tenants/${workspace.tenantId}/saved-views/${created.body.id}`)
       .set('Authorization', `Bearer ${owner.token}`)
       .send({ shared_with_tenant: true, name: 'Shared below market' })
       .expect(200)
     expect(shared.body.shared_with_tenant).toBe(true)
 
     const peerShared = await request(app)
-      .get(`/api/tenants/${owner.tenantId}/saved-views`)
+      .get(`/api/tenants/${workspace.tenantId}/saved-views`)
       .set('Authorization', `Bearer ${peer.token}`)
       .expect(200)
     expect(peerShared.body.views).toHaveLength(1)
     expect(peerShared.body.views[0].name).toBe('Shared below market')
 
     const peerEdit = await request(app)
-      .patch(`/api/tenants/${owner.tenantId}/saved-views/${created.body.id}`)
+      .patch(`/api/tenants/${workspace.tenantId}/saved-views/${created.body.id}`)
       .set('Authorization', `Bearer ${peer.token}`)
       .send({ name: 'Hijacked' })
       .expect(403)
     expect(peerEdit.body.error).toMatch(/owner/i)
 
     const peerDelete = await request(app)
-      .delete(`/api/tenants/${owner.tenantId}/saved-views/${created.body.id}`)
+      .delete(`/api/tenants/${workspace.tenantId}/saved-views/${created.body.id}`)
       .set('Authorization', `Bearer ${peer.token}`)
       .expect(403)
     expect(peerDelete.body.error).toMatch(/owner/i)
 
     await request(app)
-      .delete(`/api/tenants/${owner.tenantId}/saved-views/${created.body.id}`)
+      .delete(`/api/tenants/${workspace.tenantId}/saved-views/${created.body.id}`)
       .set('Authorization', `Bearer ${owner.token}`)
       .expect(200)
 
     const after = await request(app)
-      .get(`/api/tenants/${owner.tenantId}/saved-views`)
+      .get(`/api/tenants/${workspace.tenantId}/saved-views`)
       .set('Authorization', `Bearer ${owner.token}`)
       .expect(200)
     expect(after.body.views).toHaveLength(0)
@@ -218,8 +241,8 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
   it('bulk endpoints mutate owned rows and write audit_log', async () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-wave8-pro'
     const agent = await agentSession({ name: 'Bulk Agent' })
-    const peer = await agentSession({ name: 'Bulk Peer' })
-    await addTenantMember(pool(), { tenantId: agent.tenantId, userId: peer.userId })
+    const workspace = await addAgencyPeer(pool(), { owner: agent, peerName: 'Bulk Peer' })
+    const peer = workspace.peer
     const app = makeApp()
 
     const archiveId = await insertProperty(pool(), { agentId: agent.userId, price: 200000 })
