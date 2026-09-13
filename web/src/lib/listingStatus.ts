@@ -74,5 +74,6 @@ export function normalizeStatus(raw: string | undefined | null): ListingStatus {
     return 'closed'
   }
   if (value === 'archived' || value === 'inactive') return 'archived'
+  console.warn(`[listingStatus] unknown status drift: ${JSON.stringify(raw)} — defaulting to draft`)
   return 'draft'
 }

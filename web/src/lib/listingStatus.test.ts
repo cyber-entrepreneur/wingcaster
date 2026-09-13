@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   LISTING_STATUSES,
   LISTING_STATUS_META,
@@ -29,5 +29,12 @@ describe('listingStatus', () => {
     expect(normalizeStatus('rented')).toBe('closed')
     expect(normalizeStatus('active')).toBe('published')
     expect(normalizeStatus('archived')).toBe('archived')
+  })
+
+  it('warns on unknown status drift before defaulting to draft', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(normalizeStatus('mystery-status')).toBe('draft')
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/unknown status drift/i))
+    warn.mockRestore()
   })
 })

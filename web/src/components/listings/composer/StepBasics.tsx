@@ -147,7 +147,7 @@ export function StepBasics({
                 aria-pressed={form.currency === c}
                 onClick={() => onChange('currency', c)}
                 className={cn(
-                  'min-h-10 rounded-[var(--lc-radius-md)] px-2.5 text-[length:var(--lc-type-caption)]',
+                  'min-h-tap rounded-[var(--lc-radius-md)] px-2.5 text-[length:var(--lc-type-caption)]',
                   form.currency === c
                     ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                     : 'text-[var(--lc-text-secondary)]',
@@ -167,7 +167,7 @@ export function StepBasics({
                 aria-pressed={form.price_unit === u}
                 onClick={() => onChange('price_unit', u)}
                 className={cn(
-                  'min-h-10 rounded-[var(--lc-radius-md)] px-3 text-[length:var(--lc-type-caption)]',
+                  'min-h-tap rounded-[var(--lc-radius-md)] px-3 text-[length:var(--lc-type-caption)]',
                   form.price_unit === u
                     ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                     : 'text-[var(--lc-text-secondary)]',

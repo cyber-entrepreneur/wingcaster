@@ -88,7 +88,7 @@ export function StepPublishPreview({
               aria-pressed={surface === s}
               onClick={() => setSurface(s)}
               className={cn(
-                'min-h-10 rounded-[var(--lc-radius-pill)] px-3 text-[length:var(--lc-type-caption)]',
+                'min-h-tap rounded-[var(--lc-radius-pill)] px-3 text-[length:var(--lc-type-caption)]',
                 surface === s
                   ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                   : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',

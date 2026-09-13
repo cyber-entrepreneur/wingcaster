@@ -28,5 +28,6 @@ describe('StepPublishPreview ChannelMark', () => {
     expect(bayut.getAttribute('style') || '').toMatch(/--lc-channel-bayut/)
     const pf = screen.getByLabelText('Property Finder')
     expect(pf.getAttribute('style') || '').toMatch(/--lc-channel-property_finder/)
+    expect(screen.queryByText(/blue door/i)).toBeNull()
   })
 })
