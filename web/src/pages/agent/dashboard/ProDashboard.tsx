@@ -152,7 +152,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         listings: mine as Array<Record<string, unknown>>,
         inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
         viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
-        conversations: (Array.isArray(conversations) ? conversations : []) as Array<
+        conversations: (Array.isArray(conversations) ? conversations : []) as unknown as Array<
           Record<string, unknown>
         >,
         operations: ops as Record<string, unknown> | null,
