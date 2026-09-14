@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { channelLabel } from '@/lib/inbox-labels'
-import { lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
+import { LC_CHANNEL_SHORT, lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
 
 interface ChannelMarkProps {
   channel: string | LcChannel
@@ -13,7 +13,11 @@ export function ChannelMark({ channel, className, label }: ChannelMarkProps) {
   const raw = String(channel || '').trim()
   const resolved = resolveLcChannel(raw)
   const display = label || channelLabel(raw) || raw || 'Channel'
-  const initials = display.slice(0, 2).toUpperCase()
+  const mark = resolved
+    ? label
+      ? label.slice(0, 2).toUpperCase()
+      : LC_CHANNEL_SHORT[resolved]
+    : display.slice(0, 2).toUpperCase()
   const style = resolved
     ? lcChannelStyle(resolved)
     : {
@@ -33,7 +37,7 @@ export function ChannelMark({ channel, className, label }: ChannelMarkProps) {
       aria-label={display}
       data-channel={raw || resolved || 'unknown'}
     >
-      {initials}
+      {mark}
     </span>
   )
 }

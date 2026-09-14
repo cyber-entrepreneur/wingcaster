@@ -1,5 +1,6 @@
 import { LC_STATUS_GLYPH } from '@/theme/status'
 
+/** Six listing statuses per AGT-LST-001 / Broadcast status model. */
 export type ListingStatus =
   | 'draft'
   | 'published'
@@ -41,12 +42,12 @@ export const LISTING_STATUS_META: Record<ListingStatus, ListingStatusMeta> = {
   },
   underOffer: {
     label: 'Under offer',
-    description: 'An offer is in progress. Listing stays visible.',
+    description: 'An offer is in play. Still active but flagged.',
     glyph: LC_STATUS_GLYPH.underOffer,
   },
   closed: {
-    label: 'Closed',
-    description: 'Sold or rented. No longer accepting inquiries.',
+    label: 'Sold',
+    description: 'Deal closed (sold or rented). Retained for history.',
     glyph: LC_STATUS_GLYPH.closed,
   },
   archived: {
@@ -57,16 +58,32 @@ export const LISTING_STATUS_META: Record<ListingStatus, ListingStatusMeta> = {
 }
 
 export function normalizeStatus(raw: string | undefined | null): ListingStatus {
-  const value = (raw || '').toLowerCase().trim()
-  if ((LISTING_STATUSES as string[]).includes(value)) return value as ListingStatus
-  if (value === 'active' || value === 'live') return 'published'
-  if (value === 'sold' || value === 'rented' || value === 'won') return 'closed'
-  if (value === 'pending' || value === 'under_offer' || value === 'under-offer') return 'underOffer'
-  if (value === 'inactive') return 'archived'
+  const value = (raw || '').toLowerCase().trim().replace(/[\s_-]+/g, '')
+  if (value === 'draft') return 'draft'
+  if (value === 'published' || value === 'active' || value === 'live') return 'published'
+  if (value === 'unpublished') return 'unpublished'
+  if (
+    value === 'underoffer' ||
+    value === 'pending' ||
+    value === 'review' ||
+    value === 'paused'
+  ) {
+    return 'underOffer'
+  }
+  if (value === 'closed' || value === 'sold' || value === 'rented' || value === 'won') {
+    return 'closed'
+  }
+  if (value === 'archived' || value === 'inactive') return 'archived'
+  console.warn(`[listingStatus] unknown status drift: ${JSON.stringify(raw)} — defaulting to draft`)
   return 'draft'
 }
 
-/** Map UI ListingStatus values to backend property status enum (validation.js). */
+/**
+ * Map a UI-facing ListingStatus (draft / published / unpublished / underOffer /
+ * closed / archived) to the value the backend enum accepts on write.
+ * Backend enum (`backend/src/lib/validation.js`) accepts underOffer + closed
+ * directly after Wave 8 Pro; the identity mapping for those is intentional.
+ */
 export function mapStatusToApi(status: string): string {
   switch (status) {
     case 'published':
@@ -85,4 +102,3 @@ export function mapStatusToApi(status: string): string {
       return status
   }
 }
-
