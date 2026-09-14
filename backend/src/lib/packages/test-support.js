@@ -53,15 +53,17 @@ export async function seedPublishedPackage(client, {
   monthlyPriceMinor = 1000,
   quotas = [{ code: 'publishing.social.instagram', creditsPerProperty: 10 }],
   flags = [],
+  environment = 'LIVE',
 } = {}) {
   const packageId = randomUUID()
   const versionId = randomUUID()
+  const env = String(environment).toUpperCase() === 'TEST' ? 'TEST' : 'LIVE'
   await client.query(
     `INSERT INTO public.product_packages (
        id, code, display_name, tier, target_audience, currency, billing_cadence,
-       active, data
-     ) VALUES ($1,$2,$3,$4,$5,'USD',$6,true,'{}'::jsonb)`,
-    [packageId, code, displayName, tier, audience, cadence],
+       active, environment, data
+     ) VALUES ($1,$2,$3,$4,$5,'USD',$6,true,$7,'{}'::jsonb)`,
+    [packageId, code, displayName, tier, audience, cadence, env],
   )
   await client.query(
     `INSERT INTO public.product_package_versions (
