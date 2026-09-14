@@ -6,6 +6,7 @@ import { SessionsPage } from './SessionsPage'
 import { PasswordPage } from './PasswordPage'
 import { DeleteAccountPage } from './DeleteAccountPage'
 import { SettingsUnavailablePage } from './SettingsUnavailablePage'
+import { PreferencesPage } from '@/pages/PreferencesPage'
 
 /**
  * Child routes of `/settings` (SHR-SET-001..005).
@@ -28,6 +29,7 @@ export const settingsRoutes = (
     <Route path="billing" element={<BillingPage />} />
     <Route path="notifications" element={<BillingPage section="channels" />} />
     <Route path="notifications/billing" element={<Navigate to="/settings/notifications" replace />} />
+    <Route path="preferences" element={<PreferencesPage />} />
     <Route path="danger/delete-account" element={<DeleteAccountPage />} />
     <Route path="delete-account" element={<Navigate to="/settings/danger/delete-account" replace />} />
     <Route path="account/delete" element={<Navigate to="/settings/danger/delete-account" replace />} />

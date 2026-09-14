@@ -32,6 +32,9 @@ export { SecurityPostureTile } from './anchor/SecurityPostureTile'
 export { BillingSnapshotCard } from './anchor/BillingSnapshotCard'
 export { SettingsActivityList } from './anchor/SettingsActivityList'
 
+export { InterfaceModeCard } from './InterfaceModeCard'
+export type { InterfaceModeCardProps } from './InterfaceModeCard'
+
 export type {
   SettingsFooterSlot,
   SettingsNavBadge,
