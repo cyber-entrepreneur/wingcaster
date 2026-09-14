@@ -208,4 +208,39 @@ finPostgresSuite('portal admin HTTP (BE-BLOCKER-35)', { seed: true }, ({ url, po
     expect(csv.status).toBe(200)
     expect(csv.text).toContain('property_finder')
   })
+
+  it('logo-upload returns 501 until object storage ships', async () => {
+    const { app, elevate } = await makeApp(url())
+    const res = await request(app)
+      .post('/api/admin/portals/logo-upload')
+      .set(hdrs(elevate()))
+      .send({ code: 'olx', data_base64: 'aGVsbG8=' })
+    expect(res.status).toBe(501)
+    expect(res.body.code).toBe('LOGO_STORAGE_NOT_READY')
+  })
+
+  it('updatePortal emits distinct history event types', async () => {
+    const { app, elevate } = await makeApp(url())
+    const tok = elevate()
+    const patched = await request(app)
+      .patch('/api/admin/portals/olx')
+      .set(hdrs(tok))
+      .send({
+        adapter_class_name: 'portals/olx-v2.js',
+        country_codes: ['EG', 'LB', 'SA'],
+        sla_hours: 12,
+        validator_ref: 'portals/olx-v2',
+      })
+    expect(patched.status).toBe(200)
+    const history = await request(app).get('/api/admin/portals/olx/history')
+    expect(history.status).toBe(200)
+    const types = history.body.events.map((e) => e.event_type)
+    expect(types).toEqual(expect.arrayContaining([
+      'adapter_upgraded',
+      'country_coverage_changed',
+      'sla_changed',
+      'validator_ruleset_changed',
+    ]))
+  })
+
 })

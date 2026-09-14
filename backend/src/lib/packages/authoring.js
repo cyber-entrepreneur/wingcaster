@@ -64,9 +64,10 @@ export function payloadHash(version, quotas, flags) {
 
 async function writeAudit(client, {
   actorId, actorEmail, action, targetType, targetId, beforeState, afterState, reason, approvalRequestId, now,
+  environment = PACKAGES_ENVIRONMENT,
 }) {
   await insertAudit(client, {
-    environment: PACKAGES_ENVIRONMENT,
+    environment,
     actorType: actorId ? 'USER' : 'SYSTEM',
     actorId: asUuid(actorId),
     actorEmail: actorEmail || 'packages@admin',
@@ -81,9 +82,11 @@ async function writeAudit(client, {
   })
 }
 
-async function loadPackage(client, packageId, { forUpdate = false } = {}) {
-  const sql = `SELECT * FROM public.product_packages WHERE id = $1${forUpdate ? ' FOR UPDATE' : ''}`
-  const { rows } = await client.query(sql, [packageId])
+async function loadPackage(client, packageId, { forUpdate = false, environment = null } = {}) {
+  const sql = environment
+    ? `SELECT * FROM public.product_packages WHERE id = $1 AND environment = $2${forUpdate ? ' FOR UPDATE' : ''}`
+    : `SELECT * FROM public.product_packages WHERE id = $1${forUpdate ? ' FOR UPDATE' : ''}`
+  const { rows } = await client.query(sql, environment ? [packageId, environment] : [packageId])
   if (!rows[0]) fail(PACKAGE_ERROR.PACKAGE_NOT_FOUND, `Package ${packageId} not found`)
   return rows[0]
 }
@@ -116,10 +119,12 @@ async function loadQuotasAndFlags(client, versionId) {
 export async function createPackageDraft(client, {
   code, displayName, display_name, tier, targetAudience, target_audience,
   currency = 'USD', billingCadence, billing_cadence, actorId, actorEmail, now,
+  environment = PACKAGES_ENVIRONMENT,
 }) {
   const name = displayName || display_name
   const audience = targetAudience || target_audience
   const cadence = billingCadence || billing_cadence
+  const env = String(environment || PACKAGES_ENVIRONMENT).toUpperCase() === 'TEST' ? 'TEST' : 'LIVE'
   if (!code || !name || !tier || !audience || !cadence) {
     fail(PACKAGE_ERROR.INVALID_INPUT, 'code, display_name, tier, target_audience, billing_cadence are required')
   }
@@ -129,14 +134,14 @@ export async function createPackageDraft(client, {
     const { rows } = await client.query(
       `INSERT INTO public.product_packages (
          id, code, display_name, tier, target_audience, currency, billing_cadence,
-         active, data, created_at, updated_at, created_by_actor_id, updated_by_actor_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,false,'{}'::jsonb,$8,$8,$9,$9)
+         active, environment, data, created_at, updated_at, created_by_actor_id, updated_by_actor_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,'{}'::jsonb,$9,$9,$10,$10)
        RETURNING *`,
-      [id, code, name, tier, audience, currency, cadence, ts, asUuid(actorId)],
+      [id, code, name, tier, audience, currency, cadence, env, ts, asUuid(actorId)],
     )
     await writeAudit(client, {
       actorId, actorEmail, action: 'PACKAGE_CREATED', targetType: 'product_packages',
-      targetId: id, afterState: rows[0], now: ts,
+      targetId: id, afterState: rows[0], now: ts, environment: env,
     })
     return rows[0]
   } catch (error) {
@@ -372,22 +377,24 @@ export async function removeFlag(client, { packageId, versionId, featureCode, ac
 export async function submitForApproval(client, { packageId, versionId, actorId, actorEmail, now }) {
   const actor = asUuid(actorId)
   if (!actor) fail(PACKAGE_ERROR.INVALID_INPUT, 'requester id must be a UUID')
+  const pkg = await loadPackage(client, packageId, { forUpdate: true })
   const version = await loadVersion(client, packageId, versionId, { forUpdate: true })
   assertDraft(version)
   const { quotas, flags } = await loadQuotasAndFlags(client, versionId)
   const hash = payloadHash(version, quotas, flags)
   const ts = now || new Date().toISOString()
   const approvalId = randomUUID()
+  const env = pkg.environment || PACKAGES_ENVIRONMENT
   await client.query(
     `INSERT INTO fin.approval_requests (
        id, environment, tenant_id, action_kind, status, subject_type, subject_id,
        payload_hash, min_distinct_approvers, created_at, created_by_actor_type,
        created_by_actor_id, updated_at
      ) VALUES (
-       $1, 'LIVE', NULL, $2, 'REQUESTED', 'product_package_versions', $3,
+       $1, $7, NULL, $2, 'REQUESTED', 'product_package_versions', $3,
        $4, 1, $5::timestamptz, 'USER', $6, $5::timestamptz
      )`,
-    [approvalId, PUBLISH_ACTION_KIND, versionId, hash, ts, actor],
+    [approvalId, PUBLISH_ACTION_KIND, versionId, hash, ts, actor, env],
   )
   const { rows } = await client.query(
     `UPDATE public.product_package_versions
@@ -401,11 +408,13 @@ export async function submitForApproval(client, { packageId, versionId, actorId,
     dedupeKey: `package.version.pending_approval:${versionId}:${approvalId}`,
     payload: { package_id: packageId, version_id: versionId, approval_request_id: approvalId },
     now: ts,
+    environment: env,
   })
   await writeAudit(client, {
     actorId: actor, actorEmail, action: 'PACKAGE_VERSION_SUBMITTED',
     targetType: 'product_package_versions', targetId: versionId,
     beforeState: version, afterState: rows[0], approvalRequestId: approvalId, now: ts,
+    environment: env,
   })
   return { version: rows[0], approval_request_id: approvalId }
 }
@@ -624,4 +633,228 @@ export async function updateMeteredFeature(client, {
   return rows[0]
 }
 
+/** Undo-reject grace window — non-negotiable: 5 seconds only. */
+export const REJECT_UNDO_GRACE_MS = 5_000
+
+export async function undoRejectPublish(client, { packageId, versionId, actorId, actorEmail, now }) {
+  const actor = asUuid(actorId)
+  if (!actor) fail(PACKAGE_ERROR.INVALID_INPUT, 'actor id must be a UUID')
+  const pkg = await loadPackage(client, packageId, { forUpdate: true })
+  const version = await loadVersion(client, packageId, versionId, { forUpdate: true })
+  if (version.state !== 'DRAFT') {
+    fail(PACKAGE_ERROR.INVALID_TRANSITION, `Cannot undo-reject from ${version.state}`)
+  }
+  if (!version.approval_request_id) fail(PACKAGE_ERROR.APPROVAL_NOT_FOUND, 'No approval request')
+  const locked = await client.query(
+    `SELECT * FROM fin.approval_requests WHERE id = $1 FOR UPDATE`,
+    [version.approval_request_id],
+  )
+  const approval = locked.rows[0]
+  if (!approval) fail(PACKAGE_ERROR.APPROVAL_NOT_FOUND, 'Approval not found')
+  if (approval.status !== 'REJECTED') {
+    fail(PACKAGE_ERROR.INVALID_TRANSITION, `Approval is ${approval.status}, expected REJECTED`)
+  }
+  const rejectAction = await client.query(
+    `SELECT created_at FROM fin.approval_actions
+      WHERE request_id = $1 AND decision = 'REJECTED'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [approval.id],
+  )
+  const rejectedAt = rejectAction.rows[0]?.created_at || approval.updated_at
+  if (!rejectedAt) fail(PACKAGE_ERROR.UNDO_REJECT_EXPIRED, 'No reject timestamp found')
+  // Spec non-negotiable #5: grace is server-enforced. Client now cannot backdate
+  // past wall-clock (Math.max) to reopen an expired undo window.
+  const serverNowRes = await client.query('SELECT NOW() AS server_now')
+  const serverNowMs = new Date(serverNowRes.rows[0].server_now).getTime()
+  const requestedNowMs = new Date(now || serverNowRes.rows[0].server_now).getTime()
+  const nowMs = Math.max(requestedNowMs, serverNowMs)
+  const rejectedMs = new Date(rejectedAt).getTime()
+  const elapsed = nowMs - rejectedMs
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > REJECT_UNDO_GRACE_MS) {
+    fail(PACKAGE_ERROR.UNDO_REJECT_EXPIRED, 'Undo-reject grace window (5s) has expired', {
+      rejected_at: new Date(rejectedAt).toISOString(),
+      grace_ms: REJECT_UNDO_GRACE_MS,
+      elapsed_ms: elapsed,
+    })
+  }
+  const ts = new Date(nowMs).toISOString()
+  await client.query(
+    `UPDATE fin.approval_requests
+        SET status = 'REQUESTED', updated_at = $2::timestamptz, updated_by_actor_id = $3
+      WHERE id = $1`,
+    [approval.id, ts, actor],
+  )
+  const { rows } = await client.query(
+    `UPDATE public.product_package_versions
+        SET state = 'PENDING_APPROVAL'
+      WHERE id = $1
+      RETURNING *`,
+    [versionId],
+  )
+  await writeAudit(client, {
+    actorId: actor, actorEmail, action: 'PACKAGE_VERSION_UNDO_REJECT',
+    targetType: 'product_package_versions', targetId: versionId,
+    beforeState: version, afterState: rows[0],
+    approvalRequestId: approval.id, now: ts,
+    environment: pkg.environment || PACKAGES_ENVIRONMENT,
+  })
+  return {
+    version: rows[0],
+    approval_request_id: approval.id,
+    status: 'PENDING_APPROVAL',
+    undo_within_ms: REJECT_UNDO_GRACE_MS - elapsed,
+  }
+}
+
+export async function recallPublish(client, { packageId, versionId, actorId, actorEmail, now }) {
+  const actor = asUuid(actorId)
+  if (!actor) fail(PACKAGE_ERROR.INVALID_INPUT, 'actor id must be a UUID')
+  const pkg = await loadPackage(client, packageId, { forUpdate: true })
+  const version = await loadVersion(client, packageId, versionId, { forUpdate: true })
+  if (version.state !== 'PENDING_APPROVAL') {
+    fail(PACKAGE_ERROR.INVALID_TRANSITION, `Cannot recall from ${version.state}`)
+  }
+  if (!version.approval_request_id) fail(PACKAGE_ERROR.APPROVAL_NOT_FOUND, 'No approval request')
+  const locked = await client.query(
+    `SELECT * FROM fin.approval_requests WHERE id = $1 FOR UPDATE`,
+    [version.approval_request_id],
+  )
+  const approval = locked.rows[0]
+  if (!approval) fail(PACKAGE_ERROR.APPROVAL_NOT_FOUND, 'Approval not found')
+  if (approval.status !== 'REQUESTED') {
+    fail(PACKAGE_ERROR.APPROVAL_ALREADY_RESOLVED, `Approval is ${approval.status}`)
+  }
+  if (!approval.created_by_actor_id || String(approval.created_by_actor_id) !== String(actor)) {
+    fail(PACKAGE_ERROR.RECALL_FORBIDDEN, 'Only the submitter may recall this submission')
+  }
+  const ts = now || new Date().toISOString()
+  await client.query(
+    `UPDATE fin.approval_requests
+        SET status = 'CANCELED', updated_at = $2::timestamptz, updated_by_actor_id = $3
+      WHERE id = $1`,
+    [approval.id, ts, actor],
+  )
+  const { rows } = await client.query(
+    `UPDATE public.product_package_versions
+        SET state = 'DRAFT'
+      WHERE id = $1
+      RETURNING *`,
+    [versionId],
+  )
+  await writeAudit(client, {
+    actorId: actor, actorEmail, action: 'PACKAGE_VERSION_RECALLED',
+    targetType: 'product_package_versions', targetId: versionId,
+    beforeState: version, afterState: rows[0],
+    approvalRequestId: approval.id, now: ts,
+    environment: pkg.environment || PACKAGES_ENVIRONMENT,
+  })
+  return { version: rows[0], approval_request_id: approval.id, status: 'DRAFT' }
+}
+
+export async function importPackagesFromLive(client, { actorId, actorEmail, now }) {
+  const actor = asUuid(actorId)
+  const ts = now || new Date().toISOString()
+  const live = await client.query(
+    `SELECT p.*,
+            v.id AS source_version_id,
+            v.version_number AS source_version_number,
+            v.properties_covered,
+            v.monthly_price_minor,
+            v.data AS version_data
+       FROM public.product_packages p
+       JOIN LATERAL (
+         SELECT *
+           FROM public.product_package_versions vv
+          WHERE vv.package_id = p.id
+            AND vv.state = 'PUBLISHED'
+            AND COALESCE(vv.effective_from, '-infinity'::timestamptz) <= NOW()
+            AND (vv.effective_to IS NULL OR vv.effective_to > NOW())
+          ORDER BY vv.version_number DESC
+          LIMIT 1
+       ) v ON true
+      WHERE p.environment = 'LIVE'
+      ORDER BY p.code`,
+  )
+  const created = []
+  for (const row of live.rows) {
+    const existing = await client.query(
+      `SELECT id FROM public.product_packages WHERE environment = 'TEST' AND code = $1`,
+      [row.code],
+    )
+    if (existing.rows[0]) continue
+
+    const packageId = randomUUID()
+    const versionId = randomUUID()
+    await client.query(
+      `INSERT INTO public.product_packages (
+         id, code, display_name, tier, target_audience, currency, billing_cadence,
+         active, environment, data, created_at, updated_at, created_by_actor_id, updated_by_actor_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,false,'TEST',$8::jsonb,$9,$9,$10,$10)`,
+      [
+        packageId, row.code, row.display_name, row.tier, row.target_audience,
+        row.currency, row.billing_cadence, JSON.stringify(row.data || {}), ts, actor,
+      ],
+    )
+    await client.query(
+      `INSERT INTO public.product_package_versions (
+         id, package_id, version_number, state, properties_covered, monthly_price_minor, data, created_at
+       ) VALUES ($1,$2,1,'DRAFT',$3,$4,$5::jsonb,$6)`,
+      [
+        versionId, packageId, row.properties_covered, row.monthly_price_minor,
+        JSON.stringify(row.version_data || {}), ts,
+      ],
+    )
+    const quotas = await client.query(
+      `SELECT * FROM public.package_feature_quotas WHERE package_version_id = $1`,
+      [row.source_version_id],
+    )
+    for (const q of quotas.rows) {
+      await client.query(
+        `INSERT INTO public.package_feature_quotas (
+           id, package_version_id, feature_id, credits_per_property, rollover_policy,
+           overage_credit_price_micro_usd, data
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
+        [
+          randomUUID(), versionId, q.feature_id, q.credits_per_property, q.rollover_policy,
+          q.overage_credit_price_micro_usd, JSON.stringify(q.data || {}),
+        ],
+      )
+    }
+    const flags = await client.query(
+      `SELECT * FROM public.package_feature_flags WHERE package_version_id = $1`,
+      [row.source_version_id],
+    )
+    for (const f of flags.rows) {
+      await client.query(
+        `INSERT INTO public.package_feature_flags (
+           id, package_version_id, feature_code, enabled, data
+         ) VALUES ($1,$2,$3,$4,$5::jsonb)`,
+        [randomUUID(), versionId, f.feature_code, f.enabled, JSON.stringify(f.data || {})],
+      )
+    }
+    await writeAudit(client, {
+      actorId: actor, actorEmail, action: 'PACKAGE_IMPORTED_FROM_LIVE',
+      targetType: 'product_packages', targetId: packageId,
+      afterState: {
+        code: row.code,
+        draft_version_id: versionId,
+        source_version_id: row.source_version_id,
+      },
+      now: ts,
+      environment: 'TEST',
+    })
+    created.push({
+      id: packageId,
+      code: row.code,
+      draft_version: 1,
+      draft_version_id: versionId,
+      source_version_id: row.source_version_id,
+      source_version_number: row.source_version_number,
+    })
+  }
+  return { copied_count: created.length, packages_created: created }
+}
+
 export { asUuid, loadPackage, loadVersion, writeAudit }
+

@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { StepUpProvider } from '@/context/StepUpContext'
+import { StepUpProvider as MfaStepUpProvider } from '@/components/mfa'
 import { BrandProvider } from '@/context/BrandContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -8,21 +9,24 @@ import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
+import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
+import { PublishOutcomePage } from '@/pages/agent/PublishOutcomePage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
-import { InboxPage } from '@/pages/InboxPage'
+import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
-import { LoginPage } from '@/pages/LoginPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
@@ -59,7 +63,7 @@ import {
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
-import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
+import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
@@ -77,6 +81,8 @@ import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
 import { AccountRecoveryQueuePage } from '@/pages/admin/AccountRecoveryQueuePage'
 import { AccountRecoveryDetailPage } from '@/pages/admin/AccountRecoveryDetailPage'
+import { settingsRoutes } from '@/pages/settings/routes'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -106,27 +112,35 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
       <Route path="/listings" element={<ListingsPage />} />
+      <Route path="/listings/new" element={<ManualListingComposerPage />} />
+      <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
+      {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
+      <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
-      <Route path="/dashboard/inbox" element={<InboxPage />} />
-      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
-      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
+          Must stay BEFORE /inbox/:conversationId so "applications" is not captured. */}
       <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/dashboard/inbox" element={<InboxPage />} />
+      <Route path="/dashboard/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
+      <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      {mfaRoutes}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
@@ -150,10 +164,13 @@ function AppRoutes() {
       <Route path="/my-credit-notes" element={<MyCreditNotesPage />} />
       <Route path="/my-invoices" element={<MyInvoicesPage />} />
       <Route path="/integrations" element={<IntegrationSettingsPage />} />
-      <Route path="/settings/2fa" element={<TotpSettingsPage />} />
-      <Route path="/settings/channels" element={<SocialChannelsPage />} />
-      <Route path="/settings/routing" element={<RoutingSettingsPage />} />
-      <Route path="/settings/historical-transactions" element={<HistoricalTransactionsPage />} />
+      <Route path="/settings" element={<SettingsPage />}>
+        {mfaSettingsChildRoutes}
+        {settingsRoutes}
+        <Route path="channels" element={<SocialChannelsPage />} />
+        <Route path="routing" element={<RoutingSettingsPage />} />
+        <Route path="historical-transactions" element={<HistoricalTransactionsPage />} />
+      </Route>
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/operations" element={<CommandCenterPage />} />
       <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
@@ -195,6 +212,7 @@ function AppRoutes() {
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
@@ -244,7 +262,9 @@ function App() {
           <AuthProvider>
             {/* Inside AuthProvider: step-up acts on the current session. */}
             <StepUpProvider>
-              <AppShell />
+              <MfaStepUpProvider>
+                <AppShell />
+              </MfaStepUpProvider>
             </StepUpProvider>
           </AuthProvider>
         </ToastProvider>

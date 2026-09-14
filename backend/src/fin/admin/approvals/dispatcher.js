@@ -92,24 +92,13 @@ export async function dispatchWorkflowExecute(client, ctx) {
   }
 
   if (workflowCode === 'WF-07' || approval.action_kind === 'PACKAGE_PUBLISH') {
-    if (inner.executor_ready === true && inner.package_version_id) {
-      return {
-        executor: 'publishPackage',
-        ledger_journal_id: null,
-        short_action_summary: `Published package ${inner.package_code || inner.package_version_id}`,
-        outcome_url: outcomeUrlFor(workflowCode, approval, {
-          packageVersionId: inner.package_version_id,
-        }),
-        package_version_id: inner.package_version_id,
-      }
-    }
     throw finError('EXECUTOR_NOT_READY', {
       category: CATEGORY.PRECONDITION,
       httpStatus: 501,
       details: {
         error: 'EXECUTOR_NOT_READY',
         workflow_code: 'WF-07',
-        message: 'publishPackage executor is not ready; package admin must set executor_ready on payload.',
+        message: 'Executor for WF-07 is not implemented yet.',
       },
     })
   }

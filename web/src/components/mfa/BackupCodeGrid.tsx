@@ -45,7 +45,7 @@ export function BackupCodeGrid({
           key={`${code}-${index}`}
           className={cn(
             'rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]',
-            'bg-[var(--lc-surface-raised)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]',
+            'bg-[var(--lc-surface-sunken)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]',
             'font-[family-name:var(--lc-font-mono)] text-[length:var(--lc-type-body)]',
             'tracking-[0.05em] tabular-nums text-[var(--lc-text-primary)]',
           )}
