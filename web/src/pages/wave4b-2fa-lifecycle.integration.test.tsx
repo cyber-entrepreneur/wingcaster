@@ -34,6 +34,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { SettingsShell } from '@/components/settings/SettingsShell'
 import type { SettingsNavGroupData } from '@/components/settings/types'
 import { User, ShieldCheck, Laptop, CreditCard } from 'lucide-react'
+import { resetSettingsIndexCache } from '@/hooks/useSettingsIndex'
 import { SettingsPage } from './SettingsPage'
 import { settingsRoutes } from './settings/routes'
 import { LoginFlow } from './security/mfa/LoginFlow'
@@ -858,6 +859,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   store = emptyStore()
+  // SettingsPage feeds SettingsSidebar via useSettingsIndex() → navGroupsFromIndex(data.groups).
+  // Module cache + 5s dedupe otherwise leaks prior payloads across mounts/tests.
+  resetSettingsIndexCache()
   fetchMock.mockReset()
   installFetch()
   vi.stubGlobal('fetch', fetchMock)
@@ -1092,6 +1096,9 @@ describe.skipIf(!familyReady('settings'))(
   '6. Settings sidebar reflects GET /api/settings/index capability changes',
   () => {
     it('renders server groups then drops an item when the server omits it', async () => {
+      // Contract matches SettingsPage + settings-nav: sidebar items come from
+      // useSettingsIndex().data.groups via navGroupsFromIndex — never settingsRoutes
+      // and never client-invented placeholders for omitted capabilities.
       setSession(true)
       wrap(null, '/settings')
 
@@ -1106,14 +1113,18 @@ describe.skipIf(!familyReady('settings'))(
 
       store.settings = {
         ...store.settings,
+        capabilities: { ...store.settings.capabilities, team: false },
         groups: store.settings.groups.filter((g) => g.id !== 'team'),
       }
 
-      // Re-mount to simulate SWR revalidation / capability change (invite accepted elsewhere).
+      // Drop the shared SWR cache so remount re-reads GET /api/settings/index
+      // (same surface as mutateSettingsIndex after invite accept / capability change).
+      resetSettingsIndexCache()
       wrap(null, '/settings')
       expect((await screen.findAllByText(/Two-factor authentication/i)).length).toBeGreaterThan(0)
       expect(screen.queryAllByText(/Team members/i)).toHaveLength(0)
       expect(screen.queryByRole('link', { name: /Team members/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Team & tenants/i)).not.toBeInTheDocument()
     })
   },
 )
