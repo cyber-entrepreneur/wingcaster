@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Numeric } from '@/components/ui/numeric'
 import { OtpInput } from '@/components/mfa/OtpInput'
 import { BackupCodeInput } from '@/components/mfa/BackupCodeInput'
 import { RateLimitBanner } from '@/components/mfa/RateLimitBanner'
@@ -35,6 +36,8 @@ export interface StepUpModalProps {
   rateLimitMinutes?: number
   expired?: boolean
   verifying?: boolean
+  /** When false, Verify stays disabled until POST /step-up returns a challenge. */
+  challengeReady?: boolean
   error?: string
   resendCooldownSeconds?: number
   onCancel: () => void
@@ -71,6 +74,7 @@ export function StepUpModal({
   rateLimitMinutes,
   expired = false,
   verifying = false,
+  challengeReady = true,
   error,
   resendCooldownSeconds = 0,
   onCancel,
@@ -81,14 +85,14 @@ export function StepUpModal({
   className,
 }: StepUpModalProps) {
   const isEmail = method === 'email'
-  const codeReady = useBackupCode ? code.replace(/-/g, '').length >= 8 : code.length >= 6
+  const codeReady = useBackupCode ? code.replace(/-/g, '').length >= 10 : code.length >= 6
   const Icon = isEmail ? Mail : ShieldCheck
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) onCancel()
+        if (!next && !verifying) onCancel()
       }}
     >
       <DialogContent
@@ -107,7 +111,7 @@ export function StepUpModal({
               )}
               aria-hidden
             />
-            Verify it&rsquo;s you
+            Verify it&apos;s you
           </DialogTitle>
           <DialogDescription className="sr-only">
             Confirm your identity before continuing with a sensitive action.
@@ -180,7 +184,7 @@ export function StepUpModal({
 
             {typeof remainingAttempts === 'number' ? (
               <p className="text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-                {remainingAttempts} attempts remaining.
+                <Numeric>{remainingAttempts}</Numeric> attempts remaining.
               </p>
             ) : null}
 
@@ -214,7 +218,7 @@ export function StepUpModal({
           </Button>
           <Button
             type="button"
-            disabled={!codeReady || verifying || rateLimited || expired}
+            disabled={!codeReady || verifying || rateLimited || expired || !challengeReady}
             onClick={onVerify}
           >
             {verifying ? 'Verifying…' : 'Verify'}
