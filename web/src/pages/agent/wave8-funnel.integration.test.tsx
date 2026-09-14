@@ -26,6 +26,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const WEB_SRC = path.resolve(HERE, '../..')
 const APP_FILE = path.join(WEB_SRC, 'App.tsx')
 const SETTINGS_ROUTES_FILE = path.join(WEB_SRC, 'pages', 'settings', 'routes.tsx')
+const MFA_ROUTES_FILE = path.join(WEB_SRC, 'pages', 'security', 'mfa', 'routes.tsx')
 
 const addToast = vi.hoisted(() => vi.fn())
 
@@ -76,47 +77,118 @@ const uiModeState = vi.hoisted(() => ({
   refresh: vi.fn(async () => {}),
 }))
 
-const apiMocks = vi.hoisted(() => ({
-  createProperty: vi.fn(),
-  updateProperty: vi.fn(),
-  getProperty: vi.fn(),
-  deleteProperty: vi.fn(),
-  uploadMedia: vi.fn(),
-  getProperties: vi.fn(),
-  getConversations: vi.fn(),
-  getConversation: vi.fn(),
-  sendConversationMessage: vi.fn(),
-  markConversationRead: vi.fn(),
-  closeConversation: vi.fn(),
-  updateConversation: vi.fn(),
-  assignConversation: vi.fn(),
-  getContact: vi.fn(),
-  getContactRelationshipsMine: vi.fn(),
-  getContactRelationshipsOther: vi.fn(),
-  createContactRelationship: vi.fn(),
-  updateContactRelationship: vi.fn(),
-  deleteContactRelationship: vi.fn(),
-  resendRelationshipConsentLink: vi.fn(),
-  getPublicRelationshipConsent: vi.fn(),
-  acceptPublicRelationshipConsent: vi.fn(),
-  rejectPublicRelationshipConsent: vi.fn(),
-  // Post-#148 Pro dashboard + #150 inbox additions — ProDashboard fires
-  // seven parallel API calls on mount and InboxPage reads agent prefs.
-  // Provide safe defaults so the tests that don't care about these
-  // surfaces don't crash.
-  getDashboardStats: vi.fn(async () => ({ listings: 0, totalViews: 0, inquiries: 0 })),
-  getInquiries: vi.fn(async () => ({ items: [] })),
-  getViewings: vi.fn(async () => []),
-  getDashboardOperations: vi.fn(async () => null),
-  getDashboardAnalytics: vi.fn(async () => null),
-  getAgentPreferences: vi.fn(async () => ({})),
-  getDashboardLayout: vi.fn(async () => ({ layout: [], density: 'comfortable' })),
-  patchDashboardLayout: vi.fn(async () => ({})),
-  getListPrefs: vi.fn(async () => ({ prefs: {} })),
-  patchListPrefs: vi.fn(async () => ({})),
-  getAiSuggestions: vi.fn(async () => ({ suggestions: [], degraded: true })),
-  getProNudge: vi.fn(async () => ({ eligible: false })),
-}))
+/**
+ * Hoisted API surface matching ProDashboard / InboxPage / layout-prefs
+ * mount effects. Every method returns a thenable by default — plain
+ * `vi.fn()` would crash `.catch()` / `.then()` chains with
+ * `Cannot read properties of undefined (reading 'then')`.
+ *
+ * Return types are `Promise<unknown>` so per-test `mockResolvedValue`
+ * overrides stay assignable under strict checking.
+ *
+ * `mockReset()` clears implementations, so `restoreApiMockDefaults()`
+ * must re-apply these after every funnel reset.
+ */
+const apiMocks = vi.hoisted(() => {
+  const asyncUnknown = (value: unknown = undefined) =>
+    vi.fn(async (..._args: never[]): Promise<unknown> => value)
+
+  return {
+    createProperty: asyncUnknown({ id: 'prop_new' }),
+    updateProperty: asyncUnknown({ id: 'prop_new' }),
+    getProperty: asyncUnknown(null),
+    deleteProperty: asyncUnknown({}),
+    uploadMedia: asyncUnknown({ url: '' }),
+    getProperties: asyncUnknown([]),
+    getConversations: asyncUnknown([]),
+    getConversation: asyncUnknown(null),
+    sendConversationMessage: asyncUnknown({}),
+    markConversationRead: asyncUnknown({}),
+    closeConversation: asyncUnknown({}),
+    updateConversation: asyncUnknown({}),
+    assignConversation: asyncUnknown({}),
+    bulkConversations: asyncUnknown({}),
+    getMessageTemplates: asyncUnknown([]),
+    revealContactPii: asyncUnknown({ value: '' }),
+    getContacts: asyncUnknown([]),
+    createConversation: asyncUnknown({ id: 'conv_new' }),
+    getContact: asyncUnknown(null),
+    getContactRelationshipsMine: asyncUnknown([]),
+    getContactRelationshipsOther: asyncUnknown([]),
+    createContactRelationship: asyncUnknown({}),
+    updateContactRelationship: asyncUnknown({}),
+    deleteContactRelationship: asyncUnknown({}),
+    resendRelationshipConsentLink: asyncUnknown({}),
+    getPublicRelationshipConsent: asyncUnknown(null),
+    acceptPublicRelationshipConsent: asyncUnknown({}),
+    rejectPublicRelationshipConsent: asyncUnknown({}),
+    getDashboardStats: asyncUnknown({ listings: 0, totalViews: 0, inquiries: 0 }),
+    getInquiries: asyncUnknown({ items: [] }),
+    getViewings: asyncUnknown([]),
+    getDashboardOperations: asyncUnknown(null),
+    getDashboardAnalytics: asyncUnknown(null),
+    getAgentPreferences: asyncUnknown({}),
+    patchAgentPreferences: asyncUnknown({}),
+    getDashboardLayout: asyncUnknown({ layout: [], density: 'comfortable' }),
+    patchDashboardLayout: asyncUnknown({ updated_at: '2026-09-08T00:00:00.000Z' }),
+    getListPrefs: asyncUnknown({ prefs: {} }),
+    patchListPrefs: asyncUnknown({}),
+    getSavedViews: asyncUnknown({ views: [] }),
+    createSavedView: asyncUnknown({ id: 'view_1' }),
+    updateSavedView: asyncUnknown({ id: 'view_1' }),
+    deleteSavedView: asyncUnknown({}),
+    getAiSuggestions: asyncUnknown({ suggestions: [], degraded: true }),
+    getProNudge: asyncUnknown({ eligible: false }),
+  }
+})
+
+function restoreApiMockDefaults() {
+  apiMocks.createProperty.mockResolvedValue({ id: 'prop_new' })
+  apiMocks.updateProperty.mockResolvedValue({ id: 'prop_new' })
+  apiMocks.getProperty.mockResolvedValue(null)
+  apiMocks.deleteProperty.mockResolvedValue({})
+  apiMocks.uploadMedia.mockResolvedValue({ url: '' })
+  apiMocks.getProperties.mockResolvedValue([])
+  apiMocks.getConversations.mockResolvedValue([])
+  apiMocks.getConversation.mockResolvedValue(null)
+  apiMocks.sendConversationMessage.mockResolvedValue({})
+  apiMocks.markConversationRead.mockResolvedValue({})
+  apiMocks.closeConversation.mockResolvedValue({})
+  apiMocks.updateConversation.mockResolvedValue({})
+  apiMocks.assignConversation.mockResolvedValue({})
+  apiMocks.bulkConversations.mockResolvedValue({})
+  apiMocks.getMessageTemplates.mockResolvedValue([])
+  apiMocks.revealContactPii.mockResolvedValue({ value: '' })
+  apiMocks.getContacts.mockResolvedValue([])
+  apiMocks.createConversation.mockResolvedValue({ id: 'conv_new' })
+  apiMocks.getContact.mockResolvedValue(null)
+  apiMocks.getContactRelationshipsMine.mockResolvedValue([])
+  apiMocks.getContactRelationshipsOther.mockResolvedValue([])
+  apiMocks.createContactRelationship.mockResolvedValue({})
+  apiMocks.updateContactRelationship.mockResolvedValue({})
+  apiMocks.deleteContactRelationship.mockResolvedValue({})
+  apiMocks.resendRelationshipConsentLink.mockResolvedValue({})
+  apiMocks.getPublicRelationshipConsent.mockResolvedValue(null)
+  apiMocks.acceptPublicRelationshipConsent.mockResolvedValue({})
+  apiMocks.rejectPublicRelationshipConsent.mockResolvedValue({})
+  apiMocks.getDashboardStats.mockResolvedValue({ listings: 0, totalViews: 0, inquiries: 0 })
+  apiMocks.getInquiries.mockResolvedValue({ items: [] })
+  apiMocks.getViewings.mockResolvedValue([])
+  apiMocks.getDashboardOperations.mockResolvedValue(null)
+  apiMocks.getDashboardAnalytics.mockResolvedValue(null)
+  apiMocks.getAgentPreferences.mockResolvedValue({})
+  apiMocks.patchAgentPreferences.mockResolvedValue({})
+  apiMocks.getDashboardLayout.mockResolvedValue({ layout: [], density: 'comfortable' })
+  apiMocks.patchDashboardLayout.mockResolvedValue({ updated_at: '2026-09-08T00:00:00.000Z' })
+  apiMocks.getListPrefs.mockResolvedValue({ prefs: {} })
+  apiMocks.patchListPrefs.mockResolvedValue({})
+  apiMocks.getSavedViews.mockResolvedValue({ views: [] })
+  apiMocks.createSavedView.mockResolvedValue({ id: 'view_1' })
+  apiMocks.updateSavedView.mockResolvedValue({ id: 'view_1' })
+  apiMocks.deleteSavedView.mockResolvedValue({})
+  apiMocks.getAiSuggestions.mockResolvedValue({ suggestions: [], degraded: true })
+  apiMocks.getProNudge.mockResolvedValue({ eligible: false })
+}
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
@@ -204,10 +276,31 @@ vi.mock('@/api/client', async () => {
     api: apiMocks,
     API_BASE: '/api',
     setAuthToken: vi.fn(),
+    getAuthToken: vi.fn(() => 'tok_test'),
     clearAuthToken: vi.fn(),
     clearElevatedToken: vi.fn(),
   }
 })
+
+/** Wave 8 inbox WS — no-op so jsdom never opens a real socket. */
+vi.mock('@/lib/inbox/socket', () => ({
+  useInboxSocket: vi.fn(),
+  connectInboxSocket: vi.fn(() => ({ close: vi.fn() })),
+}))
+
+/** Wave 8 inbox IndexedDB — no-op so hydrate never touches wc-inbox-v1. */
+vi.mock('@/lib/inbox/offline-store', () => ({
+  saveConversationList: vi.fn(async () => undefined),
+  getConversationList: vi.fn(async () => null),
+  saveConversation: vi.fn(async () => undefined),
+  saveMessages: vi.fn(async () => undefined),
+  getConversation: vi.fn(async () => undefined),
+  getMessages: vi.fn(async () => []),
+  enqueueOutgoing: vi.fn(async () => undefined),
+  flushOutbox: vi.fn(async () => ({ sent: 0, failed: 0 })),
+  flushOutboxOnOnline: vi.fn(() => () => undefined),
+  __resetOfflineStoreForTests: vi.fn(async () => undefined),
+}))
 
 const loginApiMock = vi.hoisted(() => ({
   postAuthLogin: vi.fn(),
@@ -371,6 +464,7 @@ function resetFunnelState() {
   uiModeState.isProCapable = true
   uiModeState.setMode.mockClear()
   Object.values(apiMocks).forEach((fn) => fn.mockReset())
+  restoreApiMockDefaults()
   loginApiMock.postAuthLogin.mockReset()
   loginApiMock.adoptLoginToken.mockReset()
   Object.defineProperty(window, 'matchMedia', {
@@ -393,13 +487,15 @@ describe('Wave 8 route + deep-link contracts', () => {
   it('App.tsx wires daily-user routes used by the funnel', () => {
     expect(existsSync(APP_FILE)).toBe(true)
     const appSrc = readFileSync(APP_FILE, 'utf8')
-    // Post-#137 the /settings/* leaves live as nested children of the
-    // <Route path="/settings"> shell; scan settings/routes.tsx too so the
-    // shell refactor doesn't break the funnel-route contract.
+    // /settings/* leaves live as nested children of the settings shell;
+    // /login is registered via mfaRoutes (chrome-strip BARE_CHROME_PREFIXES
+    // + MFA LoginFlow). Scan those route modules so the funnel contract
+    // still holds without duplicating path literals in App.tsx.
     const settingsSrc = existsSync(SETTINGS_ROUTES_FILE)
       ? readFileSync(SETTINGS_ROUTES_FILE, 'utf8')
       : ''
-    const combined = `${appSrc}\n${settingsSrc}`
+    const mfaSrc = existsSync(MFA_ROUTES_FILE) ? readFileSync(MFA_ROUTES_FILE, 'utf8') : ''
+    const combined = `${appSrc}\n${settingsSrc}\n${mfaSrc}`
     const required = [
       'path="/dashboard"',
       'path="/listings"',
@@ -412,6 +508,8 @@ describe('Wave 8 route + deep-link contracts', () => {
       // the absolute top-level literal or the nested child under settings.
       /path="\/?(settings\/)?preferences"/,
       'path="/public/relationships/consent"',
+      // /login lives in mfa/routes.tsx (wired via {mfaRoutes}); chrome-strip
+      // BARE_CHROME_PREFIXES also lists it for shell-free chrome.
       'path="/login"',
     ]
     for (const route of required) {
@@ -667,6 +765,7 @@ describe('Wave 8 funnel — inbox dual-read + reply', () => {
       expect(apiMocks.sendConversationMessage).toHaveBeenCalledWith(
         'conv_modern',
         expect.stringMatching(/still available/i),
+        expect.objectContaining({ content_type: 'text' }),
       )
     })
   })
