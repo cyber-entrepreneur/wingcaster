@@ -14,7 +14,9 @@ import { Badge } from '@/components/ui/badge'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { readChannel } from '@/lib/channel-source'
+import { readChannel, readSource } from '@/lib/channel-source'
+import { SourceMark } from '@/components/ui/source-mark'
+import { channelLabel } from '@/lib/inbox-labels'
 
 const PLATFORM_LABEL: Record<string, string> = {
   instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
@@ -181,7 +183,9 @@ export function CommandCenterPage() {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {data.inquiries.map((i) => (
+                  {data.inquiries.map((i) => {
+                    const channelKey = readChannel(i)
+                    return (
                     <li key={i.id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
@@ -192,14 +196,15 @@ export function CommandCenterPage() {
                             </Link>
                           )}
                         </div>
-                        <Badge variant="outline">{i.channel}</Badge>
+                        <ChannelMark channel={channelKey} label={channelLabel(channelKey)} />
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs text-slate-700">{i.message}</p>
                       <div className="mt-1 text-[10px] text-muted-foreground">
                         {new Date(i.created_at).toLocaleString()}
                       </div>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </CardContent>
@@ -249,20 +254,27 @@ export function CommandCenterPage() {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {data.ai_watching.map((t) => (
+                  {data.ai_watching.map((t) => {
+                    const channelKey = readChannel(t)
+                    const sourceKey = readSource(t)
+                    return (
                     <li key={t.conversation_id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-sm font-medium">{t.contact_name || 'Unnamed contact'}</div>
                           <p className="line-clamp-1 text-xs text-muted-foreground">{t.last_message_preview}</p>
                         </div>
-                        <Badge variant="outline">{t.channel}</Badge>
+                        <span className="inline-flex items-center gap-1.5">
+                          <ChannelMark channel={channelKey} label={PLATFORM_LABEL[channelKey] || channelLabel(channelKey)} />
+                          <SourceMark source={sourceKey} compact />
+                        </span>
                       </div>
                       <div className="mt-1 text-[10px] text-muted-foreground">
                         Watching since {t.ai_watch_started_at ? new Date(t.ai_watch_started_at).toLocaleDateString() : '—'}
                       </div>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </CardContent>
@@ -286,12 +298,14 @@ export function CommandCenterPage() {
                 <ul className="space-y-2">
                   {data.testimonials.map((t) => {
                     const channelKey = readChannel(t)
+                    const sourceKey = readSource(t)
                     return (
                     <li key={t.id} className="rounded border bg-[var(--lc-surface)] p-3">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{t.author_name || 'Anonymous'}</span>
-                          <ChannelMark channel={channelKey} label={PLATFORM_LABEL[channelKey] || channelKey} />
+                          <ChannelMark channel={channelKey} label={PLATFORM_LABEL[channelKey] || channelLabel(channelKey)} />
+                          <SourceMark source={sourceKey} compact />
                         </div>
                         <ConsentBadge status={t.consent_status} />
                       </div>

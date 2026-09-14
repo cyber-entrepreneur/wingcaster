@@ -5,6 +5,7 @@ import { api } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Numeric } from '@/components/ui/numeric'
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   useStepUp,
 } from '@/components/mfa'
 import { MfaSettingsChrome, SettingsDialogHost } from './MfaSettingsChrome'
+import { useRouteLeaveGuard } from './useRouteLeaveGuard'
 import type { TwoFactorStatus } from '@/types/twoFactor'
 import type { BackupCodesLocationState } from './mfaShared'
 import '../../../print.css'
@@ -66,15 +68,18 @@ export function BackupCodesViewerPage() {
     if (!modeA) void loadStatus()
   }, [modeA, loadStatus])
 
+  const shouldGuard = Boolean(modeA && !saved)
+  const leaveGuard = useRouteLeaveGuard(shouldGuard, () => setLeaveOpen(true))
+
   useEffect(() => {
-    if (!modeA || saved) return
+    if (!shouldGuard) return
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [modeA, saved])
+  }, [shouldGuard])
 
   const copyAll = async () => {
     try {
@@ -190,29 +195,36 @@ export function BackupCodesViewerPage() {
               </span>
             </div>
 
-            <label
+            <div
               data-print-hide
               className="flex min-h-tap items-start gap-[var(--lc-space-sm)] text-[length:var(--lc-type-body)]"
             >
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-[var(--lc-action-primary)]"
+              <Checkbox
+                id="backup-codes-saved"
                 checked={saved}
-                onChange={(e) => setSaved(e.target.checked)}
+                onCheckedChange={(value) => setSaved(value === true)}
               />
-              I&apos;ve saved my backup codes somewhere safe.
-            </label>
+              <label htmlFor="backup-codes-saved" className="cursor-pointer leading-5">
+                I&apos;ve saved my backup codes somewhere safe.
+              </label>
+            </div>
 
             <div data-print-hide className="flex flex-wrap gap-[var(--lc-space-sm)]">
               <Button
                 type="button"
                 size="lg"
                 disabled={!saved}
-                onClick={() => navigate('/settings/2fa')}
+                onClick={() => {
+                  leaveGuard.allowNext()
+                  navigate('/settings/2fa')
+                }}
               >
                 Done — back to two-factor settings
               </Button>
-              <Button type="button" variant="ghost" onClick={() => setLeaveOpen(true)}>
+              <Button type="button" variant="ghost" onClick={() => {
+                leaveGuard.reset()
+                setLeaveOpen(true)
+              }}>
                 Leave
               </Button>
             </div>
@@ -308,7 +320,13 @@ export function BackupCodesViewerPage() {
     </MfaSettingsChrome>
 
       <SettingsDialogHost>
-      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+      <Dialog
+        open={leaveOpen}
+        onOpenChange={(open) => {
+          setLeaveOpen(open)
+          if (!open) leaveGuard.reset()
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Leave without saving?</DialogTitle>
@@ -321,7 +339,13 @@ export function BackupCodesViewerPage() {
             <Button type="button" variant="ghost" onClick={() => setLeaveOpen(false)}>
               Stay and save
             </Button>
-            <Button type="button" variant="destructive" onClick={() => navigate('/settings/2fa')}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                leaveGuard.proceed('/settings/2fa')
+              }}
+            >
               Leave anyway
             </Button>
           </div>

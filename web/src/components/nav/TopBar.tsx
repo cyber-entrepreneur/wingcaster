@@ -30,6 +30,8 @@ export interface TopBarProps {
   notifications?: NavNotification[]
   onMarkAllNotificationsRead?: () => void | Promise<void>
   onSignOut?: () => void
+  /** Slot for AGT-SET-002 ModeChip (left of avatar). */
+  modeChip?: ReactNode
   /** Controlled drawer mode for shell integration. */
   drawerMode?: DrawerMode
   onDrawerModeChange?: (mode: DrawerMode) => void
@@ -107,6 +109,7 @@ export function TopBar({
   notifications,
   onMarkAllNotificationsRead,
   onSignOut,
+  modeChip,
   drawerMode,
   onDrawerModeChange,
   viewport,
@@ -199,6 +202,7 @@ export function TopBar({
           notifications={notifications}
           onMarkAllRead={onMarkAllNotificationsRead}
         />
+        {modeChip ? <div className="flex items-center">{modeChip}</div> : null}
         <UserMenu user={user} locale={locale} onSignOut={onSignOut} />
       </div>
 

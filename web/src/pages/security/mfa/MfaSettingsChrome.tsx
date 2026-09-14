@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 /**
  * SettingsPage already wraps `/settings/*` in `<SettingsShell>`.
@@ -9,20 +9,9 @@ export function MfaSettingsChrome({ children }: { children: ReactNode }) {
 }
 
 /**
- * SettingsShell mounts `{children}` twice (desktop pane + mobile pane).
- * Render dialogs only from the desktop copy so Radix does not stack two modals.
+ * SettingsShell mounts children once inside `<main data-settings-pane="desktop"|"mobile">`.
+ * Dialogs can render unconditionally from this host.
  */
 export function SettingsDialogHost({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [allow, setAllow] = useState(true)
-  useLayoutEffect(() => {
-    if (ref.current?.closest('[data-settings-pane-mobile]')) {
-      setAllow(false)
-    }
-  }, [])
-  return (
-    <div ref={ref} className="contents">
-      {allow ? children : null}
-    </div>
-  )
+  return <>{children}</>
 }

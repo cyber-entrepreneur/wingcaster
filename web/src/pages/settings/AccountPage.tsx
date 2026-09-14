@@ -258,9 +258,6 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
               <option value="en">English (US)</option>
               <option value="ar">العربية</option>
             </select>
-            <Link to="/settings/account" className="text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Change display language →
-            </Link>
             <SavedPill visible={savedPill === 'locale'} />
           </div>
         </FieldRow>
@@ -341,7 +338,7 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
           Permanently delete your WingCaster account. This starts a 30-day cool-down.
         </p>
         <Button variant="outline" asChild className="text-[var(--lc-status-unpublished-fg)]">
-          <Link to="/settings/delete-account" aria-label="Delete account — destructive">
+          <Link to="/settings/danger/delete-account" aria-label="Delete account — destructive">
             Delete account
           </Link>
         </Button>

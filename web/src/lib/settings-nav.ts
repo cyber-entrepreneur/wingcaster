@@ -49,12 +49,22 @@ export const FALLBACK_SETTINGS_GROUPS: SettingsIndexGroup[] = [
         id: 'delete_account',
         label: 'Delete account',
         label_key: 'settings.items.delete_account',
-        route: '/settings/delete-account',
+        route: '/settings/danger/delete-account',
         icon: 'trash-2',
       },
     ],
   },
 ]
+
+/** Canonical danger-zone path (SHR-SET-001 §Nav-groups). */
+export const DELETE_ACCOUNT_ROUTE = '/settings/danger/delete-account'
+
+export function canonicalizeSettingsRoute(route: string): string {
+  if (route === '/settings/delete-account' || route === '/settings/account/delete') {
+    return DELETE_ACCOUNT_ROUTE
+  }
+  return route
+}
 
 function mapBadge(
   badge: SettingsIndexGroup['items'][number]['badge'],
@@ -87,7 +97,7 @@ export function indexGroupsToNav(
     .map((group) => {
       const items: SettingsNavItemData[] = (group.items || []).map((item) => ({
         id: item.id,
-        route: item.route,
+        route: canonicalizeSettingsRoute(item.route),
         icon: resolveSettingsIcon(item.icon),
         label: item.label,
         badge: mapBadge(item.badge, locale),
