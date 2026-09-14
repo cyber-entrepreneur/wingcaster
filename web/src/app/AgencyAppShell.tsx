@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { LanguageSelector } from '@/components/nav/LanguageSelector'
+import { ModeChip } from '@/components/nav/ModeChip'
 import { SideDrawer } from '@/components/nav/SideDrawer'
 import { TenantSwitcher } from '@/components/nav/TenantSwitcher'
 import { TopBar } from '@/components/nav/TopBar'
@@ -57,6 +58,7 @@ export function AgencyAppShell({ children, className, viewport: viewportProp }: 
         notifications={notifications}
         onMarkAllNotificationsRead={markAllRead}
         onSignOut={logout}
+        modeChip={<ModeChip />}
       />
 
       <div className="flex min-h-0 flex-1">

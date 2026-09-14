@@ -4,8 +4,25 @@
 import { PACKAGE_ERROR, PackageError } from './errors.js'
 import { countActive } from './property-tracker.js'
 
-export async function listPackages(client, { tier, audience, target_audience, active } = {}) {
+const VERSION_COMPARE_FIELDS = [
+  'properties_covered',
+  'monthly_price_minor',
+  'state',
+  'version_number',
+  'effective_from',
+  'effective_to',
+]
+
+function normalizeEnv(environment) {
+  if (!environment) return null
+  return String(environment).toUpperCase() === 'TEST' ? 'TEST' : 'LIVE'
+}
+
+export async function listPackages(client, {
+  tier, audience, target_audience, active, environment,
+} = {}) {
   const audienceFilter = audience || target_audience
+  const env = normalizeEnv(environment)
   const { rows } = await client.query(
     `SELECT
         p.*,
@@ -38,13 +55,20 @@ export async function listPackages(client, { tier, audience, target_audience, ac
       WHERE ($1::text IS NULL OR p.tier = $1)
         AND ($2::text IS NULL OR p.target_audience = $2)
         AND ($3::boolean IS NULL OR p.active = $3)
+        AND ($4::text IS NULL OR p.environment = $4)
       ORDER BY p.code`,
-    [tier || null, audienceFilter || null, active === undefined || active === '' ? null : active === true || active === 'true'],
+    [
+      tier || null,
+      audienceFilter || null,
+      active === undefined || active === '' ? null : active === true || active === 'true',
+      env,
+    ],
   )
   return rows
 }
 
-export async function getPackage(client, packageId) {
+export async function getPackage(client, packageId, { environment = null } = {}) {
+  const env = normalizeEnv(environment)
   const { rows } = await client.query(
     `SELECT p.*,
             (
@@ -55,8 +79,9 @@ export async function getPackage(client, packageId) {
                  AND s.status IN ('PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END')
             ) AS subscribers_count
        FROM public.product_packages p
-      WHERE p.id = $1`,
-    [packageId],
+      WHERE p.id = $1
+        AND ($2::text IS NULL OR p.environment = $2)`,
+    [packageId, env],
   )
   if (!rows[0]) {
     throw new PackageError(PACKAGE_ERROR.PACKAGE_NOT_FOUND, `Package ${packageId} not found`)
@@ -68,14 +93,17 @@ export async function getPackage(client, packageId) {
   return { ...rows[0], versions: versions.rows }
 }
 
-export async function getVersionDetail(client, packageId, versionId) {
+export async function getVersionDetail(client, packageId, versionId, { environment = null } = {}) {
+  const env = normalizeEnv(environment)
   const { rows } = await client.query(
     `SELECT v.*, p.code AS package_code, p.display_name AS package_display_name,
-            p.tier, p.target_audience, p.currency, p.billing_cadence, p.active AS package_active
+            p.tier, p.target_audience, p.currency, p.billing_cadence, p.active AS package_active,
+            p.environment AS package_environment
        FROM public.product_package_versions v
        JOIN public.product_packages p ON p.id = v.package_id
-      WHERE v.id = $1 AND v.package_id = $2`,
-    [versionId, packageId],
+      WHERE v.id = $1 AND v.package_id = $2
+        AND ($3::text IS NULL OR p.environment = $3)`,
+    [versionId, packageId, env],
   )
   if (!rows[0]) {
     throw new PackageError(PACKAGE_ERROR.PACKAGE_VERSION_NOT_FOUND, `Version ${versionId} not found`)
@@ -99,16 +127,29 @@ export async function getVersionDetail(client, packageId, versionId) {
   return { ...rows[0], quotas: quotas.rows, flags: flags.rows, approval }
 }
 
-export async function listPendingApprovals(client) {
+export async function listPendingApprovals(client, {
+  environment = null,
+  viewerActorId = null,
+} = {}) {
+  const env = normalizeEnv(environment)
+  const viewer = viewerActorId || null
   const { rows } = await client.query(
     `SELECT v.*, p.display_name AS package_display_name, p.code AS package_code, p.tier,
+            p.environment AS package_environment,
             a.id AS approval_id, a.status AS approval_status, a.created_by_actor_id AS requester_actor_id,
-            a.created_at AS submitted_at, a.payload_hash
+            a.created_at AS submitted_at, a.payload_hash,
+            CASE
+              WHEN $2::uuid IS NULL THEN false
+              WHEN a.created_by_actor_id IS NOT NULL AND a.created_by_actor_id = $2::uuid THEN true
+              ELSE false
+            END AS is_own_submission
        FROM public.product_package_versions v
        JOIN public.product_packages p ON p.id = v.package_id
        LEFT JOIN fin.approval_requests a ON a.id = v.approval_request_id
       WHERE v.state = 'PENDING_APPROVAL'
+        AND ($1::text IS NULL OR p.environment = $1)
       ORDER BY a.created_at ASC NULLS LAST, v.created_at ASC`,
+    [env, viewer],
   )
   const out = []
   for (const row of rows) {
@@ -144,6 +185,7 @@ export async function listPendingApprovals(client) {
       : { rows: [] }
     out.push({
       ...row,
+      is_own_submission: Boolean(row.is_own_submission),
       diff: diffVersions(current, row, liveQuotas.rows, draftQuotas.rows, liveFlags.rows, draftFlags.rows),
     })
   }
@@ -179,6 +221,96 @@ export function diffVersions(published, draft, publishedQuotas = [], draftQuotas
     flags_changed: flagsChanged,
     versus_version_id: published?.id || null,
     versus_version_number: published?.version_number || null,
+  }
+}
+
+export async function diffPackageVersions(client, packageId, versionARef, versionBRef, {
+  environment = null,
+} = {}) {
+  const env = normalizeEnv(environment)
+  const pkg = await client.query(
+    `SELECT * FROM public.product_packages
+      WHERE id = $1 AND ($2::text IS NULL OR environment = $2)`,
+    [packageId, env],
+  )
+  if (!pkg.rows[0]) {
+    throw new PackageError(PACKAGE_ERROR.PACKAGE_NOT_FOUND, `Package ${packageId} not found`)
+  }
+
+  async function loadRef(ref) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(ref || ''))
+    const { rows } = isUuid
+      ? await client.query(
+        `SELECT * FROM public.product_package_versions WHERE package_id = $1 AND id = $2`,
+        [packageId, ref],
+      )
+      : await client.query(
+        `SELECT * FROM public.product_package_versions WHERE package_id = $1 AND version_number = $2::int`,
+        [packageId, Number(ref)],
+      )
+    if (!rows[0]) {
+      throw new PackageError(PACKAGE_ERROR.PACKAGE_VERSION_NOT_FOUND, `Version ${ref} not found`)
+    }
+    const quotas = await client.query(
+      `SELECT feature_id, credits_per_property FROM public.package_feature_quotas WHERE package_version_id = $1`,
+      [rows[0].id],
+    )
+    const flags = await client.query(
+      `SELECT feature_code, enabled FROM public.package_feature_flags WHERE package_version_id = $1`,
+      [rows[0].id],
+    )
+    return { version: rows[0], quotas: quotas.rows, flags: flags.rows }
+  }
+
+  const a = await loadRef(versionARef)
+  const b = await loadRef(versionBRef)
+
+  const fieldChanges = []
+  for (const field of VERSION_COMPARE_FIELDS) {
+    const left = a.version[field] == null ? null : String(a.version[field])
+    const right = b.version[field] == null ? null : String(b.version[field])
+    if (left !== right) {
+      fieldChanges.push({ field, a: a.version[field] ?? null, b: b.version[field] ?? null })
+    }
+  }
+
+  const aQuota = new Map(a.quotas.map((q) => [q.feature_id, Number(q.credits_per_property)]))
+  const bQuota = new Map(b.quotas.map((q) => [q.feature_id, Number(q.credits_per_property)]))
+  const quotaChanges = []
+  for (const id of new Set([...aQuota.keys(), ...bQuota.keys()])) {
+    if (aQuota.get(id) !== bQuota.get(id)) {
+      quotaChanges.push({
+        feature_id: id,
+        a: aQuota.has(id) ? aQuota.get(id) : null,
+        b: bQuota.has(id) ? bQuota.get(id) : null,
+      })
+    }
+  }
+
+  const aFlags = new Map(a.flags.map((f) => [f.feature_code, Boolean(f.enabled)]))
+  const bFlags = new Map(b.flags.map((f) => [f.feature_code, Boolean(f.enabled)]))
+  const flagChanges = []
+  for (const code of new Set([...aFlags.keys(), ...bFlags.keys()])) {
+    if (aFlags.get(code) !== bFlags.get(code)) {
+      flagChanges.push({
+        feature_code: code,
+        a: aFlags.has(code) ? aFlags.get(code) : null,
+        b: bFlags.has(code) ? bFlags.get(code) : null,
+      })
+    }
+  }
+
+  const summary = diffVersions(a.version, b.version, a.quotas, b.quotas, a.flags, b.flags)
+  return {
+    package_id: packageId,
+    a_version: Number(a.version.version_number),
+    b_version: Number(b.version.version_number),
+    a_version_id: a.version.id,
+    b_version_id: b.version.id,
+    changes: { fields: fieldChanges, quotas: quotaChanges, flags: flagChanges },
+    summary,
+    unchanged_count: VERSION_COMPARE_FIELDS.length - fieldChanges.length,
+    env: pkg.rows[0].environment,
   }
 }
 

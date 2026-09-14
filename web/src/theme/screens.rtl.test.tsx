@@ -20,6 +20,8 @@ vi.mock('@/context/AuthContext', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
+  API_BASE: '',
+  getAuthToken: () => '',
   api: new Proxy(
     {},
     {
@@ -27,6 +29,10 @@ vi.mock('@/api/client', () => ({
         vi.fn().mockImplementation(async () => {
           if (prop === 'getConversations') return []
           if (prop === 'getConversation') return { messages: [], contact: null }
+          if (prop === 'getAiSuggestions' || prop === 'getConversationAiSuggestions') {
+            return { suggestions: [], degraded: true }
+          }
+          if (prop === 'getAgentPreferences') return { inbox_merge_mode: 'separate' }
           return {}
         }),
     },
@@ -77,12 +83,17 @@ import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { NeighborhoodValuatorPage } from '@/pages/NeighborhoodValuatorPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
 import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPage'
+import { SettingsHomePage } from '@/pages/settings/SettingsHomePage'
+import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import { StepUpProvider } from '@/components/mfa'
 import type { ComponentType } from 'react'
 
 const pages: Array<[string, ComponentType]> = [
@@ -107,6 +118,8 @@ const pages: Array<[string, ComponentType]> = [
   ['Social channels', SocialChannelsPage],
   ['Notification preferences', NotificationPreferencesPage],
   ['TOTP settings', TotpSettingsPage],
+  ['Settings home', SettingsHomePage],
+  ['Two-factor settings', TwoFactorSettingsPage],
   ['Integrations', IntegrationSettingsPage],
   ['Agency management', AgencyManagementPage],
   ['White-label', WhiteLabelBuilderPage],
@@ -126,6 +139,8 @@ const pages: Array<[string, ComponentType]> = [
   ['Neighborhood valuator', NeighborhoodValuatorPage],
   ['CRM analytics', CrmAnalyticsPage],
   ['Contact detail', ContactDetailPage],
+  ['Contact relationships', RelationshipsEditorPage],
+  ['Relationship consent', RelationshipConsentPage],
   ['Listing profile', ListingProfilePage],
   ['Agent profile', AgentProfilePage],
   ['White-label site', PublicWhiteLabelSitePage],
@@ -137,7 +152,9 @@ function mount(Page: ComponentType) {
     <MemoryRouter>
       <BrandProvider>
         <ToastProvider>
-          <Page />
+          <StepUpProvider>
+            <Page />
+          </StepUpProvider>
         </ToastProvider>
       </BrandProvider>
     </MemoryRouter>,

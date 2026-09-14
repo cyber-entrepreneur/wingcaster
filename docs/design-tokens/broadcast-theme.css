@@ -139,6 +139,14 @@
   --lc-channel-linkedin-on: #FFFFFF;
   --lc-channel-olx: #00666F;
   --lc-channel-olx-on: #FFFFFF;
+  --lc-channel-bayut: #6B9B2D;
+  --lc-channel-bayut-on: #FFFFFF;
+  --lc-channel-property_finder: #E31C23;
+  --lc-channel-property_finder-on: #FFFFFF;
+  --lc-channel-dubizzle: #E4002B;
+  --lc-channel-dubizzle-on: #FFFFFF;
+  --lc-channel-aqar: #0B7A4B;
+  --lc-channel-aqar-on: #FFFFFF;
 }
 
 [data-lc-mode="dark"] {
@@ -204,6 +212,14 @@
   --lc-channel-linkedin-on: #0B0E12;
   --lc-channel-olx: #6ED3D9;
   --lc-channel-olx-on: #0B0E12;
+  --lc-channel-bayut: #A8D96A;
+  --lc-channel-bayut-on: #0B0E12;
+  --lc-channel-property_finder: #FF7A7F;
+  --lc-channel-property_finder-on: #0B0E12;
+  --lc-channel-dubizzle: #FF6B8A;
+  --lc-channel-dubizzle-on: #0B0E12;
+  --lc-channel-aqar: #4BE38C;
+  --lc-channel-aqar-on: #0B0E12;
 }
 
 /* Same values as the block above, generated from one source. If they ever drift, this
@@ -272,6 +288,14 @@
     --lc-channel-linkedin-on: #0B0E12;
     --lc-channel-olx: #6ED3D9;
     --lc-channel-olx-on: #0B0E12;
+    --lc-channel-bayut: #A8D96A;
+    --lc-channel-bayut-on: #0B0E12;
+    --lc-channel-property_finder: #FF7A7F;
+    --lc-channel-property_finder-on: #0B0E12;
+    --lc-channel-dubizzle: #FF6B8A;
+    --lc-channel-dubizzle-on: #0B0E12;
+    --lc-channel-aqar: #4BE38C;
+    --lc-channel-aqar-on: #0B0E12;
   }
 }
 
