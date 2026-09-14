@@ -94,8 +94,7 @@ export function PortalStrip({
                 )
               }
               className={cn(
-                'inline-flex h-6 w-6 items-center justify-center rounded-[var(--lc-radius-sm)]',
-                'min-h-0 min-w-0',
+                'inline-flex h-tap w-tap items-center justify-center rounded-[var(--lc-radius-sm)]',
                 ghost &&
                   'border border-[var(--lc-border-strong)] bg-transparent opacity-50',
               )}

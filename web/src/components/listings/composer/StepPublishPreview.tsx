@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import { ListingPreviewCard } from '@/components/onboarding/whatsapp/ListingPreviewCard'
 import { Numeric } from '@/components/ui/numeric'
-import { resolveLcChannel } from '@/theme/channel'
+import { portalLabelToChannel } from '@/theme/channel'
 import { cn } from '@/lib/utils'
 import {
   runPortalValidators,
@@ -21,7 +21,6 @@ const SURFACES = [
   'Dubizzle',
   'OLX',
   'Aqar',
-  'Blue Door',
 ] as const
 
 export interface StepPublishPreviewProps {
@@ -89,7 +88,7 @@ export function StepPublishPreview({
               aria-pressed={surface === s}
               onClick={() => setSurface(s)}
               className={cn(
-                'min-h-10 rounded-[var(--lc-radius-pill)] px-3 text-[length:var(--lc-type-caption)]',
+                'min-h-tap rounded-[var(--lc-radius-pill)] px-3 text-[length:var(--lc-type-caption)]',
                 surface === s
                   ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                   : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
@@ -126,10 +125,7 @@ export function StepPublishPreview({
         <ul className="space-y-2">
           {['Bayut', 'Property Finder', 'Dubizzle', 'OLX', 'Aqar'].map((portal) => {
             const portalIssues = byPortal.get(portal) || []
-            const channelKey = portal.toLowerCase().replace(/\s+/g, '_')
-            const resolved = resolveLcChannel(
-              channelKey === 'olx' ? 'olx' : channelKey === 'bayut' ? '' : '',
-            )
+            const resolved = portalLabelToChannel(portal)
             const ok = portalIssues.length === 0
             return (
               <li
@@ -139,7 +135,7 @@ export function StepPublishPreview({
                 <details className="group">
                   <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3">
                     {resolved ? (
-                      <ChannelMark channel={resolved} />
+                      <ChannelMark channel={resolved} label={portal} />
                     ) : (
                       <span className="inline-flex h-6 w-6 items-center justify-center rounded-[var(--lc-radius-sm)] bg-[var(--lc-surface-sunken)] text-[10px] font-semibold uppercase text-[var(--lc-text-muted)]">
                         {portal.slice(0, 2)}

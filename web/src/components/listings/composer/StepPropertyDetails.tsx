@@ -91,7 +91,7 @@ export function StepPropertyDetails({ form, errors, onChange }: StepPropertyDeta
                 aria-pressed={form.area_unit === u}
                 onClick={() => onChange('area_unit', u)}
                 className={cn(
-                  'min-h-10 rounded-[var(--lc-radius-md)] px-3 text-[length:var(--lc-type-caption)]',
+                  'min-h-tap rounded-[var(--lc-radius-md)] px-3 text-[length:var(--lc-type-caption)]',
                   form.area_unit === u
                     ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                     : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',

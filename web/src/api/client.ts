@@ -167,6 +167,7 @@ export interface InboxConversation {
   linked_listing_label?: string | null
   created_at?: string
   updated_at?: string
+  archived_at?: string | null
 }
 
 export interface InboxConversationMessage {
@@ -188,6 +189,18 @@ export interface InboxConversationMessage {
   failed_reason?: string | null
   is_first_inbound?: boolean
   system_event_type?: string | null
+  image_url?: string | null
+  audio_url?: string | null
+  attachments?: Array<{
+    id?: string
+    url: string
+    mime?: string | null
+    filename?: string | null
+    size_bytes?: number | null
+    kind?: string | null
+  }>
+  metadata?: { attachments?: InboxConversationMessage['attachments'] } | null
+  suggested_reply?: string | null
 }
 
 export interface InboxConversationDetail extends InboxConversation {
@@ -240,6 +253,11 @@ function getToken() {
     localStorage.removeItem('sa_token')
   }
   return token
+}
+
+/** Exported for WebSocket auth and other non-fetch clients. */
+export function getAuthToken() {
+  return getToken()
 }
 
 export function clearAuthToken() {
@@ -367,6 +385,34 @@ export const api = {
   me: () => fetchJson('/auth/me'),
   updateProfile: (data: Record<string, unknown>) =>
     fetchJson('/auth/me', { method: 'PUT', body: JSON.stringify(data) }),
+  patchMe: (data: Record<string, unknown>) =>
+    fetchJson('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
+  getSettingsIndex: (): Promise<SettingsIndexResponse> => fetchJson('/settings/index'),
+  getAuthSessions: (): Promise<{ sessions: AuthSessionRow[] }> => fetchJson('/auth/sessions'),
+  deleteAuthSession: (sessionId: string) =>
+    fetchJson(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+  deleteAuthSessionsExceptCurrent: (): Promise<{ revoked?: number } | null> =>
+    fetchJson('/auth/sessions/all-except-current', { method: 'DELETE' }),
+  getPushTokens: (): Promise<{ tokens: PushTokenRow[] }> => fetchJson('/auth/push-tokens'),
+  deletePushToken: (id: string) =>
+    fetchJson(`/auth/push-token/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  createBillingPortalSession: (section?: string): Promise<{ url: string }> =>
+    fetchJson('/billing/portal-session', {
+      method: 'POST',
+      body: JSON.stringify(section ? { section } : {}),
+    }),
+  testBillingNotification: (channel: string) =>
+    fetchJson(`/billing/notifications/test?channel=${encodeURIComponent(channel)}`, { method: 'POST' }),
+  initiateDeleteAccount: (data: Record<string, unknown>) =>
+    fetchJson('/auth/delete-account/initiate', { method: 'POST', body: JSON.stringify(data) }),
+  regenerateDeleteAccountWord: (): Promise<{ word?: string }> =>
+    fetchJson('/auth/delete-account/regenerate-word', { method: 'POST', body: '{}' }),
+  resendDeleteAccountEmail: () =>
+    fetchJson('/auth/delete-account/resend-email', { method: 'POST', body: '{}' }),
+  confirmDeleteAccount: (data: Record<string, unknown>) =>
+    fetchJson('/auth/delete-account/confirm', { method: 'POST', body: JSON.stringify(data) }),
+  cancelDeleteAccount: () =>
+    fetchJson('/auth/delete-account/cancel', { method: 'POST', body: '{}' }),
   getOnboarding: () => fetchJson('/auth/onboarding'),
   updateOnboarding: (data: Record<string, unknown>) =>
     fetchJson('/auth/onboarding', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -394,6 +440,9 @@ export const api = {
     fetchJson('/auth/2fa/totp/verify', { method: 'POST', body: JSON.stringify({ secret, code }) }),
   totpDisable: (code: string): Promise<{ totp_enabled: false; token: string | null }> =>
     fetchJson('/auth/2fa/totp/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  /** Invalidates existing backup codes and returns a fresh set once. Requires elevation. */
+  regenerateBackupCodes: (): Promise<{ backup_codes: string[]; backup_codes_remaining: number }> =>
+    fetchJson('/auth/2fa/backup-codes/regenerate', { method: 'POST', body: '{}' }),
   /** Redeems a sign-in challenge. Unauthenticated — there is no session yet. */
   twoFactorChallenge: (challenge_id: string, code: string) =>
     fetchJson('/auth/2fa/challenge', { method: 'POST', body: JSON.stringify({ challenge_id, code }) }),
@@ -561,6 +610,12 @@ export const api = {
   getProperty: (id: string) => fetchJson(`/properties/${id}`),
   createProperty: (data: Record<string, unknown>) =>
     fetchJson('/properties', { method: 'POST', body: JSON.stringify(data) }),
+  /** AGT-PUB-003 / BE-BLOCKER-11 — portal submission ledger for a listing or job. */
+  getPublishingTracker: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker${qs}`)
+  },
+  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
   uploadMedia: async (files: File[]) => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
@@ -630,6 +685,109 @@ export const api = {
   getDashboardStats: () => fetchJson('/dashboard/stats'),
   getDashboardAnalytics: () => fetchJson('/dashboard/analytics'),
   getDashboardOperations: () => fetchJson('/dashboard/operations'),
+
+  // Wave-8 Pro prefs / layout (AGT-DSH-002 / AGT-LST-002 / AGT-SET-002)
+  getDashboardLayout: (tenantId?: string) => {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : ''
+    return fetchJson(`/users/me/dashboard-layout${qs}`) as Promise<{
+      layout: Array<{ i: string; x: number; y: number; w: number; h: number }>
+      density: 'compact' | 'comfortable' | 'spacious'
+      updated_at: string | null
+      tenant_id: string
+    }>
+  },
+  patchDashboardLayout: (body: {
+    tenant_id?: string
+    layout?: Array<{ i: string; x: number; y: number; w: number; h: number }>
+    density?: 'compact' | 'comfortable' | 'spacious'
+  }) =>
+    fetchJson('/users/me/dashboard-layout', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }) as Promise<{
+      layout: Array<{ i: string; x: number; y: number; w: number; h: number }>
+      density: 'compact' | 'comfortable' | 'spacious'
+      updated_at: string | null
+      tenant_id: string
+    }>,
+  getListPrefs: (tenantId?: string) => {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : ''
+    return fetchJson(`/users/me/list-prefs${qs}`) as Promise<{
+      listings: Record<string, unknown>
+      updated_at: string | null
+      tenant_id: string
+    }>
+  },
+  patchListPrefs: (listings: Record<string, unknown>, tenantId?: string) =>
+    fetchJson('/users/me/list-prefs', {
+      method: 'PATCH',
+      body: JSON.stringify({ listings, tenant_id: tenantId }),
+    }) as Promise<{
+      listings: Record<string, unknown>
+      updated_at: string | null
+      tenant_id: string
+    }>,
+  getProNudge: () =>
+    fetchJson('/users/me/pro-nudge') as Promise<{
+      eligible: boolean
+      listing_count: number
+      days_since_signup: number
+      pro_nudge_dismissed_at: string | null
+      days_since_dismiss: number | null
+    }>,
+  dismissProNudge: () =>
+    fetchJson('/users/me/pro-nudge/dismiss', { method: 'POST', body: '{}' }) as Promise<{
+      pro_nudge_dismissed_at: string
+    }>,
+  getSavedViews: (tenantId: string, resource = 'listings') =>
+    fetchJson(
+      `/tenants/${encodeURIComponent(tenantId)}/saved-views?resource=${encodeURIComponent(resource)}`,
+    ) as Promise<{ views: Array<Record<string, unknown>> }>,
+  createSavedView: (tenantId: string, body: Record<string, unknown>) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }) as Promise<Record<string, unknown>>,
+  updateSavedView: (tenantId: string, viewId: string, body: Record<string, unknown>) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views/${encodeURIComponent(viewId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }) as Promise<Record<string, unknown>>,
+  deleteSavedView: (tenantId: string, viewId: string) =>
+    fetchJson(`/tenants/${encodeURIComponent(tenantId)}/saved-views/${encodeURIComponent(viewId)}`, {
+      method: 'DELETE',
+    }) as Promise<{ success: boolean }>,
+  bulkArchiveProperties: (ids: string[]) =>
+    fetchJson('/properties/bulk/archive', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }) as Promise<{ updated: string[]; missing: string[] }>,
+  bulkPublishProperties: (ids: string[], channels: string[] = []) =>
+    fetchJson('/properties/bulk/publish', {
+      method: 'POST',
+      body: JSON.stringify({ ids, channels }),
+    }) as Promise<{ updated: string[]; missing: string[]; channels: string[] }>,
+  bulkDeleteProperties: (ids: string[], confirmed_phrase: string) =>
+    fetchJson('/properties/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids, confirmed_phrase }),
+    }) as Promise<{ deleted: string[]; missing: string[] }>,
+  bulkExportProperties: (ids: string[] | null = null) =>
+    fetchJson('/properties/bulk/export', {
+      method: 'POST',
+      body: JSON.stringify({ ids, format: 'csv' }),
+    }) as Promise<{
+      job_id: string
+      status: string
+      csv: string
+      filename: string
+      row_count: number
+    }>,
+  bulkPriceAdjustProperties: (ids: string[], mode: 'fixed' | 'percent', value: number) =>
+    fetchJson('/properties/bulk/price-adjust', {
+      method: 'POST',
+      body: JSON.stringify({ ids, mode, value }),
+    }) as Promise<{ updated: Array<{ id: string; price: number }>; missing: string[] }>,
   getPropertyAnalytics: (id: string) => fetchJson(`/properties/${id}/analytics`),
   trackPropertyEvent: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/properties/${id}/events`, { method: 'POST', body: JSON.stringify(data) }),
@@ -991,8 +1149,16 @@ export const api = {
     }),
 
   // Contacts & Conversation Orchestrator
-  getContacts: () => fetchJson('/contacts'),
+  getContacts: (params?: { q?: string }) => {
+    const qs = params?.q ? `?${new URLSearchParams({ q: params.q }).toString()}` : ''
+    return fetchJson(`/contacts${qs}`)
+  },
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
+  revealContactPii: (id: string, field: string) =>
+    fetchJson(`/contacts/${id}/reveal-pii`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
   updateContact: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   mergeContacts: (sourceId: string, targetContactId: string) =>
@@ -1001,49 +1167,6 @@ export const api = {
   getContactNotes: (id: string) => fetchJson(`/contacts/${id}/notes`),
   createContactNote: (id: string, content: string) =>
     fetchJson(`/contacts/${id}/notes`, { method: 'POST', body: JSON.stringify({ content }) }),
-
-  // Contact relationships (BE-BLOCKER-36 / AGT-CTC-007)
-  getContactRelationshipsMine: (contactId: string) =>
-    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/mine`),
-  getContactRelationshipsOther: (contactId: string) =>
-    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/other`),
-  createContactRelationship: (contactId: string, data: Record<string, unknown>) =>
-    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  updateContactRelationship: (
-    contactId: string,
-    relationshipId: string,
-    data: Record<string, unknown>,
-  ) =>
-    fetchJson(
-      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
-      { method: 'PATCH', body: JSON.stringify(data) },
-    ),
-  deleteContactRelationship: (contactId: string, relationshipId: string) =>
-    fetchJson(
-      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
-      { method: 'DELETE' },
-    ),
-  resendRelationshipConsentLink: (contactId: string, relationshipId: string) =>
-    fetchJson(
-      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}/resend-consent-link`,
-      { method: 'POST', body: '{}' },
-    ),
-  /** Public, token-authed — pass token only; never authorize from other query params. */
-  getPublicRelationshipConsent: (token: string) =>
-    fetchJson(`/public/relationships/consent?token=${encodeURIComponent(token)}`),
-  acceptPublicRelationshipConsent: (token: string) =>
-    fetchJson('/public/relationships/consent/accept', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-    }),
-  rejectPublicRelationshipConsent: (token: string) =>
-    fetchJson('/public/relationships/consent/reject', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-    }),
 
   // Tasks
   getTasks: (params?: Record<string, string>) => {
@@ -1067,10 +1190,62 @@ export const api = {
     fetchJson(`/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getConversations: (): Promise<InboxConversation[]> => fetchJson('/conversations'),
   getConversation: (id: string): Promise<InboxConversationDetail> => fetchJson(`/conversations/${id}`),
-  sendConversationMessage: (id: string, content: string, options?: { content_type?: string; image_url?: string; subject?: string }) =>
+  createConversation: (payload: {
+    contact_id?: string
+    new_contact?: { name?: string; phone?: string; email?: string }
+    channel: string
+    body?: string
+    source?: string
+    subject?: string
+    template_id?: string
+    attachments?: Array<{ url: string; mime?: string; filename?: string; size_bytes?: number }>
+  }): Promise<InboxConversation & { created?: boolean }> =>
+    fetchJson('/conversations', { method: 'POST', body: JSON.stringify(payload) }),
+  sendConversationMessage: (
+    id: string,
+    content: string,
+    options?: {
+      content_type?: string
+      image_url?: string
+      audio_url?: string
+      subject?: string
+      attachments?: Array<{ url: string; mime?: string; filename?: string; size_bytes?: number }>
+      template_id?: string
+    },
+  ) =>
     fetchJson(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content, ...(options || {}) }) }),
   retryConversationMessage: (id: string, messageId: string) =>
     fetchJson(`/conversations/${id}/messages/${messageId}/retry`, { method: 'POST', body: '{}' }),
+  bulkConversations: (payload: {
+    conversation_ids: string[]
+    action: 'mark_read' | 'mark_unread' | 'assign' | 'archive'
+    assign_to_agent_id?: string
+  }) => fetchJson('/conversations/bulk', { method: 'POST', body: JSON.stringify(payload) }),
+  getAgentPreferences: (): Promise<{ inbox_merge_mode: 'merged' | 'separate' }> =>
+    fetchJson('/agent-preferences'),
+  patchAgentPreferences: (payload: { inbox_merge_mode: 'merged' | 'separate' }) =>
+    fetchJson('/agent-preferences', { method: 'PATCH', body: JSON.stringify(payload) }),
+  getConversationAiSuggestions: (
+    id: string,
+  ): Promise<{
+    enabled?: boolean
+    suggestions: Array<string | { id?: string; body: string; language?: string }>
+    model?: string
+    latency_ms?: number
+    degraded?: boolean
+    source?: string | null
+  }> => fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
+  /** Alias for getConversationAiSuggestions (Wave 8 dispatch name). */
+  getAiSuggestions: (
+    id: string,
+  ): Promise<{
+    enabled?: boolean
+    suggestions: Array<string | { id?: string; body: string; language?: string }>
+    model?: string
+    latency_ms?: number
+    degraded?: boolean
+    source?: string | null
+  }> => fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
 
   getListingComments: (
     listingId: string,
@@ -1796,6 +1971,49 @@ export const api = {
       prorate,
     }),
   }),
+
+  // Contact relationships (BE-BLOCKER-36) — used by RelationshipsEditorPage.
+  getContactRelationshipsMine: (contactId: string) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/mine`),
+  getContactRelationshipsOther: (contactId: string) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/other`),
+  createContactRelationship: (contactId: string, data: Record<string, unknown>) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateContactRelationship: (
+    contactId: string,
+    relationshipId: string,
+    data: Record<string, unknown>,
+  ) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
+  deleteContactRelationship: (contactId: string, relationshipId: string) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
+      { method: 'DELETE' },
+    ),
+  resendRelationshipConsentLink: (contactId: string, relationshipId: string) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}/resend-consent-link`,
+      { method: 'POST', body: '{}' },
+    ),
+  /** Public, token-authed — pass token only; never authorize from other query params. */
+  getPublicRelationshipConsent: (token: string) =>
+    fetchJson(`/public/relationships/consent?token=${encodeURIComponent(token)}`),
+  acceptPublicRelationshipConsent: (token: string) =>
+    fetchJson('/public/relationships/consent/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  rejectPublicRelationshipConsent: (token: string) =>
+    fetchJson('/public/relationships/consent/reject', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
 }
 
 export interface FeatureQuota {
@@ -1876,6 +2094,97 @@ export interface TenantCreditNote {
   note_number: string | null
   issued_at: string | null
   created_at: string
+}
+
+export interface SettingsIndexBadge {
+  kind?: 'status' | 'count'
+  tone?: 'default' | 'warning' | 'danger'
+  label?: string
+  label_key?: string
+  value?: number
+}
+
+export interface SettingsIndexItem {
+  id: string
+  label: string
+  label_key?: string
+  route: string
+  icon?: string
+  badge?: SettingsIndexBadge | null
+}
+
+export interface SettingsIndexGroup {
+  id: string
+  label: string
+  label_key?: string
+  items: SettingsIndexItem[]
+}
+
+export interface SettingsIndexActivity {
+  kind?: string
+  label: string
+  at: string
+}
+
+export interface SettingsIndexSecurityCapabilities {
+  two_factor_enrolled?: boolean
+  active_session_count?: number
+}
+
+export interface SettingsIndexBillingCapabilities {
+  plan?: string | null
+  past_due?: boolean
+  display_name?: string | null
+  renews_at?: string | null
+}
+
+export interface SettingsIndexIdentityCapabilities {
+  oauth_only?: boolean
+  signin_method?: string
+}
+
+export interface SettingsIndexTeamCapabilities {
+  role?: string
+  member_count?: number | null
+  pending_invite_count?: number
+}
+
+export interface SettingsIndexCapabilities {
+  account?: boolean
+  danger?: boolean
+  password?: boolean
+  env?: string
+  identity?: SettingsIndexIdentityCapabilities
+  security?: SettingsIndexSecurityCapabilities
+  billing?: SettingsIndexBillingCapabilities | false
+  team?: SettingsIndexTeamCapabilities | false
+}
+
+export interface SettingsIndexResponse {
+  capabilities?: SettingsIndexCapabilities
+  groups: SettingsIndexGroup[]
+  recent_activity?: SettingsIndexActivity[]
+}
+
+export interface AuthSessionRow {
+  id: string
+  is_current?: boolean
+  device_kind?: 'desktop' | 'mobile' | 'tablet' | 'unknown' | string
+  device_summary?: string
+  ip?: string | null
+  ip_country_iso?: string | null
+  ip_country?: string | null
+  ip_city?: string | null
+  created_at?: string
+  last_active_at?: string
+}
+
+export interface PushTokenRow {
+  id: string
+  platform: 'ios' | 'android' | 'web' | string
+  device_id?: string | null
+  created_at?: string
+  last_used_at?: string | null
 }
 
 export interface TenantPlanPreview {

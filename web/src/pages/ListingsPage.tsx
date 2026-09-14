@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { useTenant } from '@/hooks/useTenant'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { formatPrice } from '@/lib/format'
@@ -38,14 +39,15 @@ import {
   type ListingCardProperty,
   type ViewMode,
 } from '@/components/listings'
+import { ProListingsTable } from '@/pages/agent/listings/ProListingsTable'
+import { useUiMode } from '@/hooks/useUiMode'
 import { cn } from '@/lib/utils'
 import type { Property } from '@/types'
-import { useUiMode } from '@/hooks/useUiMode'
-import { useTenant } from '@/hooks/useTenant'
-import { ProListingsTable as ProListingsTableFull } from '@/pages/agent/listings/ProListingsTable'
 
 type StatusFilter = 'all' | ListingStatus
 type TypeFilter = 'all' | 'sale' | 'rent'
+type AgentFilter = 'me' | 'any' | string
+type PriceFilter = 'all' | 'under_500k' | '500k_1m' | '1m_3m' | 'over_3m'
 type SortKey =
   | 'created_at:desc'
   | 'created_at:asc'
@@ -53,6 +55,36 @@ type SortKey =
   | 'price:asc'
   | 'inquiries_new_count:desc'
   | 'last_activity_at:asc'
+
+const PRICE_FILTER_LABELS: Record<Exclude<PriceFilter, 'all'>, string> = {
+  under_500k: 'Under 500k',
+  '500k_1m': '500k – 1M',
+  '1m_3m': '1M – 3M',
+  over_3m: '3M+',
+}
+
+function matchesPriceFilter(price: number | undefined, filter: PriceFilter): boolean {
+  if (filter === 'all') return true
+  const p = Number(price) || 0
+  switch (filter) {
+    case 'under_500k':
+      return p < 500_000
+    case '500k_1m':
+      return p >= 500_000 && p < 1_000_000
+    case '1m_3m':
+      return p >= 1_000_000 && p < 3_000_000
+    case 'over_3m':
+      return p >= 3_000_000
+    default:
+      return true
+  }
+}
+
+function agencyIdFromTenant(tenantId: string | null | undefined): string | null {
+  if (!tenantId) return null
+  if (tenantId.startsWith('agency:')) return tenantId.slice('agency:'.length)
+  return null
+}
 
 const VIEW_STORAGE_KEY = 'wc.listings.viewMode'
 const VALID_VIEWS: ViewMode[] = ['card', 'list', 'gallery']
@@ -92,17 +124,21 @@ function useMediaMin(px: number): boolean {
 
 export function ListingsPage() {
   const { agent, loading: authLoading } = useAuth()
+  const { activeTenant } = useTenant()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { effectiveMode, isProCapable } = useUiMode()
-  const { activeTenant } = useTenant()
   usePageTitle('Listings')
 
   const isDesktop = useMediaMin(1024)
   const isTabletPlus = useMediaMin(768)
+  const isAgency = activeTenant?.kind === 'agency'
+  const agencyId = agencyIdFromTenant(activeTenant?.id)
 
   const [listings, setListings] = useState<ListingCardProperty[]>([])
+  /** Full tenant-scoped roster before agent-of-record filter. */
+  const [tenantListings, setTenantListings] = useState<ListingCardProperty[]>([])
   const [loading, setLoading] = useState(true)
   const [offline, setOffline] = useState(
     typeof navigator !== 'undefined' ? !navigator.onLine : false,
@@ -122,6 +158,13 @@ export function ListingsPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(
     () => (searchParams.get('type') as TypeFilter) || 'all',
   )
+  const [areaFilter, setAreaFilter] = useState(() => searchParams.get('area') || 'all')
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>(
+    () => (searchParams.get('price') as PriceFilter) || 'all',
+  )
+  const [agentFilter, setAgentFilter] = useState<AgentFilter>(
+    () => (searchParams.get('agent') as AgentFilter) || 'me',
+  )
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [sort, setSort] = useState<SortKey>(
     () => (searchParams.get('sort') as SortKey) || 'created_at:desc',
@@ -140,6 +183,10 @@ export function ListingsPage() {
   )
 
   useEffect(() => {
+    if (searchParams.get('create') === '1') setCreateOpen(true)
+  }, [searchParams])
+
+  useEffect(() => {
     const onOff = () => setOffline(!navigator.onLine)
     window.addEventListener('online', onOff)
     window.addEventListener('offline', onOff)
@@ -149,24 +196,105 @@ export function ListingsPage() {
     }
   }, [])
 
+  const wantTable =
+    !forceGuidedCards &&
+    isProCapable &&
+    (effectiveMode === 'pro' || searchParams.get('view') === 'table')
+
   useEffect(() => {
     if (authLoading) return
     if (!agent) {
       setLoading(false)
       return
     }
-    void loadListings()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent, authLoading])
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        // SHR-NAV-008: active tenant governs the list scope.
+        const params: Record<string, string> = { include_unsyndicated: '1' }
+        if (!isAgency) {
+          params.agentId = agent.id
+        }
+        const data = await api.getProperties(params)
+        if (cancelled) return
+        let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
+
+        if (isAgency && agencyId) {
+          rows = rows.filter((r) => {
+            const rowAgency = r.agency_id || null
+            const rowTenant = (r as ListingCardProperty & { tenant_id?: string }).tenant_id
+            return (
+              rowAgency === agencyId ||
+              rowTenant === activeTenant?.id ||
+              r.agent_id === agent.id
+            )
+          })
+        } else {
+          rows = rows.filter((r) => r.agent_id === agent.id)
+        }
+
+        setTenantListings(rows)
+      } catch (err: unknown) {
+        if (cancelled) return
+        addToast({
+          title: "We couldn't load your listings. Try again?",
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'error',
+        })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [agent, authLoading, activeTenant?.id, isAgency, agencyId, addToast])
 
   async function loadListings() {
     setLoading(true)
     try {
-      const params: Record<string, string> = { agent_id: agent!.id }
-      const data = await api.getProperties(params)
-      const rows: ListingCardProperty[] = Array.isArray(data) ? data : []
-      const mine = rows.filter((r) => r.agent_id === agent!.id)
-      setListings(mine)
+      const params: Record<string, string> = { include_unsyndicated: '1' }
+      if (!isAgency) {
+        params.agentId = agent!.id
+      }
+      const [data, inquiries] = await Promise.all([
+        api.getProperties(params),
+        api.getInquiries({ limit: '200' }).catch(() => ({ items: [] })),
+      ])
+      let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
+
+      if (isAgency && agencyId) {
+        rows = rows.filter((r) => {
+          const rowAgency = r.agency_id || null
+          const rowTenant = (r as ListingCardProperty & { tenant_id?: string }).tenant_id
+          return (
+            rowAgency === agencyId ||
+            rowTenant === activeTenant?.id ||
+            r.agent_id === agent!.id
+          )
+        })
+      } else {
+        rows = rows.filter((r) => r.agent_id === agent!.id)
+      }
+
+      const inquiryItems = Array.isArray((inquiries as { items?: unknown[] })?.items)
+        ? (inquiries as { items: Array<{ property_id?: string }> }).items
+        : Array.isArray(inquiries)
+          ? (inquiries as Array<{ property_id?: string }>)
+          : []
+      const inquiryCounts = new Map<string, number>()
+      for (const inq of inquiryItems) {
+        if (!inq?.property_id) continue
+        inquiryCounts.set(inq.property_id, (inquiryCounts.get(inq.property_id) || 0) + 1)
+      }
+
+      setTenantListings(
+        rows.map((row) => ({
+          ...row,
+          inquiry_count: row.inquiry_count ?? inquiryCounts.get(row.id) ?? 0,
+        })),
+      )
     } catch (err: unknown) {
       addToast({
         title: "We couldn't load your listings. Try again?",
@@ -178,12 +306,47 @@ export function ListingsPage() {
     }
   }
 
+  // Apply agent-of-record filter without refetching (keeps chips populated).
+  useEffect(() => {
+    if (!isAgency || agentFilter === 'any') {
+      setListings(tenantListings)
+      return
+    }
+    if (agentFilter === 'me') {
+      setListings(tenantListings.filter((r) => r.agent_id === agent?.id))
+      return
+    }
+    setListings(tenantListings.filter((r) => r.agent_id === agentFilter))
+  }, [tenantListings, isAgency, agentFilter, agent?.id])
+
+  const areaOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const l of tenantListings) {
+      const area = (l.neighborhood || l.location || '').trim()
+      if (area) set.add(area)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [tenantListings])
+
+  const agentOptions = useMemo(() => {
+    if (!isAgency) return [] as Array<{ id: string; name: string }>
+    const map = new Map<string, string>()
+    for (const l of tenantListings) {
+      if (l.agent_id && l.agent_id !== agent?.id) {
+        map.set(l.agent_id, l.agent_name || l.agent_id)
+      }
+    }
+    return [...map.entries()].map(([id, name]) => ({ id, name }))
+  }, [tenantListings, isAgency, agent?.id])
+
   const counts = useMemo(() => {
     const c: Record<ListingStatus | 'all', number> = {
       all: listings.length,
       draft: 0,
       published: 0,
       unpublished: 0,
+      underOffer: 0,
+      closed: 0,
       archived: 0,
     }
     for (const l of listings) c[normalizeStatus(l.status)]++
@@ -195,6 +358,11 @@ export function ListingsPage() {
     let rows = listings.filter((l) => {
       if (statusFilter !== 'all' && normalizeStatus(l.status) !== statusFilter) return false
       if (typeFilter !== 'all' && l.type !== typeFilter) return false
+      if (areaFilter !== 'all') {
+        const area = (l.neighborhood || l.location || '').trim()
+        if (area !== areaFilter) return false
+      }
+      if (!matchesPriceFilter(l.price, priceFilter)) return false
       if (q) {
         const hay = [l.title, l.location, l.city, l.neighborhood, l.reference, l.address]
           .filter(Boolean)
@@ -225,7 +393,7 @@ export function ListingsPage() {
       }
     })
     return rows
-  }, [listings, statusFilter, typeFilter, query, sort])
+  }, [listings, statusFilter, typeFilter, areaFilter, priceFilter, query, sort])
 
   function selectView(mode: ViewMode) {
     setViewMode(mode)
@@ -237,12 +405,9 @@ export function ListingsPage() {
     syncParams({ view: mode })
   }
 
-  const wantTable =
-    !forceGuidedCards &&
-    isProCapable &&
-    (effectiveMode === 'pro' || searchParams.get('view') === 'table')
+  const showInitialSkeleton = (authLoading || loading) && tenantListings.length === 0
 
-  if (authLoading || loading) {
+  if (showInitialSkeleton) {
     return (
       <div
         className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 py-6 sm:grid-cols-2 lg:grid-cols-3"
@@ -282,11 +447,12 @@ export function ListingsPage() {
   if (wantTable) {
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <ProListingsTableFull
+        <ProListingsTable
           listings={filtered}
           totalCount={listings.length}
           showOwnerColumn={activeTenant?.kind === 'agency'}
           onCreate={() => setCreateOpen(true)}
+          onRefresh={() => void loadListings()}
           onShowCards={() => {
             setForceGuidedCards(true)
             if (searchParams.get('view') === 'table') {
@@ -300,10 +466,7 @@ export function ListingsPage() {
           <ListingFormModal
             open={createOpen}
             onClose={() => setCreateOpen(false)}
-            onSaved={() => {
-              setCreateOpen(false)
-              void loadListings()
-            }}
+            onSaved={() => { setCreateOpen(false); loadListings() }}
           />
         )}
       </div>
@@ -328,7 +491,8 @@ export function ListingsPage() {
           </h1>
           <p className="mt-1 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
             <Numeric>{counts.all}</Numeric> total · <Numeric>{counts.published}</Numeric> published ·{' '}
-            <Numeric>{counts.draft}</Numeric> draft · <Numeric>{counts.unpublished}</Numeric> pending
+            <Numeric>{counts.draft}</Numeric> draft · <Numeric>{counts.unpublished}</Numeric>{' '}
+            unpublished
           </p>
         </div>
         {isDesktop && (
@@ -435,33 +599,174 @@ export function ListingsPage() {
                 {glyph && <span aria-hidden>{glyph}</span>}
                 {label}
                 <span className="opacity-70">
-                  (<Numeric>({counts[s]})</Numeric>
+                  (<Numeric>{counts[s]}</Numeric>)
                 </span>
               </button>
             )
           })}
         </div>
 
-        {(statusFilter !== 'all' || typeFilter !== 'all') && (
-          <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label="Type filter">
-            {(['all', 'sale', 'rent'] as TypeFilter[]).map((t) => (
+        <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Type filter">
+          {(['all', 'sale', 'rent'] as TypeFilter[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={typeFilter === t}
+              onClick={() => {
+                setTypeFilter(t)
+                syncParams({ type: t === 'all' ? null : t })
+              }}
+              className={cn(
+                'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+                'text-[length:var(--lc-type-caption)] font-medium capitalize',
+                typeFilter === t
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+              )}
+            >
+              {t === 'all' ? 'All types' : t === 'sale' ? 'For sale' : 'For rent'}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Area filter">
+          <button
+            type="button"
+            aria-pressed={areaFilter === 'all'}
+            onClick={() => {
+              setAreaFilter('all')
+              syncParams({ area: null })
+            }}
+            className={cn(
+              'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+              'text-[length:var(--lc-type-caption)] font-medium',
+              areaFilter === 'all'
+                ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+            )}
+          >
+            All areas
+          </button>
+          {areaOptions.map((area) => (
+            <button
+              key={area}
+              type="button"
+              aria-pressed={areaFilter === area}
+              onClick={() => {
+                setAreaFilter(area)
+                syncParams({ area })
+              }}
+              className={cn(
+                'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+                'text-[length:var(--lc-type-caption)] font-medium',
+                areaFilter === area
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+              )}
+            >
+              {area}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Price range filter">
+          <button
+            type="button"
+            aria-pressed={priceFilter === 'all'}
+            onClick={() => {
+              setPriceFilter('all')
+              syncParams({ price: null })
+            }}
+            className={cn(
+              'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+              'text-[length:var(--lc-type-caption)] font-medium',
+              priceFilter === 'all'
+                ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+            )}
+          >
+            Any price
+          </button>
+          {(Object.keys(PRICE_FILTER_LABELS) as Array<Exclude<PriceFilter, 'all'>>).map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={priceFilter === key}
+              onClick={() => {
+                setPriceFilter(key)
+                syncParams({ price: key })
+              }}
+              className={cn(
+                'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+                'text-[length:var(--lc-type-caption)] font-medium',
+                priceFilter === key
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+              )}
+            >
+              {PRICE_FILTER_LABELS[key]}
+            </button>
+          ))}
+        </div>
+
+        {isAgency && (
+          <div
+            className="flex gap-1.5 overflow-x-auto pb-1"
+            role="group"
+            aria-label="Agent of record filter"
+          >
+            <button
+              type="button"
+              aria-pressed={agentFilter === 'me'}
+              onClick={() => {
+                setAgentFilter('me')
+                syncParams({ agent: 'me' })
+              }}
+              className={cn(
+                'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+                'text-[length:var(--lc-type-caption)] font-medium',
+                agentFilter === 'me'
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+              )}
+            >
+              My listings
+            </button>
+            <button
+              type="button"
+              aria-pressed={agentFilter === 'any'}
+              onClick={() => {
+                setAgentFilter('any')
+                syncParams({ agent: 'any' })
+              }}
+              className={cn(
+                'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
+                'text-[length:var(--lc-type-caption)] font-medium',
+                agentFilter === 'any'
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+              )}
+            >
+              Any agent
+            </button>
+            {agentOptions.map((opt) => (
               <button
-                key={t}
+                key={opt.id}
                 type="button"
-                aria-pressed={typeFilter === t}
+                aria-pressed={agentFilter === opt.id}
                 onClick={() => {
-                  setTypeFilter(t)
-                  syncParams({ type: t === 'all' ? null : t })
+                  setAgentFilter(opt.id)
+                  syncParams({ agent: opt.id })
                 }}
                 className={cn(
                   'inline-flex min-h-[var(--lc-tap-target-min)] shrink-0 items-center rounded-[var(--lc-radius-pill)] px-3',
-                  'text-[length:var(--lc-type-caption)] font-medium capitalize',
-                  typeFilter === t
+                  'text-[length:var(--lc-type-caption)] font-medium',
+                  agentFilter === opt.id
                     ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
                     : 'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
                 )}
               >
-                {t === 'all' ? 'All' : t === 'sale' ? 'For sale' : 'For rent'}
+                {opt.name}
               </button>
             ))}
           </div>
@@ -475,8 +780,10 @@ export function ListingsPage() {
           onClearFilters={() => {
             setStatusFilter('all')
             setTypeFilter('all')
+            setAreaFilter('all')
+            setPriceFilter('all')
             setQuery('')
-            syncParams({ status: null, type: null, q: null })
+            syncParams({ status: null, type: null, area: null, price: null, q: null })
           }}
         />
       ) : viewMode === 'card' ? (
