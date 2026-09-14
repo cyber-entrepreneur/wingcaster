@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { readChannel } from '@/lib/channel-source'
 
 interface Props {
   contactId: string
@@ -85,7 +86,7 @@ export function Contact360Panel({ contactId }: Props) {
   const messages = useMemo(() => {
     if (!feed) return []
     return feed.messages.filter((m) => {
-      if (channelFilter && m.channel !== channelFilter) return false
+      if (channelFilter && readChannel(m) !== channelFilter) return false
       if (categoryFilter && (m.category || 'general') !== categoryFilter) return false
       return true
     })
@@ -258,7 +259,7 @@ export function Contact360Panel({ contactId }: Props) {
             </button>
             {feed.channels.map((ch) => {
               const meta = CHANNEL_META[ch] || { label: ch, icon: MessageSquare, color: 'text-slate-600' }
-              const count = feed.messages.filter((m) => m.channel === ch).length
+              const count = feed.messages.filter((m) => readChannel(m) === ch).length
               return (
                 <button
                   key={ch}
@@ -313,7 +314,8 @@ export function Contact360Panel({ contactId }: Props) {
           ) : (
             <ul className="space-y-2">
               {messages.map((m) => {
-                const chanMeta = CHANNEL_META[m.channel] || { label: m.channel, icon: MessageSquare, color: 'text-slate-600' }
+                const channelKey = readChannel(m)
+                const chanMeta = CHANNEL_META[channelKey] || { label: channelKey, icon: MessageSquare, color: 'text-slate-600' }
                 const catClass = m.category ? CATEGORY_COLORS[m.category] || CATEGORY_COLORS.general : ''
                 const linkedListing = m.listing_id ? feed.listings.find((l) => l.id === m.listing_id) : null
                 return (

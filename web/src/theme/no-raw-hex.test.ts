@@ -6,6 +6,18 @@ import { describe, expect, it } from 'vitest'
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HEX = /#[0-9A-Fa-f]{3,8}\b/
 const LEGACY = /--(wc|brand|gold|ink)-/
+/** SHR-MFA-002: QR modules must be spec black/white — the only legal raw hex. */
+const QR_ALLOWED_HEX = new Set(['#000', '#000000', '#fff', '#ffffff', '#FFF', '#FFFFFF'])
+const QR_CONTEXT =
+  /qrcode|QRCode|QrCode|qr-code|Authenticator QR|provisioning_uri|QR spec|QR exception/i
+
+function hexHits(src: string): string[] {
+  return [...src.matchAll(new RegExp(HEX, 'g'))].map((m) => m[0])
+}
+
+function isQrExceptionFile(rel: string, src: string): boolean {
+  return /(^|\/).*qr.*/i.test(rel) || QR_CONTEXT.test(src)
+}
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -23,7 +35,17 @@ describe('Broadcast token hygiene', () => {
     const offenders: string[] = []
     for (const file of files) {
       const src = readFileSync(file, 'utf8')
-      if (HEX.test(src)) offenders.push(path.relative(SRC, file).replace(/\\/g, '/'))
+      const rel = path.relative(SRC, file).replace(/\\/g, '/')
+      const hits = hexHits(src)
+      if (hits.length === 0) continue
+      if (isQrExceptionFile(rel, src)) {
+        const illegal = hits.filter((h) => !QR_ALLOWED_HEX.has(h))
+        if (illegal.length) {
+          offenders.push(`${rel} (QR hex must be #000/#fff only: ${illegal.join(', ')})`)
+        }
+        continue
+      }
+      offenders.push(rel)
     }
     expect(offenders).toEqual([])
   })

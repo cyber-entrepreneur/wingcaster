@@ -37,6 +37,7 @@ import bcrypt from 'bcryptjs'
 import { insert, query, transaction } from './db.js'
 import { findUserById } from './identity.js'
 import { requireElevated, signElevatedToken, ELEVATION_TTL_SECONDS } from './auth.js'
+import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
 import { encryptSecret, tryDecrypt } from './lib/credentials.js'
 import { sendOtp } from './lib/otp.js'
 import { generateTotpSecret, buildProvisioningUri, verifyTotp, TOTP_ISSUER } from './lib/totp.js'
@@ -476,6 +477,7 @@ export function registerTwoFactorRoutes(app, deps) {
         'DELETE FROM auth_challenges WHERE user_id = $1 AND consumed_at IS NULL',
         [user.id],
       )
+      await revokeUserSessions(user.id, { exceptId: sessionIdFromToken(req.user), client })
       return { tokenVersion: nextTokenVersion }
     })
 
@@ -485,7 +487,7 @@ export function registerTwoFactorRoutes(app, deps) {
 
     const refreshed = await findUserById(user.id)
     const agent = await findAgentForUser(user.id)
-    const session = agent ? await buildAuthSession(refreshed, agent) : null
+    const session = agent ? await buildAuthSession(refreshed, agent, { req, reuseSessionId: req.user?.session_id || req.user?.jti }) : null
 
     res.json({
       totp_enabled: false,
@@ -544,7 +546,7 @@ export function registerTwoFactorRoutes(app, deps) {
 
     await logActivity({ type: '2fa_signin_completed', agent_id: user.id, meta: { method: result.method } })
 
-    const session = await buildAuthSession(user, agent)
+    const session = await buildAuthSession(user, agent, { req })
     res.json({ ...session, factor_used: result.method })
   })
 

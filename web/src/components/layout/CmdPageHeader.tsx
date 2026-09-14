@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 
 interface CmdPageHeaderProps {
   title: string
-  subtitle?: string
+  subtitle?: ReactNode
   actions?: ReactNode
 }
 
