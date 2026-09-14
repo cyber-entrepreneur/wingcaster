@@ -75,6 +75,8 @@ export interface Property {
   featured: boolean | number
   views: number
   status?: string
+  inquiry_count?: number
+  syndications?: Array<{ channel?: string; portal?: string; status?: string }>
   offers?: Array<Partial<Property>>
 }
 
