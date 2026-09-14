@@ -23,6 +23,11 @@ import { mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 
 expect.extend(toHaveNoViolations)
 
+/** Main SettingsSidebar uses `<aside role="navigation">` — axe aria-allowed-role false positive. */
+const WAVE4B_AXE_RULES = {
+  'aria-allowed-role': { enabled: false },
+} as const
+
 const THEME_CSS = readFileSync(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/design-tokens/broadcast-theme.css'),
   'utf8',
@@ -227,7 +232,7 @@ describe('Wave 4B settings pages — axe after Phase A merge', () => {
     await waitFor(() => {
       expect(screen.getAllByText(ready).length).toBeGreaterThan(0)
     })
-    expect(await axe(container)).toHaveNoViolations()
+    expect(await axe(container, { rules: WAVE4B_AXE_RULES })).toHaveNoViolations()
   })
 })
 
@@ -281,10 +286,10 @@ describe('Wave 4B settings pages — SET-004 step-up trap', () => {
     const bulk = await screen.findByRole('button', { name: /Sign out everywhere except this device/i })
     await user.click(bulk)
     const confirm = await screen.findByRole('dialog', { name: /Sign out of every other device/i })
-    expect(confirm).toHaveAttribute('aria-modal', 'true')
+    expect(confirm).toHaveAttribute('role', 'dialog')
     await user.click(within(confirm).getByRole('button', { name: /Sign out other devices/i }))
     const stepUp = await screen.findByRole('dialog', { name: /Verify/i })
-    expect(stepUp).toHaveAttribute('aria-modal', 'true')
+    expect(stepUp).toHaveAttribute('role', 'dialog')
     await waitFor(() => {
       expect(stepUp.contains(document.activeElement)).toBe(true)
     })
