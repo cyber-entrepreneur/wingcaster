@@ -3,6 +3,7 @@ import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync, mkdirSync } from 'fs'
 import { randomBytes, createHash, randomInt, timingSafeEqual } from 'crypto'
+import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -13,7 +14,7 @@ import multer from 'multer'
 import { loadDb, getDb, findAll, findOne, insert, remove, update, transaction } from './db.js'
 import { getPool, query } from './persistence/postgres-adapter.js'
 import { seedData } from './seed.js'
-import { signToken, authMiddleware, requireElevated } from './auth.js'
+import { signToken, authMiddleware, requireElevated, verifyToken, issueAuthToken } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import {
   castVote,
@@ -75,6 +76,7 @@ import {
   registerWave0NavRoutes,
   resolveLoginUser,
 } from './lib/wave0-nav-routes.js'
+import { registerWave8ProRoutes } from './lib/wave8-pro-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
@@ -204,7 +206,13 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
+import { registerSessionRoutes } from './lib/auth/session-routes.js'
+import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
+import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
+import { attachInboxWebSocket } from './ws/inbox.js'
+import { startInboxListener } from './ws/inbox-events.js'
+import { maskEmail, maskPhone } from './account-recovery/mask.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
@@ -712,6 +720,11 @@ registerWave0NavRoutes(app, {
   startSigninChallengeIfRequired,
 })
 
+registerInboxAgentRoutes(app, { authMiddleware })
+registerWave8ProRoutes(app, {
+  authMiddleware,
+})
+
 // BE-BLOCKER-19 — public scheduled-deletion view/cancel (token-signed, no session).
 registerScheduledDeletionRoutes(app)
 
@@ -747,6 +760,7 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
+registerSessionRoutes(app)
 registerSettingsIndexRoutes(app, { authMiddleware })
 registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
@@ -1216,26 +1230,21 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
  * identical response shape to /api/auth/login — the frontend must not care
  * which of the two produced its session.
  */
-async function buildAuthSession(user, agent, { activeTenantId = null, env = null } = {}) {
+async function buildAuthSession(user, agent, { activeTenantId = null, env = null, req = null, reuseSessionId = null } = {}) {
   const affiliation = await getActiveAffiliation(user.id)
   const agency = affiliation ? await findOne('agencies', a => a.id === affiliation.agency_id) : null
   const affiliations = await listUserAgencyMemberships(user.id)
-  const tokenVersion = Number(user.token_version ?? 0)
   const resolvedTenantId = activeTenantId
     || user.active_tenant_id
     || personalTenantId(user.id)
   const resolvedEnv = normalizeClientEnv(env ?? fromAnyEnv(user.env || user.fin_environment))
   return {
-    token: signToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      token_version: tokenVersion,
+    token: await issueAuthToken(user, {
       verified_at: user.verified_at,
       active_tenant_id: resolvedTenantId,
       env: resolvedEnv,
       fin_environment: resolvedEnv === 'test' ? 'TEST' : 'LIVE',
-    }),
+    }, { req, reuseSessionId }),
     agent: {
       ...serializeAgent(agent),
       role: user.role,
@@ -1277,7 +1286,7 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
     return res.json({ status: '2fa_required', challenge_id: challenge.id, method: challenge.method })
   }
 
-  res.json(await buildAuthSession(user, agent))
+  res.json(await buildAuthSession(user, agent, { req }))
 })
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -1440,6 +1449,7 @@ app.post('/api/auth/password/reset', validate(passwordResetSchema), async (req, 
     token_version: nextTokenVersion,
     password_changed_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id)
 
   await markRecoveryTokenUsed(recovery.id, { ip: req.ip, flow: 'password_reset' })
   await revokeOutstandingRecoveryTokens(user.id, 'password_reset_completed')
@@ -1477,6 +1487,7 @@ app.post('/api/auth/password/change', authMiddleware, requireElevated(), validat
     token_version: nextTokenVersion,
     password_changed_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id, { exceptId: sessionIdFromToken(req.user) })
   await revokeOutstandingRecoveryTokens(user.id, 'password_changed')
 
   await logActivity({
@@ -1486,14 +1497,12 @@ app.post('/api/auth/password/change', authMiddleware, requireElevated(), validat
   })
 
   const refreshedUser = await findUserById(user.id)
-  const newToken = signToken({
-    id: refreshedUser.id,
-    email: refreshedUser.email,
-    name: refreshedUser.name,
-    token_version: Number(refreshedUser.token_version ?? 0),
-  })
+  const agent = await findAgentForUser(user.id)
+  const session = agent
+    ? await buildAuthSession(refreshedUser, agent, { req, reuseSessionId: sessionIdFromToken(req.user) })
+    : { token: await issueAuthToken(refreshedUser, {}, { req, reuseSessionId: sessionIdFromToken(req.user) }) }
 
-  res.json({ success: true, token: newToken, message: 'Password changed successfully.' })
+  res.json({ success: true, token: session.token, message: 'Password changed successfully.' })
 })
 
 app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), async (req, res) => {
@@ -1581,6 +1590,7 @@ app.post('/api/auth/recovery/complete', validate(accountRecoveryCompleteSchema),
     password_changed_at: new Date().toISOString(),
     compromised_session_reset_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id)
 
   await markRecoveryTokenUsed(consumed.record.id, { ip: req.ip, flow: 'account_recovery' })
   await revokeOutstandingRecoveryTokens(user.id, 'account_recovery_completed')
@@ -1707,13 +1717,7 @@ app.post('/api/auth/verify-otp', validate(otpVerifySchema), async (req, res) => 
   })
 
   res.json({
-    token: signToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      token_version: Number(user.token_version ?? 0),
-      verified_at: result.verifiedAt,
-    }),
+    token: await issueAuthToken(user, { verified_at: result.verifiedAt }, { req }),
     verified: true,
   })
 })
@@ -1737,7 +1741,12 @@ app.get('/api/properties', validateQuery(propertyQuerySchema), async (req, res) 
   if (q.minPrice != null) props = props.filter(p => p.price >= q.minPrice)
   if (q.maxPrice != null) props = props.filter(p => p.price <= q.maxPrice)
   if (q.bedrooms != null) props = props.filter(p => p.bedrooms >= q.bedrooms)
-  if (q.agentId) props = props.filter(p => p.agent_id === q.agentId)
+  const agentId = q.agentId || q.agent_id
+  if (agentId) props = props.filter(p => p.agent_id === agentId)
+  if (q.tenant_id && !String(q.tenant_id).startsWith('personal:')) {
+    props = props.filter(p => p.agency_id === q.tenant_id)
+  }
+  if (q.owning_agent) props = props.filter(p => p.agent_id === q.owning_agent)
   if (q.featured) props = props.filter(p => p.featured === 1 || p.featured === true)
   if (q.search) {
     const s = q.search.toLowerCase()
@@ -3778,8 +3787,21 @@ app.patch('/api/notification-preferences', authMiddleware, validate(notification
 
 // ==================== CONTACTS ====================
 app.get('/api/contacts', authMiddleware, async (req, res) => {
-  const mine = (await findAll('contacts', (c) => c.assigned_agent_id === req.user.id))
-    .sort((a, b) => new Date(b.last_activity_at || b.created_at).getTime() - new Date(a.last_activity_at || a.created_at).getTime())
+  const q = String(req.query.q || '').trim().toLowerCase()
+  let mine = await findAll('contacts', (c) => c.assigned_agent_id === req.user.id)
+  if (q) {
+    mine = mine.filter((c) => {
+      const name = String(c.name || '').toLowerCase()
+      const email = String(c.email || '').toLowerCase()
+      const phone = String(c.phone || '').toLowerCase()
+      return name.includes(q) || email.includes(q) || phone.includes(q)
+    })
+  }
+  mine = mine.sort(
+    (a, b) =>
+      new Date(b.last_activity_at || b.created_at).getTime() -
+      new Date(a.last_activity_at || a.created_at).getTime(),
+  )
   res.json(mine)
 })
 
@@ -4112,6 +4134,85 @@ app.get('/api/conversations', authMiddleware, async (req, res) => {
   res.json(mine)
 })
 
+app.post('/api/conversations', authMiddleware, async (req, res) => {
+  const body = req.body || {}
+  const channel = String(body.channel || '').trim()
+  if (!channel) return res.status(400).json({ error: 'channel is required' })
+
+  try {
+    let contact = null
+    if (body.new_contact && typeof body.new_contact === 'object') {
+      const nc = body.new_contact
+      const name = String(nc.name || '').trim()
+      if (!name) return res.status(400).json({ error: 'new_contact.name is required' })
+      const createdContact = await getOrCreateContact({
+        name,
+        phone: nc.phone || '',
+        email: nc.email || '',
+        assignedAgentId: req.user.id,
+        source: body.source || channel,
+        channel,
+      })
+      contact = createdContact.contact
+    } else if (body.contact_id) {
+      contact = await assertOwnsContact(req.user.id, String(body.contact_id).trim())
+    } else {
+      return res.status(400).json({ error: 'contact_id or new_contact is required' })
+    }
+
+    const { conversation, created } = await getOrCreateConversation({
+      contactId: contact.id,
+      channel,
+      source: body.source,
+      assignedAgentId: req.user.id,
+      subject: body.subject || '',
+    })
+
+    let message = null
+    let dispatch = null
+    const outboundBody = body.body != null ? String(body.body) : ''
+    const attachments = Array.isArray(body.attachments) ? body.attachments : []
+    if (outboundBody.trim() || attachments.length > 0) {
+      const sent = await sendOutboundMessage({
+        conversationId: conversation.id,
+        content: outboundBody,
+        contentType: 'text',
+        attachments,
+        sentByAgentId: req.user.id,
+        subject: body.subject,
+      })
+      message = sent.message
+      dispatch = sent.dispatch
+    }
+
+    const maskedContact = {
+      ...contact,
+      email: contact.email ? maskEmail(contact.email) : contact.email,
+      phone: contact.phone ? maskPhone(contact.phone) : contact.phone,
+    }
+
+    res.status(created ? 201 : 200).json({
+      ...withChannelSource(conversation),
+      created,
+      contact: maskedContact,
+      contact_email: conversation.contact_email
+        ? maskEmail(conversation.contact_email)
+        : conversation.contact_email,
+      contact_phone: conversation.contact_phone
+        ? maskPhone(conversation.contact_phone)
+        : conversation.contact_phone,
+      message,
+      dispatch,
+      template_id: body.template_id || null,
+    })
+  } catch (e) {
+    if (e?.status === 404 || e?.status === 403) {
+      return res.status(e.status).json({ error: e.message || 'Not found' })
+    }
+    res.status(400).json({ error: e.message || 'Failed to create conversation' })
+  }
+})
+
 app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
   const conversation = await assertOwnsConversation(req.user.id, req.params.id)
   const messages = (await findAll('conversation_messages', (m) => m.conversation_id === conversation.id))
@@ -4123,14 +4224,19 @@ app.get('/api/conversations/:id', authMiddleware, async (req, res) => {
 app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
   const conversation = await assertOwnsConversation(req.user.id, req.params.id)
   const content = String(req.body.content || '').trim()
-  if (!content) return res.status(400).json({ error: 'Message content is required' })
+  const imageUrl = req.body.image_url
+  const attachments = Array.isArray(req.body.attachments) ? req.body.attachments : []
+  if (!content && !imageUrl && attachments.length === 0) {
+    return res.status(400).json({ error: 'Message content is required' })
+  }
 
   try {
     const { message, dispatch } = await sendOutboundMessage({
       conversationId: conversation.id,
       content,
-      contentType: req.body.content_type || 'text',
-      imageUrl: req.body.image_url,
+      contentType: req.body.content_type || (imageUrl ? 'image' : 'text'),
+      imageUrl,
+      attachments,
       sentByAgentId: req.user.id,
       subject: req.body.subject,
     })
@@ -8343,7 +8449,24 @@ const startServer = async () => {
     logger.warn({ channels: unverifiableWebhookChannels }, 'Webhook channels are unverifiable until their secrets are configured')
   }
 
-  app.listen(port, () => {
+  const server = http.createServer(app)
+  attachInboxWebSocket(server, {
+    verifyAuth: async (token) => {
+      const decoded = verifyToken(token)
+      if (!decoded?.id) return null
+      const user = await findUserById(decoded.id)
+      if (!user) return null
+      return { id: user.id }
+    },
+  })
+  // Cross-instance inbox event delivery: every process LISTENs on the
+  // shared `inbox_events` channel, so a message processed by one instance
+  // reaches WebSocket clients attached to any other instance.
+  startInboxListener().catch((err) => {
+    logger.warn({ err: err?.message || String(err) }, 'inbox pg listener boot failed')
+  })
+
+  server.listen(port, () => {
     logger.info({
       port,
       env: NODE_ENV,
