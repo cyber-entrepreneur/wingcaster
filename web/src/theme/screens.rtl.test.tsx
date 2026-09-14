@@ -89,8 +89,11 @@ import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
 import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPage'
+import { SettingsHomePage } from '@/pages/settings/SettingsHomePage'
+import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import { StepUpProvider } from '@/components/mfa'
 import type { ComponentType } from 'react'
 
 const pages: Array<[string, ComponentType]> = [
@@ -115,6 +118,8 @@ const pages: Array<[string, ComponentType]> = [
   ['Social channels', SocialChannelsPage],
   ['Notification preferences', NotificationPreferencesPage],
   ['TOTP settings', TotpSettingsPage],
+  ['Settings home', SettingsHomePage],
+  ['Two-factor settings', TwoFactorSettingsPage],
   ['Integrations', IntegrationSettingsPage],
   ['Agency management', AgencyManagementPage],
   ['White-label', WhiteLabelBuilderPage],
@@ -147,7 +152,9 @@ function mount(Page: ComponentType) {
     <MemoryRouter>
       <BrandProvider>
         <ToastProvider>
-          <Page />
+          <StepUpProvider>
+            <Page />
+          </StepUpProvider>
         </ToastProvider>
       </BrandProvider>
     </MemoryRouter>,
