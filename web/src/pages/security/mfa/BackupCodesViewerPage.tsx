@@ -203,8 +203,13 @@ export function BackupCodesViewerPage() {
                 id="backup-codes-saved"
                 checked={saved}
                 onCheckedChange={(value) => setSaved(value === true)}
+                aria-labelledby="backup-codes-saved-label"
               />
-              <label htmlFor="backup-codes-saved" className="cursor-pointer leading-5">
+              <label
+                id="backup-codes-saved-label"
+                htmlFor="backup-codes-saved"
+                className="cursor-pointer leading-5"
+              >
                 I&apos;ve saved my backup codes somewhere safe.
               </label>
             </div>
