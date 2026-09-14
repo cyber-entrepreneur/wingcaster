@@ -36,6 +36,7 @@ const CHANNEL_ALIAS: Record<string, LcChannel> = {
   dubizzle: 'dubizzle',
   aqar: 'aqar',
   'aqar.fm': 'aqar',
+  bazaar: 'olx',
 }
 
 export const LC_CHANNEL_SHORT: Record<LcChannel, string> = {

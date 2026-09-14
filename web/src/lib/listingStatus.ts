@@ -77,3 +77,28 @@ export function normalizeStatus(raw: string | undefined | null): ListingStatus {
   console.warn(`[listingStatus] unknown status drift: ${JSON.stringify(raw)} — defaulting to draft`)
   return 'draft'
 }
+
+/**
+ * Map a UI-facing ListingStatus (draft / published / unpublished / underOffer /
+ * closed / archived) to the value the backend enum accepts on write.
+ * Backend enum (`backend/src/lib/validation.js`) accepts underOffer + closed
+ * directly after #148; the identity mapping for those is intentional.
+ */
+export function mapStatusToApi(status: string): string {
+  switch (status) {
+    case 'published':
+      return 'active'
+    case 'unpublished':
+      return 'unpublished'
+    case 'draft':
+      return 'draft'
+    case 'archived':
+      return 'archived'
+    case 'underOffer':
+      return 'underOffer'
+    case 'closed':
+      return 'closed'
+    default:
+      return status
+  }
+}

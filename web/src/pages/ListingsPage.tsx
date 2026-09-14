@@ -34,12 +34,13 @@ import { ListingFormModal } from '@/components/ListingFormModal'
 import {
   FabActionSheet,
   ListingCard,
-  ProListingsTable,
   StatusPill,
   ViewToggleGroup,
   type ListingCardProperty,
   type ViewMode,
 } from '@/components/listings'
+import { ProListingsTable } from '@/pages/agent/listings/ProListingsTable'
+import { useUiMode } from '@/hooks/useUiMode'
 import { cn } from '@/lib/utils'
 import type { Property } from '@/types'
 
@@ -121,27 +122,17 @@ function useMediaMin(px: number): boolean {
   return match
 }
 
-function readUiMode(): 'guided' | 'pro' {
-  try {
-    const raw = localStorage.getItem('wc.ui_mode')
-    if (raw === 'pro') return 'pro'
-  } catch {
-    /* ignore */
-  }
-  return 'guided'
-}
-
 export function ListingsPage() {
   const { agent, loading: authLoading } = useAuth()
   const { activeTenant } = useTenant()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { effectiveMode, isProCapable } = useUiMode()
   usePageTitle('Listings')
 
   const isDesktop = useMediaMin(1024)
   const isTabletPlus = useMediaMin(768)
-  const uiMode = readUiMode()
   const isAgency = activeTenant?.kind === 'agency'
   const agencyId = agencyIdFromTenant(activeTenant?.id)
 
@@ -154,6 +145,8 @@ export function ListingsPage() {
   )
   const [createOpen, setCreateOpen] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
+  /** Local override so Cards toggle can leave Pro table without changing server ui_mode. */
+  const [forceGuidedCards, setForceGuidedCards] = useState(false)
 
   const viewFromUrl = searchParams.get('view') as ViewMode | null
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
@@ -190,6 +183,10 @@ export function ListingsPage() {
   )
 
   useEffect(() => {
+    if (searchParams.get('create') === '1') setCreateOpen(true)
+  }, [searchParams])
+
+  useEffect(() => {
     const onOff = () => setOffline(!navigator.onLine)
     window.addEventListener('online', onOff)
     window.addEventListener('offline', onOff)
@@ -198,6 +195,11 @@ export function ListingsPage() {
       window.removeEventListener('offline', onOff)
     }
   }, [])
+
+  const wantTable =
+    !forceGuidedCards &&
+    isProCapable &&
+    (effectiveMode === 'pro' || searchParams.get('view') === 'table')
 
   useEffect(() => {
     if (authLoading) return
@@ -256,7 +258,10 @@ export function ListingsPage() {
       if (!isAgency) {
         params.agentId = agent!.id
       }
-      const data = await api.getProperties(params)
+      const [data, inquiries] = await Promise.all([
+        api.getProperties(params),
+        api.getInquiries({ limit: '200' }).catch(() => ({ items: [] })),
+      ])
       let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
 
       if (isAgency && agencyId) {
@@ -273,7 +278,23 @@ export function ListingsPage() {
         rows = rows.filter((r) => r.agent_id === agent!.id)
       }
 
-      setTenantListings(rows)
+      const inquiryItems = Array.isArray((inquiries as { items?: unknown[] })?.items)
+        ? (inquiries as { items: Array<{ property_id?: string }> }).items
+        : Array.isArray(inquiries)
+          ? (inquiries as Array<{ property_id?: string }>)
+          : []
+      const inquiryCounts = new Map<string, number>()
+      for (const inq of inquiryItems) {
+        if (!inq?.property_id) continue
+        inquiryCounts.set(inq.property_id, (inquiryCounts.get(inq.property_id) || 0) + 1)
+      }
+
+      setTenantListings(
+        rows.map((row) => ({
+          ...row,
+          inquiry_count: row.inquiry_count ?? inquiryCounts.get(row.id) ?? 0,
+        })),
+      )
     } catch (err: unknown) {
       addToast({
         title: "We couldn't load your listings. Try again?",
@@ -384,8 +405,6 @@ export function ListingsPage() {
     syncParams({ view: mode })
   }
 
-  const showProTable = uiMode === 'pro' && isTabletPlus && viewMode === 'list'
-
   const showInitialSkeleton = (authLoading || loading) && tenantListings.length === 0
 
   if (showInitialSkeleton) {
@@ -420,6 +439,36 @@ export function ListingsPage() {
         <Link to="/login" className="mt-4 inline-block">
           <Button>Sign in</Button>
         </Link>
+      </div>
+    )
+  }
+
+  // AGT-LST-002 Pro table — only at ≥768px; `?view=table` ignored below that.
+  if (wantTable) {
+    return (
+      <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+        <ProListingsTable
+          listings={filtered}
+          totalCount={listings.length}
+          showOwnerColumn={activeTenant?.kind === 'agency'}
+          onCreate={() => setCreateOpen(true)}
+          onRefresh={() => void loadListings()}
+          onShowCards={() => {
+            setForceGuidedCards(true)
+            if (searchParams.get('view') === 'table') {
+              const next = new URLSearchParams(searchParams)
+              next.delete('view')
+              setSearchParams(next, { replace: true })
+            }
+          }}
+        />
+        {createOpen && (
+          <ListingFormModal
+            open={createOpen}
+            onClose={() => setCreateOpen(false)}
+            onSaved={() => { setCreateOpen(false); loadListings() }}
+          />
+        )}
       </div>
     )
   }
@@ -737,8 +786,6 @@ export function ListingsPage() {
             syncParams({ status: null, type: null, area: null, price: null, q: null })
           }}
         />
-      ) : showProTable ? (
-        <ProListingsTable items={filtered} onOpen={(id) => navigate(`/listings/${id}`)} />
       ) : viewMode === 'card' ? (
         <CardGrid
           items={filtered}

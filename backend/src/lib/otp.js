@@ -10,9 +10,10 @@ import { sendPlatformNotification } from '../notifications/platform-templates/in
  * email in the admin UI without a code change. Each purpose has its own
  * template code so signin and step-up wording stays independent:
  *
- *   signup   → template code 'signup_otp'
- *   signin   → 'signin_otp'
- *   stepup   → 'stepup_otp'
+ *   signup                      → template code 'signup_otp'
+ *   signin                      → 'signin_otp'
+ *   stepup                      → 'stepup_otp'
+ *   ownership_transfer_initiate → 'ownership_transfer_otp'
  *
  * Only signup_otp is seeded by migration 044; signin_otp and stepup_otp
  * fall through to the hardcoded fallback below until an admin creates
@@ -48,7 +49,9 @@ function fallbackOtpCopy({ code, purpose }) {
     ? 'Use this code to finish signing in:'
     : purpose === 'stepup'
       ? 'Use this code to approve the requested action:'
-      : 'Use this code to verify your Wingcaster account:'
+      : purpose === 'ownership_transfer_initiate'
+        ? 'Use this code to confirm the ownership transfer:'
+        : 'Use this code to verify your Wingcaster account:'
   return {
     subject: `Your Wingcaster verification code: ${code}`,
     text: `${purposeLine}\n\n    ${code}\n\nThis code expires in 10 minutes. If you did not request it, you can ignore this email.`,
@@ -64,6 +67,7 @@ function fallbackOtpCopy({ code, purpose }) {
 function templateCodeFor(purpose) {
   if (purpose === 'signin') return 'signin_otp'
   if (purpose === 'stepup') return 'stepup_otp'
+  if (purpose === 'ownership_transfer_initiate') return 'ownership_transfer_otp'
   return 'signup_otp'
 }
 
@@ -117,7 +121,7 @@ async function sendEmailOtp({ contact, code, purpose }) {
  * @param {'email'|'gmail'|'whatsapp'|'facebook'} args.channel
  * @param {string} args.contact - destination address/handle
  * @param {string} args.code - the OTP itself
- * @param {'signup'|'signin'|'stepup'} [args.purpose] - shapes the copy
+ * @param {'signup'|'signin'|'stepup'|'ownership_transfer_initiate'} [args.purpose] - shapes the copy
  * @returns {Promise<{delivered: true, channel: string, provider: string}>}
  */
 export async function sendOtp({ channel, contact, code, purpose = 'signup' }) {

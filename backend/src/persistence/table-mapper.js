@@ -77,6 +77,15 @@ const TABLE_MAP = {
       'agency_id', 'code', 'created_by', 'expires_at', 'single_use', 'used_at', 'revoked_at',
     ],
   },
+  ownership_transfer_requests: {
+    schema: 'public',
+    table: 'ownership_transfer_requests',
+    columns: [
+      'agency_id', 'initiator_user_id', 'target_user_id', 'status', 'rationale', 'decline_reason',
+      'initiated_at', 'expires_at', 'decided_at', 'executed_at', 'reversed_at', 'reversal_deadline_at',
+      'acknowledged_by_initiator', 'acknowledged_by_target', 'acknowledged_at',
+    ],
+  },
   agency_members: {
     schema: 'public',
     table: 'agency_members',

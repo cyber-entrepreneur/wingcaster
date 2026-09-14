@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -285,7 +286,7 @@ export function StepMedia({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >

@@ -75,6 +75,7 @@ export interface Property {
   featured: boolean | number
   views: number
   status?: string
+  inquiry_count?: number
   offers?: Array<Partial<Property>>
   /** Optional Wave-8+ list fields — degrade gracefully when absent. */
   inquiries_new_count?: number
@@ -85,6 +86,7 @@ export interface Property {
   syndications?: Array<{
     channel: string
     status: string
+    portal?: string
     last_synced_at?: string
     error?: string
     url?: string
