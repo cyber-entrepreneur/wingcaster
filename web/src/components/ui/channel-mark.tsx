@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
-import { lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
+import { channelLabel } from '@/lib/inbox-labels'
+import { LC_CHANNEL_SHORT, lcChannelStyle, resolveLcChannel, type LcChannel } from '@/theme/channel'
 
 interface ChannelMarkProps {
   channel: string | LcChannel
@@ -9,20 +10,34 @@ interface ChannelMarkProps {
 
 /** Channel chips, dots, and 20–28px marks only — never large surfaces or body text. */
 export function ChannelMark({ channel, className, label }: ChannelMarkProps) {
-  const resolved = resolveLcChannel(channel)
-  if (!resolved) return null
-  const style = lcChannelStyle(resolved)
+  const raw = String(channel || '').trim()
+  const resolved = resolveLcChannel(raw)
+  const display = label || channelLabel(raw) || raw || 'Channel'
+  const mark = resolved
+    ? label
+      ? label.slice(0, 2).toUpperCase()
+      : LC_CHANNEL_SHORT[resolved]
+    : display.slice(0, 2).toUpperCase()
+  const style = resolved
+    ? lcChannelStyle(resolved)
+    : {
+        background: 'var(--lc-surface-sunken)',
+        color: 'var(--lc-text-muted)',
+      }
+
   return (
     <span
       className={cn(
-        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[10px] font-semibold uppercase',
+        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--lc-radius-sm)]',
+        'border border-[var(--lc-border)] text-[10px] font-semibold uppercase',
         className,
       )}
       style={style}
-      title={label || resolved}
-      aria-label={label || resolved}
+      title={display}
+      aria-label={display}
+      data-channel={raw || resolved || 'unknown'}
     >
-      {label ? label.slice(0, 2) : resolved.slice(0, 2)}
+      {mark}
     </span>
   )
 }

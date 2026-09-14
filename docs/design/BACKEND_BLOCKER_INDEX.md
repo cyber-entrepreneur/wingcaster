@@ -69,9 +69,9 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-04 — `conversations.source_channel` decomposition
 
-**Slot:** Week 4 · **Est:** 3-5 days · **Status:** Wave 0.5 dispatched
+**Slot:** Week 4 · **Est:** 3-5 days · **Status:** UI-CONSUMED · **Backend merge:** Wave 0.5 `feat/be-source-channel-split` · **UI:** Wave 8 `feat/wave-8-inbox` (AGT-INB-001/002 dual-read + dual-badge)
 **Unblocks:** AGT-INB-001/002/005, AGN-ROU-002, AGT-CTC-002, AGT-LST-006, AGN-REP-002/003, AGT-ONB-004
-**File(s):** new migration + 8 code-site updates with dual-read fallback
+**File(s):** migration 318 + dual-read helpers (`backend/src/conversations/channel-source.js`, `web/src/lib/channel-source.ts`) + inbox/command-center UI consumers
 
 ### BE-BLOCKER-05 — Agency free-tier package seed
 

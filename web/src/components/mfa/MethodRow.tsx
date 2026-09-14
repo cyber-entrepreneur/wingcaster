@@ -14,6 +14,8 @@ export interface MethodRowProps {
   /** Accessible name for the action (include row context). */
   actionAriaLabel?: string
   onAction?: () => void
+  /** Replace the default Manage button (e.g. a dropdown trigger). */
+  action?: ReactNode
   /** Visual emphasis for warning / empty backup-code states. */
   tone?: 'default' | 'warning' | 'danger'
   className?: string
@@ -24,7 +26,6 @@ export interface MethodRowProps {
  * Reusable settings method row: icon + label + meta + Manage ghost button.
  *
  * Used by: SHR-MFA-001 methods list; reused by SHR-SET-004 (sessions/devices).
- * Stub visual only.
  */
 export function MethodRow({
   icon,
@@ -33,6 +34,7 @@ export function MethodRow({
   actionLabel = 'Manage',
   actionAriaLabel,
   onAction,
+  action,
   tone = 'default',
   className,
   children,
@@ -40,7 +42,7 @@ export function MethodRow({
   return (
     <div
       className={cn(
-        'flex items-center gap-[var(--lc-space-md)] border-b border-[var(--lc-border)]',
+        'flex min-h-16 items-center gap-[var(--lc-space-md)] border-b border-[var(--lc-border)]',
         'px-[var(--lc-space-md)] py-[var(--lc-space-md)] last:border-b-0',
         tone === 'warning' && 'bg-[var(--lc-status-warning-bg)] text-[var(--lc-status-warning-fg)]',
         tone === 'danger' && 'bg-[var(--lc-status-danger-bg)] text-[var(--lc-status-danger-fg)]',
@@ -71,17 +73,18 @@ export function MethodRow({
         {children}
       </div>
 
-      {onAction ? (
-        <Button
-          type="button"
-          variant={tone === 'default' ? 'ghost' : 'outline'}
-          size="sm"
-          onClick={onAction}
-          aria-label={actionAriaLabel ?? `${actionLabel} ${label}`}
-        >
-          {actionLabel}
-        </Button>
-      ) : null}
+      {action ??
+        (onAction ? (
+          <Button
+            type="button"
+            variant={tone === 'default' ? 'ghost' : 'outline'}
+            size="sm"
+            onClick={onAction}
+            aria-label={actionAriaLabel ?? `${actionLabel} ${label}`}
+          >
+            {actionLabel}
+          </Button>
+        ) : null)}
     </div>
   )
 }
