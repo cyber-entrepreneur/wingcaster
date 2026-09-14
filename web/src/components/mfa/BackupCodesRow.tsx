@@ -19,7 +19,6 @@ export interface BackupCodesRowProps {
  *
  * Used by: SHR-MFA-001. Composes `<MethodRow>` + `<Numeric>`.
  * Invariant: ≤ `warningThreshold` → warning tone; `0` → danger tone.
- * Stub visual only.
  */
 export function BackupCodesRow({
   remaining,
@@ -35,7 +34,7 @@ export function BackupCodesRow({
     remaining <= 0 ? (
       <span className="inline-flex items-center gap-1">
         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-        You have no backup codes left. Regenerate now.
+        You have no backup codes left. If you lose your authenticator, you won&apos;t be able to sign in.
       </span>
     ) : remaining <= warningThreshold ? (
       <span className="inline-flex items-center gap-1">

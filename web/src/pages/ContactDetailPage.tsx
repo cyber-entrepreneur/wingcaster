@@ -166,7 +166,12 @@ export function ContactDetailPage() {
             <h1 className="text-2xl font-bold">{contact.name || 'Unknown'}</h1>
             <p className="text-sm text-muted-foreground">Source: {contact.source || contact.first_touch_channel}</p>
           </div>
-          <Link to="/dashboard/inbox"><Button variant="outline">Open inbox</Button></Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to={`/contacts/${contact.id}/relationships`}>
+              <Button variant="outline">Relationships</Button>
+            </Link>
+            <Link to="/dashboard/inbox"><Button variant="outline">Open inbox</Button></Link>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">

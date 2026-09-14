@@ -91,6 +91,7 @@ import {
   PortalStatusPill,
 } from '@/components/portals'
 import { ChannelMark } from '@/components/ui/channel-mark'
+import { SourceMark } from '@/components/ui/source-mark'
 import {
   PIIMask,
   TwoPersonProgress,
@@ -516,6 +517,10 @@ export function ComponentInventoryPage() {
             ))}
             <ChannelMark channel="whatsapp" />
             <ChannelMark channel="email" />
+            <ChannelMark channel="instagram_dm" />
+            <SourceMark source="bayut" />
+            <SourceMark source="property_finder" compact />
+            <SourceMark source="direct" />
           </div>
           <AggregateOutcomeHero
             aggregate="mixed"

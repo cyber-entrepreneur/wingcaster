@@ -8,6 +8,7 @@
  *
  * `<PortalStatusPill>` lives under `components/ui/` (shared elevated primitive).
  * `<ChannelMark>` already ships at `components/ui/channel-mark.tsx`.
+ * `<SourceMark>` ships at `components/ui/source-mark.tsx` (AGT-INB-005 dual-badge).
  */
 
 export { PortalReceiptCard } from './PortalReceiptCard'
@@ -32,3 +33,6 @@ export {
   type PortalStatus,
   type PortalStatusPillProps,
 } from '@/components/ui/portal-status-pill'
+
+export { ChannelMark } from '@/components/ui/channel-mark'
+export { SourceMark } from '@/components/ui/source-mark'
