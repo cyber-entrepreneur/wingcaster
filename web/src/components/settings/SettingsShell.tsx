@@ -8,6 +8,7 @@ export interface SettingsShellProps {
   /**
    * Right-pane content (desktop) / full-screen child (mobile detail).
    * Pass `<Outlet />` from the layout route, or any stub children.
+   * Children mount **once** — see `data-settings-pane`.
    */
   children?: ReactNode
   /** Capability-scoped nav groups driving sidebar + mobile cards. */
@@ -38,6 +39,7 @@ export interface SettingsShellProps {
   /** Sticky mobile search slot rendered above the card list. */
   mobileSearch?: ReactNode
   searchInputRef?: Ref<HTMLInputElement>
+  onSearchSubmit?: () => void
   /**
    * Mobile layout mode. `list` = grouped cards (settings home);
    * `detail` = full-screen child pane (SHR-SET-002/003/004/005).
@@ -57,8 +59,9 @@ export interface SettingsShellProps {
  * mobile ≤767px grouped-cards (no sidebar). Right pane hosts either the SHR-SET-001
  * anchor dashboard (`/settings` exact) or a child route (SHR-SET-002/003/004/005).
  *
- * Stub: renders `children` in the outlet slot; no route registration required.
- * Viewport switch is CSS (`md:`) — Wave-4 can swap to `useMediaQuery` when available.
+ * **Pane contract:** `{children}` mounts once inside `<main data-settings-pane>`.
+ * The attribute value is `"desktop"` (default / list) or `"mobile"` (detail).
+ * Dialogs and MFA hosts must render inside this pane — never sniff a duplicate copy.
  *
  * Used by: SHR-SET-001 (anchor) + SHR-SET-002/003/004/005 (right-pane content only).
  *
@@ -80,10 +83,13 @@ export function SettingsShell({
   mobileNav,
   mobileSearch,
   searchInputRef,
+  onSearchSubmit,
   mobileView = 'list',
   contentId = 'settings-content',
   className,
 }: SettingsShellProps) {
+  const isMobileDetail = mobileView === 'detail'
+
   const defaultSidebar = (
     <SettingsSidebar
       title={title}
@@ -96,6 +102,7 @@ export function SettingsShell({
       emptyState={emptyState}
       footer={footer}
       searchInputRef={searchInputRef}
+      onSearchSubmit={onSearchSubmit}
     />
   )
 
@@ -110,6 +117,7 @@ export function SettingsShell({
         className,
       )}
       data-settings-shell
+      data-settings-mobile-view={mobileView}
     >
       <a
         href={`#${contentId}`}
@@ -123,42 +131,34 @@ export function SettingsShell({
         Skip to settings content
       </a>
 
-      {/* Desktop / tablet ≥768px */}
       <div
         className={cn(
-          'mx-auto hidden max-w-[1200px] md:grid',
-          'grid-cols-[240px_minmax(640px,960px)] gap-[var(--lc-space-2xl)]',
-          'px-[var(--lc-space-2xl)] pt-[var(--lc-space-4xl)]',
+          'mx-auto max-w-[1200px]',
+          'md:grid md:grid-cols-[240px_minmax(640px,960px)] md:gap-[var(--lc-space-2xl)]',
+          'md:px-[var(--lc-space-2xl)] md:pt-[var(--lc-space-4xl)]',
         )}
       >
-        <div className="sticky top-0 self-start" style={{ maxHeight: '100vh' }}>
+        <div className="sticky top-0 hidden self-start md:block" style={{ maxHeight: '100vh' }}>
           {sidebar ?? defaultSidebar}
         </div>
+
+        <div className={cn('flex flex-col md:hidden', isMobileDetail && 'hidden')}>
+          {mobileSearch}
+          <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
+        </div>
+
         <main
           id={contentId}
-          className="min-w-0 transition-opacity duration-[var(--lc-duration-base)]"
-          data-settings-pane
+          data-settings-pane={isMobileDetail ? 'mobile' : 'desktop'}
+          className={cn(
+            'min-w-0 transition-opacity duration-[var(--lc-duration-base)]',
+            isMobileDetail
+              ? 'block px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)] md:px-0 md:pb-0 md:pt-0'
+              : 'hidden md:block',
+          )}
         >
           {children}
         </main>
-      </div>
-
-      {/* Mobile ≤767px — list = grouped cards; detail = full-screen child pane. */}
-      <div className="flex flex-col md:hidden">
-        {mobileView === 'list' ? (
-          <>
-            {mobileSearch}
-            <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
-          </>
-        ) : (
-          <main
-            id={`${contentId}-mobile`}
-            className="min-w-0 px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)]"
-            data-settings-pane-mobile
-          >
-            {children}
-          </main>
-        )}
       </div>
     </div>
   )
