@@ -648,6 +648,8 @@ export function registerWave0NavRoutes(app, deps) {
     const session = await buildAuthSession(user, agent, {
       activeTenantId: tenantId,
       env: fromAnyEnv(req.user.env),
+      req,
+      reuseSessionId: req.user?.session_id || req.user?.jti,
     })
     res.json(session)
   })
@@ -786,6 +788,8 @@ export function registerWave0NavRoutes(app, deps) {
       const session = await buildAuthSession(refreshed, agent, {
         env: target,
         activeTenantId: await resolveActiveTenantId(refreshed),
+        req,
+        reuseSessionId: req.user?.session_id || req.user?.jti,
       })
       req.user = { ...req.user, env: target, fin_environment: toFinEnvironment(target) }
       req.sessionEnv = target
@@ -913,6 +917,7 @@ export function registerWave0NavRoutes(app, deps) {
     const session = await buildAuthSession(user, agent, {
       activeTenantId: await resolveActiveTenantId(user),
       env: fromAnyEnv(user.env || user.fin_environment),
+      req,
     })
     res.json(session)
   })

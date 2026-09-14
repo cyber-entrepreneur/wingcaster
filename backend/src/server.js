@@ -14,7 +14,7 @@ import multer from 'multer'
 import { loadDb, getDb, findAll, findOne, insert, remove, update, transaction } from './db.js'
 import { getPool, query } from './persistence/postgres-adapter.js'
 import { seedData } from './seed.js'
-import { signToken, authMiddleware, requireElevated, verifyToken } from './auth.js'
+import { signToken, authMiddleware, requireElevated, verifyToken, issueAuthToken } from './auth.js'
 import { isPlatformAdmin, requirePlatformAdmin } from './lib/auth-guards.js'
 import {
   castVote,
@@ -205,6 +205,8 @@ import {
   processPendingNotificationRetries,
 } from './lib/notifications/dispatch.js'
 import { registerPushTokenRoutes } from './lib/notifications/push-routes.js'
+import { registerSessionRoutes } from './lib/auth/session-routes.js'
+import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
 import { attachInboxWebSocket } from './ws/inbox.js'
@@ -757,6 +759,7 @@ registerCreditRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
+registerSessionRoutes(app)
 registerSettingsIndexRoutes(app, { authMiddleware })
 registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
@@ -1226,26 +1229,21 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
  * identical response shape to /api/auth/login — the frontend must not care
  * which of the two produced its session.
  */
-async function buildAuthSession(user, agent, { activeTenantId = null, env = null } = {}) {
+async function buildAuthSession(user, agent, { activeTenantId = null, env = null, req = null, reuseSessionId = null } = {}) {
   const affiliation = await getActiveAffiliation(user.id)
   const agency = affiliation ? await findOne('agencies', a => a.id === affiliation.agency_id) : null
   const affiliations = await listUserAgencyMemberships(user.id)
-  const tokenVersion = Number(user.token_version ?? 0)
   const resolvedTenantId = activeTenantId
     || user.active_tenant_id
     || personalTenantId(user.id)
   const resolvedEnv = normalizeClientEnv(env ?? fromAnyEnv(user.env || user.fin_environment))
   return {
-    token: signToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      token_version: tokenVersion,
+    token: await issueAuthToken(user, {
       verified_at: user.verified_at,
       active_tenant_id: resolvedTenantId,
       env: resolvedEnv,
       fin_environment: resolvedEnv === 'test' ? 'TEST' : 'LIVE',
-    }),
+    }, { req, reuseSessionId }),
     agent: {
       ...serializeAgent(agent),
       role: user.role,
@@ -1287,7 +1285,7 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
     return res.json({ status: '2fa_required', challenge_id: challenge.id, method: challenge.method })
   }
 
-  res.json(await buildAuthSession(user, agent))
+  res.json(await buildAuthSession(user, agent, { req }))
 })
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -1450,6 +1448,7 @@ app.post('/api/auth/password/reset', validate(passwordResetSchema), async (req, 
     token_version: nextTokenVersion,
     password_changed_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id)
 
   await markRecoveryTokenUsed(recovery.id, { ip: req.ip, flow: 'password_reset' })
   await revokeOutstandingRecoveryTokens(user.id, 'password_reset_completed')
@@ -1487,6 +1486,7 @@ app.post('/api/auth/password/change', authMiddleware, requireElevated(), validat
     token_version: nextTokenVersion,
     password_changed_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id, { exceptId: sessionIdFromToken(req.user) })
   await revokeOutstandingRecoveryTokens(user.id, 'password_changed')
 
   await logActivity({
@@ -1496,14 +1496,12 @@ app.post('/api/auth/password/change', authMiddleware, requireElevated(), validat
   })
 
   const refreshedUser = await findUserById(user.id)
-  const newToken = signToken({
-    id: refreshedUser.id,
-    email: refreshedUser.email,
-    name: refreshedUser.name,
-    token_version: Number(refreshedUser.token_version ?? 0),
-  })
+  const agent = await findAgentForUser(user.id)
+  const session = agent
+    ? await buildAuthSession(refreshedUser, agent, { req, reuseSessionId: sessionIdFromToken(req.user) })
+    : { token: await issueAuthToken(refreshedUser, {}, { req, reuseSessionId: sessionIdFromToken(req.user) }) }
 
-  res.json({ success: true, token: newToken, message: 'Password changed successfully.' })
+  res.json({ success: true, token: session.token, message: 'Password changed successfully.' })
 })
 
 app.post('/api/auth/recovery/request', validate(accountRecoveryRequestSchema), async (req, res) => {
@@ -1591,6 +1589,7 @@ app.post('/api/auth/recovery/complete', validate(accountRecoveryCompleteSchema),
     password_changed_at: new Date().toISOString(),
     compromised_session_reset_at: new Date().toISOString(),
   })
+  await revokeUserSessions(user.id)
 
   await markRecoveryTokenUsed(consumed.record.id, { ip: req.ip, flow: 'account_recovery' })
   await revokeOutstandingRecoveryTokens(user.id, 'account_recovery_completed')
@@ -1717,13 +1716,7 @@ app.post('/api/auth/verify-otp', validate(otpVerifySchema), async (req, res) => 
   })
 
   res.json({
-    token: signToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      token_version: Number(user.token_version ?? 0),
-      verified_at: result.verifiedAt,
-    }),
+    token: await issueAuthToken(user, { verified_at: result.verifiedAt }, { req }),
     verified: true,
   })
 })
