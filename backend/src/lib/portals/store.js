@@ -58,6 +58,67 @@ function portalSnapshot(row) {
   }
 }
 
+
+function sameJson(a, b) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
+function sameCountryCodes(a, b) {
+  const norm = (xs) => JSON.stringify([...(xs || [])].map(String).sort())
+  return norm(a) === norm(b)
+}
+
+function slaHoursOf(config) {
+  const v = config?.sla_hours
+  return v == null || v === '' ? null : Number(v)
+}
+
+function publisherConfigWithoutSla(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return config || {}
+  const { sla_hours: _sla, ...rest } = config
+  return rest
+}
+
+/** Map portal field diffs to PA-POR-003 history event types (may be multiple). */
+export function portalUpdateHistoryEventTypes(before, after) {
+  const events = []
+  if (String(before?.adapter_class_name || '') !== String(after?.adapter_class_name || '')) {
+    events.push('adapter_upgraded')
+  }
+  if (slaHoursOf(before?.publisher_config) !== slaHoursOf(after?.publisher_config)) {
+    events.push('sla_changed')
+  }
+  if (!sameCountryCodes(before?.country_codes, after?.country_codes)) {
+    events.push('country_coverage_changed')
+  }
+  if (String(before?.validator_ref || '') !== String(after?.validator_ref || '')) {
+    events.push('validator_ruleset_changed')
+  }
+
+  const pubSansSlaChanged = !sameJson(
+    publisherConfigWithoutSla(before?.publisher_config),
+    publisherConfigWithoutSla(after?.publisher_config),
+  )
+  const inboundChanged = !sameJson(before?.inbound_config, after?.inbound_config)
+  if (pubSansSlaChanged || inboundChanged) {
+    events.push('publisher_config_changed')
+  } else {
+    const metaChanged =
+      before?.display_name !== after?.display_name
+      || before?.description !== after?.description
+      || before?.logo_url !== after?.logo_url
+      || before?.primary_language !== after?.primary_language
+    if (metaChanged && events.length === 0) {
+      events.push('publisher_config_changed')
+    }
+  }
+
+  if (events.length === 0) {
+    events.push('publisher_config_changed')
+  }
+  return events
+}
+
 async function insertVersionRow(clientOrNull, portal, createdByUserId) {
   const run = clientOrNull
     ? (sql, params) => clientOrNull.query(sql, params).then((r) => r.rows)
@@ -270,18 +331,24 @@ export async function updatePortal(code, body, { actorId } = {}) {
     )
     const updated = updatedQ.rows[0]
     await insertVersionRow(client, updated, actorId)
-    await client.query(
-      `INSERT INTO public.portal_activation_history (
-         portal_code, event_type, submitter_user_id, notes, before_json, after_json
-       ) VALUES ($1,'publisher_config_changed',$2,$3,$4::jsonb,$5::jsonb)`,
-      [
-        code,
-        actorId || null,
-        'registry version bump',
-        JSON.stringify(portalSnapshot(portal)),
-        JSON.stringify(portalSnapshot(updated)),
-      ],
-    )
+    const beforeSnap = portalSnapshot(portal)
+    const afterSnap = portalSnapshot(updated)
+    const eventTypes = portalUpdateHistoryEventTypes(beforeSnap, afterSnap)
+    for (const eventType of eventTypes) {
+      await client.query(
+        `INSERT INTO public.portal_activation_history (
+           portal_code, event_type, submitter_user_id, notes, before_json, after_json
+         ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)`,
+        [
+          code,
+          eventType,
+          actorId || null,
+          'registry version bump',
+          JSON.stringify(beforeSnap),
+          JSON.stringify(afterSnap),
+        ],
+      )
+    }
     return updated
   })
 }

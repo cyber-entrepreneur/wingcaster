@@ -223,7 +223,7 @@ export const propertyCreateSchema = z.object({
   permissible_buildup_area: z.coerce.number().nonnegative().max(1000000).optional().nullable().default(null),
   developed_by: z.string().max(120).optional().default(''),
   interior_design_by: z.string().max(120).optional().default(''),
-  status: z.enum(['active', 'draft', 'sold', 'rented', 'withdrawn', 'expired', 'hold', 'unpublished']).optional().default('active'),
+  status: z.enum(['active', 'draft', 'sold', 'rented', 'withdrawn', 'expired', 'hold', 'unpublished', 'archived', 'published', 'underOffer', 'closed']).optional().default('active'),
   permit_number: z.string().max(80).optional().default(''),
   reference: z.string().max(80).optional().default(''),
   featured: z.boolean().optional().default(false),
@@ -362,6 +362,9 @@ export const propertyQuerySchema = z.object({
   propertyType: z.string().max(60).optional(),
   property_type: z.string().max(60).optional(),
   include_unsyndicated: z.string().max(10).optional(),
+  agent_id: z.string().max(80).optional(),
+  tenant_id: z.string().max(80).optional(),
+  owning_agent: z.string().max(80).optional(),
 })
 
 export const notificationPrefsUpdateSchema = z.object({
