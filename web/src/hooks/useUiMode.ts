@@ -47,6 +47,8 @@ export interface UseUiModeResult {
    */
   effectiveMode: UiMode
   isProCapable: boolean
+  /** Convenience: true when the Pro surface should render (effectiveMode === 'pro'). */
+  shouldRenderPro: boolean
   loading: boolean
   switching: boolean
   setMode: (next: UiMode) => Promise<PersistUiModeResult>
@@ -109,6 +111,7 @@ export function useUiMode(options?: { forceProCapable?: boolean }): UseUiModeRes
     mode,
     effectiveMode,
     isProCapable,
+    shouldRenderPro: effectiveMode === 'pro',
     loading: Boolean(agent) && (authLoading || tenantLoading),
     switching,
     setMode,

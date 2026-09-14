@@ -1971,6 +1971,49 @@ export const api = {
       prorate,
     }),
   }),
+
+  // Contact relationships (BE-BLOCKER-36) — used by RelationshipsEditorPage.
+  getContactRelationshipsMine: (contactId: string) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/mine`),
+  getContactRelationshipsOther: (contactId: string) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships/other`),
+  createContactRelationship: (contactId: string, data: Record<string, unknown>) =>
+    fetchJson(`/contacts/${encodeURIComponent(contactId)}/relationships`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateContactRelationship: (
+    contactId: string,
+    relationshipId: string,
+    data: Record<string, unknown>,
+  ) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
+  deleteContactRelationship: (contactId: string, relationshipId: string) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}`,
+      { method: 'DELETE' },
+    ),
+  resendRelationshipConsentLink: (contactId: string, relationshipId: string) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/relationships/${encodeURIComponent(relationshipId)}/resend-consent-link`,
+      { method: 'POST', body: '{}' },
+    ),
+  /** Public, token-authed — pass token only; never authorize from other query params. */
+  getPublicRelationshipConsent: (token: string) =>
+    fetchJson(`/public/relationships/consent?token=${encodeURIComponent(token)}`),
+  acceptPublicRelationshipConsent: (token: string) =>
+    fetchJson('/public/relationships/consent/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  rejectPublicRelationshipConsent: (token: string) =>
+    fetchJson('/public/relationships/consent/reject', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
 }
 
 export interface FeatureQuota {
