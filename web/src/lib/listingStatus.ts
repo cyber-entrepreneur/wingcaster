@@ -82,7 +82,7 @@ export function normalizeStatus(raw: string | undefined | null): ListingStatus {
  * Map a UI-facing ListingStatus (draft / published / unpublished / underOffer /
  * closed / archived) to the value the backend enum accepts on write.
  * Backend enum (`backend/src/lib/validation.js`) accepts underOffer + closed
- * directly after #148; the identity mapping for those is intentional.
+ * directly after Wave 8 Pro; the identity mapping for those is intentional.
  */
 export function mapStatusToApi(status: string): string {
   switch (status) {
