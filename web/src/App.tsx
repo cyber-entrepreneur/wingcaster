@@ -21,6 +21,7 @@ import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
@@ -128,6 +129,7 @@ function AppRoutes() {
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
+      <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
       <Route path="/campaigns" element={<CampaignsPage />} />

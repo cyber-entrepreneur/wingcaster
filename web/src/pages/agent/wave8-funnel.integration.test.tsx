@@ -549,11 +549,12 @@ describe('Wave 8 funnel — listing composer publish path', () => {
     await waitFor(() => {
       expect(apiMocks.createProperty).toHaveBeenCalled()
     })
-    // No Wave-8 receipt screen yet — assert publish success navigates to listing detail.
+    // AGT-PUB-003 / WF-03: publish success navigates to the outcome receipt.
     await waitFor(() => {
-      expect(screen.getByTestId('location-probe').textContent).toBe('/listings/prop_funnel')
+      expect(screen.getByTestId('location-probe').textContent).toBe(
+        '/publish/outcome/prop_funnel',
+      )
     })
-    expect(screen.getByTestId('listing-detail')).toBeInTheDocument()
     expect(addToast).toHaveBeenCalledWith(
       expect.objectContaining({ title: expect.stringMatching(/Published/i) }),
     )
