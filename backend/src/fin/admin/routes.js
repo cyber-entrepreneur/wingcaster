@@ -33,7 +33,7 @@ import { applyPayment, recordPayment, reversePayment } from '../billing/payment-
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
-import { executeApproval, rejectApproval } from './approvals/execute.js'
+import { executeApproval } from './approvals/execute.js'
 import {
   ApprovalActionError,
   escalateApproval,
@@ -338,19 +338,13 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     })
   }))
 
-  app.post('/api/admin/fin/approvals/:id/reject', writeGuards, wrap(async (req, res) => {
-    const body = commandBody(req)
-    const result = await rejectApproval({
-      approvalId: req.params.id,
-      environment: sessionEnvironment(req),
-      callerId: req.user?.id || null,
-      expectedVersion: req.expectedVersion,
-      now: req.fin.now,
-      actorType: 'USER',
-      actorEmail: req.user?.email || 'admin@fin.local',
-      reasonCode: pick(body, 'reason_code', 'reasonCode') || 'ADMIN_REJECT',
+  app.post('/api/admin/fin/approvals/:id/reject', writeGuards, wrap(async (_req, res) => {
+    return res.status(410).json({
+      code: 'USE_EXECUTE',
+      error: 'USE_EXECUTE',
+      message: 'POST /api/admin/fin/approvals/:id/reject is retired. Use POST .../execute (BE-APR-EXEC-01).',
+      dl: 'DL-166',
     })
-    return res.status(200).json(result)
   }))
 
   // BE-BLOCKER-33 / PA-APR-005 — escalate (brief contract preferred; prompt aliases accepted)
