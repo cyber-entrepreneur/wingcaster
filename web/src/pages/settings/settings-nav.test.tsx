@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { settingsRoutes } from '@/pages/settings/routes'
+import { resetSettingsIndexCache } from '@/hooks/useSettingsIndex'
 
 const apiMock = vi.hoisted(() => ({
   getSettingsIndex: vi.fn(),
@@ -48,7 +49,7 @@ const SOLO_INDEX = {
     {
       id: 'danger',
       label: 'Danger zone',
-      items: [{ id: 'delete_account', label: 'Delete account', route: '/settings/delete-account', icon: 'trash-2' }],
+        items: [{ id: 'delete_account', label: 'Delete account', route: '/settings/danger/delete-account', icon: 'trash-2' }],
     },
   ],
 }
@@ -71,6 +72,7 @@ function renderSettings(path = '/settings') {
 describe('settings index-driven nav', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetSettingsIndexCache()
     apiMock.getSettingsIndex.mockResolvedValue(SOLO_INDEX)
     apiMock.twoFactorStatus.mockResolvedValue({ totp_enabled: false })
     apiMock.getAuthSessions.mockRejectedValue(Object.assign(new Error('missing'), { status: 404 }))

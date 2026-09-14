@@ -8,6 +8,7 @@ export interface SettingsShellProps {
   /**
    * Right-pane content (desktop) / full-screen child (mobile detail).
    * Pass `<Outlet />` from the layout route, or any stub children.
+   * Children mount **once** — see `data-settings-pane`.
    */
   children?: ReactNode
   /** Capability-scoped nav groups driving sidebar + mobile cards. */
@@ -58,8 +59,9 @@ export interface SettingsShellProps {
  * mobile ≤767px grouped-cards (no sidebar). Right pane hosts either the SHR-SET-001
  * anchor dashboard (`/settings` exact) or a child route (SHR-SET-002/003/004/005).
  *
- * Stub: renders `children` in the outlet slot; no route registration required.
- * Viewport switch is CSS (`md:`) — Wave-4 can swap to `useMediaQuery` when available.
+ * **Pane contract:** `{children}` mounts once inside `<main data-settings-pane>`.
+ * The attribute value is `"desktop"` (default / list) or `"mobile"` (detail).
+ * Dialogs and MFA hosts must render inside this pane — never sniff a duplicate copy.
  *
  * Used by: SHR-SET-001 (anchor) + SHR-SET-002/003/004/005 (right-pane content only).
  *
@@ -86,6 +88,8 @@ export function SettingsShell({
   contentId = 'settings-content',
   className,
 }: SettingsShellProps) {
+  const isMobileDetail = mobileView === 'detail'
+
   const defaultSidebar = (
     <SettingsSidebar
       title={title}
@@ -113,6 +117,7 @@ export function SettingsShell({
         className,
       )}
       data-settings-shell
+      data-settings-mobile-view={mobileView}
     >
       <a
         href={`#${contentId}`}
@@ -126,11 +131,6 @@ export function SettingsShell({
         Skip to settings content
       </a>
 
-      {/*
-        One main landmark. Sidebar is CSS-hidden on mobile; the pane is
-        CSS-hidden on mobile list (cards take over) so children are never
-        duplicated in the accessibility tree.
-      */}
       <div
         className={cn(
           'mx-auto max-w-[1200px]',
@@ -141,26 +141,25 @@ export function SettingsShell({
         <div className="sticky top-0 hidden self-start md:block" style={{ maxHeight: '100vh' }}>
           {sidebar ?? defaultSidebar}
         </div>
+
+        <div className={cn('flex flex-col md:hidden', isMobileDetail && 'hidden')}>
+          {mobileSearch}
+          <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
+        </div>
+
         <main
           id={contentId}
+          data-settings-pane={isMobileDetail ? 'mobile' : 'desktop'}
           className={cn(
             'min-w-0 transition-opacity duration-[var(--lc-duration-base)]',
-            mobileView === 'list'
-              ? 'hidden md:block'
-              : 'px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)] md:px-0 md:pb-0 md:pt-0',
+            isMobileDetail
+              ? 'block px-[var(--lc-space-md)] pb-[var(--lc-space-xl)] pt-[var(--lc-space-xl)] md:px-0 md:pb-0 md:pt-0'
+              : 'hidden md:block',
           )}
-          data-settings-pane
         >
           {children}
         </main>
       </div>
-
-      {mobileView === 'list' ? (
-        <div className="flex flex-col md:hidden">
-          {mobileSearch}
-          <div className="pt-[var(--lc-space-xl)]">{mobileNav ?? defaultMobileNav}</div>
-        </div>
-      ) : null}
     </div>
   )
 }

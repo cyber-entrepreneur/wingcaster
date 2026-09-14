@@ -9,16 +9,20 @@ import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
+import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
+import { PublishOutcomePage } from '@/pages/agent/PublishOutcomePage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
-import { InboxPage } from '@/pages/InboxPage'
+import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
@@ -104,21 +108,29 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
       <Route path="/listings" element={<ListingsPage />} />
+      <Route path="/listings/new" element={<ManualListingComposerPage />} />
+      <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
+      {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
+      <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
       {/* Wave 0 drawer/tab destinations — alias legacy inbox path. */}
       <Route path="/inbox" element={<InboxPage />} />
-      <Route path="/dashboard/inbox" element={<InboxPage />} />
-      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02. */}
-      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
+          Must stay BEFORE /inbox/:conversationId so "applications" is not captured. */}
       <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      <Route path="/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/dashboard/inbox" element={<InboxPage />} />
+      <Route path="/dashboard/inbox/:conversationId" element={<InboxConversationPage />} />
+      <Route path="/applications/:applicationId" element={<ApplicationOutcomePage />} />
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
+      <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
       <Route path="/campaigns" element={<CampaignsPage />} />
@@ -189,6 +201,7 @@ function AppRoutes() {
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />

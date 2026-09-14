@@ -82,9 +82,10 @@ export function SessionsPage() {
   }, [load])
 
   const current = sessions.find((s) => s.is_current)
-  const foreign = sessions.some(
+  const foreignCountry = sessions.find(
     (s) => !s.is_current && current?.ip_country && s.ip_country && s.ip_country !== current.ip_country,
-  )
+  )?.ip_country
+  const foreign = Boolean(foreignCountry)
 
   async function signOutOne(id: string) {
     setBusyId(id)
@@ -175,19 +176,15 @@ export function SessionsPage() {
           role="status"
           className="mb-[var(--lc-space-lg)] rounded-[var(--lc-radius-md)] bg-[var(--lc-status-underOffer-bg)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)] text-[var(--lc-status-underOffer-fg)]"
         >
-          {foreign
-            ? `A session is signed in from ${sessions.find((s) => !s.is_current && s.ip_country !== current?.ip_country)?.ip_country} — different from this device. Review it below.`
+          {foreign && foreignCountry
+            ? `A session is signed in from ${foreignCountry} — different from this device. Review it below.`
             : `You have ${sessions.length} active sessions. Review anything you don't recognize.`}
         </div>
       ) : null}
 
-      <section aria-labelledby="settings-sessions-heading">
+      <section>
         <div className="mb-[var(--lc-space-md)] flex flex-col gap-[var(--lc-space-sm)] sm:flex-row sm:items-center sm:justify-between">
-          <h2
-            id="settings-sessions-heading"
-            className="text-[var(--lc-text-heading)]"
-            style={{ font: 'var(--lc-type-heading-2)' }}
-          >
+          <h2 className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-2)' }}>
             Active sessions
           </h2>
           {!sessionsUnavailable && sessions.filter((s) => !s.is_current).length > 0 ? (
@@ -266,15 +263,8 @@ export function SessionsPage() {
         )}
       </section>
 
-      <section
-        className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border)] pt-[var(--lc-space-xl)]"
-        aria-labelledby="settings-devices-heading"
-      >
-        <h2
-          id="settings-devices-heading"
-          className="text-[var(--lc-text-heading)]"
-          style={{ font: 'var(--lc-type-heading-2)' }}
-        >
+      <section className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border)] pt-[var(--lc-space-xl)]">
+        <h2 className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-2)' }}>
           Registered mobile devices
         </h2>
         <p className="mb-[var(--lc-space-md)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>

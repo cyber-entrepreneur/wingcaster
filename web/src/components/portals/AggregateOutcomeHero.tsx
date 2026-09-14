@@ -178,6 +178,7 @@ export function AggregateOutcomeHero({
   return (
     <section
       aria-labelledby={labelId}
+      data-testid="publish-outcome-hero"
       data-status-hero-state={surface.statusHeroState}
       data-emphasis={surface.emphasis}
       className={cn(

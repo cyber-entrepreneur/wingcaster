@@ -20,6 +20,8 @@ vi.mock('@/context/AuthContext', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
+  API_BASE: '',
+  getAuthToken: () => '',
   api: new Proxy(
     {},
     {
@@ -27,6 +29,10 @@ vi.mock('@/api/client', () => ({
         vi.fn().mockImplementation(async () => {
           if (prop === 'getConversations') return []
           if (prop === 'getConversation') return { messages: [], contact: null }
+          if (prop === 'getAiSuggestions' || prop === 'getConversationAiSuggestions') {
+            return { suggestions: [], degraded: true }
+          }
+          if (prop === 'getAgentPreferences') return { inbox_merge_mode: 'separate' }
           return {}
         }),
     },
@@ -77,6 +83,8 @@ import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { NeighborhoodValuatorPage } from '@/pages/NeighborhoodValuatorPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { PublicWhiteLabelSitePage } from '@/pages/PublicWhiteLabelSitePage'
@@ -131,6 +139,8 @@ const pages: Array<[string, ComponentType]> = [
   ['Neighborhood valuator', NeighborhoodValuatorPage],
   ['CRM analytics', CrmAnalyticsPage],
   ['Contact detail', ContactDetailPage],
+  ['Contact relationships', RelationshipsEditorPage],
+  ['Relationship consent', RelationshipConsentPage],
   ['Listing profile', ListingProfilePage],
   ['Agent profile', AgentProfilePage],
   ['White-label site', PublicWhiteLabelSitePage],

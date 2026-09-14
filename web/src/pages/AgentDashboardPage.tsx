@@ -21,11 +21,53 @@ import { ListingFormModal } from '@/components/ListingFormModal'
 import { KpiAnalyticsPanel } from '@/components/dashboard/KpiAnalyticsPanel'
 import { ListingRow } from '@/components/dashboard/ListingRow'
 import { PromoteDistributeModal, PLATFORM_META, SOCIAL_PROMOTE_PLATFORMS } from '@/components/dashboard/PromoteDistributeModal'
+import { useUiMode } from '@/hooks/useUiMode'
+import { TryProNudgeBanner } from '@/components/dashboard/TryProNudgeBanner'
+import { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
+
+// Wave-8 Pro dashboard (AGT-DSH-002)
+export { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
 
 export function AgentDashboardPage() {
+  const { agent, loading: authLoading } = useAuth()
+  const { effectiveMode, mode, isProCapable } = useUiMode()
+  usePageTitle('Dashboard')
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!agent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Please sign in</h2>
+          <p className="text-muted-foreground">You need to be logged in to view your dashboard</p>
+          <Link to="/login"><Button className="mt-4">Sign In</Button></Link>
+        </div>
+      </div>
+    )
+  }
+
+  // AGT-DSH-002 — Pro shell at ≥768px + ui_mode=pro (D-S-06).
+  if (effectiveMode === 'pro') {
+    return <ProDashboard />
+  }
+
+  return (
+    <GuidedAgentDashboard
+      showMobileProChip={mode === 'pro' && !isProCapable}
+    />
+  )
+}
+
+function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolean }) {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
-  usePageTitle('Dashboard')
   const [activeTab, setActiveTab] = useState('listings')
   const [myListings, setMyListings] = useState<any[]>([])
   const [inquiries, setInquiries] = useState<any[]>([])
@@ -539,6 +581,25 @@ export function AgentDashboardPage() {
                 <AvatarFallback>{agent.name?.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
               </Avatar>
               <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {new Date().getHours() < 12
+                      ? 'Good morning'
+                      : new Date().getHours() < 17
+                        ? 'Good afternoon'
+                        : 'Good evening'}
+                  </p>
+                  {showMobileProChip ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-pill border-[var(--lc-accent-bold-edge)] text-[var(--lc-accent-bold-edge)]"
+                      title="Pro mode is available on tablet or larger screens"
+                      data-testid="mobile-pro-chip"
+                    >
+                      ◆ Pro
+                    </Badge>
+                  ) : null}
+                </div>
                 <h1 className="text-2xl font-bold">{agent.name}</h1>
                 <p className="text-sm text-muted-foreground">{agent.agency_name} &bull; License {agent.license_number}</p>
                 <div className="mt-1 flex items-center gap-2">
@@ -574,6 +635,7 @@ export function AgentDashboardPage() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <TryProNudgeBanner />
         {showOnboardingBanner && (
           <Card className="mb-6 border-amber-200 bg-amber-50/60">
             <CardHeader className="pb-3">

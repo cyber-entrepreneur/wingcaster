@@ -171,20 +171,13 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
     <div>
       <SettingsPaneHeader title="Account" sub="Your personal identity across WingCaster." />
 
-      <section
-        className="mb-[var(--lc-space-xl)] flex flex-col gap-[var(--lc-space-md)] sm:flex-row sm:items-center"
-        aria-labelledby="settings-account-photo"
-      >
+      <section className="mb-[var(--lc-space-xl)] flex flex-col gap-[var(--lc-space-md)] sm:flex-row sm:items-center">
         <Avatar className="h-24 w-24 rounded-[var(--lc-radius-pill)] shadow-[var(--lc-elevation-sm)]">
           {typeof agent?.photo === 'string' ? <AvatarImage src={agent.photo} alt="" /> : null}
           <AvatarFallback>{initialsFromName(name)}</AvatarFallback>
         </Avatar>
         <div>
-          <h2
-            id="settings-account-photo"
-            className="text-[var(--lc-text-heading)]"
-            style={{ font: 'var(--lc-type-heading-3)' }}
-          >
+          <h2 className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
             Profile photo
           </h2>
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
@@ -202,12 +195,8 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
         </div>
       </section>
 
-      <section className="divide-y divide-[var(--lc-border)]" aria-labelledby="settings-account-details">
-        <h2
-          id="settings-account-details"
-          className="pb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
-          style={{ font: 'var(--lc-type-heading-3)' }}
-        >
+      <section className="divide-y divide-[var(--lc-border)]">
+        <h2 className="pb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
           Personal details
         </h2>
         <FieldRow label="Full name" helper="Shown to your teammates and inside conversations." htmlFor="account-name">
@@ -269,9 +258,6 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
               <option value="en">English (US)</option>
               <option value="ar">العربية</option>
             </select>
-            <Link to="/settings/account" className="text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Change display language →
-            </Link>
             <SavedPill visible={savedPill === 'locale'} />
           </div>
         </FieldRow>
@@ -298,15 +284,8 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
         </FieldRow>
       </section>
 
-      <section
-        className="mt-[var(--lc-space-xl)] divide-y divide-[var(--lc-border)]"
-        aria-labelledby="settings-account-signin"
-      >
-        <h2
-          id="settings-account-signin"
-          className="pb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
-          style={{ font: 'var(--lc-type-heading-3)' }}
-        >
+      <section className="mt-[var(--lc-space-xl)] divide-y divide-[var(--lc-border)]">
+        <h2 className="pb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
           Sign-in identifiers
         </h2>
         <FieldRow label="Email" helper="Changing your email starts a one-time verification." htmlFor="account-email">
@@ -351,22 +330,15 @@ export function AccountPage({ section }: { section?: 'locale' | 'timezone' } = {
         </Button>
       </div>
 
-      <section
-        className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border-strong)] pt-[var(--lc-space-lg)]"
-        aria-labelledby="settings-account-danger"
-      >
-        <h2
-          id="settings-account-danger"
-          className="text-[var(--lc-status-underOffer-fg)]"
-          style={{ font: 'var(--lc-type-heading-3)' }}
-        >
+      <section className="mt-[var(--lc-space-2xl)] border-t border-[var(--lc-border-strong)] pt-[var(--lc-space-lg)]">
+        <h2 className="text-[var(--lc-status-underOffer-fg)]" style={{ font: 'var(--lc-type-heading-3)' }}>
           Danger zone
         </h2>
         <p className="mb-[var(--lc-space-sm)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
           Permanently delete your WingCaster account. This starts a 30-day cool-down.
         </p>
         <Button variant="outline" asChild className="text-[var(--lc-status-unpublished-fg)]">
-          <Link to="/settings/delete-account" aria-label="Delete account — destructive">
+          <Link to="/settings/danger/delete-account" aria-label="Delete account — destructive">
             Delete account
           </Link>
         </Button>
