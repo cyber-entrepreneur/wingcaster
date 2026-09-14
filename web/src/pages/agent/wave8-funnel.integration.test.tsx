@@ -25,6 +25,7 @@ import { readChannel, readSource } from '@/lib/channel-source'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const WEB_SRC = path.resolve(HERE, '../..')
 const APP_FILE = path.join(WEB_SRC, 'App.tsx')
+const SETTINGS_ROUTES_FILE = path.join(WEB_SRC, 'pages', 'settings', 'routes.tsx')
 
 const addToast = vi.hoisted(() => vi.fn())
 
@@ -99,6 +100,22 @@ const apiMocks = vi.hoisted(() => ({
   getPublicRelationshipConsent: vi.fn(),
   acceptPublicRelationshipConsent: vi.fn(),
   rejectPublicRelationshipConsent: vi.fn(),
+  // Post-#148 Pro dashboard + #150 inbox additions — ProDashboard fires
+  // seven parallel API calls on mount and InboxPage reads agent prefs.
+  // Provide safe defaults so the tests that don't care about these
+  // surfaces don't crash.
+  getDashboardStats: vi.fn(async () => ({ listings: 0, totalViews: 0, inquiries: 0 })),
+  getInquiries: vi.fn(async () => ({ items: [] })),
+  getViewings: vi.fn(async () => []),
+  getDashboardOperations: vi.fn(async () => null),
+  getDashboardAnalytics: vi.fn(async () => null),
+  getAgentPreferences: vi.fn(async () => ({})),
+  getDashboardLayout: vi.fn(async () => ({ layout: [], density: 'comfortable' })),
+  patchDashboardLayout: vi.fn(async () => ({})),
+  getListPrefs: vi.fn(async () => ({ prefs: {} })),
+  patchListPrefs: vi.fn(async () => ({})),
+  getAiSuggestions: vi.fn(async () => ({ suggestions: [], degraded: true })),
+  getProNudge: vi.fn(async () => ({ eligible: false })),
 }))
 
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
@@ -375,7 +392,14 @@ function resetFunnelState() {
 describe('Wave 8 route + deep-link contracts', () => {
   it('App.tsx wires daily-user routes used by the funnel', () => {
     expect(existsSync(APP_FILE)).toBe(true)
-    const src = readFileSync(APP_FILE, 'utf8')
+    const appSrc = readFileSync(APP_FILE, 'utf8')
+    // Post-#137 the /settings/* leaves live as nested children of the
+    // <Route path="/settings"> shell; scan settings/routes.tsx too so the
+    // shell refactor doesn't break the funnel-route contract.
+    const settingsSrc = existsSync(SETTINGS_ROUTES_FILE)
+      ? readFileSync(SETTINGS_ROUTES_FILE, 'utf8')
+      : ''
+    const combined = `${appSrc}\n${settingsSrc}`
     const required = [
       'path="/dashboard"',
       'path="/listings"',
@@ -384,12 +408,15 @@ describe('Wave 8 route + deep-link contracts', () => {
       'path="/inbox"',
       'path="/inbox/:conversationId"',
       'path="/contacts/:contactId/relationships"',
-      'path="/settings/preferences"',
+      // /settings/preferences resolves through the shell — accept either
+      // the absolute top-level literal or the nested child under settings.
+      /path="\/?(settings\/)?preferences"/,
       'path="/public/relationships/consent"',
       'path="/login"',
     ]
     for (const route of required) {
-      expect(src).toContain(route)
+      if (route instanceof RegExp) expect(combined).toMatch(route)
+      else expect(combined).toContain(route)
     }
   })
 })

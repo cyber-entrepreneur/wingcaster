@@ -22,6 +22,7 @@ import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
 import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
+import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
@@ -200,6 +201,7 @@ function AppRoutes() {
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
+      <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
