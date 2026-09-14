@@ -26,7 +26,6 @@ import {
   resolveAdapterFilePath,
 } from './activation-gates.js'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const ERROR_STATUS = {
   NOT_FOUND: 404,
   OWN_SUBMISSION: 403,
