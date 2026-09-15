@@ -44,6 +44,7 @@ import {
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import { Button } from '@/components/ui/button'
 import { ChannelMark } from '@/components/ui/channel-mark'
+import { PIIMask, type PIIMaskKind } from '@/components/security/PIIMask'
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,7 @@ import {
   type PortalModerationListItem,
   type PortalRegistryOption,
 } from '@/api/portalModeration'
+import { api } from '@/api/client'
 
 const UNDO_GRACE_MS = 5000
 const SEARCH_DEBOUNCE_MS = 200
@@ -907,6 +909,26 @@ export function PortalModerationQueuePage() {
     return () => window.removeEventListener('keydown', onGlobalKeyDown)
   }, [onGlobalKeyDown])
 
+  const handlePiiReveal = useCallback(
+    async (ctx: { caseId: string; field: string; kind: PIIMaskKind }) => {
+      // Detail surface audits phone/email via reveal-contact; queue name/address
+      // reveals reuse the same endpoint when the field is email, otherwise the
+      // parent still goes through <PIIMask>'s audited click path (toast on fail).
+      if (ctx.field === 'email' || ctx.kind === 'email') {
+        try {
+          await api.revealPortalModerationContact(ctx.caseId, 'email')
+        } catch (err) {
+          addToast({
+            variant: 'error',
+            title: "Couldn't record audit — reveal denied.",
+          })
+          throw err
+        }
+      }
+    },
+    [addToast],
+  )
+
   const columns: PAQueueColumn<ModerationRow>[] = useMemo(
     () => [
       {
@@ -941,14 +963,17 @@ export function PortalModerationQueuePage() {
         id: 'agent',
         header: 'Agent · Agency',
         cell: (row) => {
+          const name = row.agent?.display_name || '—'
+          const email = row.agent?.email || null
           const initials = (row.agent?.display_name || '?')
             .split(/\s+/)
             .map((p) => p[0])
             .join('')
             .slice(0, 2)
             .toUpperCase()
+          const stop = (e: ReactMouseEvent | ReactKeyboardEvent) => e.stopPropagation()
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={stop} onKeyDown={stop}>
               <span
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--lc-surface-sunken)] text-xs font-semibold text-[var(--lc-text-primary)]"
                 aria-hidden
@@ -965,8 +990,28 @@ export function PortalModerationQueuePage() {
               </span>
               <div className="min-w-0">
                 <div className="truncate font-[var(--lc-type-body)] text-[var(--lc-text-primary)]">
-                  {row.agent?.display_name || '—'}
+                  {name === '—' ? (
+                    '—'
+                  ) : (
+                    <PIIMask
+                      value={name}
+                      kind="name"
+                      auditContext={{ caseId: row.id, field: 'agent_name' }}
+                      onReveal={handlePiiReveal}
+                      className="text-sm text-[var(--lc-text-primary)]"
+                    />
+                  )}
                 </div>
+                {email ? (
+                  <div className="truncate text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
+                    <PIIMask
+                      value={email}
+                      kind="email"
+                      auditContext={{ caseId: row.id, field: 'email' }}
+                      onReveal={handlePiiReveal}
+                    />
+                  </div>
+                ) : null}
                 {row.agency?.tenant_url ? (
                   <a
                     href={row.agency.tenant_url}
@@ -990,8 +1035,11 @@ export function PortalModerationQueuePage() {
       {
         id: 'listing',
         header: 'Listing',
-        cell: (row) => (
-          <div className="flex items-center gap-2">
+        cell: (row) => {
+          const address = row.listing?.address_line || ''
+          const stop = (e: ReactMouseEvent | ReactKeyboardEvent) => e.stopPropagation()
+          return (
+          <div className="flex items-center gap-2" onClick={stop} onKeyDown={stop}>
             <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)]">
               {row.listing?.hero_image_url ? (
                 <img
@@ -1011,11 +1059,21 @@ export function PortalModerationQueuePage() {
             <div className="min-w-0">
               <div className="truncate font-[var(--lc-type-body)]">{row.listing?.title || '—'}</div>
               <div className="truncate text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-                {row.listing?.address_line || '—'}
+                {address ? (
+                  <PIIMask
+                    value={address}
+                    kind="name"
+                    auditContext={{ caseId: row.id, field: 'listing_address' }}
+                    onReveal={handlePiiReveal}
+                  />
+                ) : (
+                  '—'
+                )}
               </div>
             </div>
           </div>
-        ),
+          )
+        },
       },
       {
         id: 'portal',
@@ -1187,7 +1245,7 @@ export function PortalModerationQueuePage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [addToast, loadQueue, openDetail, pendingUndo, runElevated],
+    [addToast, handlePiiReveal, loadQueue, openDetail, pendingUndo, runElevated],
   )
 
   const emptyState = (

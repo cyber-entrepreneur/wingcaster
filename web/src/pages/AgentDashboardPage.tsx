@@ -566,7 +566,7 @@ function GuidedAgentDashboard() {
                   <Inbox className="h-4 w-4" />
                   Inbox
                   {inboxUnread > 0 && (
-                    <Badge variant="default" className="ml-1 h-5 min-w-[1.25rem] px-1 text-[10px]">{inboxUnread}</Badge>
+                    <Badge variant="default" className="ms-1 h-5 min-w-[1.25rem] px-1 text-[10px]">{inboxUnread}</Badge>
                   )}
                 </Button>
               </Link>
@@ -987,7 +987,7 @@ function GuidedAgentDashboard() {
                           onClick={loadMoreInquiries}
                           disabled={inquiriesLoadingMore}
                         >
-                          {inquiriesLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          {inquiriesLoadingMore && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                           Load more
                         </Button>
                       </div>
@@ -1592,7 +1592,7 @@ function GuidedAgentDashboard() {
                         <CardDescription>Retry queued and failed channel deliveries</CardDescription>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleRetryPendingBatch} disabled={bulkRetrying}>
-                        {bulkRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        {bulkRetrying ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <RefreshCw className="me-2 h-4 w-4" />}
                         Retry queued batch
                       </Button>
                     </CardHeader>
@@ -1606,7 +1606,7 @@ function GuidedAgentDashboard() {
                               <div className="min-w-0">
                                 <p className="font-medium">
                                   {PLATFORM_META[d.platform]?.name || d.platform}
-                                  <Badge className="ml-2" variant={d.status === 'failed' ? 'destructive' : 'secondary'}>
+                                  <Badge className="ms-2" variant={d.status === 'failed' ? 'destructive' : 'secondary'}>
                                     {d.status}
                                   </Badge>
                                 </p>
@@ -1622,7 +1622,7 @@ function GuidedAgentDashboard() {
                                 onClick={() => handleRetryDistribution(d.id)}
                                 disabled={retryingDistributionId === d.id}
                               >
-                                {retryingDistributionId === d.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                {retryingDistributionId === d.id ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <RefreshCw className="me-2 h-4 w-4" />}
                                 Retry now
                               </Button>
                             </div>

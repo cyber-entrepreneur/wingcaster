@@ -158,9 +158,12 @@ export function ProDashboard({ stats: statsProp, greetingName, agentName, classN
         listings: mine as Array<Record<string, unknown>>,
         inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
         viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
-        conversations: (Array.isArray(conversations) ? conversations : []) as unknown as Array<
-          Record<string, unknown>
-        >,
+        conversations: Array.isArray(conversations)
+          ? conversations.filter(
+              (c): c is Record<string, unknown> =>
+                !!c && typeof c === 'object' && !Array.isArray(c),
+            )
+          : [],
         operations: ops as Record<string, unknown> | null,
         analytics: analytics as Record<string, unknown> | null,
       })
