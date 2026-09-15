@@ -4,6 +4,7 @@
 
 **Author:** Architect-owner
 **Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
+**Rev 2.2 — 2026-09-09.** Wave 3 Agent 4 cross-loop e2e marks BE-BLOCKER-19/21/22 **UI-CONSUMED**.
 **Rev 2.1 — 2026-09-09.** Backend Week 3 (BE-BLOCKER-21/22) marked RESOLVED with merge SHAs.
 **Rev 3 — 2026-09-09.** Backend Week 5 (BE-BLOCKER-24/25/26/27/28) marked RESOLVED with merge SHAs.
 **Rev 3.1 — 2026-09-12.** Backend Week 8+ BE-BLOCKER-36 (`contact_relationships` CRUD) marked RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` — PR #134.
@@ -159,7 +160,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-19 — Scheduled-deletion public endpoints + email templates + cron
 
-**Slot:** Week 3 · **Est:** 2-3 days · **Status:** Wave 0.5 dispatched
+**Slot:** Week 3 · **Est:** 2-3 days · **Status:** UI-CONSUMED (Wave 3 Agent 4 — SHR-AUT-005d 5-state cross-loop)
 **Unblocks:** SHR-AUT-005d
 
 ### BE-BLOCKER-20 — `agent_onboarding_state` table + endpoints
@@ -170,14 +171,14 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 ### BE-BLOCKER-21 — WF-04 account-recovery backend bundle (13 items)
 
 **Slot:** Week 3 · **Est:** ~15-18 days
-**Status:** **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
+**Status:** UI-CONSUMED (Wave 3 Agent 4 cross-loop e2e) — previously RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82 (Agents 2–6: PRs #81–#85)
 **Unblocks:** PA-ACR-001/002
 **Items:** list-response extension, request-info endpoint, evidence upload+storage, account_value_tier derivation, env-scoping audit, reveal-audit endpoint (20/hr rate limit), undo-approve endpoint, masked/PII CSV export, single-case GET, two-person cast-vote + escalation wiring, authenticated evidence image proxy, withdraw-vote, cancel-info-request
 
 ### BE-BLOCKER-22 — Two-person-rule bypass in existing account-recovery approve endpoint (CRITICAL)
 
 **Slot:** Week 3 · **Est:** 1-2 days · **Security-adjacent**
-**Status:** **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
+**Status:** UI-CONSUMED (Wave 3 Agent 4 — cast-vote-only UI contract) — previously RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80
 **Unblocks:** PA-ACR-002 (blocks its ship until fixed)
 **File(s):** refactor `backend/src/server.js:7041` through cast-vote endpoint before PA-ACR-002 UI ships. UI would otherwise expose a security downgrade.
 
