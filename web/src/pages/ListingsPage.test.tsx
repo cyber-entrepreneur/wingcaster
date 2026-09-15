@@ -169,8 +169,11 @@ describe('ListingsPage fix batch', () => {
     renderListings()
 
     const statusGroup = await screen.findByRole('group', { name: /status filter/i })
+    await waitFor(() => {
+      const allChip = statusGroup.querySelector('button')
+      expect(allChip?.textContent).toMatch(/All\s*\(1\)/)
+    })
     const allChip = statusGroup.querySelector('button')
-    expect(allChip?.textContent).toMatch(/All\s*\(1\)/)
     expect(allChip?.textContent).not.toMatch(/\(\(/)
   })
 
