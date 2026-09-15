@@ -3,7 +3,7 @@
  * light/dark snapshots differ by actual color values, not just a `<!-- mode=… -->`
  * comment or `data-lc-mode` attribute outside the serialized tree.
  *
- * Ported from Wave 4A #118. jsdom's getComputedStyle often stays on the :root
+ * Ported from Wave 4A PR 118. jsdom's getComputedStyle often stays on the :root
  * light palette even after `applyLcMode('dark')`; when that happens we parse
  * `broadcast-theme.css` so `data-lc-tokens` still carries the dark hexes.
  */
