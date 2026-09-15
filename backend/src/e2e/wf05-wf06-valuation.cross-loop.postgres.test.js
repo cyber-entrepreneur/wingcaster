@@ -24,37 +24,10 @@ import { finPostgresSuite } from '../fin/testing/suite.js'
 import { createAgentAccount, updatePlatformRole } from '../identity.js'
 import { signElevatedToken, signToken, ELEVATION_HEADER } from '../auth.js'
 import { findOne } from '../db.js'
-import { syntheticTenantId } from '../lib/credits/wallets.js'
 import { PRICE_REPORTS_SUBMIT_FEATURE_CODE } from '../lib/packages/registry.js'
-import { PRO_VERSION_ID } from '../lib/packages/test-support.js'
+import { grantPriceReportsSubmit } from '../lib/packages/test-support.js'
 import { runSlaStuckRequestsReaper } from '../workers/sla-stuck-requests-reaper.js'
 import { runReportExpiryTick, reportExpiresAt } from '../workers/report-expiry-worker.js'
-
-/**
- * createAgentAccount provisions Free tier. AGT-APR-004/005 gate on
- * package_feature_flags valuation.price_reports.submit (Pro / Pro Elite only
- * — migration 338). Point the reporter's open subscription at Pro.
- */
-async function grantPriceReportsSubmit(pool, userId) {
-  const tenantId = syntheticTenantId('personal', userId)
-  const updated = await pool.query(
-    `UPDATE public.tenant_subscriptions
-        SET package_version_id = $2,
-            updated_at = NOW(),
-            data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('package_code', 'pro-agent')
-      WHERE tenant_id = $1
-        AND status = ANY($3::text[])
-      RETURNING id`,
-    [
-      tenantId,
-      PRO_VERSION_ID,
-      ['PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END'],
-    ],
-  )
-  if (!updated.rowCount) {
-    throw new Error(`grantPriceReportsSubmit: no open subscription for tenant ${tenantId}`)
-  }
-}
 
 async function agentAccount(label = 'Agent', {
   platformAdmin = false,
@@ -83,7 +56,7 @@ async function agentAccount(label = 'Agent', {
   }
   if (priceReportsSubmit) {
     if (!dbPool) throw new Error('agentAccount: pool required when priceReportsSubmit=true')
-    await grantPriceReportsSubmit(dbPool, userId)
+    await grantPriceReportsSubmit(dbPool, { userId })
   }
   const token = signToken({
     id: userId,
@@ -161,6 +134,50 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     process.env.NODE_ENV = 'test'
     ;({ app } = await import('../server.js'))
   }, 180_000)
+
+  // Locks the production entitlement gate at the Real-PG boundary: a plain agent
+  // (Free-tier subscription, no `valuation.price_reports.submit` package flag —
+  // migration 338) MUST be rejected with 403 FEATURE_NOT_ENABLED on both submit
+  // routes. This is the negative complement to the `priceReportsSubmit: true`
+  // grant every other case uses, and the exact drift the Real-PG lane exists to
+  // catch (unit mocks stub `requirePriceReportsSubmitEntitlement`, hiding it).
+  it('entitlement gate: plain agent without the price_reports.submit flag is rejected 403 on both submit routes', async () => {
+    const plain = await agentAccount('WF Ungranted Reporter') // no priceReportsSubmit grant
+    const comparableId = await seedExternalComparable(pool(), { title: 'Ungranted comp' })
+
+    const comparable = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${plain.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'already_sold',
+        notes: 'Should be gated — no Pro entitlement.',
+      })
+    expect(comparable.status, JSON.stringify(comparable.body)).toBe(403)
+    expect(comparable.body.code).toBe('FEATURE_NOT_ENABLED')
+    expect(comparable.body.required_capability).toBe(PRICE_REPORTS_SUBMIT_FEATURE_CODE)
+
+    const priceReport = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${plain.token}`)
+      .send({
+        external_property_title: 'Ungranted 2BR',
+        external_property_location: 'Dubai Marina',
+        property_type: 'apartment',
+        bedrooms: 2,
+        sold_price: 1_050_000,
+        currency: 'AED',
+        sold_date: '2026-08-15',
+        notes: 'Should be gated — no Pro entitlement.',
+        segment_id: `seg_ae_ungranted_${plain.userId.slice(0, 8)}`,
+        segment_label: 'Dubai Marina · 2BR apartments',
+        recommendation_price_point: 1_050_000,
+      })
+    expect(priceReport.status, JSON.stringify(priceReport.body)).toBe(403)
+    expect(priceReport.body.code).toBe('FEATURE_NOT_ENABLED')
+    expect(priceReport.body.required_capability).toBe(PRICE_REPORTS_SUBMIT_FEATURE_CODE)
+  })
 
   it('WF-05 full loop: submit → queue → confirm-remove → agent outcome ImpactPanel fields', async () => {
     const reporter = await agentAccount('WF05 Reporter', { priceReportsSubmit: true, pool: pool() })
