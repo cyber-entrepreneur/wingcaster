@@ -2090,7 +2090,19 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
+  getAdminAgentPriceReports: (params?: Record<string, string | number | undefined>) => {
+    const cleaned: Record<string, string> = {}
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue
+        cleaned[k] = String(v)
+      }
+    }
+    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
+    return fetchJson(`/admin/pricing/agent-price-reports${qs}`)
+  },
+  getAdminAgentPriceReport: (id: string) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}`),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, {
       method: 'POST',
