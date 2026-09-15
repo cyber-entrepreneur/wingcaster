@@ -1513,7 +1513,7 @@ function ColumnResizeHandle({
       aria-label={`Resize ${columnId} column`}
       aria-valuemin={RESIZE_MIN}
       aria-valuemax={RESIZE_MAX}
-      aria-valuenow={width ? clampWidth(width) : undefined}
+      aria-valuenow={clampWidth(width ?? RESIZE_MIN)}
       tabIndex={0}
       className="absolute end-0 top-0 z-20 h-full w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-1 after:end-0 after:w-px after:bg-[var(--lc-border-strong)] hover:after:bg-[var(--lc-text-brand)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--lc-focus-ring)]"
       onPointerDown={startDrag}

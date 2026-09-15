@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ComponentProps } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Building2, TrendingUp, Eye, MessageSquare, Plus, Edit, Trash2, Star, Phone, Mail, Loader2,
@@ -14,139 +14,72 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/context/AuthContext'
-import { api, type InboxConversation } from '@/api/client'
+import { api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
-import { apiErrorMessage } from '@/lib/http-status'
-import type { Property } from '@/types'
-import type {
-  DashboardStats,
-  DashboardAnalytics,
-  DashboardOperations,
-  NotificationPrefs,
-  DistributionPlatform,
-  AgentConnection,
-  FiAccount,
-  DistributionPerformance,
-  DistributionSubmission,
-  WhatsAppStatus,
-  AgentEngagement,
-  InquiryListItem,
-  InquiryListResponse,
-  ViewingRow,
-  InquiryTimeline,
-} from '@/types/dashboard'
 import { ListingFormModal } from '@/components/ListingFormModal'
 import { KpiAnalyticsPanel } from '@/components/dashboard/KpiAnalyticsPanel'
 import { ListingRow } from '@/components/dashboard/ListingRow'
 import { PromoteDistributeModal, PLATFORM_META, SOCIAL_PROMOTE_PLATFORMS } from '@/components/dashboard/PromoteDistributeModal'
-import { useUiMode } from '@/hooks/useUiMode'
-import { TryProNudgeBanner } from '@/components/dashboard/TryProNudgeBanner'
-import { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
+import { AgentDashboardProGate } from '@/pages/agent/dashboard/AgentDashboardModeMount'
 
-// Wave-8 Pro dashboard (AGT-DSH-002)
-export { ProDashboard } from '@/pages/agent/dashboard/ProDashboard'
-
-type DistT = Awaited<ReturnType<typeof api.getDistributions>>[number]
-type DistQueueRow = DistT & {
-  owner_type?: string
-  created_at?: string
-  error?: string
-  meta?: { retry_attempts?: number; next_retry_at?: string }
-}
-type TimelineFollowUp = { id: string; label?: string; due_at?: string; status?: string }
-type TimelineActivity = { id: string; type?: string; created_at?: string; actor_name?: string }
-type ClientNotifiedInfo = { channel?: string; sent_at?: string }
-type AgentOnboardingFields = {
-  onboarding_status?: string
-  onboarding_stage?: string
-  onboarding_steps?: Record<string, boolean>
-}
-type PropertyWithClicks = Property & { clicks?: number }
-
+/**
+ * AGT-DSH-001 Guided dashboard + D-S-06 Pro mount gate (AGT-DSH-002).
+ * Pro renders only when server `ui_mode === 'pro'` AND viewport ≥768px.
+ */
 export function AgentDashboardPage() {
-  const { agent, loading: authLoading } = useAuth()
-  const { effectiveMode, mode, isProCapable } = useUiMode()
-  usePageTitle('Dashboard')
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (!agent) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold">Please sign in</h2>
-          <p className="text-muted-foreground">You need to be logged in to view your dashboard</p>
-          <Link to="/login"><Button className="mt-4">Sign In</Button></Link>
-        </div>
-      </div>
-    )
-  }
-
-  // AGT-DSH-002 — Pro shell at ≥768px + ui_mode=pro (D-S-06).
-  if (effectiveMode === 'pro') {
-    return <ProDashboard />
-  }
-
   return (
-    <GuidedAgentDashboard
-      showMobileProChip={mode === 'pro' && !isProCapable}
-    />
+    <AgentDashboardProGate guided={<GuidedAgentDashboard />} />
   )
 }
 
-function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolean }) {
+function GuidedAgentDashboard() {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  usePageTitle('Dashboard')
   const [activeTab, setActiveTab] = useState('listings')
-  const [myListings, setMyListings] = useState<Property[]>([])
-  const [inquiries, setInquiries] = useState<InquiryListItem[]>([])
+  const [myListings, setMyListings] = useState<any[]>([])
+  const [inquiries, setInquiries] = useState<any[]>([])
   const [inquiriesCursor, setInquiriesCursor] = useState<string | null>(null)
   const [hasMoreInquiries, setHasMoreInquiries] = useState(false)
   const [inquiriesLoadingMore, setInquiriesLoadingMore] = useState(false)
   const [inquiriesFilter, setInquiriesFilter] = useState({ status: '', stage: '', priority: '' })
-  const [viewings, setViewings] = useState<ViewingRow[]>([])
+  const [viewings, setViewings] = useState<any[]>([])
   const [stats, setStats] = useState({ listings: 0, totalViews: 0, inquiries: 0 })
-  const [operations, setOperations] = useState<DashboardOperations | null>(null)
-  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs | null>(null)
+  const [operations, setOperations] = useState<any>(null)
+  const [notificationPrefs, setNotificationPrefs] = useState<any>(null)
   const [prefsSaving, setPrefsSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // Distribution hub state
-  const [platforms, setPlatforms] = useState<DistributionPlatform[]>([])
-  const [myConnections, setMyConnections] = useState<AgentConnection[]>([])
-  const [fiAccounts, setFiAccounts] = useState<FiAccount[]>([])
-  const [distributions, setDistributions] = useState<Record<string, DistT[]>>({})
-  const [mySubmissions, setMySubmissions] = useState<DistributionSubmission[]>([])
-  const [performance, setPerformance] = useState<DistributionPerformance | null>(null)
-  const [adminSubmissions, setAdminSubmissions] = useState<DistributionSubmission[]>([])
+  const [platforms, setPlatforms] = useState<any[]>([])
+  const [myConnections, setMyConnections] = useState<any[]>([])
+  const [fiAccounts, setFiAccounts] = useState<any[]>([])
+  const [distributions, setDistributions] = useState<Record<string, any[]>>({})
+  const [mySubmissions, setMySubmissions] = useState<any[]>([])
+  const [performance, setPerformance] = useState<any>(null)
+  const [adminSubmissions, setAdminSubmissions] = useState<any[]>([])
 
   // Modal state
-  const [distModal, setDistModal] = useState<{ open: boolean; property: Property | null; mode: 'promote' | 'distribute' }>({
+  const [distModal, setDistModal] = useState<{ open: boolean; property: any; mode: 'promote' | 'distribute' }>({
     open: false,
     property: null,
     mode: 'distribute',
   })
-  const [listingModal, setListingModal] = useState<{ open: boolean; property: Property | null }>({ open: false, property: null })
+  const [listingModal, setListingModal] = useState<{ open: boolean; property: any | null }>({ open: false, property: null })
 
   // Settings state
   const [connecting, setConnecting] = useState<string | null>(null)
   const [connectHandles, setConnectHandles] = useState<Record<string, string>>({})
   const [whatsappRecipient, setWhatsappRecipient] = useState('')
-  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppStatus | null>(null)
+  const [whatsappStatus, setWhatsappStatus] = useState<any>(null)
 
   // Profile form
   const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '', bio: '' })
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState('')
-  const [engagement, setEngagement] = useState<AgentEngagement | null>(null)
-  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
+  const [engagement, setEngagement] = useState<any>(null)
+  const [analytics, setAnalytics] = useState<any>(null)
   const [selectedMetric, setSelectedMetric] = useState<'listings' | 'views' | 'avg' | 'inquiries' | null>(null)
   const [inboxUnread, setInboxUnread] = useState(0)
   const [retryingDistributionId, setRetryingDistributionId] = useState<string | null>(null)
@@ -172,73 +105,67 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     outcome_notes: '',
   })
   const [timelineInquiryId, setTimelineInquiryId] = useState<string | null>(null)
-  const [timeline, setTimeline] = useState<InquiryTimeline | null>(null)
+  const [timeline, setTimeline] = useState<any>(null)
   const [timelineLoading, setTimelineLoading] = useState(false)
 
   const refreshAll = useCallback(() => {
     setLoading(true)
     Promise.all([
       api.getProperties({}),
-      api.getInquiries({ limit: '50' }).catch((err: unknown) => { addToast({ title: 'Inquiries unavailable', description: apiErrorMessage(err), variant: 'error' }); return { items: [] } }),
-      api.getViewings().catch((err: unknown) => { addToast({ title: 'Viewings unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
-      api.getDashboardStats().catch((err: unknown) => { addToast({ title: 'Stats unavailable', description: apiErrorMessage(err), variant: 'error' }); return { listings: 0, totalViews: 0, inquiries: 0 } }),
-      api.getDashboardOperations().catch((err: unknown) => { addToast({ title: 'Operations summary unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getNotificationPrefs().catch((err: unknown) => { addToast({ title: 'Notification preferences unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getPlatforms().catch((err: unknown) => { addToast({ title: 'Platforms unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
-      api.getMyConnections().catch((err: unknown) => { addToast({ title: 'Connections unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
-      api.getFiAccounts().catch((err: unknown) => { addToast({ title: 'REB channels unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
-      api.getDistributionPerformance().catch((err: unknown) => { addToast({ title: 'Performance unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getMySubmissions().catch((err: unknown) => { addToast({ title: 'Submissions unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
-      isAdmin ? api.getAdminSubmissions().catch((err: unknown) => { addToast({ title: 'Admin queue unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }) : Promise.resolve([]),
-      api.getWhatsAppStatus().catch((err: unknown) => { addToast({ title: 'WhatsApp status unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getAgentEngagement(agent!.id).catch((err: unknown) => { addToast({ title: 'Engagement unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getDashboardAnalytics().catch((err: unknown) => { addToast({ title: 'Analytics unavailable', description: apiErrorMessage(err), variant: 'error' }); return null }),
-      api.getConversations().catch((err: unknown) => { addToast({ title: 'Inbox unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
+      api.getInquiries({ limit: '50' }).catch((err: any) => { addToast({ title: 'Inquiries unavailable', description: err.message, variant: 'error' }); return { items: [] } }),
+      api.getViewings().catch((err: any) => { addToast({ title: 'Viewings unavailable', description: err.message, variant: 'error' }); return [] }),
+      api.getDashboardStats().catch((err: any) => { addToast({ title: 'Stats unavailable', description: err.message, variant: 'error' }); return { listings: 0, totalViews: 0, inquiries: 0 } }),
+      api.getDashboardOperations().catch((err: any) => { addToast({ title: 'Operations summary unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getNotificationPrefs().catch((err: any) => { addToast({ title: 'Notification preferences unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getPlatforms().catch((err: any) => { addToast({ title: 'Platforms unavailable', description: err.message, variant: 'error' }); return [] }),
+      api.getMyConnections().catch((err: any) => { addToast({ title: 'Connections unavailable', description: err.message, variant: 'error' }); return [] }),
+      api.getFiAccounts().catch((err: any) => { addToast({ title: 'REB channels unavailable', description: err.message, variant: 'error' }); return [] }),
+      api.getDistributionPerformance().catch((err: any) => { addToast({ title: 'Performance unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getMySubmissions().catch((err: any) => { addToast({ title: 'Submissions unavailable', description: err.message, variant: 'error' }); return [] }),
+      isAdmin ? api.getAdminSubmissions().catch((err: any) => { addToast({ title: 'Admin queue unavailable', description: err.message, variant: 'error' }); return [] }) : Promise.resolve([]),
+      api.getWhatsAppStatus().catch((err: any) => { addToast({ title: 'WhatsApp status unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getAgentEngagement(agent!.id).catch((err: any) => { addToast({ title: 'Engagement unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getDashboardAnalytics().catch((err: any) => { addToast({ title: 'Analytics unavailable', description: err.message, variant: 'error' }); return null }),
+      api.getConversations().catch((err: any) => { addToast({ title: 'Inbox unavailable', description: err.message, variant: 'error' }); return [] }),
     ]).then(([allProps, inqs, viewingsRows, dashboardStats, ops, prefs, pls, conns, fiAccs, perf, subs, adminSubs, waStatus, eng, dashAnalytics, conversations]) => {
-      // fetch/JSON boundary — client methods are untyped
-      const allPropsList = (Array.isArray(allProps) ? allProps : []) as Property[]
-      const mine = allPropsList.filter((p: Property) => p.agent_id === agent!.id)
-      const inquiryItems = (inqs as InquiryListResponse)?.items ?? (Array.isArray(inqs) ? inqs as InquiryListItem[] : [])
-      const inqsResp = inqs as InquiryListResponse
+      const mine = allProps.filter((p: any) => p.agent_id === agent!.id)
+      const inquiryItems = inqs?.items || inqs || []
       setMyListings(mine)
       setInquiries(inquiryItems)
-      setInquiriesCursor(inqsResp?.next_cursor || null)
-      setHasMoreInquiries(Boolean(inqsResp?.has_more))
-      setViewings(Array.isArray(viewingsRows) ? viewingsRows as ViewingRow[] : [])
-      const statsPayload = dashboardStats as DashboardStats
+      setInquiriesCursor(inqs?.next_cursor || null)
+      setHasMoreInquiries(Boolean(inqs?.has_more))
+      setViewings(Array.isArray(viewingsRows) ? viewingsRows : [])
       setStats({
-        listings: statsPayload.listings ?? statsPayload.totalListings ?? mine.length,
-        totalViews: statsPayload.totalViews ?? 0,
-        inquiries: statsPayload.inquiries ?? statsPayload.totalInquiries ?? inquiryItems.length,
+        listings: dashboardStats.listings ?? dashboardStats.totalListings ?? mine.length,
+        totalViews: dashboardStats.totalViews ?? 0,
+        inquiries: dashboardStats.inquiries ?? dashboardStats.totalInquiries ?? inquiryItems.length,
       })
-      setOperations(ops as DashboardOperations | null)
-      setNotificationPrefs(prefs as NotificationPrefs | null)
-      setPlatforms((Array.isArray(pls) ? pls : []) as DistributionPlatform[])
-      const connsList = (Array.isArray(conns) ? conns : []) as AgentConnection[]
-      setMyConnections(connsList)
-      setFiAccounts((Array.isArray(fiAccs) ? fiAccs : []) as FiAccount[])
-      setPerformance(perf as DistributionPerformance | null)
-      setMySubmissions(Array.isArray(subs) ? subs as DistributionSubmission[] : [])
-      setAdminSubmissions((Array.isArray(adminSubs) ? adminSubs : []) as DistributionSubmission[])
-      setWhatsappStatus(waStatus as WhatsAppStatus | null)
-      setEngagement(eng as AgentEngagement | null)
-      setAnalytics(dashAnalytics as DashboardAnalytics | null)
-      const conversationList = (Array.isArray(conversations) ? conversations : []) as InboxConversation[]
-      setInboxUnread(conversationList.reduce((sum: number, c: InboxConversation) => sum + (c.unread_count || 0), 0))
-      const waConn = connsList.find((c: AgentConnection) => c.platform === 'whatsapp')
+      setOperations(ops)
+      setNotificationPrefs(prefs)
+      setPlatforms(pls)
+      setMyConnections(conns)
+      setFiAccounts(fiAccs)
+      setPerformance(perf)
+      setMySubmissions(Array.isArray(subs) ? subs : [])
+      setAdminSubmissions(adminSubs)
+      setWhatsappStatus(waStatus)
+      setEngagement(eng)
+      setAnalytics(dashAnalytics)
+      setInboxUnread(Array.isArray(conversations) ? conversations.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0) : 0)
+      const waConn = conns.find((c: any) => c.platform === 'whatsapp')
       if (waConn?.settings?.notify_number) setWhatsappRecipient(waConn.settings.notify_number)
 
-      mine.forEach((p: Property) => {
-        api.getDistributions(p.id).then((rows: DistT[]) => {
+      mine.forEach((p: any) => {
+        api.getDistributions(p.id).then((rows: any[]) => {
           setDistributions(prev => ({ ...prev, [p.id]: rows }))
-        }).catch((err: unknown) => {
-          addToast({ title: `Distributions unavailable for ${p.title || p.id}`, description: apiErrorMessage(err), variant: 'error' })
+        }).catch((err: any) => {
+          addToast({ title: `Distributions unavailable for ${p.title || p.id}`, description: err.message, variant: 'error' })
         })
       })
       setLoading(false)
-    }).catch((err: unknown) => {
+    }).catch((err: any) => {
       setLoading(false)
-      addToast({ title: 'Failed to load dashboard', description: apiErrorMessage(err, 'Could not load dashboard data'), variant: 'error' })
+      addToast({ title: 'Failed to load dashboard', description: err.message || 'Could not load dashboard data', variant: 'error' })
     })
   }, [agent, isAdmin, addToast])
 
@@ -279,8 +206,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       await api.deleteProperty(id)
       setMyListings(prev => prev.filter(p => p.id !== id))
       addToast({ title: 'Listing deleted', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to delete listing', description: apiErrorMessage(e, 'Could not delete listing'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to delete listing', description: e.message || 'Could not delete listing', variant: 'error' })
     }
   }
 
@@ -299,18 +226,18 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         settings,
       })
       const conns = await api.getMyConnections()
-      setMyConnections(conns as AgentConnection[])
+      setMyConnections(conns)
       setConnectHandles((prev) => ({ ...prev, [platform]: '' }))
       if (platform === 'whatsapp') {
-        const status = await api.getWhatsAppStatus().catch((err: unknown) => {
-          addToast({ title: 'WhatsApp status unavailable', description: apiErrorMessage(err), variant: 'error' })
+        const status = await api.getWhatsAppStatus().catch((err: any) => {
+          addToast({ title: 'WhatsApp status unavailable', description: err.message, variant: 'error' })
           return null
         })
-        setWhatsappStatus(status as WhatsAppStatus | null)
+        setWhatsappStatus(status)
       }
       addToast({ title: 'Connected', description: `${platform} connected successfully.`, variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Connection failed', description: apiErrorMessage(e, 'Could not connect platform'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Connection failed', description: e.message || 'Could not connect platform', variant: 'error' })
     } finally {
       setConnecting(null)
     }
@@ -322,10 +249,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         settings: { notify_number: whatsappRecipient.replace(/\D/g, '') },
       })
       const conns = await api.getMyConnections()
-      setMyConnections(conns as AgentConnection[])
+      setMyConnections(conns)
       addToast({ title: 'WhatsApp recipient saved', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to save recipient', description: apiErrorMessage(e, 'Could not save recipient'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to save recipient', description: e.message || 'Could not save recipient', variant: 'error' })
     }
   }
 
@@ -335,12 +262,12 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       await api.disconnectMyPlatform(id)
       setMyConnections(prev => prev.filter(c => c.id !== id))
       addToast({ title: 'Disconnected', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to disconnect', description: apiErrorMessage(e, 'Could not disconnect platform'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to disconnect', description: e.message || 'Could not disconnect platform', variant: 'error' })
     }
   }
 
-  const openPromoteModal = (property: Property, mode: 'promote' | 'distribute' = 'promote') => {
+  const openPromoteModal = (property: any, mode: 'promote' | 'distribute' = 'promote') => {
     setDistModal({ open: true, property, mode })
   }
 
@@ -349,8 +276,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       await api.approveSubmission(id, 'Approved by admin')
       refreshAll()
       addToast({ title: 'Submission approved', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to approve', description: apiErrorMessage(e, 'Could not approve submission'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to approve', description: e.message || 'Could not approve submission', variant: 'error' })
     }
   }
 
@@ -359,8 +286,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       await api.rejectSubmission(id, 'Not suitable for REB channels')
       refreshAll()
       addToast({ title: 'Submission rejected', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to reject', description: apiErrorMessage(e, 'Could not reject submission'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to reject', description: e.message || 'Could not reject submission', variant: 'error' })
     }
   }
 
@@ -375,9 +302,9 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       })
       setProfileMsg('Profile saved.')
       addToast({ title: 'Profile saved', variant: 'success' })
-    } catch (e: unknown) {
-      setProfileMsg(apiErrorMessage(e, 'Failed to save profile'))
-      addToast({ title: 'Failed to save profile', description: apiErrorMessage(e, 'Could not save profile'), variant: 'error' })
+    } catch (e: any) {
+      setProfileMsg(e.message || 'Failed to save profile')
+      addToast({ title: 'Failed to save profile', description: e.message || 'Could not save profile', variant: 'error' })
     } finally {
       setProfileSaving(false)
     }
@@ -386,29 +313,29 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
   const handleStatusChange = async (id: string, status: string) => {
     try {
       const updated = await api.updateProperty(id, { status })
-      setMyListings((prev) => prev.map((p) => (p.id === id ? { ...p, ...(updated as Property), status } : p)))
-      const dashAnalytics = await api.getDashboardAnalytics().catch((err: unknown) => {
-        addToast({ title: 'Analytics refresh failed', description: apiErrorMessage(err), variant: 'error' })
+      setMyListings((prev) => prev.map((p) => (p.id === id ? { ...p, ...updated, status } : p)))
+      const dashAnalytics = await api.getDashboardAnalytics().catch((err: any) => {
+        addToast({ title: 'Analytics refresh failed', description: err.message, variant: 'error' })
         return null
       })
-      setAnalytics(dashAnalytics as DashboardAnalytics | null)
+      setAnalytics(dashAnalytics)
       addToast({ title: 'Status updated', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to update status', description: apiErrorMessage(e, 'Could not update status'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to update status', description: e.message || 'Could not update status', variant: 'error' })
     }
   }
 
   const handleInquiryPatch = async (inquiryId: string, patch: Record<string, unknown>) => {
     try {
       const updated = await api.updateInquiry(inquiryId, patch)
-      setInquiries((prev) => prev.map((i) => (i.id === inquiryId ? { ...i, ...(updated as InquiryListItem) } : i)))
+      setInquiries((prev) => prev.map((i) => (i.id === inquiryId ? { ...i, ...updated } : i)))
       addToast({ title: 'Inquiry updated', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to update inquiry', description: apiErrorMessage(e, 'Could not update inquiry'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to update inquiry', description: e.message || 'Could not update inquiry', variant: 'error' })
     }
   }
 
-  const handleScheduleViewing = async (inq: InquiryListItem) => {
+  const handleScheduleViewing = async (inq: any) => {
     const current = scheduleForm[inq.id]
     if (!current?.scheduled_at) {
       addToast({ title: 'Schedule required', description: 'Please select viewing date and time.', variant: 'error' })
@@ -422,7 +349,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         mode: current.mode || 'in_person',
         location: current.location || '',
         notes: current.notes || '',
-      }) as ViewingRow
+      })
       setViewings((prev) => [created, ...prev])
       setInquiries((prev) => prev.map((i) => i.id === inq.id ? {
         ...i,
@@ -433,8 +360,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       } : i))
       setSchedulingInquiryId(null)
       addToast({ title: 'Viewing scheduled', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to schedule viewing', description: apiErrorMessage(e, 'Could not schedule viewing'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to schedule viewing', description: e.message || 'Could not schedule viewing', variant: 'error' })
     }
   }
 
@@ -452,8 +379,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         outcome_notes: '',
       })
       addToast({ title: 'Viewing updated', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to update viewing', description: apiErrorMessage(e, 'Could not update viewing'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to update viewing', description: e.message || 'Could not update viewing', variant: 'error' })
     }
   }
 
@@ -465,11 +392,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     }
     setTimelineLoading(true)
     try {
-      // fetch/JSON boundary — client methods are untyped
-      const data = await api.getInquiryTimeline(inquiryId) as InquiryTimeline
+      const data = await api.getInquiryTimeline(inquiryId)
       setTimeline(data)
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to load timeline', description: apiErrorMessage(e, 'Could not load timeline'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to load timeline', description: e.message || 'Could not load timeline', variant: 'error' })
       setTimeline(null)
     } finally {
       setTimelineLoading(false)
@@ -479,12 +405,11 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
   const handleRetryDistribution = async (distributionId: string) => {
     setRetryingDistributionId(distributionId)
     try {
-      // fetch/JSON boundary — client methods are untyped
-      const updated = await api.retryDistribution(distributionId) as DistT
+      const updated = await api.retryDistribution(distributionId)
       setDistributions((prev) => {
         const next = { ...prev }
         Object.keys(next).forEach((propertyId) => {
-          next[propertyId] = (next[propertyId] || []).map((d: DistT) => (d.id === distributionId ? updated : d))
+          next[propertyId] = (next[propertyId] || []).map((d: any) => (d.id === distributionId ? updated : d))
         })
         return next
       })
@@ -493,8 +418,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         description: `${updated.platform} is now ${updated.status}.`,
         variant: updated.status === 'published' ? 'success' : 'error',
       })
-    } catch (e: unknown) {
-      addToast({ title: 'Retry failed', description: apiErrorMessage(e, 'Could not retry distribution'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Retry failed', description: e.message || 'Could not retry distribution', variant: 'error' })
     } finally {
       setRetryingDistributionId(null)
     }
@@ -503,7 +428,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
   const handleRetryPendingBatch = async () => {
     setBulkRetrying(true)
     try {
-      const result = await api.retryPendingDistributions(25) as { processed?: number }
+      const result = await api.retryPendingDistributions(25)
       const processed = Number(result?.processed || 0)
       if (processed > 0) {
         await refreshAll()
@@ -513,8 +438,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         description: processed > 0 ? `${processed} queued deliveries were retried.` : 'No queued deliveries were ready to retry.',
         variant: 'success',
       })
-    } catch (e: unknown) {
-      addToast({ title: 'Bulk retry failed', description: apiErrorMessage(e, 'Could not process retry queue'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Bulk retry failed', description: e.message || 'Could not process retry queue', variant: 'error' })
     } finally {
       setBulkRetrying(false)
     }
@@ -528,13 +453,13 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       if (inquiriesFilter.status) params.status = inquiriesFilter.status
       if (inquiriesFilter.stage) params.stage = inquiriesFilter.stage
       if (inquiriesFilter.priority) params.priority = inquiriesFilter.priority
-      const data = await api.getInquiries(params) as InquiryListResponse
+      const data = await api.getInquiries(params)
       const items = data?.items || []
       setInquiries((prev) => [...prev, ...items])
       setInquiriesCursor(data?.next_cursor || null)
       setHasMoreInquiries(Boolean(data?.has_more))
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to load more inquiries', description: apiErrorMessage(e, 'Could not load inquiries'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to load more inquiries', description: e.message || 'Could not load inquiries', variant: 'error' })
     } finally {
       setInquiriesLoadingMore(false)
     }
@@ -546,24 +471,23 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       if (inquiriesFilter.status) params.status = inquiriesFilter.status
       if (inquiriesFilter.stage) params.stage = inquiriesFilter.stage
       if (inquiriesFilter.priority) params.priority = inquiriesFilter.priority
-      const data = await api.getInquiries(params) as InquiryListResponse
+      const data = await api.getInquiries(params)
       setInquiries(data?.items || [])
       setInquiriesCursor(data?.next_cursor || null)
       setHasMoreInquiries(Boolean(data?.has_more))
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to filter inquiries', description: apiErrorMessage(e, 'Could not filter inquiries'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to filter inquiries', description: e.message || 'Could not filter inquiries', variant: 'error' })
     }
   }
 
-  const handleSaveNotificationPrefs = async (next: Partial<NotificationPrefs>) => {
+  const handleSaveNotificationPrefs = async (next: any) => {
     setPrefsSaving(true)
     try {
-      // fetch/JSON boundary — client methods are untyped
-      const saved = await api.updateNotificationPrefs(next as Record<string, unknown>) as NotificationPrefs
+      const saved = await api.updateNotificationPrefs(next)
       setNotificationPrefs(saved)
       addToast({ title: 'Notification preferences saved', variant: 'success' })
-    } catch (e: unknown) {
-      addToast({ title: 'Failed to save preferences', description: apiErrorMessage(e, 'Could not save preferences'), variant: 'error' })
+    } catch (e: any) {
+      addToast({ title: 'Failed to save preferences', description: e.message || 'Could not save preferences', variant: 'error' })
     } finally {
       setPrefsSaving(false)
     }
@@ -578,18 +502,15 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       total_inquiries: stats.inquiries,
       avg_views: stats.listings > 0 ? Math.round(stats.totalViews / stats.listings) : 0,
     },
-    by_property: myListings.map((p) => {
-      const listing = p as PropertyWithClicks
-      return {
-        id: listing.id,
-        title: listing.title,
-        city: listing.city || '',
-        views: listing.views || 0,
-        clicks: listing.clicks || 0,
-        inquiries: inquiries.filter((i) => i.property_id === listing.id).length,
-        engagement: (listing.views || 0) + inquiries.filter((i) => i.property_id === listing.id).length,
-      }
-    }),
+    by_property: myListings.map((p) => ({
+      id: p.id,
+      title: p.title,
+      city: p.city || '',
+      views: p.views || 0,
+      clicks: p.clicks || 0,
+      inquiries: inquiries.filter((i) => i.property_id === p.id).length,
+      engagement: (p.views || 0) + inquiries.filter((i) => i.property_id === p.id).length,
+    })),
     by_device: [],
     by_geography: [],
     by_channel: [],
@@ -598,11 +519,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     ga_note: 'First-party marketplace analytics. Google Analytics 4 (free) can be connected later via a Measurement ID.',
   }
 
-  const agentOnboarding = agent as typeof agent & AgentOnboardingFields
-  const onboardingStatus = String(agentOnboarding?.onboarding_status || 'active')
-  const onboardingStage = String(agentOnboarding?.onboarding_stage || 'active')
+  const onboardingStatus = String((agent as any)?.onboarding_status || 'active')
+  const onboardingStage = String((agent as any)?.onboarding_stage || 'active')
   const showOnboardingBanner = onboardingStatus !== 'active'
-  const onboardingSteps = (agentOnboarding?.onboarding_steps || {}) as Record<string, boolean>
+  const onboardingSteps = ((agent as any)?.onboarding_steps || {}) as Record<string, boolean>
 
   const stepLabelMap: Record<string, string> = {
     contact_verified: 'Contact verified',
@@ -613,12 +533,13 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     account_active: 'Account active',
   }
 
-  const queuedDistributions = (Object.values(distributions).flat() as DistQueueRow[])
-    .filter((d) => d?.owner_type === 'agent' && (d?.status === 'pending_retry' || d?.status === 'failed'))
-    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+  const queuedDistributions = Object.values(distributions)
+    .flat()
+    .filter((d: any) => d?.owner_type === 'agent' && (d?.status === 'pending_retry' || d?.status === 'failed'))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]" data-dashboard-mode="guided" data-testid="guided-dashboard">
       {/* Header */}
       <div className="border-b bg-[var(--lc-surface)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -629,25 +550,6 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                 <AvatarFallback>{agent.name?.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
               </Avatar>
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {new Date().getHours() < 12
-                      ? 'Good morning'
-                      : new Date().getHours() < 17
-                        ? 'Good afternoon'
-                        : 'Good evening'}
-                  </p>
-                  {showMobileProChip ? (
-                    <Badge
-                      variant="outline"
-                      className="rounded-pill border-[var(--lc-accent-bold-edge)] text-[var(--lc-accent-bold-edge)]"
-                      title="Pro mode is available on tablet or larger screens"
-                      data-testid="mobile-pro-chip"
-                    >
-                      ◆ Pro
-                    </Badge>
-                  ) : null}
-                </div>
                 <h1 className="text-2xl font-bold">{agent.name}</h1>
                 <p className="text-sm text-muted-foreground">{agent.agency_name} &bull; License {agent.license_number}</p>
                 <div className="mt-1 flex items-center gap-2">
@@ -683,7 +585,6 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <TryProNudgeBanner />
         {showOnboardingBanner && (
           <Card className="mb-6 border-amber-200 bg-amber-50/60">
             <CardHeader className="pb-3">
@@ -709,8 +610,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         )}
 
         <KpiAnalyticsPanel
-          // structural cast — DashboardAnalytics matches panel Analytics shape
-          analytics={analyticsForPanel as ComponentProps<typeof KpiAnalyticsPanel>['analytics']}
+          analytics={analyticsForPanel}
           selectedMetric={selectedMetric}
           onSelectMetric={setSelectedMetric}
         />
@@ -748,11 +648,11 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {operations.todays_viewings.map((v) => (
+                {operations.todays_viewings.map((v: any) => (
                   <div key={v.id} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] px-3 py-2 text-sm">
                     <div>
                       <span className="font-medium">{v.client_name}</span>
-                      <span className="text-muted-foreground"> · {new Date(v.scheduled_at || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-muted-foreground"> · {new Date(v.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       {v.property_title && <span className="text-muted-foreground"> · {v.property_title}</span>}
                     </div>
                     <Badge variant="outline">{v.mode}</Badge>
@@ -797,7 +697,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                           listing={listing}
                           inquiryCount={inquiryCount}
                           distributionsCount={listingDists.length}
-                          pendingSubs={listingSubs.filter((s) => s.status === 'pending').length}
+                          pendingSubs={listingSubs.filter((s: any) => s.status === 'pending').length}
                           onDistribute={() => openPromoteModal(listing, 'distribute')}
                           onPromote={() => openPromoteModal(listing, 'promote')}
                           onEdit={() => setListingModal({ open: true, property: listing })}
@@ -867,7 +767,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
 
                 {inquiries.length === 0 ? <p className="text-center text-muted-foreground py-8">No inquiries yet.</p> : (
                   <div className="space-y-4">
-                    {inquiries.map((inq) => (
+                    {inquiries.map((inq: any) => (
                       <div key={inq.id} className="rounded-lg border p-4">
                         <div className="flex items-start justify-between">
                           <div>
@@ -972,7 +872,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                   <div>
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Viewings</h6>
                                     <div className="space-y-2">
-                                      {timeline.viewings.map((v) => (
+                                      {timeline.viewings.map((v: any) => (
                                         <div key={v.id} className="rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <div className="flex items-center justify-between">
                                             <span className="font-medium">{new Date(v.scheduled_at).toLocaleString()}</span>
@@ -989,11 +889,11 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                   <div>
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Follow-ups</h6>
                                     <div className="space-y-2">
-                                      {(timeline.follow_ups as TimelineFollowUp[]).map((f) => (
+                                      {timeline.follow_ups.map((f: any) => (
                                         <div key={f.id} className="flex items-center justify-between rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <span>{f.label}</span>
                                           <div className="flex items-center gap-2">
-                                            <span className="text-muted-foreground">{new Date(f.due_at || 0).toLocaleString()}</span>
+                                            <span className="text-muted-foreground">{new Date(f.due_at).toLocaleString()}</span>
                                             <Badge variant={f.status === 'overdue' ? 'destructive' : 'secondary'} className="text-[10px]">{f.status}</Badge>
                                           </div>
                                         </div>
@@ -1005,11 +905,11 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                   <div>
                                     <h6 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity log</h6>
                                     <div className="space-y-2">
-                                      {(timeline.activities as TimelineActivity[]).slice(0, 20).map((a) => (
+                                      {timeline.activities.slice(0, 20).map((a: any) => (
                                         <div key={a.id} className="rounded border bg-[var(--lc-surface)] p-2 text-xs">
                                           <div className="flex items-center justify-between">
                                             <span className="font-medium">{a.type?.replace(/_/g, ' ') || 'Activity'}</span>
-                                            <span className="text-muted-foreground">{new Date(a.created_at || 0).toLocaleString()}</span>
+                                            <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
                                           </div>
                                           <p className="text-muted-foreground mt-1">{a.actor_name || 'System'}</p>
                                         </div>
@@ -1099,8 +999,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                     <h4 className="mb-3 text-sm font-semibold">Viewings</h4>
                     <div className="space-y-3">
                       {viewings
-                        .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
-                        .map((v) => (
+                        .sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+                        .map((v: any) => (
                           <div key={v.id} className="rounded border bg-[var(--lc-surface)] p-3 text-xs">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div>
@@ -1112,7 +1012,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                 <p className="text-muted-foreground mt-1">{new Date(v.scheduled_at).toLocaleString()} · {v.location || 'No location'}</p>
                                 {v.outcome && <p className="mt-1">Outcome: <span className="font-medium">{v.outcome.replace(/_/g, ' ')}</span></p>}
                                 {v.client_notified && (
-                                  <p className="mt-1 text-green-700">Client notified via {(v.client_notified as unknown as ClientNotifiedInfo).channel} at {new Date((v.client_notified as unknown as ClientNotifiedInfo).sent_at || 0).toLocaleString()}</p>
+                                  <p className="mt-1 text-green-700">Client notified via {v.client_notified.channel} at {new Date(v.client_notified.sent_at).toLocaleString()}</p>
                                 )}
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -1322,8 +1222,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                 <CardContent>
                   <div className="space-y-4">
                     {platforms
-                      .filter((p) => SOCIAL_PROMOTE_PLATFORMS.includes(p.id) || p.id === 'whatsapp')
-                      .map((p) => {
+                      .filter((p: any) => SOCIAL_PROMOTE_PLATFORMS.includes(p.id) || p.id === 'whatsapp')
+                      .map((p: any) => {
                       const conn = myConnections.find(c => c.platform === p.id)
                       const Icon = PLATFORM_META[p.id]?.icon || Globe
                       const isConnected = !!conn && conn.status === 'connected'
@@ -1348,15 +1248,15 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                   )}
                                 </h4>
                                 <p className="text-sm text-muted-foreground">{p.description}</p>
-                                {isConnected && conn && (
+                                {isConnected && (
                                   <p className="text-xs text-green-600 mt-1">
-                                    Connected as {conn.account_name || String(conn.settings?.handle ?? '')}
+                                    Connected as {conn.account_name || conn.settings?.handle}
                                   </p>
                                 )}
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              {isConnected && conn ? (
+                              {isConnected ? (
                                 <Button variant="outline" size="sm" className="gap-1 text-destructive" onClick={() => handleDisconnect(conn.id)}>
                                   <Plug className="h-4 w-4" />Disconnect
                                 </Button>
@@ -1402,7 +1302,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                   onChange={(e) => setWhatsappRecipient(e.target.value)}
                                 />
                               </div>
-                              {isConnected && conn && (
+                              {isConnected && (
                                 <Button variant="outline" onClick={() => handleSaveWhatsAppRecipient(conn.id)}>
                                   Save recipient
                                 </Button>
@@ -1430,8 +1330,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                 <CardContent>
                   <div className="space-y-3">
                     {fiAccounts
-                      .filter((acc) => SOCIAL_PROMOTE_PLATFORMS.includes(acc.platform) || acc.platform === 'whatsapp')
-                      .map((acc) => {
+                      .filter((acc: any) => SOCIAL_PROMOTE_PLATFORMS.includes(acc.platform) || acc.platform === 'whatsapp')
+                      .map((acc: any) => {
                       const Icon = PLATFORM_META[acc.platform]?.icon || Globe
                       return (
                         <div key={acc.id} className="flex items-center gap-4 rounded-lg border p-3">
@@ -1466,9 +1366,9 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                       <h4 className="mb-3 text-sm font-semibold">Channels</h4>
                       <div className="space-y-2">
                         {[
-                          { key: 'inapp' as const, label: 'In-app notifications' },
-                          { key: 'email' as const, label: 'Email notifications' },
-                          { key: 'whatsapp' as const, label: 'WhatsApp notifications' },
+                          { key: 'inapp', label: 'In-app notifications' },
+                          { key: 'email', label: 'Email notifications' },
+                          { key: 'whatsapp', label: 'WhatsApp notifications' },
                         ].map((ch) => (
                           <label key={ch.key} className="flex items-center gap-3">
                             <input
@@ -1494,10 +1394,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                       <h4 className="mb-3 text-sm font-semibold">Event types</h4>
                       <div className="space-y-2">
                         {[
-                          { key: 'saved_search_match' as const, label: 'Saved search matches' },
-                          { key: 'inquiry_sla_overdue' as const, label: 'Inquiry SLA overdue' },
-                          { key: 'viewing_reminder' as const, label: 'Viewing reminders' },
-                          { key: 'viewing_no_show' as const, label: 'Viewing no-show alerts' },
+                          { key: 'saved_search_match', label: 'Saved search matches' },
+                          { key: 'inquiry_sla_overdue', label: 'Inquiry SLA overdue' },
+                          { key: 'viewing_reminder', label: 'Viewing reminders' },
+                          { key: 'viewing_no_show', label: 'Viewing no-show alerts' },
                         ].map((ev) => (
                           <label key={ev.key} className="flex items-center gap-3">
                             <input
@@ -1591,7 +1491,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   <p className="text-center text-muted-foreground py-8">No submissions yet. Distribute a listing and select "REB Channels".</p>
                 ) : (
                   <div className="space-y-3">
-                    {mySubmissions.map((sub) => (
+                    {mySubmissions.map((sub: any) => (
                       <div key={sub.id} className="flex items-center gap-4 rounded-lg border p-4">
                         <div className={`rounded-lg p-2 ${
                           sub.status === 'approved' ? 'bg-green-50' : sub.status === 'rejected' ? 'bg-red-50' : 'bg-yellow-50'
@@ -1602,7 +1502,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{sub.property?.title || 'Unknown Property'}</p>
-                          <p className="text-xs text-muted-foreground">{sub.platform_name} &bull; Submitted {new Date(sub.created_at || 0).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted-foreground">{sub.platform_name} &bull; Submitted {new Date(sub.created_at).toLocaleDateString()}</p>
                           {sub.review_notes && <p className="text-xs text-muted-foreground mt-1">Note: {sub.review_notes}</p>}
                         </div>
                         <Badge variant={sub.status === 'approved' ? 'default' : sub.status === 'rejected' ? 'destructive' : 'secondary'}>
@@ -1623,10 +1523,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {[
-                      { icon: Layers, label: 'Listings Published', value: performance.overview?.totalListingsPublished, color: 'text-blue-500' },
-                      { icon: Globe, label: 'Platforms Active', value: performance.overview?.totalPlatforms, color: 'text-green-500' },
-                      { icon: Eye, label: 'Cross-Market Views', value: (performance.overview?.totalViews ?? 0).toLocaleString(), color: 'text-purple-500' },
-                      { icon: Users, label: 'Leads Generated', value: performance.overview?.totalLeads, color: 'text-orange-500' },
+                      { icon: Layers, label: 'Listings Published', value: performance.overview.totalListingsPublished, color: 'text-blue-500' },
+                      { icon: Globe, label: 'Platforms Active', value: performance.overview.totalPlatforms, color: 'text-green-500' },
+                      { icon: Eye, label: 'Cross-Market Views', value: performance.overview.totalViews.toLocaleString(), color: 'text-purple-500' },
+                      { icon: Users, label: 'Leads Generated', value: performance.overview.totalLeads, color: 'text-orange-500' },
                     ].map(stat => {
                       const Icon = stat.icon
                       return (
@@ -1641,14 +1541,14 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   </div>
 
                   {/* FI Submissions Summary */}
-                  {performance.overview?.fiSubmissions && (
+                  {performance.overview.fiSubmissions && (
                     <Card>
                       <CardHeader><CardTitle>REB Submission Status</CardTitle></CardHeader>
                       <CardContent>
                         <div className="flex gap-6">
-                          <div className="text-center"><p className="text-2xl font-bold text-yellow-600">{performance.overview?.fiSubmissions?.pending}</p><p className="text-xs text-muted-foreground">Pending</p></div>
-                          <div className="text-center"><p className="text-2xl font-bold text-green-600">{performance.overview?.fiSubmissions?.approved}</p><p className="text-xs text-muted-foreground">Approved</p></div>
-                          <div className="text-center"><p className="text-2xl font-bold text-red-600">{performance.overview?.fiSubmissions?.rejected}</p><p className="text-xs text-muted-foreground">Rejected</p></div>
+                          <div className="text-center"><p className="text-2xl font-bold text-yellow-600">{performance.overview.fiSubmissions.pending}</p><p className="text-xs text-muted-foreground">Pending</p></div>
+                          <div className="text-center"><p className="text-2xl font-bold text-green-600">{performance.overview.fiSubmissions.approved}</p><p className="text-xs text-muted-foreground">Approved</p></div>
+                          <div className="text-center"><p className="text-2xl font-bold text-red-600">{performance.overview.fiSubmissions.rejected}</p><p className="text-xs text-muted-foreground">Rejected</p></div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1661,7 +1561,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                         <p className="text-center text-muted-foreground py-8">No distributions yet.</p>
                       ) : (
                         <div className="space-y-4">
-                          {performance.byPlatform.map((p) => (
+                          {performance.byPlatform.map((p: any) => (
                             <div key={`${p.platform}-${p.owner_type}`} className="rounded-lg border p-4">
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-semibold flex items-center gap-2">
@@ -1670,13 +1570,13 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                     {p.owner_type === 'agency' ? 'Your Account' : 'REB'}
                                   </Badge>
                                 </h4>
-                                <Badge variant="outline">{p.listings} listing{(p.listings ?? 0) > 1 ? 's' : ''}</Badge>
+                                <Badge variant="outline">{p.listings} listing{p.listings > 1 ? 's' : ''}</Badge>
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                                 <div><p className="text-muted-foreground">Views</p><p className="font-bold text-lg">{p.views}</p></div>
                                 <div><p className="text-muted-foreground">Leads</p><p className="font-bold text-lg">{p.leads}</p></div>
                                 <div><p className="text-muted-foreground">Cost</p><p className="font-bold text-lg">${p.cost}</p></div>
-                                <div><p className="text-muted-foreground">Cost/Lead</p><p className="font-bold text-lg">{(p.leads ?? 0) > 0 ? `$${((p.cost ?? 0) / (p.leads ?? 1)).toFixed(2)}` : '—'}</p></div>
+                                <div><p className="text-muted-foreground">Cost/Lead</p><p className="font-bold text-lg">{p.leads > 0 ? `$${(p.cost / p.leads).toFixed(2)}` : '—'}</p></div>
                               </div>
                             </div>
                           ))}
@@ -1701,7 +1601,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                         <p className="text-center text-muted-foreground py-6">No queued or failed deliveries right now.</p>
                       ) : (
                         <div className="space-y-3">
-                          {queuedDistributions.slice(0, 25).map((d) => (
+                          {queuedDistributions.slice(0, 25).map((d: any) => (
                             <div key={d.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="min-w-0">
                                 <p className="font-medium">
@@ -1748,7 +1648,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   <p className="text-center text-muted-foreground py-8">No pending submissions.</p>
                 ) : (
                   <div className="space-y-4">
-                    {adminSubmissions.map((sub) => (
+                    {adminSubmissions.map((sub: any) => (
                       <div key={sub.id} className="rounded-lg border p-4">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                           <div className="flex-1">
@@ -1800,9 +1700,9 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                     <p className="mt-2 text-xs text-muted-foreground">
                       Channel breakdown is agent-only until Principal Authority confirms agency visibility.
                     </p>
-                    {typeof agent.slug === 'string' && agent.slug ? (
-                      <p className="mt-2 text-xs">Public URL: <Link className="text-primary underline" to={`/agent/${agent.slug}`}>/agent/{agent.slug}</Link></p>
-                    ) : null}
+                    {(agent as any).slug && (
+                      <p className="mt-2 text-xs">Public URL: <Link className="text-primary underline" to={`/agent/${(agent as any).slug}`}>/agent/{(agent as any).slug}</Link></p>
+                    )}
                   </div>
                 )}
                 <div className="grid gap-4 sm:grid-cols-2">

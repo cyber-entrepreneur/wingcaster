@@ -2,7 +2,21 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { api, clearAuthToken, clearElevatedToken, setAuthToken } from '@/api/client'
 import type { LoginOutcome } from '@/types/twoFactor'
 
-interface Agent {
+/** Per-tenant membership row (or flattened /auth/me projection). */
+export interface TenantMembership {
+  id?: string
+  tenant_id?: string
+  /** Flattened preference when API projects `data.ui_mode` onto the row. */
+  ui_mode?: 'guided' | 'pro'
+  /** JSONB column — brief path `tenant_memberships.data.ui_mode`. */
+  data?: {
+    ui_mode?: 'guided' | 'pro'
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export interface AuthAgent {
   id: string
   name: string
   email: string
@@ -18,8 +32,19 @@ interface Agent {
   bio?: string
   role?: string
   platform_role?: 'platform_admin' | null
+  preferred_locale?: string
+  /** Top-level preference when present on /auth/me. */
+  ui_mode?: 'guided' | 'pro'
+  /**
+   * Canonical Wave-8 shape: plural memberships.
+   * `useUiMode` reads `tenant_memberships[0].ui_mode` (or `.data.ui_mode`).
+   */
+  tenant_memberships?: TenantMembership[]
   [key: string]: unknown
 }
+
+/** @deprecated Prefer AuthAgent — kept as alias for existing call sites. */
+type Agent = AuthAgent
 
 interface AuthContextType {
   agent: Agent | null

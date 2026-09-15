@@ -110,7 +110,12 @@ function sampleSubmission(overrides: Record<string, unknown> = {}) {
     submitted_at: new Date(Date.now() - 3_600_000).toISOString(),
     sla_hours_remaining: 3.8,
     sla_hours_total: 4,
-    agent: { id: 'usr_1', display_name: 'Sara Al Mansouri', avatar_url: null },
+    agent: {
+      id: 'usr_1',
+      display_name: 'Sara Al Mansouri',
+      avatar_url: null,
+      email: 'sara.almansouri@elite.ae',
+    },
     agency: {
       id: 'agy_1',
       name: 'Elite Real Estate Dubai',
@@ -206,6 +211,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
   it('imports PA-queue-family primitives (source + runtime) — no local fork', () => {
     const src = readFileSync(PAGE_SRC, 'utf8')
     expect(src).toMatch(/from ['"]@\/components\/queue['"]/)
+    expect(src).toMatch(/PIIMask/)
     for (const name of [
       'PAQueueFilterStrip',
       'PAQueueTable',
@@ -232,9 +238,18 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     expect(await screen.findByRole('heading', { name: /Portal moderation queue/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Environment: LIVE/i })).toBeTruthy()
     await waitFor(() => expect(listMock).toHaveBeenCalled())
-    expect(await screen.findByText('Sara Al Mansouri')).toBeTruthy()
     expect(screen.getByText('3BR apartment · Dubai Marina')).toBeTruthy()
     expect(screen.queryByTestId('pa-mod-test-warning')).toBeNull()
+  })
+
+  it('masks agent + contact PII on listing rows (#177)', async () => {
+    renderPage()
+    await waitFor(() => expect(listMock).toHaveBeenCalled())
+    expect(screen.queryByText('sara.almansouri@elite.ae')).toBeNull()
+    expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
+    expect(screen.queryByText('Marina Gate 2')).toBeNull()
+    const masked = document.querySelectorAll('[data-pii-revealed="false"]')
+    expect(masked.length).toBeGreaterThanOrEqual(2)
   })
 
   it('wires showBulk={true} and opens bulk approve count-confirm', async () => {
@@ -247,7 +262,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
       }),
     ])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
 
     const checkboxes = screen.getAllByRole('checkbox')
     // first checkbox is select-all; pick row checkboxes
@@ -266,7 +281,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
   it('requires reason for bulk reject (confirm disabled until reason + notes)', async () => {
     const user = userEvent.setup()
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     const checkboxes = screen.getAllByRole('checkbox')
     await user.click(checkboxes[1])
 
@@ -284,7 +299,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
   it('navigates to detail deep-link with return_to for Agent 4', async () => {
     const user = userEvent.setup()
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /^Open$/i }))
     expect(await screen.findByTestId('detail-stub')).toBeTruthy()
   })
@@ -292,7 +307,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
   it('keyboard ? opens shortcuts panel; Esc closes', async () => {
     const user = userEvent.setup()
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.keyboard('?')
     expect(await screen.findByRole('dialog', { name: /Keyboard shortcuts/i })).toBeTruthy()
     await user.keyboard('{Escape}')
@@ -313,7 +328,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
 
   it('is axe-clean on loaded queue', async () => {
     const { container } = renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     // PAQueueFilterStrip TabsTriggers reference TabsContent ids that the stub
     // omits — known family-primitive noise, not introduced by this consumer.
     expect(
@@ -328,7 +343,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     document.documentElement.lang = 'ar'
     try {
       const { container } = renderPage()
-      await screen.findByText('Sara Al Mansouri')
+      await screen.findAllByText('3BR apartment · Dubai Marina')
       expect(container.querySelector('[data-testid="portal-moderation-queue"]')).toBeTruthy()
       expect(
         await axe(container, {
@@ -345,7 +360,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     document.documentElement.classList.add('dark')
     try {
       renderPage()
-      await screen.findByText('Sara Al Mansouri')
+      await screen.findAllByText('3BR apartment · Dubai Marina')
       const src = readFileSync(PAGE_SRC, 'utf8')
       expect(src).not.toMatch(/#[0-9A-Fa-f]{3,8}\b/)
       expect(src).toMatch(/--lc-/)
@@ -358,7 +373,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     const user = userEvent.setup()
     approveMock.mockResolvedValue({ ok: true })
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /^Approve$/i }))
     await waitFor(() => expect(approveMock).toHaveBeenCalledWith('psub_1'))
     expect(await screen.findByText(/Decision pending — Undo within 5s/i)).toBeTruthy()
@@ -369,7 +384,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     approveMock.mockResolvedValue({ ok: true })
     undoApproveMock.mockResolvedValue({ ok: true })
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /^Approve$/i }))
     await screen.findByText(/Decision pending — Undo within 5s/i)
     await user.click(screen.getByRole('button', { name: /^Undo$/i }))
@@ -379,7 +394,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
   it('own-row is_own=true disables inline approve/reject actions', async () => {
     mockList([sampleSubmission({ id: 'psub_own', is_own: true })])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     expect(screen.getByText(/Own row/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Approve$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Reject$/i })).toBeNull()
@@ -397,7 +412,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
       }),
     ])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /^Approve$/i }))
     await waitFor(() => expect(requireElevationMock).toHaveBeenCalled())
     await waitFor(() => expect(approveMock).toHaveBeenCalledWith('psub_high'))
@@ -416,7 +431,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
       ),
     )
     renderPage()
-    await screen.findByText('Agent 0')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     const checkboxes = screen.getAllByRole('checkbox')
     // select-all then confirm dialog
     await user.click(checkboxes[0])
@@ -439,7 +454,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
       }),
     ])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     const checkboxes = screen.getAllByRole('checkbox')
     await user.click(checkboxes[0]) // select all
     const bulkBar = await screen.findByRole('status')
@@ -458,7 +473,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     retryMock.mockResolvedValue({ ok: true })
     mockList([sampleSubmission({ id: 'psub_err', status: 'portal_error' })])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /Retry publish/i }))
     await waitFor(() => expect(retryMock).toHaveBeenCalledWith('psub_err'))
   })
@@ -467,7 +482,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     const user = userEvent.setup()
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     renderPage('/admin/moderation/portals?status=pending&portal=bayut&within=24h')
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     await user.click(screen.getByRole('button', { name: /Export CSV/i }))
     expect(openSpy).toHaveBeenCalled()
     const calledPath = String(openSpy.mock.calls[0]?.[0] ?? '')
@@ -488,7 +503,7 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
       }),
     ])
     renderPage()
-    await screen.findByText('Sara Al Mansouri')
+    await screen.findAllByText('3BR apartment · Dubai Marina')
     const header = screen.getByRole('heading', { name: /Portal moderation queue/i }).parentElement
     expect(header?.textContent).toMatch(/at-risk \(breach in/i)
     expect(header?.textContent).toMatch(/avg/i)

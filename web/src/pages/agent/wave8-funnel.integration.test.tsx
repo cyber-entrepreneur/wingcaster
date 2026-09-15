@@ -739,9 +739,12 @@ describe('Wave 8 funnel — inbox dual-read + reply', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Sara Al-Mansoori')).toBeInTheDocument()
+      expect(screen.queryByText('Sara Al-Mansoori')).toBeNull()
+      expect(screen.getByText('S***** A***')).toBeInTheDocument()
     })
-    expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+    expect(screen.queryByText('Ahmed Khoury')).toBeNull()
+    expect(screen.getByText('A***** K***')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-pii-kind="name"][data-pii-revealed="false"]').length).toBeGreaterThan(0)
 
     // Dual-read contract still holds in the funnel payload shape.
     expect(readChannel(legacyConv)).toBe('email')
@@ -749,7 +752,7 @@ describe('Wave 8 funnel — inbox dual-read + reply', () => {
     expect(readChannel(modernConv)).toBe('whatsapp')
     expect(readSource(modernConv)).toBe('bayut')
 
-    await user.click(screen.getByRole('button', { name: /Sara Al-Mansoori/i }))
+    await user.click(screen.getByRole('button', { name: /WhatsApp from Bayut.*unread · priority/i }))
 
     await waitFor(() => {
       expect(screen.getAllByText('Is the 2BR still available?').length).toBeGreaterThan(0)
@@ -780,7 +783,8 @@ describe('Wave 8 funnel — inbox dual-read + reply', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+      expect(screen.queryByText('Ahmed Khoury')).toBeNull()
+      expect(screen.getByText('A***** K***')).toBeInTheDocument()
     })
     await waitFor(() => {
       expect(screen.getAllByLabelText(/Email from Bayut/i).length).toBeGreaterThan(0)

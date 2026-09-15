@@ -39,7 +39,7 @@ export function AgentDashboardModeMount({
             role="status"
             aria-label={t('common.loading', copyLocale)}
           >
-            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--lc-action-primary)]" aria-hidden="true" />
           </div>
         }
       >
