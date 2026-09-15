@@ -11,12 +11,12 @@ name: web tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/wave-4a*']
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/wave-4a*']
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'

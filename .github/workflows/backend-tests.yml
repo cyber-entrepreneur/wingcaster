@@ -7,12 +7,12 @@ name: backend tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/wave-4a*']
     paths:
       - 'backend/**'
       - '.github/workflows/backend-tests.yml'
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/wave-4a*']
     paths:
       - 'backend/**'
       - '.github/workflows/backend-tests.yml'
