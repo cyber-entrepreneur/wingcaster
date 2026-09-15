@@ -73,12 +73,24 @@ const localeState = vi.hoisted(() => ({
   locale: 'en' as 'en' | 'ar',
 }))
 
-vi.mock('@/api/client', () => ({
-  API_BASE: '/api',
-  api: apiMocks,
-  setAuthToken: vi.fn(),
-  clearElevatedToken: vi.fn(),
-}))
+vi.mock('@/api/client', () => {
+  const handler: ProxyHandler<Record<string, unknown>> = {
+    get(target, prop, receiver) {
+      if (prop in target) return Reflect.get(target, prop, receiver)
+      if (typeof prop === 'symbol') return undefined
+      const fn = vi.fn(async () => [])
+      target[prop as string] = fn
+      return fn
+    },
+  }
+  return {
+    API_BASE: '/api',
+    api: new Proxy(apiMocks as Record<string, unknown>, handler),
+    setAuthToken: vi.fn(),
+    clearElevatedToken: vi.fn(),
+    getAuthToken: vi.fn(() => 'test-token'),
+  }
+})
 
 vi.mock('@/hooks/useUiMode', () => ({
   useUiMode: () => uiModeState,
