@@ -97,7 +97,7 @@ function makeApp() {
 
 async function auditRows(pool, { agentId, action }) {
   const { rows } = await pool.query(
-    `SELECT type, action, entity_type, entity_id, metadata
+    `SELECT type, action, entity_type, entity_id, tenant_id, metadata
        FROM public.audit_log
       WHERE agent_id = $1 AND type = 'property_bulk' AND action = $2
       ORDER BY created_at DESC`,
@@ -262,11 +262,13 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
     expect(await auditRows(pool(), { agentId: agent.userId, action: 'archive' })).toHaveLength(1)
     const archiveAudit = (await auditRows(pool(), { agentId: agent.userId, action: 'archive' }))[0]
     expect(archiveAudit.entity_id).toBe(archiveId)
+    expect(archiveAudit.tenant_id).toBe(workspace.tenantId)
     expect(archiveAudit.metadata).toEqual(expect.objectContaining({
       batch_id: expect.any(String),
       actor_user_id: agent.userId,
       after: expect.objectContaining({ status: 'archived' }),
     }))
+    expect(archiveAudit.metadata.tenant_id).toBeUndefined()
 
     await request(app)
       .post('/api/properties/bulk/publish')
@@ -337,7 +339,7 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
     expect(await auditRows(pool(), { agentId: agent.userId, action: 'change_owner' })).toHaveLength(0)
   })
 
-  it('bulk delete typed-confirm phrase-mismatch returns 400', async () => {
+  it('bulk delete typed-confirm phrase-mismatch returns 400 with zero mutations and zero audit rows', async () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-wave8-pro'
     const agent = await agentSession({ name: 'Delete Guard' })
     const propId = await insertProperty(pool(), { agentId: agent.userId })
@@ -348,7 +350,7 @@ finPostgresSuite('wave8 pro routes', { seed: false }, ({ pool }) => {
       .set('Authorization', `Bearer ${agent.token}`)
       .send({ ids: [propId], confirmed_phrase: 'nope' })
       .expect(400)
-    expect(res.body.error).toMatch(/phrase/i)
+    expect(res.body.error).toBe('Confirmation phrase mismatch')
     expect(res.body.expected).toBe('delete 1')
     expect((await pool().query('SELECT id FROM public.properties WHERE id = $1', [propId])).rows).toHaveLength(1)
     expect(await auditRows(pool(), { agentId: agent.userId, action: 'delete' })).toHaveLength(0)

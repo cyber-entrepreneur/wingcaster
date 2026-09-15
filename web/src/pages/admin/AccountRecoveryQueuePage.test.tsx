@@ -187,6 +187,14 @@ describe('PA-ACR-001 AccountRecoveryQueuePage', () => {
     expect(src).not.toMatch(/import\s*\{[^}]*PAQueueBulkBar/)
     expect(src).not.toContain('<PAQueueBulkBar')
     expect(src).not.toContain('PAQueueBulkApproveDialog')
+    // Residual follow-ups: prop-based risk-tier hide (no CSS injection), copy, Shift+V gate
+    expect(src).toContain('hideRiskTier')
+    expect(src).not.toMatch(/<style>\{`/)
+    expect(src).toContain("header: 'Dispute state'")
+    expect(src).toContain('Shift+V')
+    expect(src).toContain('MASS_REVEAL_CONFIRM_MIN')
+    expect(src).toContain('var(--lc-status-underOffer-bg)')
+    expect(src).toContain('Search name, masked identifier, or case ID…')
     expect(Queue.PAQueueFilterStrip).toBeTypeOf('function')
     expect(Queue.PAQueueTable).toBeTypeOf('function')
     expect(Queue.PAQueueKeyboardShortcutsPanel).toBeTypeOf('function')
@@ -322,6 +330,7 @@ describe('PA-ACR-001 AccountRecoveryQueuePage', () => {
     await user.keyboard('?')
     const dialog = await screen.findByRole('dialog', { name: /Keyboard shortcuts/i })
     expect(within(dialog).getByText(/Reveal PII/i)).toBeTruthy()
+    expect(within(dialog).getByText(/Shift\+V/i)).toBeTruthy()
     expect(within(dialog).getByText(/open focused case in new tab/i)).toBeTruthy()
     expect(within(dialog).queryByText(/Toggle row selection/i)).toBeNull()
     expect(within(dialog).queryByText(/Select all visible/i)).toBeNull()
@@ -333,5 +342,77 @@ describe('PA-ACR-001 AccountRecoveryQueuePage', () => {
     expect(screen.queryByText('omar.khoury@example.ae')).toBeNull()
     expect(screen.getByText('o***@********.ae')).toBeTruthy()
     expect(revealMock).not.toHaveBeenCalled()
+  })
+
+  it('hides Shared Prep risk-tier via hideRiskTier prop and uses brief search placeholder', async () => {
+    renderPage()
+    await screen.findByText('Blue Door LB')
+    expect(screen.queryByLabelText(/^Risk tier$/i)).toBeNull()
+    expect(screen.getByLabelText(/Account tier/i)).toBeTruthy()
+    expect(
+      screen.getByPlaceholderText('Search name, masked identifier, or case ID…'),
+    ).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Dispute state/i })).toBeTruthy()
+  })
+
+  it('Shift+V with fewer than 3 visible rows reveals immediately without confirm', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Blue Door LB')
+    const before = revealMock.mock.calls.length
+    await user.keyboard('{Shift>}v{/Shift}')
+    await waitFor(() => expect(revealMock.mock.calls.length).toBeGreaterThan(before))
+    expect(screen.queryByTestId('acr-mass-reveal-confirm')).toBeNull()
+    // Sample row has name + primary identifier → per-field audit POSTs still fire
+    expect(revealMock.mock.calls.length - before).toBeGreaterThanOrEqual(2)
+  })
+
+  it('Shift+V with ≥3 visible rows opens confirm; confirm still fires per-field audits', async () => {
+    const user = userEvent.setup()
+    mockList([
+      sampleCase({ id: 'acr_1' }),
+      sampleCase({
+        id: 'acr_2',
+        agent: {
+          ...sampleCase().agent,
+          id: 'usr_2',
+          display_name_full: 'Sara Maktoum',
+          display_name_masked: 'Sara M******',
+          email_full: 'sara@example.ae',
+          email_masked: 's***@********.ae',
+          agency: { id: 'agy_2', name: 'Elite RE', tenant_url: '/admin/tenants/agy_2' },
+        },
+      }),
+      sampleCase({
+        id: 'acr_3',
+        agent: {
+          ...sampleCase().agent,
+          id: 'usr_3',
+          display_name_full: 'Fatima Said',
+          display_name_masked: 'Fatima S****',
+          email_full: 'fatima@example.ae',
+          email_masked: 'f***@********.ae',
+          agency: { id: 'agy_3', name: 'Muscat WF', tenant_url: '/admin/tenants/agy_3' },
+        },
+      }),
+    ])
+    renderPage()
+    await screen.findByText('Blue Door LB')
+    await screen.findByText('Elite RE')
+    await screen.findByText('Muscat WF')
+
+    const before = revealMock.mock.calls.length
+    await user.keyboard('{Shift>}v{/Shift}')
+
+    const dialog = await screen.findByRole('alertdialog', { name: /Reveal all PII/i })
+    expect(dialog).toBeTruthy()
+    expect(revealMock.mock.calls.length).toBe(before)
+
+    await user.click(screen.getByRole('button', { name: /Reveal all fields/i }))
+
+    await waitFor(() => expect(revealMock.mock.calls.length - before).toBeGreaterThanOrEqual(2))
+    // Focused first row only — other rows stay masked until individually revealed
+    expect(screen.queryByText('Sara Maktoum')).toBeNull()
+    expect(screen.queryByRole('alertdialog', { name: /Reveal all PII/i })).toBeNull()
   })
 })

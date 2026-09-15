@@ -50,6 +50,14 @@ import { PIIMask, type PIIMaskKind } from '@/components/security'
 import { Button } from '@/components/ui/button'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -87,12 +95,16 @@ const STATUS_VALUES = [
 const TIER_VALUES = ['standard', 'elevated', 'high_value'] as const
 const CHANNEL_VALUES = ['email', 'sms', 'whatsapp', 'phone_call'] as const
 
+/** Whole-row Shift+V mass-reveal confirms when this many queue rows are visible. */
+const MASS_REVEAL_CONFIRM_MIN = 3
+
 const ACR_SHORTCUTS: readonly PAQueueKeyboardShortcut[] = [
   { keys: 'J', description: 'Next case' },
   { keys: 'K', description: 'Previous case' },
   { keys: 'Enter / O', description: 'Open focused case' },
   { keys: 'X', description: 'Open focused case in new tab' },
   { keys: 'V', description: 'Reveal PII on focused row (audited)' },
+  { keys: 'Shift+V', description: 'Reveal all PII on focused row (audited; confirms when ≥3 rows visible)' },
   { keys: '.', description: 'Refresh queue' },
   { keys: '?', description: 'Show keyboard shortcuts' },
   { keys: 'Esc', description: 'Close modal / clear focus' },
@@ -396,8 +408,13 @@ export function AccountRecoveryQueuePage() {
   const [error, setError] = useState<string | null>(null)
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [massRevealPending, setMassRevealPending] = useState<{
+    caseId: string
+    fieldCount: number
+  } | null>(null)
   const [searchDraft, setSearchDraft] = useState(filters.search)
   const fetchGen = useRef(0)
+  const massRevealCancelRef = useRef<HTMLButtonElement | null>(null)
 
   const patchParams = useCallback(
     (patch: Record<string, string | null | undefined>, opts?: { resetPage?: boolean }) => {
@@ -594,20 +611,46 @@ export function AccountRecoveryQueuePage() {
     el?.focus()
   }
 
-  const revealFocusedRow = (allFields: boolean) => {
-    if (!focusedId) return
-    const rowEl = document.querySelector(`[data-row-id="${CSS.escape(focusedId)}"]`)
+  const clickRevealButtons = useCallback((caseId: string, allFields: boolean) => {
+    const rowEl = document.querySelector(`[data-row-id="${CSS.escape(caseId)}"]`)
     if (!rowEl) return
     const buttons = rowEl.querySelectorAll<HTMLButtonElement>(
       'button[aria-label="Reveal PII (audited)"]',
     )
     if (buttons.length === 0) return
     if (allFields) {
+      // Each click still goes through <PIIMask> → reveal-audit POST (per-field audit rows).
       buttons.forEach((btn) => btn.click())
     } else {
       buttons[0]?.click()
     }
-  }
+  }, [])
+
+  const revealFocusedRow = useCallback(
+    (allFields: boolean) => {
+      if (!focusedId) return
+      const rowEl = document.querySelector(`[data-row-id="${CSS.escape(focusedId)}"]`)
+      if (!rowEl) return
+      const buttons = rowEl.querySelectorAll<HTMLButtonElement>(
+        'button[aria-label="Reveal PII (audited)"]',
+      )
+      if (buttons.length === 0) return
+      // ENTERPRISE: whole-row mass-reveal — gate when ≥3 queue rows are visible.
+      if (allFields && rows.length >= MASS_REVEAL_CONFIRM_MIN) {
+        setMassRevealPending({ caseId: focusedId, fieldCount: buttons.length })
+        return
+      }
+      clickRevealButtons(focusedId, allFields)
+    },
+    [clickRevealButtons, focusedId, rows.length],
+  )
+
+  const confirmMassReveal = useCallback(() => {
+    if (!massRevealPending) return
+    const { caseId } = massRevealPending
+    setMassRevealPending(null)
+    clickRevealButtons(caseId, true)
+  }, [clickRevealButtons, massRevealPending])
 
   const onGlobalKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -615,6 +658,10 @@ export function AccountRecoveryQueuePage() {
       const tag = target?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) {
         if (e.key === 'Escape') (target as HTMLElement).blur()
+        return
+      }
+      if (massRevealPending) {
+        if (e.key === 'Escape') setMassRevealPending(null)
         return
       }
       if (shortcutsOpen) {
@@ -662,7 +709,16 @@ export function AccountRecoveryQueuePage() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state intentionally
-    [focusedRow, loadQueue, openDetail, openDetailNewTab, shortcutsOpen, rows],
+    [
+      focusedRow,
+      loadQueue,
+      massRevealPending,
+      openDetail,
+      openDetailNewTab,
+      revealFocusedRow,
+      shortcutsOpen,
+      rows,
+    ],
   )
 
   useEffect(() => {
@@ -860,7 +916,7 @@ export function AccountRecoveryQueuePage() {
       },
       {
         id: 'state',
-        header: 'State',
+        header: 'Dispute state',
         cell: (row) => {
           const s = statusGlyphLabel(String(row.status))
           return <ToneBadge glyph={s.glyph} label={s.label} token={s.token} />
@@ -975,12 +1031,6 @@ export function AccountRecoveryQueuePage() {
       data-testid="account-recovery-queue"
       data-env={env}
     >
-      {/* Hide Shared Prep risk-tier control — ACR uses Account tier custom filter instead. */}
-      <style>{`
-        [data-testid="account-recovery-queue"] label[for="pa-queue-risk"],
-        [data-testid="account-recovery-queue"] #pa-queue-risk { display: none !important; }
-      `}</style>
-
       <a
         href="#pa-acr-queue-table"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:rounded-[var(--lc-radius-md)] focus:bg-[var(--lc-surface-raised)] focus:px-3 focus:py-2"
@@ -1061,7 +1111,7 @@ export function AccountRecoveryQueuePage() {
           aria-live="polite"
           className="mb-[var(--lc-space-sm)] rounded-[var(--lc-radius-md)] px-3 py-2 text-sm font-medium"
           style={{
-            background: 'var(--lc-status-underOffer-dot)',
+            background: 'var(--lc-status-underOffer-bg)',
             color: 'var(--lc-text-inverse)',
           }}
           data-testid="pa-acr-test-warning"
@@ -1076,6 +1126,9 @@ export function AccountRecoveryQueuePage() {
         statusOptions={statusOptions}
         values={{ ...filters, search: searchDraft }}
         disabled={loading}
+        hideRiskTier
+        searchPlaceholder="Search name, masked identifier, or case ID…"
+        searchAriaLabel="Search name, masked identifier, or case ID"
         onChange={(next) => {
           setSearchDraft(next.search)
           patchParams({
@@ -1202,6 +1255,46 @@ export function AccountRecoveryQueuePage() {
           <ChevronRight className="h-4 w-4" />
         </Button>
       </footer>
+
+      <Dialog
+        open={massRevealPending != null}
+        onOpenChange={(open) => {
+          if (!open) setMassRevealPending(null)
+        }}
+      >
+        <DialogContent
+          role="alertdialog"
+          aria-describedby="acr-mass-reveal-desc"
+          data-testid="acr-mass-reveal-confirm"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            massRevealCancelRef.current?.focus()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Reveal all PII on this case?</DialogTitle>
+            <DialogDescription id="acr-mass-reveal-desc">
+              This queue has <Numeric>{rows.length}</Numeric> visible rows. Confirming discloses{' '}
+              <Numeric>{massRevealPending?.fieldCount ?? 0}</Numeric> masked fields on the focused
+              row only. Each disclosure writes a separate reveal-audit event. Prefer single-field
+              reveal (`V`) when you only need one identifier.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2 sm:justify-end">
+            <Button
+              ref={massRevealCancelRef}
+              type="button"
+              variant="outline"
+              onClick={() => setMassRevealPending(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmMassReveal}>
+              Reveal all fields
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PAQueueKeyboardShortcutsPanel
         open={shortcutsOpen}
