@@ -374,11 +374,18 @@ export function createAgentPriceReportAdminService({
       recommendation: resolveRecommendation(report),
       notes,
       env,
+      actor_summary: {
+        submitter: viewerId,
+        submitted_at: now,
+      },
     }
     const payloadHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
     const actorUuid = coerceUuid(viewerIsUuid || viewerId)
 
-    // Prefer raw SQL when dal.query is available (Postgres). Fall back to insert collection if mapped.
+    // Mirror WF-05 COMPARABLE_REMOVE: create the request only — do NOT insert a
+    // first APPROVED action by the creator (fin.trg_approval_action_rules
+    // rejects self-approval). First reviewer is tracked on report.reviewed_by;
+    // min_distinct_approvers=1 so the second PA's vote can APPROVE the request.
     if (typeof dal.query === 'function') {
       await dal.query(
         `INSERT INTO fin.approval_requests (
@@ -387,7 +394,7 @@ export function createAgentPriceReportAdminService({
            created_at, created_by_actor_type, created_by_actor_id, updated_at
          ) VALUES (
            $1::uuid, $2, NULL, $3, 'REQUESTED', 'agent_price_report', NULL,
-           $4, $5::jsonb, 2,
+           $4, $5::jsonb, 1,
            $6::timestamptz, 'USER', $7, $6::timestamptz
          )`,
         [
@@ -399,11 +406,6 @@ export function createAgentPriceReportAdminService({
           now,
           actorUuid,
         ],
-      )
-      await dal.query(
-        `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
-         VALUES ($1::uuid, $2::uuid, $3, 'APPROVED', $4::timestamptz)`,
-        [randomUUID(), approvalId, actorUuid, now],
       )
       return { id: approvalId, payload }
     }
@@ -418,17 +420,10 @@ export function createAgentPriceReportAdminService({
         subject_type: 'agent_price_report',
         payload_hash: payloadHash,
         payload,
-        min_distinct_approvers: 2,
+        min_distinct_approvers: 1,
         created_at: now,
         created_by_actor_id: actorUuid,
         updated_at: now,
-      })
-      await dal.insert('approval_actions', {
-        id: randomUUID(),
-        request_id: approvalId,
-        actor_id: actorUuid,
-        decision: 'APPROVED',
-        created_at: now,
       })
     }
     return { id: approvalId, payload }
