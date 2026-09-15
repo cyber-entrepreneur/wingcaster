@@ -25,6 +25,32 @@ const UNDO_GRACE_MS = 5000
 const DEFAULT_PAGE_SIZE = 25
 const MAX_PAGE_SIZE = 100
 
+/** Typed error codes for second-approver vote + undo (PA-PVA-009 gap-closure). */
+export const PRICE_REPORT_ERROR = Object.freeze({
+  TOKEN_CONSUMED: 'TOKEN_CONSUMED',
+  UNDO_EXPIRED: 'UNDO_EXPIRED',
+  SAME_REVIEWER: 'SAME_REVIEWER',
+  OWN_CASE: 'OWN_CASE',
+  OWN_REPORT: 'OWN_REPORT',
+  NOT_FOUND: 'NOT_FOUND',
+  INVALID_STATE: 'INVALID_STATE',
+  INVALID_VOTE: 'INVALID_VOTE',
+})
+
+function serviceError(code, message, httpStatus = 400, extra = {}) {
+  const err = new Error(message)
+  err.status = httpStatus
+  err.code = code
+  Object.assign(err, extra)
+  return err
+}
+
+function issueUndoToken(nowIso = new Date().toISOString()) {
+  const undo_token_id = randomUUID()
+  const undo_expires_at = new Date(Date.parse(nowIso) + UNDO_GRACE_MS).toISOString()
+  return { undo_token_id, undo_expires_at }
+}
+
 const STATUS_ALIASES = Object.freeze({
   pending: 'pending_review',
 })
@@ -214,6 +240,7 @@ export function createAgentPriceReportAdminService({
     }
 
     const nextStatus = status === 'verified' ? 'verified' : status
+    const undo = issueUndoToken(now)
     await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => ({
       ...r,
       status: nextStatus,
@@ -228,10 +255,19 @@ export function createAgentPriceReportAdminService({
         decision: nextStatus,
         decision_notes: body?.notes || null,
         decision_reason: body?.reason_code || null,
+        undo_token_id: undo.undo_token_id,
+        undo_expires_at: undo.undo_expires_at,
+        undo_consumed: false,
       },
     }))
 
-    return { success: true, status: nextStatus, incorporated: false }
+    return {
+      success: true,
+      status: nextStatus,
+      incorporated: false,
+      undo_token_id: undo.undo_token_id,
+      undo_expires_at: undo.undo_expires_at,
+    }
   }
 
   async function commitIncorporate({ report, delta, viewerId, env, notes, reasonCode, now }) {
@@ -247,6 +283,7 @@ export function createAgentPriceReportAdminService({
         if (r.data?.__force_status_write_failure) {
           throw Object.assign(new Error('Forced status write failure'), { status: 500, code: 'STATUS_WRITE_FAILED' })
         }
+        const undo = issueUndoToken(now)
         return {
           ...r,
           status: 'incorporated',
@@ -263,6 +300,10 @@ export function createAgentPriceReportAdminService({
             decision_notes: notes || null,
             benchmark_id: benchmark.id,
             incorporated_delta_pct: delta?.delta_pct ?? null,
+            undo_token_id: undo.undo_token_id,
+            undo_expires_at: undo.undo_expires_at,
+            undo_consumed: false,
+            __last_undo: undo,
           },
         }
       })
@@ -276,6 +317,19 @@ export function createAgentPriceReportAdminService({
       requestedBy: viewerId,
     })
 
+    const reportAfter = await dal.findOne(
+      Collections.AGENT_PRICE_REPORTS,
+      (row) => row.id === reportId,
+    )
+    const undo = reportAfter?.data?.__last_undo || issueUndoToken(now)
+    if (reportAfter?.data?.__last_undo) {
+      await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => {
+        const data = { ...(r.data || {}) }
+        delete data.__last_undo
+        return { ...r, data }
+      })
+    }
+
     return {
       success: true,
       status: 'incorporated',
@@ -283,6 +337,8 @@ export function createAgentPriceReportAdminService({
       benchmark_id: result.benchmark?.id || null,
       benchmark_refresh_queued: Boolean(refreshJob),
       refresh_job_id: refreshJob?.id || null,
+      undo_token_id: undo.undo_token_id,
+      undo_expires_at: undo.undo_expires_at,
     }
   }
 
@@ -322,6 +378,11 @@ export function createAgentPriceReportAdminService({
           actorUuid,
         ],
       )
+      await dal.query(
+        `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
+         VALUES ($1::uuid, $2::uuid, $3, 'APPROVED', $4::timestamptz)`,
+        [randomUUID(), approvalId, actorUuid, now],
+      )
       return { id: approvalId, payload }
     }
 
@@ -339,6 +400,13 @@ export function createAgentPriceReportAdminService({
         created_at: now,
         created_by_actor_id: actorUuid,
         updated_at: now,
+      })
+      await dal.insert('approval_actions', {
+        id: randomUUID(),
+        request_id: approvalId,
+        actor_id: actorUuid,
+        decision: 'APPROVED',
+        created_at: now,
       })
     }
     return { id: approvalId, payload }
@@ -384,65 +452,116 @@ export function createAgentPriceReportAdminService({
     return { success: true, results }
   }
 
-  async function undoReview(reportId, { viewerId, env: envInput = 'live' } = {}) {
+  async function appendAuditEvent(reportId, event) {
+    await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => ({
+      ...r,
+      data: {
+        ...(r.data || {}),
+        audit_trail: [ ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []), event ],
+      },
+      updated_at: event.at || new Date().toISOString(),
+    }))
+  }
+
+  async function undoReview(reportId, { viewerId, env: envInput = 'live', undoTokenId = null } = {}) {
     const env = normalizeClientEnv(envInput)
+    const now = new Date().toISOString()
     const report = await dal.findOne(
       Collections.AGENT_PRICE_REPORTS,
       (row) => row.id === reportId && (row.env || 'live') === env,
     )
     if (!report) {
-      const err = new Error('Report not found')
-      err.status = 404
-      err.code = 'NOT_FOUND'
-      throw err
-    }
-    if (!report.reviewed_at) {
-      const err = new Error('Report has no review to undo')
-      err.status = 409
-      err.code = 'NO_REVIEW'
-      throw err
-    }
-    if (report.reviewed_by && viewerId && report.reviewed_by !== viewerId) {
-      const err = new Error('Only the reviewing PA can undo within the grace window')
-      err.status = 403
-      err.code = 'FORBIDDEN'
-      throw err
-    }
-    const age = Date.now() - new Date(report.reviewed_at).getTime()
-    if (age > UNDO_GRACE_MS) {
-      const err = new Error('Undo grace window expired')
-      err.status = 409
-      err.code = 'UNDO_EXPIRED'
-      throw err
+      throw serviceError(PRICE_REPORT_ERROR.NOT_FOUND, 'Report not found', 404)
     }
 
-    const wasIncorporated = report.status === 'incorporated' || report.incorporated === true
-    await dal.transaction(async () => {
-      if (wasIncorporated) {
-        await benchmarkService.rollbackBenchmarkWrite(report, { env })
+    const attemptMeta = {
+      actor: { id: viewerId, role: 'platform_admin' },
+      action: 'undo_attempt',
+      at: now,
+      reason: null,
+      notes: undoTokenId || null,
+    }
+
+    try {
+      if (report.reporter_id && viewerId && String(report.reporter_id) === String(viewerId)) {
+        throw serviceError(PRICE_REPORT_ERROR.OWN_CASE, 'Cannot undo review on your own price report', 403)
       }
-      const now = new Date().toISOString()
-      await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => ({
-        ...r,
-        status: 'pending_review',
-        incorporated: false,
-        incorporated_at: null,
-        reviewed_by: null,
-        reviewed_at: null,
-        review_notes: null,
-        reason_code: null,
-        approval_request_id: null,
-        updated_at: now,
-        data: {
-          ...(r.data || {}),
-          undone_at: now,
-          undone_by: viewerId,
-          prior_status: r.status,
-        },
-      }))
-    })
+      if (!report.reviewed_at) {
+        throw serviceError(PRICE_REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed or no review to undo', 410)
+      }
+      if (report.reviewed_by && viewerId && String(report.reviewed_by) !== String(viewerId)) {
+        throw serviceError(PRICE_REPORT_ERROR.SAME_REVIEWER, 'Only the deciding reviewer can undo within the grace window', 409)
+      }
 
-    return { success: true, status: 'pending_review', rolled_back_benchmark: wasIncorporated }
+      const storedToken = report.data?.undo_token_id || null
+      const expiresAt = report.data?.undo_expires_at || null
+      const consumed = Boolean(report.data?.undo_consumed)
+
+      if (consumed || !storedToken) {
+        throw serviceError(PRICE_REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed', 410)
+      }
+      if (undoTokenId && String(undoTokenId) !== String(storedToken)) {
+        throw serviceError(PRICE_REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed or invalid', 410)
+      }
+      if (expiresAt && Date.now() > Date.parse(expiresAt)) {
+        throw serviceError(PRICE_REPORT_ERROR.UNDO_EXPIRED, 'Undo grace window expired', 409)
+      }
+      // Fallback age check if expires_at missing
+      if (!expiresAt) {
+        const age = Date.now() - new Date(report.reviewed_at).getTime()
+        if (age > UNDO_GRACE_MS) {
+          throw serviceError(PRICE_REPORT_ERROR.UNDO_EXPIRED, 'Undo grace window expired', 409)
+        }
+      }
+
+      const wasIncorporated = report.status === 'incorporated' || report.incorporated === true
+      await dal.transaction(async () => {
+        if (wasIncorporated) {
+          await benchmarkService.rollbackBenchmarkWrite(report, { env })
+        }
+        await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => ({
+          ...r,
+          status: 'pending_review',
+          incorporated: false,
+          incorporated_at: null,
+          reviewed_by: null,
+          reviewed_at: null,
+          review_notes: null,
+          reason_code: null,
+          approval_request_id: null,
+          updated_at: now,
+          data: {
+            ...(r.data || {}),
+            undone_at: now,
+            undone_by: viewerId,
+            prior_status: r.status,
+            undo_consumed: true,
+            undo_token_id: storedToken,
+            undo_expires_at: expiresAt,
+            audit_trail: [
+              ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []),
+              {
+                actor: { id: viewerId, role: 'platform_admin' },
+                action: 'undo_success',
+                at: now,
+                reason: null,
+                notes: null,
+              },
+            ],
+          },
+        }))
+      })
+
+      return { success: true, status: 'pending_review', rolled_back_benchmark: wasIncorporated }
+    } catch (err) {
+      await appendAuditEvent(reportId, {
+        ...attemptMeta,
+        action: 'undo_attempt',
+        reason: err.code || 'UNDO_FAILED',
+        notes: err.message,
+      }).catch(() => {})
+      throw err
+    }
   }
 
   async function exportCsv(query = {}, opts = {}) {
@@ -556,6 +675,14 @@ export function createAgentPriceReportAdminService({
       two_person_required: twoPersonRequired,
       env,
       approval_request_id: report.approval_request_id || report.data?.approval_request_id || null,
+      viewer_already_voted: Boolean(
+        viewerId
+        && status === 'pending_second_approval'
+        && report.reviewed_by
+        && String(report.reviewed_by) === String(viewerId)
+      ),
+      undo_token_id: report.data?.undo_consumed ? null : (report.data?.undo_token_id || null),
+      undo_expires_at: report.data?.undo_consumed ? null : (report.data?.undo_expires_at || null),
     }
 
     if (!detail) return base
@@ -719,6 +846,247 @@ export function createAgentPriceReportAdminService({
     }
   }
 
+  async function castSecondApprovalVote({
+    approvalRequestId,
+    decision,
+    notes = null,
+    viewerId,
+    env: envInput = 'live',
+    viewerIsUuid = null,
+  } = {}) {
+    const env = normalizeClientEnv(envInput)
+    const normalized = String(decision || '').trim().toLowerCase()
+    if (normalized !== 'approve' && normalized !== 'decline') {
+      throw serviceError(PRICE_REPORT_ERROR.INVALID_VOTE, "decision must be 'approve' or 'decline'", 400)
+    }
+    if (!approvalRequestId) {
+      throw serviceError(PRICE_REPORT_ERROR.NOT_FOUND, 'Approval request not found', 404)
+    }
+
+    const now = new Date().toISOString()
+    const report = await dal.findOne(
+      Collections.AGENT_PRICE_REPORTS,
+      (row) => String(row.approval_request_id || row.data?.approval_request_id || '') === String(approvalRequestId)
+        && (row.env || 'live') === env,
+    )
+    if (!report) {
+      throw serviceError(PRICE_REPORT_ERROR.NOT_FOUND, 'Approval request not found', 404)
+    }
+
+    if (report.reporter_id && viewerId && String(report.reporter_id) === String(viewerId)) {
+      throw serviceError(PRICE_REPORT_ERROR.OWN_CASE, 'Cannot vote on your own price report', 403)
+    }
+
+    const status = normalizeReportStatus(report.status)
+    if (status !== 'pending_second_approval') {
+      throw serviceError(
+        PRICE_REPORT_ERROR.TOKEN_CONSUMED,
+        'Approval request already resolved',
+        410,
+      )
+    }
+
+    if (report.reviewed_by && viewerId && String(report.reviewed_by) === String(viewerId)) {
+      throw serviceError(
+        PRICE_REPORT_ERROR.SAME_REVIEWER,
+        'Same reviewer cannot cast the second vote',
+        409,
+      )
+    }
+
+    // Detect prior vote by this actor on the approval request (memory + SQL)
+    let priorActions = []
+    if (typeof dal.query === 'function') {
+      try {
+        const result = await dal.query(
+          `SELECT actor_id, decision FROM fin.approval_actions WHERE request_id = $1`,
+          [approvalRequestId],
+        )
+        priorActions = result?.rows || result || []
+      } catch {
+        priorActions = []
+      }
+    }
+    if (dal.findAll) {
+      const mem = await dal.findAll('approval_actions', (a) => String(a.request_id) === String(approvalRequestId))
+      if (mem?.length) priorActions = mem
+    }
+    if (priorActions.some((a) => String(a.actor_id) === String(viewerId))) {
+      throw serviceError(
+        PRICE_REPORT_ERROR.TOKEN_CONSUMED,
+        'You already voted on this approval request',
+        410,
+      )
+    }
+
+    const actorUuid = coerceUuid(viewerIsUuid || viewerId) || viewerId
+    const actionDecision = normalized === 'approve' ? 'APPROVED' : 'REJECTED'
+    const actionId = randomUUID()
+
+    if (normalized === 'decline') {
+      await dal.transaction(async () => {
+        if (typeof dal.query === 'function') {
+          await dal.query(
+            `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
+             VALUES ($1, $2, $3, $4, $5::timestamptz)`,
+            [actionId, approvalRequestId, actorUuid, actionDecision, now],
+          )
+          await dal.query(
+            `UPDATE fin.approval_requests SET status = 'REJECTED', updated_at = $2::timestamptz WHERE id = $1`,
+            [approvalRequestId, now],
+          )
+        } else if (dal.insert) {
+          await dal.insert('approval_actions', {
+            id: actionId,
+            request_id: approvalRequestId,
+            actor_id: actorUuid,
+            decision: actionDecision,
+            created_at: now,
+          })
+          await dal.update('approval_requests', (r) => r.id === approvalRequestId, (r) => ({
+            ...r,
+            status: 'REJECTED',
+            updated_at: now,
+          }))
+        }
+
+        await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === report.id, (r) => ({
+          ...r,
+          status: 'pending_review',
+          approval_request_id: null,
+          reviewed_by: null,
+          reviewed_at: null,
+          updated_at: now,
+          data: {
+            ...(r.data || {}),
+            pending_incorporate: false,
+            approval_request_id: null,
+            audit_trail: [
+              ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []),
+              {
+                actor: { id: viewerId, role: 'platform_admin' },
+                action: 'second_approval_declined',
+                at: now,
+                reason: null,
+                notes: notes || null,
+              },
+            ],
+          },
+        }))
+      })
+
+      return {
+        success: true,
+        decision: 'decline',
+        status: 'pending_review',
+        approval_request_id: approvalRequestId,
+        report_id: report.id,
+      }
+    }
+
+    // approve → finalize + incorporate
+    const delta = await benchmarkService.computeBenchmarkDelta(report, env)
+    let incorporateResult = null
+    await dal.transaction(async () => {
+      if (typeof dal.query === 'function') {
+        await dal.query(
+          `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
+           VALUES ($1, $2, $3, $4, $5::timestamptz)`,
+          [actionId, approvalRequestId, actorUuid, actionDecision, now],
+        )
+        await dal.query(
+          `UPDATE fin.approval_requests SET status = 'APPROVED', updated_at = $2::timestamptz WHERE id = $1`,
+          [approvalRequestId, now],
+        )
+      } else if (dal.insert) {
+        await dal.insert('approval_actions', {
+          id: actionId,
+          request_id: approvalRequestId,
+          actor_id: actorUuid,
+          decision: actionDecision,
+          created_at: now,
+        })
+        await dal.update('approval_requests', (r) => r.id === approvalRequestId, (r) => ({
+          ...r,
+          status: 'APPROVED',
+          updated_at: now,
+        }))
+      }
+    })
+
+    incorporateResult = await commitIncorporate({
+      report: { ...report, status: 'pending_second_approval' },
+      delta,
+      viewerId,
+      env,
+      notes: notes || report.review_notes,
+      reasonCode: report.reason_code,
+      now,
+    })
+
+    await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === report.id, (r) => ({
+      ...r,
+      data: {
+        ...(r.data || {}),
+        audit_trail: [
+          ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []),
+          {
+            actor: { id: viewerId, role: 'platform_admin' },
+            action: 'second_approval_approved',
+            at: now,
+            reason: null,
+            notes: notes || null,
+          },
+        ],
+      },
+    }))
+
+    return {
+      success: true,
+      decision: 'approve',
+      status: 'incorporated',
+      approval_request_id: approvalRequestId,
+      report_id: report.id,
+      ...incorporateResult,
+    }
+  }
+
+  async function recordRevealAudit(reportId, { viewerId, field, kind = 'name', env: envInput = 'live' } = {}) {
+    const env = normalizeClientEnv(envInput)
+    const report = await dal.findOne(
+      Collections.AGENT_PRICE_REPORTS,
+      (row) => row.id === reportId && (row.env || 'live') === env,
+    )
+    if (!report) {
+      throw serviceError(PRICE_REPORT_ERROR.NOT_FOUND, 'Report not found', 404)
+    }
+    const now = new Date().toISOString()
+    await appendAuditEvent(reportId, {
+      actor: { id: viewerId, role: 'platform_admin' },
+      action: 'pii_revealed',
+      at: now,
+      reason: field || null,
+      notes: kind || null,
+    })
+    if (typeof dal.insert === 'function') {
+      try {
+        await dal.insert('audit_log', {
+          id: randomUUID(),
+          entity_type: 'agent_price_report',
+          entity_id: reportId,
+          action: 'reveal',
+          actor_id: viewerId,
+          meta: { field, kind },
+          created_at: now,
+          env,
+        })
+      } catch {
+        // optional sink
+      }
+    }
+    return { success: true }
+  }
+
   return {
     listReports,
     getReport,
@@ -728,6 +1096,8 @@ export function createAgentPriceReportAdminService({
     exportCsv,
     commitIncorporate,
     enrichReport,
+    castSecondApprovalVote,
+    recordRevealAudit,
   }
 }
 
