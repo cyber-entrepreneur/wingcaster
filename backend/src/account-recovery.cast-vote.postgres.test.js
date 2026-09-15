@@ -345,6 +345,30 @@ finPostgresSuite('account-recovery cast-vote (BE-BLOCKER-22)', { seed: false }, 
     expect(first.body.awaiting_second_vote).toBe(true)
   })
 
+  it('cast-vote on expired case returns NOT_PENDING; withdraw returns CASE_FINALIZED', async () => {
+    // Guard list at cast-vote.js:~755 treats expired as finalized (CASE_FINALIZED on withdraw).
+    // castVote itself rejects any non-pending_review status with NOT_PENDING.
+    const pa = await agentAccount('PA Expired Vote', { platformAdmin: true })
+    const target = await agentAccount('Expired Applicant')
+    const caseId = await openRecoveryCase({ ...target, status: 'expired' })
+
+    const vote = await request(app)
+      .post(`/api/admin/account-recovery/${caseId}/cast-vote`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .send({ vote: 'approve', notes: 'should not accept vote on expired' })
+
+    expect(vote.status).toBe(400)
+    expect(vote.body.code).toBe('NOT_PENDING')
+
+    const withdraw = await request(app)
+      .post(`/api/admin/account-recovery/${caseId}/withdraw-vote`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .send({})
+
+    expect(withdraw.status).toBe(409)
+    expect(withdraw.body.code).toBe('CASE_FINALIZED')
+  })
+
   it('non-admin cast-vote is forbidden', async () => {
     const agent = await agentAccount('Not Admin')
     const target = await agentAccount('Someone')

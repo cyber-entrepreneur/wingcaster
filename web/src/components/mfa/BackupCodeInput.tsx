@@ -18,17 +18,19 @@ export interface BackupCodeInputProps {
   className?: string
 }
 
-const CODE_LENGTH = 12
+/** Backend `backup-codes.js`: 10 Crockford-alphabet chars, display `ABCDE-FGHJK`. */
+const CODE_LENGTH = 10
+const GROUP_SIZE = 5
 
 /**
- * Format raw alphanumeric into `XXXX-XXXX-XXXX` groups.
+ * Format raw alphanumeric into `XXXXX-XXXXX` groups matching backend display.
  * Parent should not require the user to type dashes.
  */
 export function formatBackupCode(raw: string): { formatted: string; normalized: string } {
   const normalized = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CODE_LENGTH)
   const parts: string[] = []
-  for (let i = 0; i < normalized.length; i += 4) {
-    parts.push(normalized.slice(i, i + 4))
+  for (let i = 0; i < normalized.length; i += GROUP_SIZE) {
+    parts.push(normalized.slice(i, i + GROUP_SIZE))
   }
   return { formatted: parts.join('-'), normalized }
 }
@@ -37,7 +39,6 @@ export function formatBackupCode(raw: string): { formatted: string; normalized: 
  * Single-line backup-code input with auto-uppercase + dash grouping.
  *
  * Used by: SHR-MFA-004b, SHR-MFA-006, SHR-MFA-007 (TOTP → backup fallback).
- * Stub visual + formatting only — no crypto / API.
  */
 export function BackupCodeInput({
   value = '',
@@ -45,7 +46,7 @@ export function BackupCodeInput({
   disabled = false,
   error = false,
   autoFocus = false,
-  placeholder = 'XXXX-XXXX-XXXX',
+  placeholder = 'XXXXX-XXXXX',
   'aria-label': ariaLabel = 'Backup code',
   id,
   className,

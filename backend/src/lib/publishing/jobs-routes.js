@@ -1,6 +1,9 @@
 /**
- * Publishing job receipt + retry routes (BE-BLOCKER-10 / AGT-PUB-003).
+ * Publishing job receipt + retry routes (BE-BLOCKER-10 / AGT-PUB-003)
+ * + AGT-PUB-005 submit create + portal_registry picker.
  *
+ *   GET  /api/portals
+ *   POST /api/publishing/jobs
  *   GET  /api/publishing/jobs/:jobId
  *   POST /api/publishing/jobs/:jobId/destinations/:destinationId/retry
  *   POST /api/publishing/jobs/:jobId/retry-all
@@ -12,6 +15,7 @@
 import { z } from 'zod'
 import { authMiddleware } from '../../auth.js'
 import { query } from '../../db.js'
+import { assertOwnsProperty } from '../authz.js'
 import { validate } from '../validation.js'
 import logger from '../logger.js'
 import {
@@ -23,6 +27,7 @@ import {
   toApiErrorClass,
 } from './jobs.js'
 import { emitPublishingJobCompleted } from './notify-job-completed.js'
+import { listPortalsForSubmit, submitPortalPublishingJob } from './submit-job.js'
 
 const retryAllSchema = z.object({
   error_classes_to_retry: z
@@ -30,6 +35,20 @@ const retryAllSchema = z.object({
     .min(1)
     .max(12)
     .optional(),
+}).strict()
+
+const createJobSchema = z.object({
+  property_id: z.string().min(1).max(128),
+  portals: z.array(
+    z.union([
+      z.string().min(1).max(64),
+      z.object({
+        code: z.string().min(1).max(64),
+        country_code: z.string().min(2).max(8).optional(),
+      }).strict(),
+    ]),
+  ).min(1).max(24),
+  message: z.string().max(2000).optional(),
 }).strict()
 
 async function resolveCallerScope(userId) {
@@ -72,6 +91,51 @@ async function afterMutationNotify(jobPayload) {
 }
 
 export function registerRoutes(app, { authMiddleware: auth = authMiddleware } = {}) {
+  /**
+   * Dynamic portal_registry picker for AGT-PUB-005.
+   * No hardcoded Bayut/PF/OLX arrays — rows come from public.portal_registry.
+   */
+  app.get('/api/portals', auth, async (req, res) => {
+    try {
+      const portals = await listPortalsForSubmit()
+      return res.json({ portals })
+    } catch (err) {
+      logger.error({ err }, 'portal registry list failed')
+      return res.status(500).json({ error: 'Failed to load portals' })
+    }
+  })
+
+  /**
+   * Create a publishing job + pending_moderation destinations.
+   * Returns jobId compatible with GET /api/publishing/jobs/:jobId (AGT-PUB-003).
+   */
+  app.post('/api/publishing/jobs', auth, validate(createJobSchema), async (req, res) => {
+    try {
+      const { agentId, agencyId } = await resolveCallerScope(req.user.id)
+      await assertOwnsProperty(req.user.id, req.body.property_id)
+      const result = await submitPortalPublishingJob({
+        propertyId: req.body.property_id,
+        agentId,
+        agencyId,
+        portals: req.body.portals,
+        message: req.body.message || '',
+      })
+      return res.status(201).json({
+        jobId: result.jobId,
+        job: result.job,
+        destinations: result.destinations,
+      })
+    } catch (err) {
+      if (err?.status === 404 || err?.name === 'NotFoundError') {
+        return res.status(404).json({ error: 'Not found' })
+      }
+      if (err?.status === 400) {
+        return res.status(400).json({ error: err.message, code: err.code || null })
+      }
+      return sendJobError(res, err)
+    }
+  })
+
   app.get('/api/publishing/jobs/:jobId', auth, async (req, res) => {
     try {
       const { agentId, agencyId } = await resolveCallerScope(req.user.id)

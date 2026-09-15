@@ -177,6 +177,9 @@ export function parseTrackerQuery(query = {}, { defaultMonth = false } = {}) {
     issues.push(issue('listing_id', 'Must be at most 80 characters'))
   }
 
+  const qRaw = query.q == null || query.q === '' ? '' : String(query.q).trim()
+  const q = qRaw ? qRaw.slice(0, 120) : null
+
   let from
   let to
   try {
@@ -232,6 +235,7 @@ export function parseTrackerQuery(query = {}, { defaultMonth = false } = {}) {
     statuses,
     portals,
     listingId,
+    q,
     from: fromBound,
     to: toBound,
     limit,
@@ -324,6 +328,9 @@ export function toTrackerRow(row) {
   const errorClass = failed ? (row.error_class || null) : null
   return {
     distribution_attempt_id: row.distribution_attempt_id,
+    // Receipt deep-link: prefer publishing_jobs.id, fall back to distribution_jobs.id
+    // (GET /api/publishing/jobs/:jobId accepts either — BE-BLOCKER-10).
+    job_id: row.publishing_job_id || row.job_id || null,
     listing: {
       id: row.listing_id || row.property_id || null,
       address_line: row.address_line || null,
@@ -389,6 +396,7 @@ function scopedSelectSql() {
       ${SUBMITTED_AT_SQL} AS submitted_at,
       ${UPDATED_AT_SQL} AS updated_at,
       j.id AS job_id,
+      j.publishing_job_id AS publishing_job_id,
       j.property_id,
       j.platform,
       COALESCE(p.id, j.property_id) AS listing_id,
@@ -448,6 +456,18 @@ function pushFilters(params, clauses, filters) {
     params.push(filters.listingId)
     clauses.push(`j.property_id = $${params.length}`)
   }
+  if (filters.q) {
+    params.push(`%${filters.q.toLowerCase()}%`)
+    clauses.push(`(
+      lower(COALESCE(p.title, '')) LIKE $${params.length}
+      OR lower(COALESCE(p.location, '')) LIKE $${params.length}
+      OR lower(COALESCE(p.neighborhood, '')) LIKE $${params.length}
+      OR lower(COALESCE(p.city, '')) LIKE $${params.length}
+      OR lower(COALESCE(p.data->>'address', '')) LIKE $${params.length}
+      OR lower(COALESCE(j.platform, '')) LIKE $${params.length}
+      OR lower(COALESCE(pr.display_name, '')) LIKE $${params.length}
+    )`)
+  }
   if (filters.from) {
     params.push(filters.from)
     clauses.push(`${SUBMITTED_AT_SQL} >= $${params.length}::timestamptz`)
@@ -501,6 +521,7 @@ export function filtersApplied(filters) {
     status: filters.statuses || [],
     portal: filters.portals || [],
     listing_id: filters.listingId || null,
+    q: filters.q || null,
     from: filters.from || null,
     to: filters.to || null,
   }

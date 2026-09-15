@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Code, Plus, Loader2, Check, X, Copy, Trash2, LayoutGrid, Search, MessageSquare, Calculator } from 'lucide-react'
+import { Code, Plus, Loader2, Check, X, Copy, Trash2, LayoutGrid, Search, MessageSquare, Calculator, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,37 +11,69 @@ import { API_BASE, api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 
-const WIDGET_TYPES: Record<string, { name: string; icon: any; description: string; defaults: Record<string, any> }> = {
+type WidgetConfig = Record<string, string | number>
+
+interface WidgetTypeMeta {
+  name: string
+  icon: LucideIcon
+  description: string
+  defaults: WidgetConfig
+}
+
+const WIDGET_TYPES: Record<string, WidgetTypeMeta> = {
   'listing-gallery': { name: 'Listing Gallery', icon: LayoutGrid, description: 'Display property listings in a grid', defaults: { theme: 'light', limit: 6 } },
   'search-bar': { name: 'Search Bar', icon: Search, description: 'Embeddable property search', defaults: { placeholder: 'Search properties...' } },
   'contact-form': { name: 'Contact Form', icon: MessageSquare, description: 'Lead capture form', defaults: { agency_name: '' } },
   'mortgage-calculator': { name: 'Mortgage Calculator', icon: Calculator, description: 'Interactive mortgage calculator', defaults: { currency: 'USD' } },
 }
 
+/** Widget list row as used by this page (API JSON boundary). */
+interface Widget {
+  id: string
+  name: string
+  type: string
+  embed_code?: string
+  config?: WidgetConfig
+  site_id?: string
+}
+
+interface WhiteLabelSiteOption {
+  id: string
+  name: string
+}
+
+interface CreateWidgetForm {
+  name: string
+  type: string
+  config: WidgetConfig
+  site_id: string
+}
+
 export function WidgetBuilderPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
   usePageTitle('Widget Builder')
-  const [widgets, setWidgets] = useState<any[]>([])
+  const [widgets, setWidgets] = useState<Widget[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ name: '', type: 'listing-gallery', config: {} as Record<string, any>, site_id: '' })
+  const [createForm, setCreateForm] = useState<CreateWidgetForm>({ name: '', type: 'listing-gallery', config: {}, site_id: '' })
   const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [sites, setSites] = useState<any[]>([])
+  const [sites, setSites] = useState<WhiteLabelSiteOption[]>([])
 
   const loadAll = useCallback(() => {
     setLoading(true)
     Promise.all([
-      api.getWidgets().catch((err: any) => { addToast({ title: 'Widgets unavailable', description: err.message, variant: 'error' }); return [] }),
-      api.getSites().catch((err: any) => { addToast({ title: 'Sites unavailable', description: err.message, variant: 'error' }); return [] }),
+      // API JSON boundaries — fetchJson is untyped; narrow to page interfaces.
+      (api.getWidgets() as Promise<Widget[]>).catch((err: unknown) => { addToast({ title: 'Widgets unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return [] as Widget[] }),
+      (api.getSites() as Promise<WhiteLabelSiteOption[]>).catch((err: unknown) => { addToast({ title: 'Sites unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return [] as WhiteLabelSiteOption[] }),
     ]).then(([w, s]) => {
       setWidgets(w)
       setSites(s)
       setLoading(false)
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       setLoading(false)
-      addToast({ title: 'Failed to load widgets', description: err.message || 'Could not load data', variant: 'error' })
+      addToast({ title: 'Failed to load widgets', description: err instanceof Error ? err.message : 'Could not load data', variant: 'error' })
     })
   }, [addToast])
 
@@ -59,11 +91,11 @@ export function WidgetBuilderPage() {
       await api.createWidget({ name: createForm.name, type: createForm.type, config, site_id: createForm.site_id || undefined })
       setShowCreate(false)
       setCreateForm({ name: '', type: 'listing-gallery', config: {}, site_id: '' })
-      const w = await api.getWidgets()
+      const w = await api.getWidgets() as Widget[]
       setWidgets(w)
       addToast({ title: 'Widget created', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create widget', description: e.message || 'Could not create widget', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to create widget', description: e instanceof Error ? e.message : 'Could not create widget', variant: 'error' })
     } finally {
       setCreating(false)
     }
@@ -75,12 +107,12 @@ export function WidgetBuilderPage() {
       await api.deleteWidget(id)
       setWidgets(prev => prev.filter(w => w.id !== id))
       addToast({ title: 'Widget deleted', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to delete widget', description: e.message || 'Could not delete widget', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to delete widget', description: e instanceof Error ? e.message : 'Could not delete widget', variant: 'error' })
     }
   }
 
-  const copyEmbed = (widget: any) => {
+  const copyEmbed = (widget: Widget) => {
     const code = widget.embed_code || `<script src="${API_BASE}/public/widgets/${widget.id}.js"></script>`
     navigator.clipboard.writeText(code)
       .then(() => {
@@ -88,8 +120,8 @@ export function WidgetBuilderPage() {
         addToast({ title: 'Embed code copied', variant: 'success' })
         setTimeout(() => setCopiedId(null), 2000)
       })
-      .catch((e: any) => {
-        addToast({ title: 'Copy failed', description: e.message || 'Could not copy to clipboard', variant: 'error' })
+      .catch((e: unknown) => {
+        addToast({ title: 'Copy failed', description: e instanceof Error ? e.message : 'Could not copy to clipboard', variant: 'error' })
       })
   }
 

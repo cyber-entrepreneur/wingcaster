@@ -41,7 +41,7 @@ function Badge({ className, variant, status, children, ...props }: BadgeProps) {
     <div className={cn(badgeVariants({ variant: statusVariant }), className)} {...props}>
       {resolved ? (
         <>
-          <span aria-hidden="true" className="mr-1" style={{ color: `var(--lc-status-${resolved}-dot)` }}>
+          <span aria-hidden="true" className="me-1" style={{ color: `var(--lc-status-${resolved}-dot)` }}>
             {LC_STATUS_GLYPH[resolved]}
           </span>
           {children}

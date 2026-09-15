@@ -173,7 +173,7 @@ export function PromoteDistributeModal({
                   type="button"
                   disabled={!isConnected}
                   onClick={() => isConnected && toggle(selectedOwn, p.id, setSelectedOwn)}
-                  className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 rounded-lg border p-3 text-start transition-colors ${
                     !isConnected
                       ? 'opacity-60 cursor-not-allowed bg-[var(--lc-surface-sunken)]'
                       : isSel
@@ -251,7 +251,7 @@ export function PromoteDistributeModal({
                   key={acc.id}
                   type="button"
                   onClick={() => toggle(selectedFi, acc.platform, setSelectedFi)}
-                  className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 rounded-lg border p-3 text-start transition-colors ${
                     isSel ? 'border-[var(--lc-action-primary)] bg-primary-faint' : 'hover:bg-[var(--lc-surface-sunken)]'
                   }`}
                 >

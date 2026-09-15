@@ -37,6 +37,8 @@ import bcrypt from 'bcryptjs'
 import { insert, query, transaction } from './db.js'
 import { findUserById } from './identity.js'
 import { requireElevated, signElevatedToken, ELEVATION_TTL_SECONDS } from './auth.js'
+import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
+import { addAuthBreadcrumb } from './lib/observability/sentry.js'
 import { encryptSecret, tryDecrypt } from './lib/credentials.js'
 import { sendOtp } from './lib/otp.js'
 import { generateTotpSecret, buildProvisioningUri, verifyTotp, TOTP_ISSUER } from './lib/totp.js'
@@ -291,6 +293,11 @@ async function redeemChallenge({ challengeId, code, purpose, expectedUserId = nu
 }
 
 function respondChallengeFailure(res, result) {
+  addAuthBreadcrumb(
+    'mfa_challenge_fail',
+    { reason: result.error, status: result.status },
+    'warning',
+  )
   const body = { error: result.error }
   if (result.remaining_attempts !== undefined) body.remaining_attempts = result.remaining_attempts
   return res.status(result.status).json(body)
@@ -476,6 +483,7 @@ export function registerTwoFactorRoutes(app, deps) {
         'DELETE FROM auth_challenges WHERE user_id = $1 AND consumed_at IS NULL',
         [user.id],
       )
+      await revokeUserSessions(user.id, { exceptId: sessionIdFromToken(req.user), client })
       return { tokenVersion: nextTokenVersion }
     })
 
@@ -485,7 +493,7 @@ export function registerTwoFactorRoutes(app, deps) {
 
     const refreshed = await findUserById(user.id)
     const agent = await findAgentForUser(user.id)
-    const session = agent ? await buildAuthSession(refreshed, agent) : null
+    const session = agent ? await buildAuthSession(refreshed, agent, { req, reuseSessionId: req.user?.session_id || req.user?.jti }) : null
 
     res.json({
       totp_enabled: false,
@@ -544,7 +552,13 @@ export function registerTwoFactorRoutes(app, deps) {
 
     await logActivity({ type: '2fa_signin_completed', agent_id: user.id, meta: { method: result.method } })
 
-    const session = await buildAuthSession(user, agent)
+    addAuthBreadcrumb('mfa_challenge_success', {
+      user_id: user.id,
+      method: result.method,
+      purpose: 'signin',
+    })
+
+    const session = await buildAuthSession(user, agent, { req })
     res.json({ ...session, factor_used: result.method })
   })
 
@@ -615,6 +629,12 @@ export function registerTwoFactorRoutes(app, deps) {
     })
 
     await logActivity({ type: 'step_up_completed', agent_id: user.id, meta: { method: result.method } })
+
+    addAuthBreadcrumb('mfa_challenge_success', {
+      user_id: user.id,
+      method: result.method,
+      purpose: 'stepup',
+    })
 
     res.json({
       elevated_token: elevatedToken,

@@ -52,4 +52,7 @@ jobs:
         run: npx vitest run
 
       - name: Production build
+        env:
+          VITE_GIT_SHA: ${{ github.sha }}
+          # SENTRY_AUTH_TOKEN intentionally unset in CI — plugin no-ops; maps stay local.
         run: npx vite build

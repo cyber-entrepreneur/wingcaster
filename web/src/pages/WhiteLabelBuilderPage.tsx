@@ -12,7 +12,52 @@ import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { readLcColor } from '@/theme/css'
 
-function defaultBrandConfig() {
+interface BrandConfig {
+  primary_color: string
+  secondary_color: string
+  font_family: string
+  logo_url: string
+}
+
+/** Agency summary used for the empty-state / header (API JSON boundary). */
+interface AgencySummary {
+  id: string
+  name: string
+}
+
+interface WhiteLabelTemplate {
+  id: string
+  name: string
+  description: string
+  preview_image: string
+  features?: string
+}
+
+interface WhiteLabelSite {
+  id: string
+  name: string
+  template_id: string
+  subdomain?: string
+  custom_domain?: string
+  brand_config?: BrandConfig
+}
+
+interface WhiteLabelDomain {
+  id: string
+  domain: string
+  status: string
+  site_id: string
+}
+
+interface CreateSiteForm {
+  name: string
+  template_id: string
+  subdomain: string
+  custom_domain: string
+  brand_config: BrandConfig
+}
+
+function defaultBrandConfig(): BrandConfig {
   return {
     primary_color: readLcColor('--lc-action-primary'),
     secondary_color: readLcColor('--lc-accent'),
@@ -26,14 +71,14 @@ export function WhiteLabelBuilderPage() {
   const { addToast } = useToast()
   usePageTitle('White-Label Websites')
   const [loading, setLoading] = useState(true)
-  const [agency, setAgency] = useState<any>(null)
-  const [templates, setTemplates] = useState<any[]>([])
-  const [sites, setSites] = useState<any[]>([])
-  const [domains, setDomains] = useState<any[]>([])
+  const [agency, setAgency] = useState<AgencySummary | null>(null)
+  const [templates, setTemplates] = useState<WhiteLabelTemplate[]>([])
+  const [sites, setSites] = useState<WhiteLabelSite[]>([])
+  const [domains, setDomains] = useState<WhiteLabelDomain[]>([])
 
   // Create site form
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({
+  const [createForm, setCreateForm] = useState<CreateSiteForm>({
     name: '',
     template_id: '',
     subdomain: '',
@@ -45,19 +90,20 @@ export function WhiteLabelBuilderPage() {
   const loadAll = useCallback(() => {
     setLoading(true)
     Promise.all([
-      api.getMyAgency().catch((err: any) => { addToast({ title: 'Agency unavailable', description: err.message, variant: 'error' }); return null }),
-      api.getTemplates().catch((err: any) => { addToast({ title: 'Templates unavailable', description: err.message, variant: 'error' }); return [] }),
-      api.getSites().catch((err: any) => { addToast({ title: 'Sites unavailable', description: err.message, variant: 'error' }); return [] }),
-      api.getDomains().catch((err: any) => { addToast({ title: 'Domains unavailable', description: err.message, variant: 'error' }); return [] }),
+      // API JSON boundaries — fetchJson is untyped; narrow to page interfaces.
+      (api.getMyAgency() as Promise<AgencySummary>).catch((err: unknown) => { addToast({ title: 'Agency unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return null }),
+      (api.getTemplates() as Promise<WhiteLabelTemplate[]>).catch((err: unknown) => { addToast({ title: 'Templates unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return [] as WhiteLabelTemplate[] }),
+      (api.getSites() as Promise<WhiteLabelSite[]>).catch((err: unknown) => { addToast({ title: 'Sites unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return [] as WhiteLabelSite[] }),
+      (api.getDomains() as Promise<WhiteLabelDomain[]>).catch((err: unknown) => { addToast({ title: 'Domains unavailable', description: err instanceof Error ? err.message : undefined, variant: 'error' }); return [] as WhiteLabelDomain[] }),
     ]).then(([ag, tpls, st, dm]) => {
       setAgency(ag)
       setTemplates(tpls)
       setSites(st)
       setDomains(dm)
       setLoading(false)
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       setLoading(false)
-      addToast({ title: 'Failed to load white-label data', description: err.message || 'Could not load data', variant: 'error' })
+      addToast({ title: 'Failed to load white-label data', description: err instanceof Error ? err.message : 'Could not load data', variant: 'error' })
     })
   }, [addToast])
 
@@ -70,14 +116,15 @@ export function WhiteLabelBuilderPage() {
     if (!createForm.name.trim() || !createForm.template_id) return
     setCreating(true)
     try {
-      await api.createSite(createForm)
+      // fetch/JSON boundary — createSite accepts Record<string, unknown>
+      await api.createSite({ ...createForm } as Record<string, unknown>)
       setShowCreate(false)
       setCreateForm({ name: '', template_id: '', subdomain: '', custom_domain: '', brand_config: defaultBrandConfig() })
-      const st = await api.getSites()
+      const st = await api.getSites() as WhiteLabelSite[]
       setSites(st)
       addToast({ title: 'Site created', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create site', description: e.message || 'Could not create site', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to create site', description: e instanceof Error ? e.message : 'Could not create site', variant: 'error' })
     } finally {
       setCreating(false)
     }
@@ -89,8 +136,8 @@ export function WhiteLabelBuilderPage() {
       await api.deleteSite(id)
       setSites(prev => prev.filter(s => s.id !== id))
       addToast({ title: 'Site deleted', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to delete site', description: e.message || 'Could not delete site', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to delete site', description: e instanceof Error ? e.message : 'Could not delete site', variant: 'error' })
     }
   }
 
@@ -99,11 +146,11 @@ export function WhiteLabelBuilderPage() {
     if (!domain) return
     try {
       await api.createDomain({ domain, type: 'custom', site_id: siteId })
-      const dm = await api.getDomains()
+      const dm = await api.getDomains() as WhiteLabelDomain[]
       setDomains(dm)
       addToast({ title: 'Domain added', description: domain, variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to add domain', description: e.message || 'Could not add domain', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to add domain', description: e instanceof Error ? e.message : 'Could not add domain', variant: 'error' })
     }
   }
 
@@ -225,7 +272,7 @@ export function WhiteLabelBuilderPage() {
                   <h3 className="font-semibold">{tpl.name}</h3>
                   <p className="text-sm text-muted-foreground">{tpl.description}</p>
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {tpl.features?.split(',').map((f: string) => (
+                    {tpl.features?.split(',').map((f) => (
                       <Badge key={f} variant="secondary" className="text-xs">{f.trim()}</Badge>
                     ))}
                   </div>

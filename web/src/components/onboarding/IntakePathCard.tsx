@@ -160,7 +160,7 @@ export function IntakePathCard({
             }}
           >
             {ctaLabel}
-            {!isNextAction ? <ArrowRight className="ms-2 h-4 w-4" aria-hidden="true" /> : null}
+            {!isNextAction ? <ArrowRight className="ms-2 h-4 w-4 rtl:rotate-180" aria-hidden="true" /> : null}
           </Button>
         ) : (
           <div className="flex min-h-tap items-center justify-center text-[var(--lc-text-muted)]">

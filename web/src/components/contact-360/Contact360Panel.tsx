@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { readChannel } from '@/lib/channel-source'
 
 interface Props {
   contactId: string
@@ -85,7 +86,7 @@ export function Contact360Panel({ contactId }: Props) {
   const messages = useMemo(() => {
     if (!feed) return []
     return feed.messages.filter((m) => {
-      if (channelFilter && m.channel !== channelFilter) return false
+      if (channelFilter && readChannel(m) !== channelFilter) return false
       if (categoryFilter && (m.category || 'general') !== categoryFilter) return false
       return true
     })
@@ -220,7 +221,7 @@ export function Contact360Panel({ contactId }: Props) {
                         <p className="mt-0.5 text-xs text-muted-foreground">{s.reason}</p>
                         {s.params.template_hint && (
                           <p className="mt-1 rounded border border-dashed border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-900">
-                            <Sparkles className="mr-1 inline h-3 w-3" /> {s.params.template_hint}
+                            <Sparkles className="me-1 inline h-3 w-3" /> {s.params.template_hint}
                           </p>
                         )}
                       </div>
@@ -258,7 +259,7 @@ export function Contact360Panel({ contactId }: Props) {
             </button>
             {feed.channels.map((ch) => {
               const meta = CHANNEL_META[ch] || { label: ch, icon: MessageSquare, color: 'text-slate-600' }
-              const count = feed.messages.filter((m) => m.channel === ch).length
+              const count = feed.messages.filter((m) => readChannel(m) === ch).length
               return (
                 <button
                   key={ch}
@@ -313,7 +314,8 @@ export function Contact360Panel({ contactId }: Props) {
           ) : (
             <ul className="space-y-2">
               {messages.map((m) => {
-                const chanMeta = CHANNEL_META[m.channel] || { label: m.channel, icon: MessageSquare, color: 'text-slate-600' }
+                const channelKey = readChannel(m)
+                const chanMeta = CHANNEL_META[channelKey] || { label: channelKey, icon: MessageSquare, color: 'text-slate-600' }
                 const catClass = m.category ? CATEGORY_COLORS[m.category] || CATEGORY_COLORS.general : ''
                 const linkedListing = m.listing_id ? feed.listings.find((l) => l.id === m.listing_id) : null
                 return (
@@ -322,7 +324,7 @@ export function Contact360Panel({ contactId }: Props) {
                     className={
                       m.direction === 'inbound'
                         ? 'rounded-md bg-slate-50 px-3 py-2 text-sm'
-                        : 'ml-8 rounded-md bg-slate-900 px-3 py-2 text-sm text-[var(--lc-action-primary-text)]'
+                        : 'ms-8 rounded-md bg-slate-900 px-3 py-2 text-sm text-[var(--lc-action-primary-text)]'
                     }
                   >
                     <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -376,7 +378,7 @@ export function Contact360Panel({ contactId }: Props) {
                       <div className="line-clamp-1 font-medium">{l.title}</div>
                       <div className="text-xs text-muted-foreground">{l.city || ''}</div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground rtl:rotate-180" />
                   </Link>
                 </li>
               ))}

@@ -4,6 +4,7 @@
 
 **Author:** Architect-owner
 **Rev 2 — 2026-09-09** — Week 4 BE-13/14/15/16 + BE-VERIFY-02 marked RESOLVED
+**Rev 2.2 — 2026-09-09.** Wave 3 Agent 4 cross-loop e2e marks BE-BLOCKER-19/21/22 **UI-CONSUMED**.
 **Rev 2.1 — 2026-09-09.** Backend Week 3 (BE-BLOCKER-21/22) marked RESOLVED with merge SHAs.
 **Rev 3 — 2026-09-09.** Backend Week 5 (BE-BLOCKER-24/25/26/27/28) marked RESOLVED with merge SHAs.
 **Rev 3.1 — 2026-09-12.** Backend Week 8+ BE-BLOCKER-36 (`contact_relationships` CRUD) marked RESOLVED — `de84b7f536f071c725dc07b8e93bd9e9b5e05d18` — PR #134.
@@ -54,7 +55,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-01 — Portal publisher adapters (PF Group critical path)
 
-**Slot:** Week 2 · **Est:** 2-3 days per portal · **Depends on:** BE-DESIGN-01 landing first
+**Slot:** Week 2 · **Est:** 2-3 days per portal · **Depends on:** BE-DESIGN-01 landing first · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop e2e)
 **Unblocks:** AGT-PUB-003/006, PA-MOD-001/002
 **File(s):** `backend/src/lib/notifications/portals/*.js` (per portal), extends `PortalPublisher` base
 **Scope:** implement PF Group adapter as Phase-1 critical path (covers UAE + KSA + EG + LB + JO + QA + KW + BH + OM per D19). Other portals stay `NOT_IMPLEMENTED` stubs, added incrementally as BD deals close.
@@ -63,15 +64,15 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-03 — `distribution_attempts.error_class` schema
 
-**Slot:** Week 2 · **Est:** 0.5-1 day · **Status:** Wave 0.5 dispatched
+**Slot:** Week 2 · **Est:** 0.5-1 day · **Status:** UI-CONSUMED (Wave 2 Agent 6 — AGT-PUB-003 receipt renders all 6 classes + deep links)
 **Unblocks:** AGT-PUB-003 (6 failure classes render + resolution deep links)
 **File(s):** new migration + `backend/src/lib/publishing/error-classifier.js`
 
 ### BE-BLOCKER-04 — `conversations.source_channel` decomposition
 
-**Slot:** Week 4 · **Est:** 3-5 days · **Status:** Wave 0.5 dispatched
+**Slot:** Week 4 · **Est:** 3-5 days · **Status:** UI-CONSUMED · **Backend merge:** Wave 0.5 `feat/be-source-channel-split` · **UI:** Wave 8 `feat/wave-8-inbox` (AGT-INB-001/002 dual-read + dual-badge)
 **Unblocks:** AGT-INB-001/002/005, AGN-ROU-002, AGT-CTC-002, AGT-LST-006, AGN-REP-002/003, AGT-ONB-004
-**File(s):** new migration + 8 code-site updates with dual-read fallback
+**File(s):** migration 318 + dual-read helpers (`backend/src/conversations/channel-source.js`, `web/src/lib/channel-source.ts`) + inbox/command-center UI consumers
 
 ### BE-BLOCKER-05 — Agency free-tier package seed
 
@@ -106,19 +107,19 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-10 — Publishing-job aggregation endpoint
 
-**Slot:** Week 2 · **Est:** 3-5 days · **Depends on:** BE-BLOCKER-03 + BE-DESIGN-01
+**Slot:** Week 2 · **Est:** 3-5 days · **Depends on:** BE-BLOCKER-03 + BE-DESIGN-01 · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop)
 **Unblocks:** AGT-PUB-003 receipt view + retry endpoints
 **File(s):** `GET /api/publishing/jobs/:id` + retry POST endpoints + `publishing_job.completed` push template
 
 ### BE-BLOCKER-11 — Publishing tracker endpoints
 
-**Slot:** Week 2 · **Est:** 2-3 days
+**Slot:** Week 2 · **Est:** 2-3 days · **Status:** UI-CONSUMED (Wave 2 Agent 6 cross-loop)
 **Unblocks:** AGT-PUB-006
 **File(s):** `GET /api/publishing/tracker` (list, cursor-paginated) + `GET /api/publishing/tracker/summary` (KPI)
 
 ### BE-BLOCKER-12 — `portal_submission.status_changed` push template
 
-**Slot:** Week 2 · **Est:** 0.5 day
+**Slot:** Week 2 · **Est:** 0.5 day · **Status:** UI-CONSUMED (Wave 2 Agent 6 — push hop in cross-loop)
 **Unblocks:** AGT-PUB-006 live-row updates
 **File(s):** template row with 5 status-transition variants
 
@@ -148,7 +149,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-17 — Per-portal validator modules
 
-**Slot:** Week 2 · **Est:** ~8 days (1 day per portal × 8)
+**Slot:** Week 2 · **Est:** ~8 days (1 day per portal × 8) · **Status:** UI-CONSUMED (Wave 2 Agent 6 — PA-MOD lint aggregate in cross-loop)
 **Unblocks:** PA-MOD-001/002 (lint aggregate)
 **File(s):** `backend/src/lib/portal-validators/{bayut,property_finder,dubizzle,olx,aqar,wasalt,aqarmap,3akarat}.js`. Each exports `validate(listing, portalContext) → { checks: [{code, severity, message, expected, actual}] }`. Rules sourced from PORTAL_LIST_RESEARCH §C.
 
@@ -159,7 +160,7 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 
 ### BE-BLOCKER-19 — Scheduled-deletion public endpoints + email templates + cron
 
-**Slot:** Week 3 · **Est:** 2-3 days · **Status:** Wave 0.5 dispatched
+**Slot:** Week 3 · **Est:** 2-3 days · **Status:** UI-CONSUMED (Wave 3 Agent 4 — SHR-AUT-005d 5-state cross-loop)
 **Unblocks:** SHR-AUT-005d
 
 ### BE-BLOCKER-20 — `agent_onboarding_state` table + endpoints
@@ -170,14 +171,14 @@ Dispatch [CURSOR_BACKEND_WEEK_3_WF04.md](../prompts/CURSOR_BACKEND_WEEK_3_WF04.m
 ### BE-BLOCKER-21 — WF-04 account-recovery backend bundle (13 items)
 
 **Slot:** Week 3 · **Est:** ~15-18 days
-**Status:** **RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82** (Agents 2–6: PRs #81–#85)
+**Status:** UI-CONSUMED (Wave 3 Agent 4 cross-loop e2e) — previously RESOLVED — `27ddf6da1e019f7f304596ac2d83b52c01f2bcbc` — 2026-09-09 — PR #82 (Agents 2–6: PRs #81–#85)
 **Unblocks:** PA-ACR-001/002
 **Items:** list-response extension, request-info endpoint, evidence upload+storage, account_value_tier derivation, env-scoping audit, reveal-audit endpoint (20/hr rate limit), undo-approve endpoint, masked/PII CSV export, single-case GET, two-person cast-vote + escalation wiring, authenticated evidence image proxy, withdraw-vote, cancel-info-request
 
 ### BE-BLOCKER-22 — Two-person-rule bypass in existing account-recovery approve endpoint (CRITICAL)
 
 **Slot:** Week 3 · **Est:** 1-2 days · **Security-adjacent**
-**Status:** **RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80**
+**Status:** UI-CONSUMED (Wave 3 Agent 4 — cast-vote-only UI contract) — previously RESOLVED — `3e32c62d6cae931cdc02f7f38784054a97dccaba` — 2026-09-09 — PR #80
 **Unblocks:** PA-ACR-002 (blocks its ship until fixed)
 **File(s):** refactor `backend/src/server.js:7041` through cast-vote endpoint before PA-ACR-002 UI ships. UI would otherwise expose a security downgrade.
 
@@ -293,13 +294,13 @@ Confirmed intended contract per PR #49 architecture.
 
 ## 5. Design items (require product-level decision + spec)
 
-### BE-DESIGN-01 — Dynamic `portal_registry` — STATUS: Wave 0.5 dispatched
+### BE-DESIGN-01 — Dynamic `portal_registry` — STATUS: UI-CONSUMED (Wave 2 Agent 6)
 
-Documented at kickoff §5a + Wave 0.5 prompt §4.9
+Documented at kickoff §5a + Wave 0.5 prompt §4.9. Consumed by AGT-PUB-003/005/006 + PA-MOD via portal display metadata in job/tracker aggregation.
 
 ### BE-DESIGN-02 — Tenure-risk scoring service
 
-**Slot:** Week 2 · **Est:** 3-5 days · **Can ship stub for v1**
+**Slot:** Week 2 · **Est:** 3-5 days · **Can ship stub for v1** · **Status:** UI-CONSUMED (Wave 2 Agent 6 — PA-MOD two-person gate uses stub `unknown` + high-tier matrix)
 **Unblocks:** PA-MOD-001 risk-tier column (informs two-person-rule gate)
 
 ### BE-DESIGN-04 — Cross-env package clone helper (Phase-1 add-on)

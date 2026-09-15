@@ -16,6 +16,33 @@ import {
   matchesConversationChannel,
   readSourceChannel,
 } from './channel-source.js'
+import { emitInboxEvent } from '../ws/inbox-events.js'
+
+/**
+ * Fan-out a message.new event to the conversation assignee and (if different)
+ * the contact's assigned agent.
+ * @param {{ assigned_agent_id?: string | null, id: string }} conversation
+ * @param {{ assigned_agent_id?: string | null } | null | undefined} contact
+ * @param {{ id: string }} message
+ */
+function fanOutMessageNew(conversation, contact, message) {
+  const event = {
+    type: /** @type {const} */ ('message.new'),
+    conversation_id: conversation.id,
+    message_id: message.id,
+    payload: message,
+  }
+  const agentIds = new Set(
+    [conversation.assigned_agent_id, contact?.assigned_agent_id].filter(Boolean),
+  )
+  for (const agentId of agentIds) {
+    // fire-and-forget: pg_notify is fanned out to every Node instance's
+    // LISTEN handler, which invokes broadcastInboxEvent locally. A rejection
+    // here would only mean the local publish path failed — event delivery
+    // is best-effort by design.
+    emitInboxEvent(agentId, event).catch(() => { /* best-effort */ })
+  }
+}
 
 // Map orchestrator messaging channel → §6 usage-event action_key.
 const IN_ACTION_KEY = {
@@ -270,6 +297,7 @@ export async function ingestInboundMessage({ channel, provider, providerMessageI
     created_at: new Date().toISOString(),
   }
   await insert('conversation_messages', message)
+  fanOutMessageNew(conversation, contact, message)
 
   // Emit inbound usage event — rate-0 always, but records the interaction
   // for the tenant's telemetry and future funnel analysis.
@@ -733,6 +761,8 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     provider_message_id: dispatch.provider_message_id,
     content: content || '',
     content_type: contentType,
+    image_url: imageUrl || null,
+    audio_url: (attachments || []).find((a) => String(a?.mime || '').startsWith('audio/'))?.url || null,
     status: dispatch.status,
     sent_at: dispatch.ok ? now : null,
     delivered_at: null,
@@ -743,6 +773,7 @@ export async function sendOutboundMessage({ conversationId, content, contentType
     created_at: now,
   }
   await insert('conversation_messages', message)
+  fanOutMessageNew(conversation, contact, message)
 
   // Emit outbound usage event only on successful dispatch. Channel + country
   // resolve the correct §6 action_key; WhatsApp splits utility vs marketing
@@ -828,6 +859,32 @@ export async function markConversationReadByAgent(conversationId) {
     ...c,
     unread_count: 0,
     is_unread_by_agent: false,
+    updated_at: now,
+  }))
+  return await findOne('conversations', (c) => c.id === conversationId)
+}
+
+export async function markConversationUnreadByAgent(conversationId) {
+  const conversation = await findOne('conversations', (c) => c.id === conversationId)
+  if (!conversation) return null
+  const now = new Date().toISOString()
+  await update('conversations', (c) => c.id === conversationId, (c) => ({
+    ...c,
+    unread_count: Math.max(1, Number(c.unread_count || 0)),
+    is_unread_by_agent: true,
+    updated_at: now,
+  }))
+  return await findOne('conversations', (c) => c.id === conversationId)
+}
+
+export async function archiveConversation(conversationId) {
+  const conversation = await findOne('conversations', (c) => c.id === conversationId)
+  if (!conversation) return null
+  const now = new Date().toISOString()
+  await update('conversations', (c) => c.id === conversationId, (c) => ({
+    ...c,
+    status: 'closed',
+    archived_at: now,
     updated_at: now,
   }))
   return await findOne('conversations', (c) => c.id === conversationId)

@@ -281,7 +281,7 @@ const TABLE_MAP = {
   user_push_tokens: { schema: 'public', table: 'user_push_tokens', columns: ['user_id', 'platform', 'token', 'device_id', 'last_used_at'] },
 
   // Audit / activity
-  audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
+  audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'tenant_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
   activity_log: { schema: 'public', table: 'activity_log', columns: ['agent_id', 'contact_id', 'property_id', 'inquiry_id', 'opportunity_id', 'viewing_id', 'type', 'meta'] },
 
   // Templates / entitlements / credits
@@ -322,6 +322,23 @@ const TABLE_MAP = {
       'tenant_id', 'feature', 'call_type', 'provider', 'model',
       'input_tokens', 'output_tokens', 'cost_estimate_micro_usd', 'fallback_from',
       'related_entity_type', 'related_entity_id', 'occurred_at',
+    ],
+  },
+  ai_usage_daily: {
+    schema: 'public',
+    table: 'ai_usage_daily',
+    conflictColumns: ['user_id', 'usage_date'],
+    columns: [
+      'user_id', 'usage_date', 'tenant_id',
+      'suggestions_used', 'input_tokens', 'output_tokens', 'last_call_at',
+    ],
+  },
+  agency_ai_settings: {
+    schema: 'public',
+    table: 'agency_ai_settings',
+    conflictColumns: ['agency_id', 'user_id'],
+    columns: [
+      'agency_id', 'user_id', 'daily_cap', 'monthly_cap', 'set_by', 'set_at',
     ],
   },
 
@@ -556,6 +573,7 @@ const TABLE_MAP = {
       'reviewed_by', 'reviewed_at', 'expires_at',
       'decision_reason_code', 'decision_notes',
       'quarantine_until', 'approval_request_id', 'requested_evidence',
+      'reporter_confidence', 'supporting_document_ids',
     ],
   },
   agent_price_reports: {
@@ -569,6 +587,15 @@ const TABLE_MAP = {
       'env', 'segment_id', 'segment_label', 'country_code',
       'recommendation_price_low', 'recommendation_price_high', 'recommendation_price_point',
       'reason_code', 'incorporated', 'incorporated_at', 'approval_request_id', 'expires_at', 'resubmit_of',
+      'reporter_confidence', 'supporting_document_ids',
+    ],
+  },
+  pricing_evidence_files: {
+    schema: 'market_pricing',
+    table: 'pricing_evidence_files',
+    columns: [
+      'agent_id', 'storage_key', 'filename', 'content_type', 'size_bytes', 'sha256',
+      'uploaded_at', 'retention_expires_at', 'scan_status',
     ],
   },
   csv_import_logs: {

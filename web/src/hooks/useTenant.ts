@@ -16,6 +16,8 @@ export interface TenantSummary {
   /** Other members besides the current user (agency rows). */
   otherMembersCount?: number
   lastActiveAt?: string | null
+  /** Per-tenant Guided ↔ Pro preference from tenant_memberships.data.ui_mode. */
+  uiMode?: 'guided' | 'pro'
 }
 
 export interface UseTenantResult {
@@ -61,6 +63,8 @@ type ApiTenant = {
   is_personal?: boolean
   lastActiveAt?: string | null
   last_active_at?: string | null
+  uiMode?: string
+  ui_mode?: string
 }
 
 function authHeaders(): Record<string, string> {
@@ -111,6 +115,7 @@ function resolveKind(raw: ApiTenant): TenantKind {
 }
 
 export function normalizeTenant(raw: ApiTenant): TenantSummary {
+  const rawMode = raw.uiMode ?? raw.ui_mode
   return {
     id: raw.id,
     name: raw.name,
@@ -124,6 +129,7 @@ export function normalizeTenant(raw: ApiTenant): TenantSummary {
         ? Number(raw.otherMembersCount ?? raw.other_members_count)
         : undefined,
     lastActiveAt: raw.lastActiveAt ?? raw.last_active_at ?? null,
+    uiMode: rawMode === 'pro' ? 'pro' : 'guided',
   }
 }
 

@@ -95,7 +95,7 @@ export function EnvSwitchConfirmDialog({
           if (switching) event.preventDefault()
         }}
       >
-        <DialogHeader className="pr-10">
+        <DialogHeader className="pe-10">
           <DialogTitle id={titleId} className="flex items-center gap-[var(--lc-space-xs)]">
             <AlertTriangle
               className="h-5 w-5 shrink-0 text-[var(--lc-status-underOffer-dot)]"

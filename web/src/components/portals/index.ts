@@ -8,11 +8,11 @@
  *
  * `<PortalStatusPill>` lives under `components/ui/` (shared elevated primitive).
  * `<ChannelMark>` already ships at `components/ui/channel-mark.tsx`.
+ * `<SourceMark>` ships at `components/ui/source-mark.tsx` (AGT-INB-005 dual-badge).
  */
 
 export { PortalReceiptCard } from './PortalReceiptCard'
 export type {
-  PortalErrorClass,
   PortalReceiptCardProps,
   PortalReceiptDestination,
   PortalReceiptTimelineEvent,
@@ -28,7 +28,24 @@ export { CreditsSummary } from './CreditsSummary'
 export type { CreditsSummaryProps } from './CreditsSummary'
 
 export {
+  BULK_RETRYABLE_ERROR_CLASSES,
+  ERROR_CLASS_FIX_COPY,
+  ERROR_CLASS_HELPER,
+  ERROR_CLASS_ICON,
+  ERROR_CLASS_LABEL,
+  ERROR_CLASS_SECONDARY_FIX,
+  PORTAL_ERROR_CLASSES,
+  defaultFixDeepLink,
+  isBulkRetryable,
+  isPortalErrorClass,
+} from './failureClasses'
+export type { PortalErrorClass } from './failureClasses'
+
+export {
   PortalStatusPill,
   type PortalStatus,
   type PortalStatusPillProps,
 } from '@/components/ui/portal-status-pill'
+
+export { ChannelMark } from '@/components/ui/channel-mark'
+export { SourceMark } from '@/components/ui/source-mark'
