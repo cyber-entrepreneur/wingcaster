@@ -49,6 +49,12 @@ describe('destination status + error_class mapping', () => {
     expect(mapDestinationStatus('dead_letter', null)).toBe('failed')
   })
 
+  it('dead_letter job status wins over a stale attempt (SLA reaper)', () => {
+    expect(mapDestinationStatus('dead_letter', 'in_review')).toBe('failed')
+    expect(mapDestinationStatus('dead_letter', 'pending')).toBe('failed')
+    expect(mapDestinationStatus('dead_letter', 'published')).toBe('failed')
+  })
+
   it('round-trips snake_case DB ↔ UPPER_SNAKE API', () => {
     expect(toApiErrorClass('portal_down')).toBe('PORTAL_DOWN')
     expect(toApiErrorClass('auth_expired')).toBe('AUTH_EXPIRED')

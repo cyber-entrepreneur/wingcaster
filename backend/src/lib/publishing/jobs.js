@@ -85,6 +85,11 @@ export function toDbErrorClass(value) {
  * @returns {'succeeded'|'in_review'|'failed'}
  */
 export function mapDestinationStatus(jobStatus, attemptStatus) {
+  const job = String(jobStatus || '').toLowerCase()
+  // Terminal park (SLA reaper / max-retry) wins over a stale attempt row —
+  // reaper flips distribution_jobs.status to dead_letter without writing a
+  // new distribution_attempts row (attempt may still read in_review).
+  if (job === 'dead_letter') return 'failed'
   const raw = String(attemptStatus || jobStatus || '').toLowerCase()
   if (SUCCEEDED_STATUSES.has(raw)) return 'succeeded'
   if (FAILED_STATUSES.has(raw)) return 'failed'

@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createModule } from '../index.js'
 
-vi.mock('../../../lib/credits/feature-check.js', () => ({
-  checkEntitlement: vi.fn().mockResolvedValue({ enabled: true, registered: true }),
-}))
-
 vi.mock('../../../lib/credits/tenant-context.js', () => ({
   resolveRequestCreditTenant: vi.fn().mockReturnValue({
     creditTenantId: 'personal:user-1',
@@ -21,7 +17,16 @@ vi.mock('../../../db.js', async (importOriginal) => {
     insert: vi.fn(async (_collection, item) => item),
     findAll: vi.fn(async () => []),
     findOne: vi.fn(async () => null),
-    query: vi.fn(async () => []),
+    query: vi.fn(async (sql) => {
+      const text = String(sql)
+      if (text.includes('tenant_subscriptions')) {
+        return [{ package_version_id: 'pro-version' }]
+      }
+      if (text.includes('package_feature_flags')) {
+        return [{ enabled: true }]
+      }
+      return []
+    }),
   }
 })
 
