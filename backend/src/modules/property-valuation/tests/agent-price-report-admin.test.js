@@ -10,6 +10,8 @@ function createMemoryDal(seed = {}) {
     pricing_benchmarks: [],
     pricing_benchmark_snapshots: [],
     approval_requests: [],
+    approval_actions: [],
+    audit_log: [],
     users: [],
     agents: [],
     agencies: [],
@@ -351,6 +353,167 @@ describe('admin route registration for WF-06', () => {
     expect(paths).toContain('POST /api/admin/pricing/agent-price-reports/bulk-review')
     expect(paths).toContain('POST /api/admin/pricing/agent-price-reports/:id/review')
     expect(paths).toContain('POST /api/admin/pricing/agent-price-reports/:id/undo-review')
+    expect(paths).toContain('POST /api/admin/valuation/approval-requests/:id/vote')
+    expect(paths).toContain('POST /api/admin/pricing/agent-price-reports/:id/reveal-audit')
     expect(paths).toContain('GET /api/admin/pricing/benchmarks/:segmentId/series')
   })
 })
+
+
+describe('WF-06 second-approver vote + undo tokens', () => {
+  let dal
+  let service
+  let benchmarkService
+
+  beforeEach(() => {
+    dal = createMemoryDal({
+      agent_price_reports: [],
+      pricing_benchmarks: [{
+        id: 'bm1',
+        segment_id: 'seg_ae_dubai_marina_apt_2',
+        price_point: 1600000,
+        currency: 'AED',
+        env: 'live',
+        computed_at: '2026-09-01T00:00:00.000Z',
+      }],
+    })
+    benchmarkService = createBenchmarkService({ dal })
+    service = createAgentPriceReportAdminService({ dal, benchmarkService })
+  })
+
+  it('issues undo_token_id on signal-only review and undoes with token', async () => {
+    dal.store.agent_price_reports.push(seedReport({ id: 'aprt_undo', status: 'pending_review' }))
+    const result = await service.reviewReport(
+      'aprt_undo',
+      { status: 'verified', incorporate: false, notes: 'signal' },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    expect(result.undo_token_id).toBeTruthy()
+    expect(result.undo_expires_at).toBeTruthy()
+
+    const undone = await service.undoReview('aprt_undo', {
+      viewerId: 'pa-1',
+      env: 'live',
+      undoTokenId: result.undo_token_id,
+    })
+    expect(undone.status).toBe('pending_review')
+
+    await expect(
+      service.undoReview('aprt_undo', {
+        viewerId: 'pa-1',
+        env: 'live',
+        undoTokenId: result.undo_token_id,
+      }),
+    ).rejects.toMatchObject({ code: 'TOKEN_CONSUMED', status: 410 })
+  })
+
+  it('second approver approve incorporates; SAME_REVIEWER and TOKEN_CONSUMED enforced', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_2p',
+      status: 'pending_review',
+      recommendation_price_point: 2000000,
+      sold_price: 2000000,
+    }))
+    // Force high delta by low benchmark
+    dal.store.pricing_benchmarks[0].price_point = 1000000
+
+    const first = await service.reviewReport(
+      'aprt_2p',
+      { status: 'verified', incorporate: true, notes: 'needs 2p' },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    expect(first.pending_second_approval).toBe(true)
+    const approvalId = first.approval_request_id
+
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: approvalId,
+        decision: 'approve',
+        viewerId: 'pa-1',
+        env: 'live',
+      }),
+    ).rejects.toMatchObject({ code: 'SAME_REVIEWER', status: 409 })
+
+    const approved = await service.castSecondApprovalVote({
+      approvalRequestId: approvalId,
+      decision: 'approve',
+      notes: 'ok',
+      viewerId: 'pa-2',
+      env: 'live',
+    })
+    expect(approved.status).toBe('incorporated')
+
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: approvalId,
+        decision: 'approve',
+        viewerId: 'pa-3',
+        env: 'live',
+      }),
+    ).rejects.toMatchObject({ code: 'TOKEN_CONSUMED', status: 410 })
+  })
+
+  it('second approver decline returns report to pending_review', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_dec',
+      status: 'pending_review',
+      recommendation_price_point: 2000000,
+      sold_price: 2000000,
+    }))
+    dal.store.pricing_benchmarks[0].price_point = 1000000
+
+    const first = await service.reviewReport(
+      'aprt_dec',
+      { status: 'verified', incorporate: true },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+
+    const declined = await service.castSecondApprovalVote({
+      approvalRequestId: first.approval_request_id,
+      decision: 'decline',
+      viewerId: 'pa-2',
+      env: 'live',
+    })
+    expect(declined.status).toBe('pending_review')
+    const row = dal.store.agent_price_reports.find((r) => r.id === 'aprt_dec')
+    expect(row.status).toBe('pending_review')
+  })
+
+  it('OWN_CASE when reporter tries to second-vote', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_own',
+      reporter_id: 'agent-user-1',
+      status: 'pending_second_approval',
+      reviewed_by: 'pa-1',
+      reviewed_at: new Date().toISOString(),
+      approval_request_id: 'apr-own',
+      data: { approval_request_id: 'apr-own' },
+    }))
+    dal.store.approval_requests.push({
+      id: 'apr-own',
+      status: 'REQUESTED',
+      created_by_actor_id: 'pa-1',
+    })
+
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: 'apr-own',
+        decision: 'approve',
+        viewerId: 'agent-user-1',
+        env: 'live',
+      }),
+    ).rejects.toMatchObject({ code: 'OWN_CASE', status: 403 })
+  })
+
+  it('recordRevealAudit appends pii_revealed audit event', async () => {
+    dal.store.agent_price_reports.push(seedReport({ id: 'aprt_pii' }))
+    await service.recordRevealAudit('aprt_pii', {
+      viewerId: 'pa-1',
+      field: 'agent_display_name',
+      kind: 'name',
+    })
+    const row = dal.store.agent_price_reports.find((r) => r.id === 'aprt_pii')
+    expect(row.data.audit_trail.some((e) => e.action === 'pii_revealed')).toBe(true)
+  })
+})
+

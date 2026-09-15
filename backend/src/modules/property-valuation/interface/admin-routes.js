@@ -505,6 +505,46 @@ export function registerAdminRoutes(app, services) {
       const result = await agentPriceReportAdminService.undoReview(req.params.id, {
         viewerId: req.user?.id,
         env,
+        undoTokenId: req.body?.undo_token_id || req.body?.undoTokenId || null,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  // PA-PVA-009b second-approver vote (atomic: approval_actions + approval_requests + report)
+  app.post('/api/admin/valuation/approval-requests/:id/vote', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService?.castSecondApprovalVote) {
+        return res.status(501).json({ error: 'Second-approver vote unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const decision = req.body?.decision || req.body?.vote
+      const result = await agentPriceReportAdminService.castSecondApprovalVote({
+        approvalRequestId: req.params.id,
+        decision,
+        notes: req.body?.notes || null,
+        viewerId: req.user?.id,
+        env,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/agent-price-reports/:id/reveal-audit', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService?.recordRevealAudit) {
+        return res.status(501).json({ error: 'Reveal audit unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const result = await agentPriceReportAdminService.recordRevealAudit(req.params.id, {
+        viewerId: req.user?.id,
+        field: req.body?.field || null,
+        kind: req.body?.kind || 'name',
+        env,
       })
       res.json(result)
     } catch (err) {

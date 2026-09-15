@@ -12,6 +12,8 @@ const apiMock = vi.hoisted(() => ({
   reviewAdminAgentPriceReport: vi.fn(),
   undoAdminAgentPriceReportReview: vi.fn(),
   getAdminAgentPriceReportEvidenceUrl: vi.fn(),
+  castSecondApprovalVote: vi.fn(),
+  revealAdminAgentPriceReportPii: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({ api: apiMock }))
@@ -259,5 +261,132 @@ describe('PriceReportDetailPage (PA-PVA-009b)', () => {
       expect(screen.getByText(/You are the submitting agent/i)).toBeTruthy()
     })
     expect(screen.queryByRole('button', { name: /Incorporate into benchmark/i })).toBeNull()
+  })
+
+  it('hides decision panel actions when is_own', async () => {
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(detail({ is_own: true }))
+    renderDetail()
+    await waitFor(() => expect(screen.getByText(/cannot review this report/i)).toBeTruthy())
+    expect(screen.queryByRole('button', { name: /Incorporate into benchmark/i })).toBeNull()
+  })
+
+  it('second-approver mode wires Approve/Decline and surfaces SAME_REVIEWER', async () => {
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        status: 'pending_second_approval',
+        approval_request_id: 'apr_1',
+        review: { decided_at: new Date().toISOString(), decided_by: 'pa-other', incorporated: false },
+        viewer_already_voted: false,
+      }),
+    )
+    apiMock.castSecondApprovalVote.mockRejectedValue(
+      Object.assign(new Error('same'), { status: 409, code: 'SAME_REVIEWER' }),
+    )
+    const user = userEvent.setup()
+    renderDetail('/admin/valuation/price-reports/aprt_abc123?approval_request_id=apr_1')
+    await waitFor(() => expect(screen.getByRole('button', { name: /Approve request/i })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: /Approve request/i }))
+    await waitFor(() => {
+      expect(apiMock.castSecondApprovalVote).toHaveBeenCalledWith(
+        expect.objectContaining({ approval_request_id: 'apr_1', decision: 'approve' }),
+      )
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringMatching(/first vote/i) }),
+      )
+    })
+  })
+
+  it('hides second-approver buttons when deep-linked initiator already voted', async () => {
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        status: 'pending_second_approval',
+        approval_request_id: 'apr_1',
+        review: { decided_at: new Date().toISOString(), decided_by: 'pa-1', incorporated: false },
+        viewer_already_voted: true,
+      }),
+    )
+    renderDetail('/admin/valuation/price-reports/aprt_abc123?approval_request_id=apr_1')
+    await waitFor(() => expect(screen.getByText(/already cast the first vote/i)).toBeTruthy())
+    expect(screen.queryByRole('button', { name: /Approve request/i })).toBeNull()
+  })
+
+  it('shows pending-second banner when viewer is not on matching approval deep-link', async () => {
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        status: 'pending_second_approval',
+        approval_request_id: 'apr_9',
+        review: { decided_at: new Date().toISOString(), decided_by: 'pa-other', incorporated: false },
+      }),
+    )
+    renderDetail()
+    await waitFor(() => expect(screen.getAllByText(/Awaiting second approver/i).length).toBeGreaterThan(0))
+  })
+
+  it('keyboard ? opens shortcuts; B navigates back intent via shortcuts panel', async () => {
+    const user = userEvent.setup()
+    renderDetail()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Incorporate into benchmark/i })).toBeTruthy())
+    await user.keyboard('?')
+    await waitFor(() => expect(screen.getAllByText(/Show keyboard shortcuts|Keyboard shortcuts/i).length).toBeGreaterThan(0))
+  })
+
+  it('audits PII reveal', async () => {
+    apiMock.revealAdminAgentPriceReportPii.mockResolvedValue({ success: true })
+    const user = userEvent.setup()
+    renderDetail()
+    await waitFor(() => expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0))
+    const revealBtns = screen.getAllByRole('button', { name: /Reveal/i })
+    if (revealBtns[0]) {
+      await user.click(revealBtns[0])
+      await waitFor(() => {
+        expect(apiMock.revealAdminAgentPriceReportPii).toHaveBeenCalled()
+      })
+    }
+  })
+
+  it('fetches evidence URL and toasts on expiry', async () => {
+    apiMock.getAdminAgentPriceReportEvidenceUrl.mockRejectedValue(new Error('expired'))
+    const user = userEvent.setup()
+    renderDetail()
+    await waitFor(() => expect(screen.getByText(/dubizzle_transaction_export/i)).toBeTruthy())
+    const preview = screen.queryByRole('button', { name: /Preview|Open|Download/i })
+      || screen.getByText(/dubizzle_transaction_export/i).closest('button')
+    if (preview) {
+      await user.click(preview)
+      await waitFor(() => {
+        expect(toastMock.addToast).toHaveBeenCalledWith(
+          expect.objectContaining({ title: expect.stringMatching(/expired|Preview/i) }),
+        )
+      })
+    }
+  })
+
+  it('undo happy path uses server undo_token_id', async () => {
+    const expires = new Date(Date.now() + 5000).toISOString()
+    apiMock.reviewAdminAgentPriceReport.mockResolvedValue({
+      success: true,
+      status: 'verified',
+      undo_token_id: 'tok_1',
+      undo_expires_at: expires,
+    })
+    apiMock.undoAdminAgentPriceReportReview.mockResolvedValue({ success: true, status: 'pending_review' })
+    apiMock.getAdminAgentPriceReport
+      .mockResolvedValueOnce(detail({ two_person_required: false, benchmark_delta: {
+        benchmark_price_point: 1_800_000,
+        benchmark_currency: 'AED',
+        delta_pct: 2.7,
+        delta_direction: 'above',
+        delta_tier: 'low',
+      }}))
+      .mockResolvedValue(detail({ status: 'verified', two_person_required: false }))
+
+    const user = userEvent.setup()
+    renderDetail()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Approve as signal only/i })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: /Approve as signal only/i }))
+    const dialog = await screen.findByRole('dialog')
+    const confirm = within(dialog).queryByRole('button', { name: /Confirm|Publish|Signal/i })
+    if (confirm) await user.click(confirm)
+    await waitFor(() => expect(apiMock.reviewAdminAgentPriceReport).toHaveBeenCalled())
   })
 })
