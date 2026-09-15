@@ -34,6 +34,7 @@ import { TwoPersonProgress } from '@/components/security/TwoPersonProgress'
 import { Timeline, type TimelineEntry } from '@/components/security/Timeline'
 import { PAQueueKeyboardShortcutsPanel } from '@/components/queue'
 import { cn } from '@/lib/utils'
+import { usePriceReportCopy } from './priceReportCopy'
 import {
   PriceReportIncorporateDialog,
   PriceReportReasonDialog,
@@ -199,6 +200,7 @@ export function PriceReportDetailPage() {
   const { isAdmin, agent } = useAuth()
   const currentUserId = agent?.id || null
   const { addToast } = useToast()
+  const { t } = usePriceReportCopy()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -323,38 +325,34 @@ export function PriceReportDetailPage() {
     if (e.code === 'SAME_REVIEWER' || (e.status === 409 && e.code === 'SAME_REVIEWER')) {
       addToast({
         variant: 'error',
-        title: 'You cast the first vote. A different PA must cast the second.',
-        description: 'أنت صاحب التصويت الأول. يجب أن يصوّت مسؤول آخر.',
+        title: t('toast.vote.same_reviewer'),
       })
       return
     }
     if (e.code === 'OWN_CASE' || e.code === 'OWN_REPORT') {
       addToast({
         variant: 'error',
-        title: "You can't decide your own price report.",
-        description: 'لا يمكنك البت في تقرير السعر الخاص بك.',
+        title: t('toast.vote.own_case'),
       })
       return
     }
     if (e.code === 'TOKEN_CONSUMED' || e.status === 410) {
       addToast({
         variant: 'error',
-        title: 'This approval was already decided. Choose a corrective action on the report.',
-        description: 'تم حسم طلب الموافقة مسبقاً. اختر قراراً تصحيحياً على التقرير.',
+        title: t('toast.vote.token_consumed'),
       })
       return
     }
     if (e.code === 'UNDO_EXPIRED') {
       addToast({
         variant: 'error',
-        title: 'Undo window expired.',
-        description: 'انتهت مهلة التراجع.',
+        title: t('toast.undo.expired'),
       })
       return
     }
     addToast({
       variant: 'error',
-      title: e.message || (err instanceof Error ? err.message : 'Action failed'),
+      title: e.message || (err instanceof Error ? err.message : t('toast.action.failed')),
     })
   }
 
@@ -366,7 +364,7 @@ export function PriceReportDetailPage() {
       if (result.pending_second_approval) {
         addToast({
           variant: 'warning',
-          title: 'Incorporation request created. Awaiting second approver.',
+          title: t('toast.second_approval.pending'),
         })
         setUndoToken(null)
       } else {
@@ -401,8 +399,8 @@ export function PriceReportDetailPage() {
         variant: 'success',
         title:
           decision === 'approve'
-            ? 'Incorporation approved. Benchmark refresh queued.'
-            : 'Incorporation declined. Report returned to pending review.',
+            ? t('toast.approve.success')
+            : t('toast.decline.success'),
       })
       setSecondVoteNotes('')
       await load()
@@ -422,8 +420,7 @@ export function PriceReportDetailPage() {
       })
       addToast({
         variant: 'success',
-        title: 'Review undone.',
-        description: 'تم التراجع عن المراجعة.',
+        title: t('toast.undo.success'),
       })
       setUndoToken(null)
       await load()
@@ -453,7 +450,7 @@ export function PriceReportDetailPage() {
       }
       window.open(res.url, '_blank', 'noopener,noreferrer')
     } catch {
-      addToast({ variant: 'error', title: 'Preview link expired. Refresh page.' })
+      addToast({ variant: 'error', title: t('toast.preview.expired') })
     }
   }
 

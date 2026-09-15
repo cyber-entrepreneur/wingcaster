@@ -12,6 +12,7 @@ function createMemoryDal(seed = {}) {
     approval_requests: [],
     approval_actions: [],
     audit_log: [],
+    outbox_events: [],
     users: [],
     agents: [],
     agencies: [],
@@ -23,8 +24,12 @@ function createMemoryDal(seed = {}) {
     return true
   }
 
+  let txDepth = 0
+  let beginCount = 0
+
   const dal = {
     store,
+    beginCount: () => beginCount,
     findAll: vi.fn(async (collection, filter) => (store[collection] || []).filter((item) => match(item, filter))),
     findOne: vi.fn(async (collection, filter) => (store[collection] || []).find((item) => match(item, filter)) || null),
     insert: vi.fn(async (collection, item) => {
@@ -55,23 +60,77 @@ function createMemoryDal(seed = {}) {
       return removed
     }),
     query: vi.fn(async (sql, params) => {
-      // Simulate fin.approval_requests insert for high-delta path
-      if (String(sql).includes('INSERT INTO fin.approval_requests')) {
+      const text = String(sql)
+      if (text.includes('INSERT INTO fin.approval_requests')) {
         store.approval_requests.push({
           id: params[0],
           environment: params[1],
           action_kind: params[2],
           payload_hash: params[3],
-          payload: JSON.parse(params[4]),
+          payload: typeof params[4] === 'string' ? JSON.parse(params[4]) : params[4],
           created_at: params[5],
           created_by_actor_id: params[6],
           status: 'REQUESTED',
         })
         return []
       }
+      if (text.includes('INSERT INTO fin.approval_actions')) {
+        store.approval_actions.push({
+          id: params[0],
+          request_id: params[1],
+          actor_id: params[2],
+          decision: params[3],
+          created_at: params[4],
+        })
+        return []
+      }
+      if (text.includes('UPDATE fin.approval_requests') && text.includes('SET status')) {
+        const row = store.approval_requests.find((r) => r.id === params[0])
+        if (row) {
+          const statusMatch = text.match(/status = '([A-Z_]+)'/)
+          if (statusMatch) row.status = statusMatch[1]
+          row.updated_at = params[1]
+        }
+        return []
+      }
+      if (text.includes('FROM fin.approval_actions')) {
+        return store.approval_actions.filter((a) => String(a.request_id) === String(params[0]))
+      }
       return []
     }),
-    transaction: vi.fn(async (work) => work({})),
+    transaction: vi.fn(async (work) => {
+      const outer = txDepth === 0
+      if (outer) beginCount += 1
+      txDepth += 1
+      const snapshot = outer
+        ? JSON.parse(JSON.stringify({
+          agent_price_reports: store.agent_price_reports,
+          pricing_benchmarks: store.pricing_benchmarks,
+          pricing_benchmark_snapshots: store.pricing_benchmark_snapshots,
+          approval_requests: store.approval_requests,
+          approval_actions: store.approval_actions,
+          audit_log: store.audit_log,
+          outbox_events: store.outbox_events,
+          users: store.users,
+          agents: store.agents,
+          agencies: store.agencies,
+        }))
+        : null
+      try {
+        return await work({})
+      } catch (err) {
+        if (outer && snapshot) {
+          for (const [key, rows] of Object.entries(snapshot)) {
+            if (!Array.isArray(store[key])) store[key] = []
+            store[key].length = 0
+            for (const row of rows) store[key].push(row)
+          }
+        }
+        throw err
+      } finally {
+        txDepth -= 1
+      }
+    }),
   }
   return dal
 }
@@ -503,6 +562,128 @@ describe('WF-06 second-approver vote + undo tokens', () => {
         env: 'live',
       }),
     ).rejects.toMatchObject({ code: 'OWN_CASE', status: 403 })
+  })
+
+  it('approve path commits vote + incorporate + audit + outbox in a single outer txn', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_atomic',
+      status: 'pending_review',
+      recommendation_price_point: 2000000,
+      sold_price: 2000000,
+    }))
+    dal.store.pricing_benchmarks[0].price_point = 1000000
+
+    const first = await service.reviewReport(
+      'aprt_atomic',
+      { status: 'verified', incorporate: true },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    const beginsBefore = dal.beginCount()
+
+    const approved = await service.castSecondApprovalVote({
+      approvalRequestId: first.approval_request_id,
+      decision: 'approve',
+      notes: 'atomic ok',
+      viewerId: 'pa-2',
+      env: 'live',
+    })
+
+    expect(dal.beginCount() - beginsBefore).toBe(1)
+    expect(dal.transaction).toHaveBeenCalled()
+    expect(approved.status).toBe('incorporated')
+    expect(approved.outbox?.topic).toBe('valuation.price_report_incorporated')
+    expect(approved.outbox?.dispatched_at).toBeNull()
+
+    const report = dal.store.agent_price_reports.find((r) => r.id === 'aprt_atomic')
+    const approval = dal.store.approval_requests.find((r) => r.id === first.approval_request_id)
+    const action = dal.store.approval_actions.find((a) => a.request_id === first.approval_request_id)
+    const outbox = dal.store.outbox_events.find((o) => o.topic === 'valuation.price_report_incorporated')
+
+    expect(approval.status).toBe('APPROVED')
+    expect(report.status).toBe('incorporated')
+    expect(report.data.audit_trail.some((e) => e.action === 'second_approval_approved')).toBe(true)
+    expect(action).toBeTruthy()
+    expect(outbox).toMatchObject({ status: 'PENDING', dispatched_at: null })
+  })
+
+  it('rolls back approve txn when commitIncorporate throws — no approval flip, no action, no audit', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_inc_fail',
+      status: 'pending_review',
+      recommendation_price_point: 2000000,
+      sold_price: 2000000,
+      data: { __force_incorporate_throw: true },
+    }))
+    dal.store.pricing_benchmarks[0].price_point = 1000000
+
+    const first = await service.reviewReport(
+      'aprt_inc_fail',
+      { status: 'verified', incorporate: true },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    // Re-apply failure flag after review (review may rewrite data)
+    const pending = dal.store.agent_price_reports.find((r) => r.id === 'aprt_inc_fail')
+    pending.data = { ...(pending.data || {}), __force_incorporate_throw: true }
+
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: first.approval_request_id,
+        decision: 'approve',
+        viewerId: 'pa-2',
+        env: 'live',
+      }),
+    ).rejects.toMatchObject({ code: 'INCORPORATE_FAILED' })
+
+    const report = dal.store.agent_price_reports.find((r) => r.id === 'aprt_inc_fail')
+    const approval = dal.store.approval_requests.find((r) => r.id === first.approval_request_id)
+    expect(report.status).toBe('pending_second_approval')
+    expect(approval.status).toBe('REQUESTED')
+    // First-approver action from createIncorporateApprovalRequest remains; second vote must not land.
+    expect(
+      dal.store.approval_actions.filter(
+        (a) => a.request_id === first.approval_request_id && String(a.actor_id) === 'pa-2',
+      ),
+    ).toHaveLength(0)
+    expect(report.data?.audit_trail?.some((e) => e.action === 'second_approval_approved') || false).toBe(false)
+    expect(dal.store.outbox_events).toHaveLength(0)
+  })
+
+  it('rolls back approve txn when appendAuditEvent throws', async () => {
+    dal.store.agent_price_reports.push(seedReport({
+      id: 'aprt_audit_fail',
+      status: 'pending_review',
+      recommendation_price_point: 2000000,
+      sold_price: 2000000,
+    }))
+    dal.store.pricing_benchmarks[0].price_point = 1000000
+
+    const first = await service.reviewReport(
+      'aprt_audit_fail',
+      { status: 'verified', incorporate: true },
+      { viewerId: 'pa-1', env: 'live' },
+    )
+    const pending = dal.store.agent_price_reports.find((r) => r.id === 'aprt_audit_fail')
+    pending.data = { ...(pending.data || {}), __force_audit_write_failure: true }
+
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: first.approval_request_id,
+        decision: 'approve',
+        viewerId: 'pa-2',
+        env: 'live',
+      }),
+    ).rejects.toMatchObject({ code: 'AUDIT_WRITE_FAILED' })
+
+    const report = dal.store.agent_price_reports.find((r) => r.id === 'aprt_audit_fail')
+    const approval = dal.store.approval_requests.find((r) => r.id === first.approval_request_id)
+    expect(report.status).toBe('pending_second_approval')
+    expect(approval.status).toBe('REQUESTED')
+    expect(
+      dal.store.approval_actions.filter(
+        (a) => a.request_id === first.approval_request_id && String(a.actor_id) === 'pa-2',
+      ),
+    ).toHaveLength(0)
+    expect(dal.store.outbox_events).toHaveLength(0)
   })
 
   it('recordRevealAudit appends pii_revealed audit event', async () => {
