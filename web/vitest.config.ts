@@ -23,6 +23,16 @@ export default defineConfig({
     hookTimeout: 60000,
     testTimeout: 120000,
     fileParallelism: false,
+    // Forks + single worker: each file can GC; threads pool was OOMing GHA
+    // mid-suite even with NODE_OPTIONS on the parent (workers ignored it).
+    pool: 'forks',
+    maxWorkers: 1,
+    poolOptions: {
+      forks: {
+        singleFork: false,
+        execArgv: ['--max-old-space-size=6144'],
+      },
+    },
     setupFiles: ['./vitest.setup.ts'],
     // Coverage config is defined but off by default. Enable with
     // `npm test -- --coverage`. Thresholds will be tightened as the
