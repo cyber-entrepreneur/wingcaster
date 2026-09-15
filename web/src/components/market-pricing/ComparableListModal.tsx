@@ -111,16 +111,16 @@ export function ComparableListModal({ property, comparables, onClose }: Comparab
 
         <div className="mb-4 flex flex-wrap gap-2">
           <Button variant={sortKey === 'similarity' ? 'default' : 'outline'} size="sm" onClick={() => toggleSort('similarity')}>
-            Similarity <ArrowUpDown className="ml-1 h-3 w-3" />
+            Similarity <ArrowUpDown className="ms-1 h-3 w-3" />
           </Button>
           <Button variant={sortKey === 'price' ? 'default' : 'outline'} size="sm" onClick={() => toggleSort('price')}>
-            Price <ArrowUpDown className="ml-1 h-3 w-3" />
+            Price <ArrowUpDown className="ms-1 h-3 w-3" />
           </Button>
           <Button variant={sortKey === 'area' ? 'default' : 'outline'} size="sm" onClick={() => toggleSort('area')}>
-            Area <ArrowUpDown className="ml-1 h-3 w-3" />
+            Area <ArrowUpDown className="ms-1 h-3 w-3" />
           </Button>
           <Button variant={sortKey === 'listed' ? 'default' : 'outline'} size="sm" onClick={() => toggleSort('listed')}>
-            Listed <ArrowUpDown className="ml-1 h-3 w-3" />
+            Listed <ArrowUpDown className="ms-1 h-3 w-3" />
           </Button>
         </div>
 
@@ -146,7 +146,7 @@ export function ComparableListModal({ property, comparables, onClose }: Comparab
                   </p>
                   <p className="text-xs text-muted-foreground">Listed or recorded: {formatListedDate(comp)}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-lg font-bold">{formatPrice(comp.normalized_price ?? comp.price)}</p>
                   {comp.currency && comp.price != null && String(comp.currency).toUpperCase() !== 'USD' && (
                     <p className="text-xs text-muted-foreground">
@@ -156,12 +156,12 @@ export function ComparableListModal({ property, comparables, onClose }: Comparab
                   <p className="text-xs text-muted-foreground">Source: {comp.source_label || comp.provider_source || comp.source}</p>
                   {comp.source === 'internal' && (
                     <a href={`/listings/${comp.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs text-primary hover:underline">
-                      View listing <ExternalLink className="ml-0.5 h-3 w-3" />
+                      View listing <ExternalLink className="ms-0.5 h-3 w-3" />
                     </a>
                   )}
                   {comp.source_url && (
                     <a href={comp.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs text-primary hover:underline">
-                      Source <ExternalLink className="ml-0.5 h-3 w-3" />
+                      Source <ExternalLink className="ms-0.5 h-3 w-3" />
                     </a>
                   )}
                 </div>
@@ -196,7 +196,7 @@ export function ComparableListModal({ property, comparables, onClose }: Comparab
                   </div>
                 ) : (
                   <Button variant="ghost" size="sm" className="min-h-11 text-red-600 hover:text-red-700" onClick={() => beginReport(comp)}>
-                    <Flag className="mr-1 h-4 w-4" aria-hidden="true" /> {agent ? 'Report inaccurate' : 'Sign in to report'}
+                    <Flag className="me-1 h-4 w-4" aria-hidden="true" /> {agent ? 'Report inaccurate' : 'Sign in to report'}
                   </Button>
                 )}
               </div>
