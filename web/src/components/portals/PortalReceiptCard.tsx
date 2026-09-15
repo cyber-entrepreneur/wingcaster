@@ -1,13 +1,8 @@
 import { useId, useState } from 'react'
 import {
-  Ban,
   ChevronDown,
   ExternalLink,
-  FileWarning,
-  HelpCircle,
-  KeyRound,
-  AlertOctagon,
-  ServerCrash,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Numeric } from '@/components/ui/numeric'
@@ -16,30 +11,22 @@ import {
   PortalStatusPill,
   type PortalStatus,
 } from '@/components/ui/portal-status-pill'
-
-/**
- * Failure classes from `[BE-BLOCKER-03]` `distribution_attempts.error_class`.
- * Required when `status === 'failed'`.
- */
-export type PortalErrorClass =
-  | 'AUTH_EXPIRED'
-  | 'PORTAL_RULES_VIOLATION'
-  | 'PORTAL_DOWN'
-  | 'QUOTA_EXCEEDED'
-  | 'INVALID_CONTENT'
-  | 'UNKNOWN_ERROR'
+import { OutcomeTimeline, type OutcomeTimelineEvent } from '@/components/recipient'
+import { ResolverMessage } from '@/components/recipient'
+import {
+  ERROR_CLASS_FIX_COPY,
+  ERROR_CLASS_HELPER,
+  ERROR_CLASS_ICON,
+  ERROR_CLASS_LABEL,
+  ERROR_CLASS_SECONDARY_FIX,
+  type PortalErrorClass,
+} from './failureClasses'
 
 /**
  * Minimal timeline node shape for accordion expand.
- * Structurally compatible with REC-family `OutcomeTimelineEvent` without
- * importing `recipient/` (avoids cross-agent race during shared-components prep).
+ * Compatible with REC-family `OutcomeTimelineEvent`.
  */
-export type PortalReceiptTimelineEvent = {
-  key: string
-  label: string
-  timestamp?: string
-  state: 'complete' | 'current' | 'pending' | 'skipped'
-}
+export type PortalReceiptTimelineEvent = OutcomeTimelineEvent
 
 export type PortalReceiptDestination = {
   portal_code: string
@@ -73,38 +60,23 @@ export type PortalReceiptCardProps = {
   live_url?: string
   retry_available?: boolean
   fix_deep_link?: string
+  /** Secondary fix link (e.g. Upgrade plan for QUOTA_EXCEEDED). */
+  secondary_fix_deep_link?: string
   moderation_queue_deep_link?: string
   timeline_events?: PortalReceiptTimelineEvent[]
+  /** Shown on UNKNOWN_ERROR for support handoff. */
+  correlation_id?: string | null
   className?: string
+  /** Retry POST in flight — pill shows Loader2 + "Retrying…". */
+  retrying?: boolean
+  /** Actions disabled when offline or parent-busy. */
+  actionsDisabled?: boolean
   /** Stub action hooks — parent wires business logic in consumer waves. */
   onRetry?: () => void
   onContactSupport?: () => void
 }
 
-const ERROR_CLASS_LABEL: Record<PortalErrorClass, string> = {
-  AUTH_EXPIRED: 'Auth expired',
-  PORTAL_RULES_VIOLATION: 'Portal rules',
-  PORTAL_DOWN: 'Portal down',
-  QUOTA_EXCEEDED: 'Quota exceeded',
-  INVALID_CONTENT: 'Content rejected',
-  UNKNOWN_ERROR: 'Unknown error',
-}
-
-const ERROR_CLASS_ICON: Record<PortalErrorClass, typeof KeyRound> = {
-  AUTH_EXPIRED: KeyRound,
-  PORTAL_RULES_VIOLATION: FileWarning,
-  PORTAL_DOWN: ServerCrash,
-  QUOTA_EXCEEDED: Ban,
-  INVALID_CONTENT: AlertOctagon,
-  UNKNOWN_ERROR: HelpCircle,
-}
-
-const FIX_COPY: Partial<Record<PortalErrorClass, string>> = {
-  AUTH_EXPIRED: 'Reconnect account',
-  PORTAL_RULES_VIOLATION: 'Fix listing',
-  QUOTA_EXCEEDED: 'Top up credits',
-  INVALID_CONTENT: 'Edit content',
-}
+export type { PortalErrorClass }
 
 const RAIL_CLASS: Record<PortalReceiptCardProps['status'], string> = {
   succeeded: 'border-s-4 border-s-[var(--lc-status-published-fg)]',
@@ -147,9 +119,13 @@ export function PortalReceiptCard({
   live_url,
   retry_available,
   fix_deep_link,
+  secondary_fix_deep_link,
   moderation_queue_deep_link,
   timeline_events,
+  correlation_id,
   className,
+  retrying = false,
+  actionsDisabled = false,
   onRetry,
   onContactSupport,
 }: PortalReceiptCardProps) {
@@ -158,8 +134,9 @@ export function PortalReceiptCard({
   const [expanded, setExpanded] = useState(false)
 
   const pillStatus = receiptStatusToPill(status)
-  const pillLabel =
-    status === 'failed' && error_class
+  const pillLabel = retrying
+    ? 'Retrying…'
+    : status === 'failed' && error_class
       ? ERROR_CLASS_LABEL[error_class]
       : status === 'succeeded'
         ? 'Live'
@@ -173,13 +150,30 @@ export function PortalReceiptCard({
       ? `${credit_charged} credit${credit_charged === 1 ? '' : 's'} charged`
       : '0 credits · reservation released'
 
+  const busy = retrying || actionsDisabled
+  const showResolver =
+    status === 'failed' &&
+    (error_class === 'INVALID_CONTENT' ||
+      error_class === 'PORTAL_RULES_VIOLATION' ||
+      Boolean(portal_message))
+
+  const secondaryQuota =
+    error_class === 'QUOTA_EXCEEDED'
+      ? ERROR_CLASS_SECONDARY_FIX.QUOTA_EXCEEDED
+      : undefined
+  const secondaryHref =
+    secondary_fix_deep_link ||
+    (secondaryQuota ? secondaryQuota.hrefSuffix : undefined)
+
   return (
     <article
       aria-labelledby={titleId}
+      aria-busy={retrying || undefined}
       className={cn(
         'bg-[var(--lc-surface-raised)] text-[var(--lc-text-primary)]',
         'rounded-[var(--lc-radius-lg)] p-[var(--lc-space-md)]',
         'shadow-[var(--lc-elevation-sm)]',
+        'transition-colors duration-fast ease-out motion-reduce:transition-none',
         RAIL_CLASS[status],
         className,
       )}
@@ -227,6 +221,7 @@ export function PortalReceiptCard({
                   'text-[var(--lc-text-secondary)]',
                 )}
                 style={{ font: 'var(--lc-type-caption)' }}
+                aria-label={destination.country_code}
               >
                 {destination.country_code}
               </span>
@@ -248,11 +243,24 @@ export function PortalReceiptCard({
 
           <div className="mt-[var(--lc-space-xs)] flex flex-wrap items-center gap-[var(--lc-space-sm)]">
             <span aria-label={`${destination.portal_display_name} status: ${pillLabel}`}>
-              <PortalStatusPill
-                status={pillStatus}
-                label={pillLabel}
-                pulse={status === 'in_review'}
-              />
+              {retrying ? (
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-[var(--lc-radius-pill)] px-2.5 py-0.5',
+                    'text-xs font-semibold',
+                    'bg-[var(--lc-surface-sunken)] text-[var(--lc-text-secondary)]',
+                  )}
+                >
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  <span>Retrying…</span>
+                </span>
+              ) : (
+                <PortalStatusPill
+                  status={pillStatus}
+                  label={pillLabel}
+                  pulse={status === 'in_review'}
+                />
+              )}
             </span>
             <Numeric
               className={cn(
@@ -272,6 +280,24 @@ export function PortalReceiptCard({
           >
             {formatTimestampStub(timestamp)}
           </Numeric>
+
+          {error_class && ERROR_CLASS_HELPER[error_class] ? (
+            <p
+              className="mt-[var(--lc-space-2xs)] text-[var(--lc-text-muted)]"
+              style={{ font: 'var(--lc-type-caption)' }}
+            >
+              {ERROR_CLASS_HELPER[error_class]}
+            </p>
+          ) : null}
+
+          {error_class === 'UNKNOWN_ERROR' && correlation_id ? (
+            <Numeric
+              className="mt-[var(--lc-space-2xs)] block text-[var(--lc-text-muted)]"
+              style={{ font: 'var(--lc-type-caption)' }}
+            >
+              Correlation {correlation_id}
+            </Numeric>
+          ) : null}
         </div>
 
         <Button
@@ -279,7 +305,7 @@ export function PortalReceiptCard({
           variant="ghost"
           size="icon"
           aria-expanded={expanded}
-          aria-label="Show submission timeline"
+          aria-label={expanded ? 'Hide submission timeline' : 'Show submission timeline'}
           onClick={() => setExpanded((v) => !v)}
           className="shrink-0"
         >
@@ -294,38 +320,77 @@ export function PortalReceiptCard({
 
       <div className="mt-[var(--lc-space-sm)] flex flex-wrap gap-[var(--lc-space-xs)]">
         {status === 'succeeded' && live_url ? (
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild disabled={busy}>
             <a href={live_url} target="_blank" rel="noopener noreferrer">
               View live listing
               <ExternalLink className="ms-1 h-3.5 w-3.5" aria-hidden="true" />
+              <span className="sr-only">(opens in new tab)</span>
             </a>
           </Button>
         ) : null}
         {(status === 'succeeded' || status === 'in_review') &&
         moderation_queue_deep_link ? (
-          <Button variant={status === 'in_review' ? 'outline' : 'ghost'} size="sm" asChild>
+          <Button
+            variant={status === 'in_review' ? 'outline' : 'ghost'}
+            size="sm"
+            asChild
+            disabled={busy}
+          >
             <a href={moderation_queue_deep_link}>View in queue</a>
           </Button>
         ) : null}
-        {status === 'failed' && fix_deep_link && error_class && FIX_COPY[error_class] ? (
-          <Button variant="outline" size="sm" asChild>
-            <a href={fix_deep_link}>{FIX_COPY[error_class]}</a>
+        {status === 'failed' &&
+        fix_deep_link &&
+        error_class &&
+        ERROR_CLASS_FIX_COPY[error_class] ? (
+          <Button variant="outline" size="sm" asChild disabled={busy}>
+            <a href={fix_deep_link}>{ERROR_CLASS_FIX_COPY[error_class]}</a>
+          </Button>
+        ) : null}
+        {status === 'failed' && secondaryQuota && secondaryHref ? (
+          <Button variant="ghost" size="sm" asChild disabled={busy}>
+            <a href={secondaryHref}>{secondaryQuota.label}</a>
           </Button>
         ) : null}
         {status === 'failed' && retry_available ? (
-          <Button variant="outline" size="sm" type="button" onClick={onRetry}>
-            Retry
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={onRetry}
+            disabled={busy}
+            aria-busy={retrying || undefined}
+          >
+            {retrying ? (
+              <>
+                <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Retrying…
+              </>
+            ) : (
+              'Retry'
+            )}
           </Button>
         ) : null}
         {status === 'failed' && error_class === 'UNKNOWN_ERROR' ? (
-          <Button variant="ghost" size="sm" type="button" onClick={onContactSupport}>
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={onContactSupport}
+            disabled={busy}
+          >
             Contact support
           </Button>
         ) : null}
       </div>
 
       {expanded ? (
-        <div className="mt-[var(--lc-space-md)] border-t border-[var(--lc-border)] pt-[var(--lc-space-md)]">
+        <div
+          className={cn(
+            'mt-[var(--lc-space-md)] border-t border-[var(--lc-border)] pt-[var(--lc-space-md)]',
+            'transition-[height,opacity] duration-base ease-out motion-reduce:transition-none',
+          )}
+        >
           {error_class ? (
             <p
               className="mb-[var(--lc-space-sm)] flex items-center gap-2 text-[var(--lc-text-muted)]"
@@ -338,29 +403,30 @@ export function PortalReceiptCard({
               <span>{ERROR_CLASS_LABEL[error_class]}</span>
             </p>
           ) : null}
-          <p
-            className="text-[var(--lc-text-secondary)]"
-            style={{ font: 'var(--lc-type-body-sm)' }}
-          >
-            {portal_message?.trim() || "Portal didn't provide a message."}
-          </p>
+
+          {showResolver ? (
+            <div className="mb-[var(--lc-space-md)]">
+              <ResolverMessage
+                resolver={{
+                  display_name: destination.portal_display_name,
+                  role_label: 'Portal moderator',
+                }}
+                decided_at={timestamp}
+                message={portal_message?.trim() || null}
+                empty_state_copy="Portal didn't provide a message."
+              />
+            </div>
+          ) : (
+            <p
+              className="mb-[var(--lc-space-md)] text-[var(--lc-text-secondary)]"
+              style={{ font: 'var(--lc-type-body-sm)' }}
+            >
+              {portal_message?.trim() || "Portal didn't provide a message."}
+            </p>
+          )}
+
           {timeline_events && timeline_events.length > 0 ? (
-            <ol className="mt-[var(--lc-space-sm)] space-y-[var(--lc-space-2xs)]">
-              {timeline_events.map((ev) => (
-                <li
-                  key={ev.key}
-                  className="flex items-baseline justify-between gap-2 text-[var(--lc-text-muted)]"
-                  style={{ font: 'var(--lc-type-caption)' }}
-                >
-                  <span>{ev.label}</span>
-                  {ev.timestamp ? (
-                    <Numeric>{formatTimestampStub(ev.timestamp)}</Numeric>
-                  ) : (
-                    <span>Pending</span>
-                  )}
-                </li>
-              ))}
-            </ol>
+            <OutcomeTimeline events={timeline_events} />
           ) : null}
         </div>
       ) : null}

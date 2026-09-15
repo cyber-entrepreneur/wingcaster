@@ -489,6 +489,63 @@ export const api = {
     return res.blob()
   },
 
+  // Portal moderation detail (PA-MOD-002) — env-scoped via X-Wingcaster-Env
+  getPortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}`),
+  getPortalModerationSibling: (
+    submissionId: string,
+    direction: 'next' | 'prev',
+    query: Record<string, string | undefined> = {},
+  ) => {
+    const params = new URLSearchParams({ direction })
+    for (const [k, v] of Object.entries(query)) {
+      if (v != null && v !== '') params.set(k, v)
+    }
+    return fetchJson(
+      `/admin/moderation/portals/${encodeURIComponent(submissionId)}/sibling?${params.toString()}`,
+    )
+  },
+  getPortalModerationHistory: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/history`),
+  getPortalModerationAudit: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/audit`),
+  approvePortalModerationSubmission: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  rejectPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes?: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  requestInfoPortalModerationSubmission: (
+    submissionId: string,
+    body: { reason_code: string; notes: string },
+  ) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  undoPortalModerationApprove: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  undoPortalModerationReject: (submissionId: string) =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/undo-reject`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  revealPortalModerationContact: (submissionId: string, field: 'phone' | 'email') =>
+    fetchJson(`/admin/moderation/portals/${encodeURIComponent(submissionId)}/reveal-contact`, {
+      method: 'POST',
+      body: JSON.stringify({ field }),
+    }),
+
   // Two-factor / step-up (Phase 7f)
   twoFactorStatus: (): Promise<TwoFactorStatus> => fetchJson('/auth/2fa/status'),
   totpSetup: (current_password: string): Promise<TotpSetup> =>
@@ -677,7 +734,24 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/publishing/tracker/summary${qs}`)
   },
-  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
+  getPublishingJob: (jobId: string): Promise<PublishingJobPayload> =>
+    fetchJson(`/publishing/jobs/${encodeURIComponent(jobId)}`),
+  retryPublishingDestination: (
+    jobId: string,
+    destinationId: string,
+  ): Promise<PublishingDestinationRetryResult> =>
+    fetchJson(
+      `/publishing/jobs/${encodeURIComponent(jobId)}/destinations/${encodeURIComponent(destinationId)}/retry`,
+      { method: 'POST', body: '{}' },
+    ),
+  retryAllPublishingDestinations: (
+    jobId: string,
+    errorClassesToRetry: string[] = ['PORTAL_DOWN', 'UNKNOWN_ERROR'],
+  ): Promise<PublishingJobRetryAllResult> =>
+    fetchJson(`/publishing/jobs/${encodeURIComponent(jobId)}/retry-all`, {
+      method: 'POST',
+      body: JSON.stringify({ error_classes_to_retry: errorClassesToRetry }),
+    }),
   uploadMedia: async (files: File[]) => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
@@ -2129,6 +2203,98 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token }),
     }),
+}
+
+export type PublishingAggregate =
+  | 'all_succeeded'
+  | 'mixed'
+  | 'all_failed'
+  | 'in_review_only'
+  | 'partial'
+
+export type PublishingDestinationStatus = 'succeeded' | 'in_review' | 'failed'
+
+export type PublishingErrorClass =
+  | 'AUTH_EXPIRED'
+  | 'PORTAL_RULES_VIOLATION'
+  | 'PORTAL_DOWN'
+  | 'QUOTA_EXCEEDED'
+  | 'INVALID_CONTENT'
+  | 'UNKNOWN_ERROR'
+
+export interface PublishingJobSummary {
+  id: string
+  listing_id: string | null
+  listing_short_ref: string | null
+  aggregate: PublishingAggregate
+  submitted_at: string | null
+  completed_at: string | null
+  counts: {
+    succeeded: number
+    in_review: number
+    failed: number
+    total: number
+  }
+  credits: {
+    total_charged: number
+    total_reserved: number
+  }
+}
+
+export interface PublishingDestinationPortal {
+  code: string | null
+  display_name: string | null
+  logo_url: string | null
+  country_code: string | null
+  all_country_codes: string[]
+}
+
+export interface PublishingDestinationTimelineEntry {
+  id?: string
+  status?: string
+  error_class?: string | null
+  error_message?: string | null
+  attempted_at?: string | null
+  key?: string
+  label?: string
+  timestamp?: string
+  state?: 'complete' | 'current' | 'pending' | 'skipped'
+}
+
+export interface PublishingDestination {
+  id: string
+  portal: PublishingDestinationPortal
+  channel_type?: string
+  status: PublishingDestinationStatus
+  error_class: PublishingErrorClass | null
+  portal_message: string | null
+  credit_charged: number
+  credit_reserved: number
+  credit_held?: number
+  credit_released?: number
+  event_at: string | null
+  live_url: string | null
+  retry_available: boolean
+  fix_deep_link: string | null
+  moderation_queue_deep_link: string | null
+  correlation_id: string | null
+  timeline: PublishingDestinationTimelineEntry[]
+}
+
+export interface PublishingJobPayload {
+  job: PublishingJobSummary
+  destinations: PublishingDestination[]
+}
+
+export interface PublishingDestinationRetryResult {
+  destination: PublishingDestination
+  job: PublishingJobSummary | null
+  destinations: PublishingDestination[]
+}
+
+export interface PublishingJobRetryAllResult extends PublishingJobPayload {
+  retried_destination_ids: string[]
+  skipped: Array<{ id: string; reason: string; error_class?: string | null }>
 }
 
 export interface FeatureQuota {
