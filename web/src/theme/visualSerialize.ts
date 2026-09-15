@@ -161,3 +161,4 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
   const tokensAttr = root.getAttribute('data-lc-tokens') || ''
   return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${clone.outerHTML}\n<!-- portals -->\n${portals}`
 }
+
