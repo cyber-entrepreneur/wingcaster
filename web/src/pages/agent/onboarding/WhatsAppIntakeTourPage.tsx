@@ -12,6 +12,8 @@ import {
 } from '@/components/onboarding'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { useLocale } from '@/hooks/useLocale'
+import { t, type OnboardingLocale } from './copy'
 import { OnboardingChrome } from './OnboardingChrome'
 import { LivePollIndicator } from './LivePollIndicator'
 import {
@@ -33,12 +35,14 @@ import {
   waMeUrl,
 } from './helpers'
 
-const STEPPER = [
-  { id: 'get-code', label: 'Get code' },
-  { id: 'send-code', label: 'Send code to WingCaster' },
-  { id: 'send-photos', label: 'Send photos + voice memo' },
-  { id: 'draft', label: 'We draft your listing' },
-] as const
+function stepper(locale: OnboardingLocale) {
+  return [
+    { id: 'get-code', label: t('whatsapp.step.getCode', locale) },
+    { id: 'send-code', label: t('whatsapp.step.sendCode', locale) },
+    { id: 'send-photos', label: t('whatsapp.step.sendPhotos', locale) },
+    { id: 'draft', label: t('whatsapp.step.draft', locale) },
+  ] as const
+}
 
 const BIND_POLL_MS = 3000
 const DRAFT_POLL_MS = 5000
@@ -55,6 +59,8 @@ function isAwaiting(status: string): boolean {
 export function WhatsAppIntakeTourPage() {
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { isArabic } = useLocale()
+  const onbLocale: OnboardingLocale = isArabic ? 'ar' : 'en'
   const { state, patch, isLoading } = useOnboardingState()
   const online = useOnlineStatus()
   const reducedMotion = usePrefersReducedMotion()
@@ -79,7 +85,7 @@ export function WhatsAppIntakeTourPage() {
   const backoffRef = useRef(BIND_POLL_MS)
   const lastCountdownAnnounce = useRef(0)
 
-  usePageTitle('WhatsApp intake')
+  usePageTitle(t('whatsapp.progress', onbLocale))
 
   const remainingMs = code ? Date.parse(code.expires_at) - now : 0
   const expired = Boolean(code) && remainingMs <= 0 && !bound
@@ -93,10 +99,10 @@ export function WhatsAppIntakeTourPage() {
 
   const pollLabel =
     draftPhase === 'collecting'
-      ? "We're drafting your listing… almost there."
+      ? t('whatsapp.poll.drafting', onbLocale)
       : bound
-        ? 'Waiting for your first listing message…'
-        : 'Listening for your message…'
+        ? t('whatsapp.poll.waiting', onbLocale)
+        : t('whatsapp.poll.listening', onbLocale)
 
   const fetchCode = useCallback(async () => {
     setCodeLoading(true)
@@ -287,7 +293,7 @@ export function WhatsAppIntakeTourPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--lc-bg-page)]">
-        <OnboardingChrome step={2} label="WhatsApp intake" />
+        <OnboardingChrome step={2} label={t('whatsapp.progress', onbLocale)} />
         <div className="mx-auto max-w-xl animate-pulse p-[var(--lc-space-lg)]">
           <div className="h-48 rounded-[var(--lc-radius-xl)] bg-[var(--lc-surface-sunken)]" />
         </div>
@@ -299,9 +305,9 @@ export function WhatsAppIntakeTourPage() {
     <div className="min-h-screen bg-[var(--lc-bg-page)] text-[var(--lc-text-primary)]">
       <OfflineBanner
         show={!online}
-        message="You're offline. We can't check for new messages until you reconnect."
+        message={t('whatsapp.offline', onbLocale)}
       />
-      <OnboardingChrome step={2} label="WhatsApp intake" />
+      <OnboardingChrome step={2} label={t('whatsapp.progress', onbLocale)} />
 
       <div className="mx-auto grid max-w-6xl gap-[var(--lc-space-xl)] px-[var(--lc-space-md)] py-[var(--lc-space-lg)] md:grid-cols-[3fr_2fr] md:px-[var(--lc-space-xl)]">
         <div className="flex flex-col gap-[var(--lc-space-lg)]">
@@ -310,15 +316,15 @@ export function WhatsAppIntakeTourPage() {
               className="text-[var(--lc-text-heading)]"
               style={{ font: 'var(--lc-type-heading-1)' }}
             >
-              Bind your WhatsApp to WingCaster.
+              {t('whatsapp.h1', onbLocale)}
             </h1>
             <p
               className="mt-[var(--lc-space-sm)] text-[var(--lc-text-secondary)]"
               style={{ font: 'var(--lc-type-body-lg)' }}
             >
               {bound
-                ? 'Now send photos + a voice memo of the property.'
-                : 'Send the code below to our WhatsApp. Then send photos + a voice memo of the property.'}
+                ? t('whatsapp.sub.bound', onbLocale)
+                : t('whatsapp.sub', onbLocale)}
             </p>
           </div>
 
@@ -329,9 +335,9 @@ export function WhatsAppIntakeTourPage() {
             />
           ) : codeError || !code ? (
             <div className="rounded-[var(--lc-radius-xl)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]">
-              <p className="text-[var(--lc-text-secondary)]">We couldn&apos;t generate a code. Try again?</p>
+              <p className="text-[var(--lc-text-secondary)]">{t('whatsapp.error.code', onbLocale)}</p>
               <Button className="mt-[var(--lc-space-md)]" onClick={() => void fetchCode()}>
-                Try again
+                {t('whatsapp.tryAgain', onbLocale)}
               </Button>
             </div>
           ) : (
@@ -360,7 +366,7 @@ export function WhatsAppIntakeTourPage() {
               }}
             >
               <ChannelMark channel="whatsapp" className="me-2 h-5 w-5" />
-              Open WhatsApp with the code
+              {t('whatsapp.cta.open', onbLocale)}
             </Button>
           ) : null}
 
@@ -384,13 +390,13 @@ export function WhatsAppIntakeTourPage() {
             </span>
           ) : null}
 
-          <OnboardingStepper steps={[...STEPPER]} activeIndex={activeIndex} />
+          <OnboardingStepper steps={[...stepper(onbLocale)]} activeIndex={activeIndex} />
 
           <LivePollIndicator label={pollLabel} reducedMotion={reducedMotion} />
 
           {pollFailed >= 3 && pollRetryIn != null ? (
             <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              We&apos;re having trouble checking status. Refreshing in {pollRetryIn}s…
+              {t('whatsapp.error.poll', onbLocale, { n: pollRetryIn })}
               <Button
                 type="button"
                 variant="link"
@@ -401,7 +407,7 @@ export function WhatsAppIntakeTourPage() {
                   void getBindingStatus()
                 }}
               >
-                Retry now
+                {t('whatsapp.retry', onbLocale)}
               </Button>
             </p>
           ) : null}
@@ -411,7 +417,7 @@ export function WhatsAppIntakeTourPage() {
               className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-md)] text-[var(--lc-text-secondary)]"
               style={{ font: 'var(--lc-type-body-sm)' }}
             >
-              Still no message? Make sure you saved the number correctly, and send a photo to start.
+              {t('whatsapp.nudge', onbLocale)}
             </p>
           ) : null}
 
@@ -421,7 +427,7 @@ export function WhatsAppIntakeTourPage() {
             className="h-auto justify-start p-0 text-[var(--lc-text-brand)]"
             onClick={() => void handleEscape()}
           >
-            Prefer to type it yourself? Add manually →
+            {t('whatsapp.escape', onbLocale)}
           </Button>
         </div>
 

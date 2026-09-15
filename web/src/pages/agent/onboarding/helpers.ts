@@ -166,6 +166,7 @@ export function waMeUrl(sharedNumberE164: string, activationCode: string): strin
 }
 
 export function isPatchConflict(error: unknown): boolean {
-  const status = (error as { status?: number } | null)?.status
-  return status === 409
+  if (!error || typeof error !== 'object') return false
+  if ((error as { name?: string }).name === 'PatchConflictError') return true
+  return (error as { status?: number }).status === 409
 }

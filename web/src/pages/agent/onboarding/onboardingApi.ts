@@ -110,6 +110,33 @@ export async function discardWhatsAppDraft(id: string): Promise<void> {
   await api.discardWhatsAppListingsDraft(id)
 }
 
+/** Partial draft fields accepted by PATCH `/api/onboarding/drafts/:id`. */
+export type OnboardingDraftPatch = {
+  price?: number
+  price_cents?: number
+  currency?: string
+  description?: string
+  address?: string
+  area_name?: string
+  building_name?: string
+  floor?: string
+  lat?: number
+  lng?: number
+  photo_urls?: string[]
+  photos?: string[]
+}
+
+/** PATCH onboarding draft + return revalidated draft document. */
+export async function patchOnboardingDraft(
+  id: string,
+  body: OnboardingDraftPatch,
+): Promise<WhatsAppDraft> {
+  return request<WhatsAppDraft>(`/onboarding/drafts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
 export interface PublishedListingThumb {
   id: string
   title?: string

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { makeState } from './testState'
@@ -156,5 +156,25 @@ describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith('/onboarding/welcome', { replace: true }),
     )
+  })
+})
+
+describe('WhatsAppIntakeTourPage nudge', () => {
+  it('shows the 5-minute soft nudge after binding with no draft', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    apiMocks.getBindingStatus.mockResolvedValue({
+      bound: true,
+      phone_e164: '+971501234321',
+    })
+    apiMocks.listWhatsAppDrafts.mockResolvedValue([])
+    renderPage()
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 100)
+    })
+    expect(
+      await screen.findByText(/Still no message\? Make sure you saved the number correctly/i),
+    ).toBeInTheDocument()
+    vi.useRealTimers()
   })
 })

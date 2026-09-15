@@ -37,6 +37,8 @@ export interface IntakePathCardProps {
   icon?: ReactNode
   /** Disable interaction (submitting / offline). */
   disabled?: boolean
+  /** Optional aria-describedby for the card CTA (Welcome path descriptions). */
+  ctaDescribedBy?: string
   className?: string
 }
 
@@ -72,6 +74,7 @@ export function IntakePathCard({
   onCta,
   icon,
   disabled = false,
+  ctaDescribedBy,
   className,
 }: IntakePathCardProps) {
   const isNextAction = variant === 'nextAction'
@@ -154,6 +157,7 @@ export function IntakePathCard({
             size="lg"
             className="w-full"
             disabled={disabled}
+            aria-describedby={ctaDescribedBy}
             onClick={(event) => {
               event.stopPropagation()
               onCta?.()

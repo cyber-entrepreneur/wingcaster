@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Drawer } from 'vaul'
 import { useOnboardingState } from '@/hooks/useOnboardingState'
 import type { OnboardingChecklistItem, OnboardingState } from '@/components/onboarding'
-import type { OnboardingChecklistFlags } from '@/components/onboarding/useOnboardingState'
+import type {
+  OnboardingChecklistFlags,
+  OnboardingStatePatch,
+} from '@/components/onboarding/useOnboardingState'
 import { OnboardingChecklistCard, OnboardingPill } from '@/components/onboarding'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,7 +17,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
+import { useLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
+import { t, type OnboardingLocale } from './copy'
 import { trackOnboardingEvent } from './onboardingApi'
 import { usePrefersReducedMotion } from './useOnlineStatus'
 import {
@@ -39,45 +44,53 @@ const STEP_HREFS: Record<keyof OnboardingChecklistFlags, string> = {
   subscription_active: '/plans',
 }
 
-const DEFAULT_ITEMS: OnboardingChecklistItem[] = [
-  {
-    key: 'first_listing_published',
-    label: 'Publish your first listing',
-    sub: '2 min via WhatsApp',
-    href: '/onboarding/welcome',
-  },
-  {
-    key: 'channels_connected',
-    label: 'Connect a publishing channel',
-    sub: 'Instagram, Facebook, Messenger, portals',
-    href: '/settings/channels',
-  },
-  {
-    key: 'notifications_enabled',
-    label: 'Turn on notifications',
-    sub: 'Never miss a new lead',
-    href: '/notifications',
-  },
-  {
-    key: 'profile_completed',
-    label: 'Complete your public profile',
-    sub: 'Photo, bio, contact — for your Bazaar profile',
-    href: '/settings/profile',
-  },
-  {
-    key: 'subscription_active',
-    label: 'Upgrade to paid',
-    sub: 'Unlock unlimited listings and portal integrations',
-    optional: true,
-    href: '/plans',
-  },
-]
+function defaultItems(locale: OnboardingLocale): OnboardingChecklistItem[] {
+  return [
+    {
+      key: 'first_listing_published',
+      label: t('checklist.step.publish', locale),
+      sub: t('checklist.step.publish.sub', locale),
+      href: '/onboarding/welcome',
+    },
+    {
+      key: 'channels_connected',
+      label: t('checklist.step.channels', locale),
+      sub: t('checklist.step.channels.sub', locale),
+      href: '/settings/channels',
+    },
+    {
+      key: 'notifications_enabled',
+      label: t('checklist.step.notifications', locale),
+      sub: t('checklist.step.notifications.sub', locale),
+      href: '/notifications',
+    },
+    {
+      key: 'profile_completed',
+      label: t('checklist.step.profile', locale),
+      sub: t('checklist.step.profile.sub', locale),
+      href: '/settings/profile',
+    },
+    {
+      key: 'subscription_active',
+      label: t('checklist.step.upgrade', locale),
+      sub: t('checklist.step.upgrade.sub', locale),
+      optional: true,
+      href: '/plans',
+    },
+  ]
+}
 
 export interface OnboardingChecklistWidgetProps {
   /** `card` = guided dashboard Zone 3; `pill` = Pro top-bar compact. */
   variant?: 'card' | 'pill'
-  /** Optional state override (tests / Phase B). Defaults to hook state. */
+  /**
+   * Optional state override from a parent that already owns `useOnboardingState`.
+   * When `state === undefined`, the widget calls the hook itself.
+   */
   state?: OnboardingState
+  patch?: (body: OnboardingStatePatch) => Promise<OnboardingState>
+  isLoading?: boolean
+  isError?: boolean
   className?: string
 }
 
@@ -90,16 +103,57 @@ function hrefForStep(state: OnboardingState, key: keyof OnboardingChecklistFlags
   return STEP_HREFS[key]
 }
 
-export function OnboardingChecklistWidget({
-  variant = 'card',
-  state: stateProp,
-  className,
-}: OnboardingChecklistWidgetProps) {
-  const hooked = useOnboardingState()
-  const state = stateProp ?? hooked.state
-  const { patch, isLoading, isError, completedVia } = hooked as typeof hooked & {
-    completedVia?: (stepId: string) => string | null
+export function OnboardingChecklistWidget(props: OnboardingChecklistWidgetProps) {
+  if (props.state !== undefined) {
+    return (
+      <OnboardingChecklistWidgetView
+        {...props}
+        state={props.state}
+        patch={props.patch}
+        isLoading={props.isLoading ?? false}
+        isError={props.isError ?? false}
+      />
+    )
   }
+  return <OnboardingChecklistWidgetWithHook {...props} />
+}
+
+function OnboardingChecklistWidgetWithHook(props: OnboardingChecklistWidgetProps) {
+  const hooked = useOnboardingState()
+  return (
+    <OnboardingChecklistWidgetView
+      {...props}
+      state={hooked.state}
+      patch={hooked.patch}
+      isLoading={hooked.isLoading}
+      isError={hooked.isError}
+      completedVia={hooked.completedVia}
+    />
+  )
+}
+
+async function missingPatch(): Promise<OnboardingState> {
+  throw new Error('OnboardingChecklistWidget: patch() required when state is provided')
+}
+
+function OnboardingChecklistWidgetView({
+  variant = 'card',
+  state,
+  patch: patchProp,
+  isLoading = false,
+  isError = false,
+  completedVia,
+  className,
+}: OnboardingChecklistWidgetProps & {
+  state: OnboardingState
+  patch?: (body: OnboardingStatePatch) => Promise<OnboardingState>
+  isLoading?: boolean
+  isError?: boolean
+  completedVia?: (stepId: string) => string | null
+}) {
+  const patch = patchProp ?? missingPatch
+  const { isArabic } = useLocale()
+  const onbLocale: OnboardingLocale = isArabic ? 'ar' : 'en'
   const navigate = useNavigate()
   const { addToast } = useToast()
   const reducedMotion = usePrefersReducedMotion()
@@ -110,6 +164,9 @@ export function OnboardingChecklistWidget({
 
   const { completed, total } = mainChecklistCounts(state.checklist)
   const allDone = completed >= total
+  const remaining = Math.max(0, total - completed)
+  const pct = total === 0 ? 0 : Math.round((completed / total) * 100)
+  const viaFn = completedVia
 
   useEffect(() => {
     if (isLoading || isError) return
@@ -131,14 +188,14 @@ export function OnboardingChecklistWidget({
 
   const items = useMemo(
     () =>
-      DEFAULT_ITEMS.map((item) => {
-        const source = completedVia?.(item.key) ?? null
+      defaultItems(onbLocale).map((item) => {
+        const source = viaFn?.(item.key) ?? null
         const via = source
           ? `Completed via ${COMPLETED_VIA_LABELS[source] ?? source}`
           : completedViaCaption(state, item.key)
         return via ? { ...item, sub: via } : item
       }),
-    [completedVia, state],
+    [viaFn, onbLocale, state],
   )
 
   const onStepTap = (key: keyof OnboardingChecklistFlags) => {
@@ -151,7 +208,7 @@ export function OnboardingChecklistWidget({
       await patch({ dismissed_forever: true })
       trackOnboardingEvent('onboarding.checklist_dismissed')
       addToast({
-        description: 'Checklist dismissed. Bring it back from Settings → Onboarding progress.',
+        description: t('checklist.dismiss.toast', onbLocale),
         duration: 5000,
       })
       setDismissOpen(false)
@@ -160,17 +217,17 @@ export function OnboardingChecklistWidget({
         setDismissOpen(false)
         return
       }
-      addToast({ variant: 'error', description: "We couldn't save that. Try again?" })
+      addToast({ variant: 'error', description: t('checklist.error.patch', onbLocale) })
     }
   }
 
   if (isError) return null
-  if (isLoading && !stateProp) {
+  if (isLoading) {
     return (
       <div
         className={cn(
           'h-40 animate-pulse rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)]',
-          variant === 'pill' && 'h-8 w-16',
+          variant === 'pill' && 'h-11 min-h-tap w-16',
           className,
         )}
         aria-busy="true"
@@ -182,12 +239,13 @@ export function OnboardingChecklistWidget({
   if (!shouldRenderOnboardingChecklist(state) && !allDone) return null
   if (state.dismissed_forever || fading) return null
 
+  const title = t('checklist.title', onbLocale)
   const card = (
     <OnboardingChecklistCard
       state={state}
       items={items}
+      title={title}
       defaultExpanded={readSessionFlag(ONB_CHECKLIST_EXPANDED_KEY) !== '0'}
-      // Expand/collapse persistence is owned by the card; Phase B may wrap.
       onDismissForever={() => setDismissOpen(true)}
       onStepTap={onStepTap}
       className={className}
@@ -198,17 +256,15 @@ export function OnboardingChecklistWidget({
     <Dialog open={dismissOpen} onOpenChange={setDismissOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Dismiss this checklist?</DialogTitle>
-          <DialogDescription>
-            You can bring it back from Settings → Onboarding progress.
-          </DialogDescription>
+          <DialogTitle>{t('checklist.dismiss.title', onbLocale)}</DialogTitle>
+          <DialogDescription>{t('checklist.dismiss.body', onbLocale)}</DialogDescription>
         </DialogHeader>
         <div className="mt-[var(--lc-space-md)] flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={() => setDismissOpen(false)}>
-            Keep it
+            {t('checklist.dismiss.cancel', onbLocale)}
           </Button>
           <Button type="button" variant="destructive" onClick={() => void confirmDismiss()}>
-            Yes, dismiss
+            {t('checklist.dismiss.confirm', onbLocale)}
           </Button>
         </div>
       </DialogContent>
@@ -222,7 +278,7 @@ export function OnboardingChecklistWidget({
           completed={completed}
           total={total}
           onClick={() => setSheetOpen(true)}
-          aria-label={`Onboarding progress: ${completed} of ${total} steps complete. Open checklist.`}
+          aria-label={t('checklist.pill.aria', onbLocale, { completed, total })}
           className={className}
         />
         <Drawer.Root open={sheetOpen} onOpenChange={setSheetOpen} direction="right">
@@ -231,10 +287,10 @@ export function OnboardingChecklistWidget({
             <Drawer.Content
               role="dialog"
               aria-modal="true"
-              aria-label="Onboarding progress"
+              aria-label={t('checklist.region', onbLocale)}
               className="fixed inset-y-0 end-0 z-modal flex h-full w-full max-w-[400px] flex-col border-s border-[var(--lc-border)] bg-[var(--lc-surface-raised)] outline-none"
             >
-              <Drawer.Title className="sr-only">Finish setting up</Drawer.Title>
+              <Drawer.Title className="sr-only">{title}</Drawer.Title>
               <div className="overflow-y-auto p-[var(--lc-space-lg)]">{card}</div>
             </Drawer.Content>
           </Drawer.Portal>
@@ -247,8 +303,10 @@ export function OnboardingChecklistWidget({
   return (
     <div
       role="region"
-      aria-label="Onboarding progress"
+      aria-label={t('checklist.region', onbLocale)}
       className={cn(reducedMotion ? undefined : 'transition-opacity duration-slow', className)}
+      data-checklist-pct={pct}
+      data-checklist-remaining={remaining}
     >
       {card}
       {dialog}

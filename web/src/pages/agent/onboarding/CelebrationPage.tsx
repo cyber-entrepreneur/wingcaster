@@ -15,6 +15,8 @@ import { Numeric } from '@/components/ui/numeric'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { useLocale } from '@/hooks/useLocale'
+import { t, type OnboardingLocale } from './copy'
 import { cn } from '@/lib/utils'
 import { OnboardingChrome } from './OnboardingChrome'
 import { fireOnboardingConfetti, prefersReducedMotion } from './confetti'
@@ -43,6 +45,8 @@ function loadStoredListing(): PublishedListingThumb | null {
 export function CelebrationPage() {
   const navigate = useNavigate()
   const { agent } = useAuth()
+  const { isArabic } = useLocale()
+  const onbLocale: OnboardingLocale = isArabic ? 'ar' : 'en'
   const { addToast } = useToast()
   const { state, patch } = useOnboardingState()
   const online = useOnlineStatus()
@@ -53,20 +57,20 @@ export function CelebrationPage() {
   const [thumbLoading, setThumbLoading] = useState(() => Boolean(loadStoredListing()?.id))
   const [hideThumb, setHideThumb] = useState(false)
 
-  usePageTitle("You're set")
+  usePageTitle(t('celebration.progress', onbLocale))
 
   const firstName = firstNameOf(agent?.name)
   const elapsed = elapsedMinutesSince(state.started_at)
 
   let sub: string
   if (firstName && elapsed != null) {
-    sub = `${firstName} — you turned a voice memo into a live listing in ${elapsed} minutes.`
+    sub = t('celebration.sub.named.elapsed', onbLocale, { firstName, elapsed })
   } else if (firstName) {
-    sub = `${firstName} — you just turned a voice memo into a live listing.`
+    sub = t('celebration.sub.named', onbLocale, { firstName })
   } else if (elapsed != null) {
-    sub = `You turned a voice memo into a live listing in ${elapsed} minutes.`
+    sub = t('celebration.sub.elapsed', onbLocale, { elapsed })
   } else {
-    sub = 'You just turned a voice memo into a live listing.'
+    sub = t('celebration.sub', onbLocale)
   }
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export function CelebrationPage() {
       if (cancelled || isPatchConflict(error)) return
       addToast({
         variant: 'error',
-        description: "Nice work — but we couldn't save your progress. Your listing is still live.",
+        description: t('celebration.error.finalize', onbLocale),
       })
     })
     trackOnboardingEvent('onboarding.completed')
@@ -160,7 +164,7 @@ export function CelebrationPage() {
     >
       <OfflineBanner
         show={!online}
-        message="You're offline. Your listing is live; next actions will work once you reconnect."
+        message={t('celebration.offline', onbLocale)}
       />
       <OnboardingChrome step={4} label="You're set" complete />
 
@@ -168,7 +172,7 @@ export function CelebrationPage() {
         <div role="status" aria-live="polite">
           <CelebrationHeader
             tone="loud"
-            title="Your first listing is live!"
+            title={t('celebration.h1', onbLocale)}
             body={sub}
             illustration={
               reducedMotion ? <SparkleBurst active reducedMotion /> : undefined
@@ -280,7 +284,7 @@ export function CelebrationPage() {
             className="text-[var(--lc-text-muted)]"
             onClick={() => goDashboard(true)}
           >
-            Skip for now — take me to the dashboard
+            {t('celebration.later', onbLocale)}
           </Button>
         </div>
       </div>

@@ -18,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   getWhatsAppDraft: vi.fn(),
   approveWhatsAppDraft: vi.fn(),
   discardWhatsAppDraft: vi.fn(),
+  patchOnboardingDraft: vi.fn(),
   trackOnboardingEvent: vi.fn(),
 }))
 
@@ -152,5 +153,15 @@ describe('FirstListingReviewPage (AGT-ONB-003)', () => {
     renderPage()
     expect(await screen.findByText(/couldn't load your draft/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Refresh/i })).toBeInTheDocument()
+  })
+})
+
+describe('FirstListingReviewPage inline editors', () => {
+  it('opens the address editor from a missing-address chip', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const chip = await screen.findByRole('button', { name: /Add building name/i })
+    await user.click(chip)
+    expect(await screen.findByRole('heading', { name: /Edit address/i })).toBeInTheDocument()
   })
 })

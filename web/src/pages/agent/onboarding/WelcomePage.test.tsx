@@ -165,3 +165,52 @@ describe('WelcomePage (AGT-ONB-001)', () => {
     expect(screen.queryByText('WhatsApp voice memo')).not.toBeInTheDocument()
   })
 })
+
+describe('WelcomePage a11y / non-blockers', () => {
+  it('wires CTA aria-describedby to path description ids', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByText('WhatsApp voice memo'))
+    const cta = screen.getByRole('button', { name: /Get started/i })
+    const describedBy = cta.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    const desc = document.getElementById(describedBy!)
+    expect(desc?.textContent).toMatch(/Send photos/i)
+  })
+
+  it('focuses the first path card on load', async () => {
+    renderPage()
+    await waitFor(() => {
+      const radios = screen.getAllByRole('radio')
+      expect(document.activeElement).toBe(radios[0])
+    })
+  })
+
+  it('moves selection with arrow keys in the radiogroup', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const group = screen.getByRole('radiogroup')
+    group.focus()
+    await user.keyboard('{ArrowRight}')
+    const radios = screen.getAllByRole('radio')
+    // after arrow from none/first, selection advances
+    expect(radios.some((r) => r.getAttribute('aria-checked') === 'true')).toBe(true)
+  })
+
+  it('queues skip while offline and navigates to dashboard', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('navigator', { ...navigator, onLine: false })
+    // force offline hook via event
+    window.dispatchEvent(new Event('offline'))
+    renderPage()
+    await user.click(screen.getByRole('button', { name: /Skip for now/i }))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'))
+    expect(sessionStorage.getItem('agtOnb001SkipToast')).toBe('1')
+  })
+
+  it('uses the brand hero gradient token', () => {
+    renderPage()
+    const hero = document.querySelector('[style*="--lc-brand-hero-gradient"]')
+    expect(hero).toBeTruthy()
+  })
+})

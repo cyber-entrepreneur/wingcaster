@@ -69,6 +69,7 @@
   --lc-z-toast: 1500;
   --lc-z-tooltip: 2000;
   --lc-tap-target-min: 44px;
+  --lc-brand-hero-gradient: linear-gradient(160deg, var(--lc-action-primary) 0%, var(--lc-text-heading) 55%, var(--lc-accent-bold) 100%);
   --lc-breakpoint-xs: 390px;
   --lc-breakpoint-sm: 480px;
   --lc-breakpoint-md: 768px;
