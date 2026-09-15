@@ -5,6 +5,8 @@ import { StepUpProvider as MfaStepUpProvider } from '@/components/mfa'
 import { BrandProvider } from '@/context/BrandContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ErrorFallback } from '@/components/ErrorFallback'
+import { Sentry } from '@/lib/observability/sentry'
 import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -31,6 +33,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
 import { AccountRecoveryCompletePage } from '@/pages/AccountRecoveryCompletePage'
+import { ScheduledDeletionConfirmationPage } from '@/pages/public/ScheduledDeletionConfirmationPage'
 import { AgencyManagementPage } from '@/pages/AgencyManagementPage'
 import { WhiteLabelBuilderPage } from '@/pages/WhiteLabelBuilderPage'
 import { WidgetBuilderPage } from '@/pages/WidgetBuilderPage'
@@ -78,6 +81,8 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { AccountRecoveryDetailPage } from '@/pages/admin/AccountRecoveryDetailPage'
+import { AccountRecoveryQueuePage } from '@/pages/admin/AccountRecoveryQueuePage'
 import { settingsRoutes } from '@/pages/settings/routes'
 import { SettingsPage } from '@/pages/SettingsPage'
 
@@ -87,6 +92,7 @@ const BARE_CHROME_PREFIXES = [
   '/forgot-password',
   '/reset-password',
   '/account-recovery',
+  '/account/scheduled-deletion',
   '/register',
   '/site/',
   '/public/',
@@ -104,6 +110,11 @@ function usesBareChrome(pathname: string): boolean {
 
 function AppRoutes() {
   return (
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <ErrorFallback error={error} resetError={resetError} />
+      )}
+    >
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
@@ -141,6 +152,10 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
       <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
+      <Route
+        path="/account/scheduled-deletion/:token"
+        element={<ScheduledDeletionConfirmationPage />}
+      />
       <Route path="/agency" element={<AgencyManagementPage />} />
       <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
       <Route
@@ -172,6 +187,9 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
+      {/* PA-ACR-002 — account recovery detail (cast-vote only; BE-BLOCKER-22) */}
+      <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
@@ -210,6 +228,7 @@ function AppRoutes() {
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Sentry.ErrorBoundary>
   )
 }
 

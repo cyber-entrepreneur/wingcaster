@@ -203,22 +203,22 @@ export function SocialCardStudio({ property }: Props) {
               <TabsTrigger value="platform" className="gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 Starters
-                <Badge variant="outline" className="ml-1 text-[10px]">{grouped.platform.length}</Badge>
+                <Badge variant="outline" className="ms-1 text-[10px]">{grouped.platform.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="store" className="gap-1">
                 <Store className="h-3.5 w-3.5" />
                 Template Store
-                <Badge variant="outline" className="ml-1 text-[10px]">{grouped.store.length}</Badge>
+                <Badge variant="outline" className="ms-1 text-[10px]">{grouped.store.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="agency" className="gap-1" disabled={!agencyId}>
                 <Users className="h-3.5 w-3.5" />
                 Agency
-                <Badge variant="outline" className="ml-1 text-[10px]">{grouped.agency.length}</Badge>
+                <Badge variant="outline" className="ms-1 text-[10px]">{grouped.agency.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="my" className="gap-1">
                 <User className="h-3.5 w-3.5" />
                 My Templates
-                <Badge variant="outline" className="ml-1 text-[10px]">{grouped.my.length}</Badge>
+                <Badge variant="outline" className="ms-1 text-[10px]">{grouped.my.length}</Badge>
               </TabsTrigger>
             </TabsList>
 
@@ -272,7 +272,7 @@ export function SocialCardStudio({ property }: Props) {
                     key={p.key}
                     type="button"
                     onClick={() => togglePlatform(p.key)}
-                    className={`flex flex-col items-start rounded-md border p-2 text-left text-xs transition-colors ${
+                    className={`flex flex-col items-start rounded-md border p-2 text-start text-xs transition-colors ${
                       active ? 'border-slate-900 bg-slate-900 text-[var(--lc-action-primary-text)]' : 'border-slate-200 bg-[var(--lc-surface)] text-slate-700 hover:bg-slate-50'
                     }`}
                   >
@@ -533,7 +533,7 @@ function TemplateEditorModal({
               {layers.map((l, i) => (
                 <li key={String(l.id)} className="rounded-md border bg-slate-50 p-2.5 text-xs">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="font-medium">{String(l.id)} <Badge variant="outline" className="ml-1 text-[9px]">{String(l.type)}</Badge></span>
+                    <span className="font-medium">{String(l.id)} <Badge variant="outline" className="ms-1 text-[9px]">{String(l.type)}</Badge></span>
                   </div>
                   {l.type === 'text' && (
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">

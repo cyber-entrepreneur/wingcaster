@@ -92,7 +92,7 @@ export function KpiAnalyticsPanel({
                 setPropertyDetail(null)
                 onSelectMetric(active ? null : stat.key)
               }}
-              className={`text-left transition-shadow ${active ? 'ring-2 ring-transparent rounded-xl' : ''}`}
+              className={`text-start transition-shadow ${active ? 'ring-2 ring-transparent rounded-xl' : ''}`}
             >
               <Card className={`h-full ${active ? 'border-[var(--lc-action-primary)]' : 'hover:border-foreground/30'}`}>
                 <CardContent className="flex items-center gap-4 p-6">
@@ -139,7 +139,7 @@ export function KpiAnalyticsPanel({
                     setPropertyDetail(null)
                   }}
                 >
-                  <ArrowLeft className="h-4 w-4" /> All listings
+                  <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> All listings
                 </Button>
               ) : (
                 <Button variant="ghost" size="sm" onClick={() => onSelectMetric(null)}>Close</Button>

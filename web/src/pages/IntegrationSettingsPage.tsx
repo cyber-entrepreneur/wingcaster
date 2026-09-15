@@ -10,6 +10,25 @@ import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { apiErrorMessage } from '@/lib/http-status'
+import type { Agent } from '@/types'
+
+interface SyncConnection {
+  id: string
+  name: string
+  type: string
+  status: string
+  config?: Record<string, unknown>
+  last_sync?: string | null
+}
+
+interface RoutingRule {
+  id: string
+  name: string
+  condition?: string | null
+  priority: number
+  assign_to: string
+}
 
 const SYNC_TYPES = [
   { id: 'xml_feed', name: 'XML Feed Import', icon: Rss, description: 'Import listings from an XML feed URL' },
@@ -23,14 +42,14 @@ export function IntegrationSettingsPage() {
   const { addToast } = useToast()
   usePageTitle('Integrations')
   const [loading, setLoading] = useState(true)
-  const [connections, setConnections] = useState<any[]>([])
-  const [routingRules, setRoutingRules] = useState<any[]>([])
+  const [connections, setConnections] = useState<SyncConnection[]>([])
+  const [routingRules, setRoutingRules] = useState<RoutingRule[]>([])
   const [showSyncForm, setShowSyncForm] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
-  const [syncForm, setSyncForm] = useState({ name: '', type: 'xml_feed', config: {} as Record<string, any> })
+  const [syncForm, setSyncForm] = useState({ name: '', type: 'xml_feed', config: {} as Record<string, unknown> })
   const [routeForm, setRouteForm] = useState({ name: '', condition: '', priority: 1, assign_to: '' })
   const [creating, setCreating] = useState(false)
-  const [agents, setAgents] = useState<any[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [importJson, setImportJson] = useState(`[
   {
@@ -55,17 +74,17 @@ export function IntegrationSettingsPage() {
   const loadAll = useCallback(() => {
     setLoading(true)
     Promise.all([
-      api.getSyncConnections().catch((err: any) => { addToast({ title: 'Sync connections unavailable', description: err.message, variant: 'error' }); return [] }),
-      api.getRoutingRules().catch((err: any) => { addToast({ title: 'Routing rules unavailable', description: err.message, variant: 'error' }); return [] }),
-      api.getAgents().catch((err: any) => { addToast({ title: 'Agents unavailable', description: err.message, variant: 'error' }); return [] }),
+      api.getSyncConnections().catch((err: unknown) => { addToast({ title: 'Sync connections unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
+      api.getRoutingRules().catch((err: unknown) => { addToast({ title: 'Routing rules unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
+      api.getAgents().catch((err: unknown) => { addToast({ title: 'Agents unavailable', description: apiErrorMessage(err), variant: 'error' }); return [] }),
     ]).then(([conns, rules, ags]) => {
       setConnections(conns)
       setRoutingRules(rules)
       setAgents(ags)
       setLoading(false)
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       setLoading(false)
-      addToast({ title: 'Failed to load integrations', description: err.message || 'Could not load data', variant: 'error' })
+      addToast({ title: 'Failed to load integrations', description: apiErrorMessage(err, 'Could not load data'), variant: 'error' })
     })
   }, [addToast])
 
@@ -84,8 +103,8 @@ export function IntegrationSettingsPage() {
       const conns = await api.getSyncConnections()
       setConnections(conns)
       addToast({ title: 'Sync connection created', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create sync connection', description: e.message || 'Could not create connection', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to create sync connection', description: apiErrorMessage(e, 'Could not create connection'), variant: 'error' })
     } finally {
       setCreating(false)
     }
@@ -101,8 +120,8 @@ export function IntegrationSettingsPage() {
       const rules = await api.getRoutingRules()
       setRoutingRules(rules)
       addToast({ title: 'Routing rule created', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create routing rule', description: e.message || 'Could not create rule', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to create routing rule', description: apiErrorMessage(e, 'Could not create rule'), variant: 'error' })
     } finally {
       setCreating(false)
     }
@@ -114,8 +133,8 @@ export function IntegrationSettingsPage() {
       await api.deleteSyncConnection(id)
       setConnections(prev => prev.filter(c => c.id !== id))
       addToast({ title: 'Sync connection deleted', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to delete connection', description: e.message || 'Could not delete connection', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to delete connection', description: apiErrorMessage(e, 'Could not delete connection'), variant: 'error' })
     }
   }
 
@@ -129,8 +148,8 @@ export function IntegrationSettingsPage() {
         variant: 'success',
       })
       loadAll()
-    } catch (e: any) {
-      addToast({ title: 'Sync failed', description: e.message || 'Could not run sync', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Sync failed', description: apiErrorMessage(e, 'Could not run sync'), variant: 'error' })
     } finally {
       setSyncingId(null)
     }
@@ -145,9 +164,9 @@ export function IntegrationSettingsPage() {
       const result = await api.importListings(listings, 'manual_import')
       setImportMsg(`Imported: ${result.created || 0} created, ${result.updated || 0} updated, ${result.skipped || 0} skipped`)
       addToast({ title: 'Import completed', description: `${result.created || 0} created, ${result.updated || 0} updated`, variant: 'success' })
-    } catch (e: any) {
-      setImportMsg(e.message || 'Import failed')
-      addToast({ title: 'Import failed', description: e.message || 'Could not import listings', variant: 'error' })
+    } catch (e: unknown) {
+      setImportMsg(apiErrorMessage(e, 'Import failed'))
+      addToast({ title: 'Import failed', description: apiErrorMessage(e, 'Could not import listings'), variant: 'error' })
     } finally {
       setImporting(false)
     }
@@ -159,8 +178,8 @@ export function IntegrationSettingsPage() {
       await api.deleteRoutingRule(id)
       setRoutingRules(prev => prev.filter(r => r.id !== id))
       addToast({ title: 'Routing rule deleted', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to delete rule', description: e.message || 'Could not delete rule', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to delete rule', description: apiErrorMessage(e, 'Could not delete rule'), variant: 'error' })
     }
   }
 

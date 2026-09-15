@@ -8,7 +8,7 @@ const dal = vi.hoisted(() => ({
   insert: vi.fn(async (_c, item) => item),
   update: vi.fn(async () => 1),
   remove: vi.fn(async () => 1),
-  // Batch ownership path used by mapOwnedProperties (replaces N? assertOwnsProperty).
+  // Batch ownership path used by mapOwnedProperties (replaces N sequential assertOwnsProperty).
   query: vi.fn(async (_sql, params = []) => {
     const ids = Array.isArray(params[0]) ? params[0] : []
     return ids.map((id) => ({
@@ -32,6 +32,8 @@ const dal = vi.hoisted(() => ({
       data: {},
     }))
   }),
+  // Transaction wrap used by #161 β bulk-audit atomic write.
+  transaction: vi.fn(async (work) => work({})),
 }))
 
 const identity = vi.hoisted(() => ({
@@ -271,7 +273,7 @@ describe('wave8-pro-routes', () => {
     expect(res.status).toBe(403)
     expect(res.body.error).toMatch(/not a member/i)
     expect(dal.update).not.toHaveBeenCalled()
-    expect(dal.insert).not.toHaveBeenCalled()
+    expect(dal.query).not.toHaveBeenCalled()
   })
 
   it('bulk change-owner succeeds for same-tenant recipient and writes audit', async () => {
@@ -304,54 +306,49 @@ describe('wave8-pro-routes', () => {
       .send({ ids: ['p1'], owner_user_id: 'user-2' })
     expect(res.status).toBe(200)
     expect(res.body.updated).toEqual(['p1'])
-    expect(dal.insert).toHaveBeenCalledWith(
-      'audit_log',
-      expect.objectContaining({
-        type: 'property_bulk',
-        action: 'change_owner',
-        entity_type: 'property',
-        entity_id: 'p1',
-        metadata: expect.objectContaining({
-          actor_user_id: 'user-1',
-          owner_user_id: 'user-2',
-          batch_id: expect.any(String),
-          before: expect.objectContaining({ agent_id: 'user-1' }),
-          after: expect.objectContaining({ agent_id: 'user-2' }),
-        }),
-      }),
+    expect(dal.transaction).toHaveBeenCalled()
+    expect(dal.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO public.audit_log'),
+      expect.arrayContaining([
+        expect.any(String),
+        'user-1',
+        'personal:user-1',
+        'property_bulk',
+        'change_owner',
+        'property',
+        'p1',
+      ]),
     )
+    const auditParams = dal.query.mock.calls[0][1]
+    const metadata = auditParams.find((p) => p && typeof p === 'object' && p.batch_id)
+    expect(metadata).toEqual(expect.objectContaining({
+      actor_user_id: 'user-1',
+      owner_user_id: 'user-2',
+      batch_id: expect.any(String),
+      before: expect.objectContaining({ agent_id: 'user-1' }),
+      after: expect.objectContaining({ agent_id: 'user-2' }),
+    }))
   })
 
-  it('bulk archive writes audit_log row', async () => {
+  it('bulk archive writes one batch audit INSERT for all property ids', async () => {
     const res = await request(buildApp())
       .post('/api/properties/bulk/archive')
       .send({ ids: ['p1', 'p2'] })
     expect(res.status).toBe(200)
     expect(res.body.updated).toEqual(['p1', 'p2'])
-    expect(dal.insert).toHaveBeenCalledTimes(2)
-    expect(dal.insert).toHaveBeenCalledWith(
-      'audit_log',
-      expect.objectContaining({
-        type: 'property_bulk',
-        action: 'archive',
-        entity_id: 'p1',
-        metadata: expect.objectContaining({
-          actor_user_id: 'user-1',
-          batch_id: expect.any(String),
-          after: { status: 'archived' },
-        }),
-      }),
-    )
-    expect(dal.insert).toHaveBeenCalledWith(
-      'audit_log',
-      expect.objectContaining({
-        type: 'property_bulk',
-        action: 'archive',
-        entity_id: 'p2',
-        metadata: expect.objectContaining({
-          after: { status: 'archived' },
-        }),
-      }),
-    )
+    expect(dal.transaction).toHaveBeenCalled()
+    expect(dal.query).toHaveBeenCalledTimes(1)
+    const [sql, params] = dal.query.mock.calls[0]
+    expect(sql).toContain('INSERT INTO public.audit_log')
+    expect(sql.match(/\(\$/g)?.length).toBe(2)
+    expect(params.filter((p) => p === 'p1' || p === 'p2')).toEqual(['p1', 'p2'])
+    expect(params).toContain('personal:user-1')
+    const metadatas = params.filter((p) => p && typeof p === 'object' && p.batch_id)
+    expect(metadatas).toHaveLength(2)
+    expect(metadatas[0].batch_id).toBe(metadatas[1].batch_id)
+    expect(metadatas[0]).toEqual(expect.objectContaining({
+      actor_user_id: 'user-1',
+      after: { status: 'archived' },
+    }))
   })
 })

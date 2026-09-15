@@ -844,7 +844,7 @@ export function RelationshipsEditorPage() {
   useEffect(() => {
     if (!agent || !contactId) return
     void load()
-  }, [agent, contactId, load])
+  }, [agent?.id, contactId, load])
 
   const activeMine = useMemo(() => mine.filter((r) => !isTerminal(r.status)), [mine])
   const endedMine = useMemo(() => mine.filter((r) => isTerminal(r.status)), [mine])

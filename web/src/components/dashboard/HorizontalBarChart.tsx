@@ -25,7 +25,7 @@ export function HorizontalBarChart({
           <RowTag
             key={item.id || item.label}
             {...(clickable ? { type: 'button' as const, onClick: () => onSelect?.(item) } : {})}
-            className={`w-full text-left ${clickable ? 'group rounded-md p-1 -mx-1 hover:bg-[var(--lc-surface-sunken)] transition-colors' : ''}`}
+            className={`w-full text-start ${clickable ? 'group rounded-md p-1 -mx-1 hover:bg-[var(--lc-surface-sunken)] transition-colors' : ''}`}
           >
             <div className="mb-1 flex items-center justify-between gap-3 text-sm">
               <span className={`truncate font-medium ${clickable ? 'group-hover:underline' : ''}`}>{item.label}</span>
