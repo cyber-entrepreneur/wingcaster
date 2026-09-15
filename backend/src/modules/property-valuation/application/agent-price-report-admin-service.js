@@ -293,11 +293,14 @@ export function createAgentPriceReportAdminService({
       const benchmark = await benchmarkService.writeBenchmarkFromReport(report, { env, actorId: viewerId })
 
       await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => {
-        // Force a failure surface for tests that inject throw-after-write via data flag
-        if (r.data?.__force_status_write_failure) {
+        // Force a failure surface for tests that inject throw-after-write via data flag.
+        // Postgres fromRow flattens JSONB onto the document root.
+        const forceStatusFail = r.__force_status_write_failure || r.data?.__force_status_write_failure
+        const forceIncorporateFail = r.__force_incorporate_throw || r.data?.__force_incorporate_throw
+        if (forceStatusFail) {
           throw Object.assign(new Error('Forced status write failure'), { status: 500, code: 'STATUS_WRITE_FAILED' })
         }
-        if (r.data?.__force_incorporate_throw) {
+        if (forceIncorporateFail) {
           throw Object.assign(new Error('Forced commitIncorporate failure'), {
             status: 500,
             code: 'INCORPORATE_FAILED',
@@ -471,17 +474,21 @@ export function createAgentPriceReportAdminService({
 
   async function appendAuditEvent(reportId, event) {
     await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => {
-      if (r.data?.__force_audit_write_failure) {
+      if (r.__force_audit_write_failure || r.data?.__force_audit_write_failure) {
         throw Object.assign(new Error('Forced audit write failure'), {
           status: 500,
           code: 'AUDIT_WRITE_FAILED',
         })
       }
+      const priorTrail = Array.isArray(r.audit_trail)
+        ? r.audit_trail
+        : (Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : [])
       return {
         ...r,
+        audit_trail: [...priorTrail, event],
         data: {
           ...(r.data || {}),
-          audit_trail: [ ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []), event ],
+          audit_trail: [...priorTrail, event],
         },
         updated_at: event.at || new Date().toISOString(),
       }
