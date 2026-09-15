@@ -69,6 +69,8 @@ import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePa
 import {
   BadComparableQueuePage,
   BadComparableDetailPage,
+  PriceReportQueuePage,
+  PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
@@ -230,6 +232,11 @@ function AppRoutes() {
       <Route
         path="/admin/valuation/comparable-reports/:reportId"
         element={<BadComparableDetailPage />}
+      />
+      <Route path="/admin/valuation/price-reports" element={<PriceReportQueuePage />} />
+      <Route
+        path="/admin/valuation/price-reports/:reportId"
+        element={<PriceReportDetailPage />}
       />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />

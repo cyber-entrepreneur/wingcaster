@@ -806,7 +806,7 @@ describe('Wave 5 a11y - dialog focus traps', () => {
     const user = userEvent.setup()
     wrapDetail()
     await screen.findByText('Villa · Saadiyat')
-    const invoker = await screen.findByRole('button', { name: /View evidence sale-receipt/i })
+    const invoker = await screen.findByRole('button', { name: /Preview sale-receipt/i })
     await openAndTrap(user, invoker, (dialog) => {
       expect(dialog).toHaveAttribute('data-evidence-viewer')
     })
@@ -817,7 +817,7 @@ describe('Wave 5 a11y - dialog focus traps', () => {
     comparableApi.get.mockResolvedValue(sampleComparableTwoPersonDetail())
     wrapDetail()
     await screen.findByRole('progressbar', { name: /Two-person approval progress/i })
-    const invoker = screen.getByRole('button', { name: /Cast second-PA vote/i })
+    const invoker = screen.getByRole('button', { name: /Confirm removal/i })
     await openAndTrap(user, invoker, (dialog) => {
       expect(dialog).toHaveAttribute('data-cast-vote-dialog')
     })

@@ -847,18 +847,18 @@ export function BadComparableDetailPage() {
               </div>
               <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
+                  <h2 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
                     {DETAIL_COPY.sideBySideLeft}
-                  </h3>
+                  </h2>
                   <FieldList
                     fields={report.comparable.current_fields ?? {}}
                     highlightKeys={[]}
                   />
                 </div>
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
+                  <h2 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
                     {DETAIL_COPY.sideBySideRight}
-                  </h3>
+                  </h2>
                   <FieldList
                     fields={Object.fromEntries(
                       (diffs.length
@@ -889,12 +889,12 @@ export function BadComparableDetailPage() {
             ) : null}
 
             <section>
-              <h3 className="mb-2 text-sm font-semibold">
+              <h2 className="mb-2 text-sm font-semibold">
                 {DETAIL_COPY.evidenceHeader.replace(
                   '{N}',
                   String(report.evidence?.file_count ?? 0),
                 )}
-              </h3>
+              </h2>
               <div className="sr-only" aria-live="polite">
                 {liveMessage}
               </div>
@@ -1433,7 +1433,7 @@ export function BadComparableDetailPage() {
       </Dialog>
 
       <Dialog open={modal === 'second_confirm'} onOpenChange={(o) => !o && closeModal()}>
-        <DialogContent>
+        <DialogContent data-cast-vote-dialog>
           <DialogHeader>
             <DialogTitle>{DETAIL_COPY.confirmSecondRemoval.title}</DialogTitle>
             <DialogDescription>{DETAIL_COPY.confirmSecondRemoval.body}</DialogDescription>
@@ -1491,7 +1491,7 @@ export function BadComparableDetailPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl" data-evidence-viewer>
           <DialogHeader>
             <DialogTitle>
               {evidenceIndex != null ? report?.evidence?.files?.[evidenceIndex]?.filename : 'Evidence'}

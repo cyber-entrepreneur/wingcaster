@@ -186,7 +186,7 @@ export function sampleComparableTwoPersonDetail(
     status: 'pending_second_approval',
     requires_two_person: true,
     proposal: {
-      proposed_by: { id: 'pa_1', display_name: 'PA Reviewer', initials: 'PR' },
+      proposed_by: { id: 'pa_proposer', display_name: 'PA Reviewer', initials: 'PR' },
       proposed_at: new Date(FIXED_NOW - 1_800_000).toISOString(),
       approval_request_id: 'apr_req_wf05',
     },
