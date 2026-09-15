@@ -244,7 +244,7 @@ function serialize(root: HTMLElement): string {
       el.setAttribute('id', '__stable__')
     }
   })
-  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], for').forEach((el) => {
+  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], [for]').forEach((el) => {
     for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for'] as const) {
       if (el.hasAttribute(attr)) {
         const val = el.getAttribute(attr) || ''

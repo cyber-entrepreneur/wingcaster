@@ -159,7 +159,7 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
       el.setAttribute('id', '__stable__')
     }
   })
-  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], for').forEach((el) => {
+  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], [for]').forEach((el) => {
     for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for'] as const) {
       if (el.hasAttribute(attr)) {
         const val = el.getAttribute(attr) || ''
@@ -193,5 +193,9 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
   const lang = document.documentElement.lang || 'en'
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0
   const tokensAttr = root.getAttribute('data-lc-tokens') || ''
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${clone.outerHTML}\n<!-- portals -->\n${portals}`
+  const body = `${clone.outerHTML}\n<!-- portals -->\n${portals}`
+    .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
+    .replace(/\d+[smhdwy]\s+ago/gi, '__REL__')
+    .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${body}`
 }
