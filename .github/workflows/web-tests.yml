@@ -46,9 +46,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-  # ubuntu-latest ~7GB. Theme *.visual.test.tsx files alone approach the 4GB
-  # worker heap; sharing a process with anything else OOMs. Shard app and theme
-  # at 24 each so each visual file is typically alone.
+  # ubuntu-latest ~7GB. DOM suites (esp. *.visual.test.tsx / large RTL pages)
+  # leak across files inside one forks worker until V8 OOMs at 4GB. Shard for
+  # parallelism, then run each shard file in its own process to reset RSS.
   test-app:
     name: Tests app (${{ matrix.shard }}/24)
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
       - name: Vitest app shard ${{ matrix.shard }}/24
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run --exclude 'src/theme/**' --shard=${{ matrix.shard }}/24
+        run: node scripts/vitest-shard-serial.mjs ${{ matrix.shard }}/24 --exclude 'src/theme/**'
 
   test-theme:
     name: Tests theme (${{ matrix.shard }}/24)
@@ -95,7 +95,7 @@ jobs:
       - name: Vitest theme shard ${{ matrix.shard }}/24
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/theme --shard=${{ matrix.shard }}/24
+        run: node scripts/vitest-shard-serial.mjs ${{ matrix.shard }}/24 src/theme
 
   build:
     name: Production build
