@@ -8,6 +8,30 @@ const dal = vi.hoisted(() => ({
   insert: vi.fn(async (_c, item) => item),
   update: vi.fn(async () => 1),
   remove: vi.fn(async () => 1),
+  // Batch ownership path used by mapOwnedProperties (replaces N? assertOwnsProperty).
+  query: vi.fn(async (_sql, params = []) => {
+    const ids = Array.isArray(params[0]) ? params[0] : []
+    return ids.map((id) => ({
+      id,
+      agent_id: 'user-1',
+      agency_id: null,
+      tenant_id: 'personal:user-1',
+      status: 'active',
+      price: 100000,
+      marketplace_syndicated: false,
+      title: `Listing ${id}`,
+      type: 'sale',
+      city: 'Dubai',
+      location: 'JVC',
+      bedrooms: 2,
+      bathrooms: 2,
+      area: 100,
+      views: 10,
+      listed_date: '2026-01-01',
+      reference: `REF-${id}`,
+      data: {},
+    }))
+  }),
 }))
 
 const identity = vi.hoisted(() => ({
