@@ -17,6 +17,7 @@ import { applyLcMode } from '@/theme/mode'
 import { stampLcTokens, serializeVisualRoot } from '@/theme/visualSerialize'
 import { ToastProvider } from '@/components/ui/toast'
 import {
+  FIXED_NOW,
   assertNoPlaintextPiiInHtml,
   assertNoVisiblePlaintextPii,
   installMatchMediaFixture,
@@ -196,6 +197,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   cleanup()
+  // Freeze wall clock so FIXED_NOW-relative fixture timestamps (and absolute
+  // outcome dates) render stable relative strings — without this, PVA-009b
+  // "Signed off Nd ago" flips as calendar days elapse past the #131 snap date.
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(FIXED_NOW)
   applyTheme('light', 'ltr', 'desktop')
   comparableApi.list.mockResolvedValue(mockComparableQueueList([sampleComparableQueueItem()]))
   comparableApi.get.mockResolvedValue(sampleComparableDetail())
@@ -214,6 +220,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
