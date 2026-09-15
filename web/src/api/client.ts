@@ -1481,8 +1481,6 @@ export const api = {
       }),
     }),
 
-  getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
-
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),
   approveSubmission: (id: string, notes?: string) =>

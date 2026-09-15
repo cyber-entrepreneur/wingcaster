@@ -141,7 +141,7 @@ export function PortalSubmitPage() {
       <div className="flex items-start gap-3">
         <Button variant="outline" size="sm" asChild>
           <Link to={propertyId ? `/listings/${propertyId}?tab=portals` : '/listings'}>
-            <ArrowLeft className="mr-1 h-4 w-4" />
+            <ArrowLeft className="me-1 h-4 w-4" />
             Back
           </Link>
         </Button>
@@ -185,7 +185,7 @@ export function PortalSubmitPage() {
                       type="button"
                       data-testid={`portal-option-${portal.code}`}
                       onClick={() => togglePortal(portal.code, countries)}
-                      className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
+                      className={`flex w-full items-start gap-3 rounded-lg border p-3 text-start transition-colors ${
                         isSel
                           ? 'border-[var(--lc-action-primary)] bg-[var(--lc-surface-sunken)]'
                           : 'border-[var(--lc-border)] hover:bg-[var(--lc-surface-sunken)]'
