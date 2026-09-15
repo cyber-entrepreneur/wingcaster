@@ -79,6 +79,7 @@ import { MyCreditsPage } from '@/pages/MyCreditsPage'
 import { MyCreditNotesPage } from '@/pages/MyCreditNotesPage'
 import { MyInvoicesPage } from '@/pages/MyInvoicesPage'
 import { ComponentInventoryPage } from '@/pages/dev/ComponentInventory'
+import { AccountRecoveryQueuePage } from '@/pages/admin/AccountRecoveryQueuePage'
 import { settingsRoutes } from '@/pages/settings/routes'
 import { SettingsPage } from '@/pages/SettingsPage'
 
@@ -178,6 +179,7 @@ function AppRoutes() {
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
