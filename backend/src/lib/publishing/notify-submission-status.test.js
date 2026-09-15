@@ -16,8 +16,13 @@ const resolverMock = vi.hoisted(() => ({
   resolveTemplate: vi.fn(async () => null),
 }))
 
+const wsEmitMock = vi.hoisted(() => ({
+  emitPortalSubmissionEvent: vi.fn(async () => undefined),
+}))
+
 vi.mock('../notifications/dispatch.js', () => dispatchMock)
 vi.mock('../../notifications/platform-templates/resolver.js', () => resolverMock)
+vi.mock('../../ws/publishing-events.js', () => wsEmitMock)
 
 const {
   emitPortalSubmissionStatusChanged,
@@ -30,6 +35,7 @@ const {
 beforeEach(() => {
   dispatchMock.dispatchConsumerNotification.mockClear()
   resolverMock.resolveTemplate.mockReset().mockResolvedValue(null)
+  wsEmitMock.emitPortalSubmissionEvent.mockClear()
 })
 
 const BASE = {
@@ -48,6 +54,14 @@ describe('emitPortalSubmissionStatusChanged', () => {
     const liveCall = dispatchMock.dispatchConsumerNotification.mock.calls[0][0]
     expect(liveCall.subject).toBe('Bayut accepted your listing')
     expect(liveCall.body).toBe('Marina Gate, Dubai is now live on Bayut.')
+    expect(wsEmitMock.emitPortalSubmissionEvent).toHaveBeenCalledWith(
+      'usr_agent01',
+      expect.objectContaining({
+        type: 'portal_submission.status_changed',
+        distribution_attempt_id: 'da_abc123',
+        status: 'live',
+      }),
+    )
 
     dispatchMock.dispatchConsumerNotification.mockClear()
     const expired = await emitPortalSubmissionStatusChanged({ ...BASE, newStatus: 'expired' })

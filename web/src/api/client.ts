@@ -672,6 +672,11 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/publishing/tracker${qs}`)
   },
+  /** AGT-PUB-006 KPI aggregate — same filter keys as the list endpoint. */
+  getPublishingTrackerSummary: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/publishing/tracker/summary${qs}`)
+  },
   getPublishingJob: (jobId: string) => fetchJson(`/publishing/jobs/${jobId}`),
   uploadMedia: async (files: File[]) => {
     const form = new FormData()
