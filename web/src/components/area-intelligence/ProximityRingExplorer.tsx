@@ -158,7 +158,7 @@ export function ProximityRingExplorer({ googleScores, center }: ProximityRingExp
                     )}
                   </div>
                 </div>
-                <div className="text-right text-xs">
+                <div className="text-end text-xs">
                   {typeof place.rating === 'number' && (
                     <div className="font-semibold text-amber-500">★ {place.rating.toFixed(1)}</div>
                   )}
