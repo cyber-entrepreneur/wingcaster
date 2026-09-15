@@ -11,11 +11,14 @@ name: web tests
 
 on:
   push:
-    branches: [main]
+    # feat/wave-8* so stacked PR heads still get checks when the PR merge
+    # ref is unavailable (CONFLICTING / dirty bases).
+    branches: [main, 'feat/wave-8*']
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'
-  # No branches filter — stacked Wave 4A/8 PRs targeting feat/* must still run CI.
+  # No `branches:` filter — stacked Wave 4A/8 PRs target feat/* bases and still
+  # must run CI (path filter alone is enough). Previously only PRs → main ran.
   pull_request:
     paths:
       - 'web/**'
@@ -26,8 +29,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web:
-    name: Typecheck, tests, production build
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,37 +42,64 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
-
-      # `npm ci` in web/ triggers a postinstall that installs the backend too;
-      # --ignore-scripts keeps this job to the frontend, which is all it tests.
       - name: Install
         run: npm ci --ignore-scripts
-
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # Split suites: one vitest process across 130+ files accumulates DOM
-      # snapshots until V8 OOMs even at 8GB, and ubuntu-latest only has ~7GB
-      # RAM. Fresh processes + 6GB heap keep each phase under the runner ceiling.
-      # Theme is split again (visual vs a11y/unit) — a single theme phase still
-      # GC-thrashed past 35+ minutes on ubuntu-latest after the app/theme split.
-      - name: Tests — app (non-theme)
+  # ubuntu-latest ~7GB. A single forks worker still OOMs by ~12 DOM-heavy
+  # files at a 4GB heap (and 6–8GB heaps get OS-killed). Shard across 24
+  # parallel runners (~6 files each) with maxWorkers=1 + pinned worker heap.
+  test:
+    name: Tests (${{ matrix.shard }}/24)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Vitest shard ${{ matrix.shard }}/24
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npx vitest run --exclude 'src/theme/**'
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run --shard=${{ matrix.shard }}/24
 
-      - name: Tests — theme visual
-        env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npx vitest run 'src/theme/**/*.visual.test.tsx'
-
-      - name: Tests — theme a11y + unit
-        env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npx vitest run src/theme --exclude 'src/theme/**/*.visual.test.tsx'
-
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
       - name: Production build
         env:
           VITE_GIT_SHA: ${{ github.sha }}
           # SENTRY_AUTH_TOKEN intentionally unset in CI — plugin no-ops; maps stay local.
         run: npx vite build
+
+  # Preserves the historical required check name while the real work is sharded.
+  web:
+    name: Typecheck, tests, production build
+    needs: [typecheck, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All web CI gates passed
+        run: echo ok
