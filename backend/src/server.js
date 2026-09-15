@@ -65,6 +65,9 @@ import {
 import {
   runSlaStuckRequestsReaper,
 } from './workers/sla-stuck-requests-reaper.js'
+import {
+  runPublishingStuckJobsReaper,
+} from './workers/publishing-stuck-jobs-reaper.js'
 import { registerPlatformTemplateAdminRoutes } from './notifications/platform-templates/routes.js'
 import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
@@ -843,6 +846,13 @@ const REPORT_EXPIRY_INTERVAL_MS = Math.max(
 )
 const SLA_STUCK_REAPER_ENABLED = process.env.SLA_STUCK_REAPER_ENABLED !== 'false'
 const SLA_STUCK_REAPER_INTERVAL_MS = Number(process.env.SLA_STUCK_REAPER_INTERVAL_MS || 60 * 60 * 1000)
+const PUBLISHING_STUCK_REAPER_ENABLED = process.env.PUBLISHING_STUCK_REAPER_ENABLED !== 'false'
+// Same hourly cadence as WF-05/WF-06 SLA reaper unless overridden.
+const PUBLISHING_STUCK_REAPER_INTERVAL_MS = Number(
+  process.env.PUBLISHING_STUCK_REAPER_INTERVAL_MS
+  || process.env.SLA_STUCK_REAPER_INTERVAL_MS
+  || 60 * 60 * 1000,
+)
 
 let creditsJanitorTimer = null
 let creditsMirrorTimer = null
@@ -852,6 +862,7 @@ let agencyApplicationExpiryTimer = null
 let ownershipTransferExpiryTimer = null
 let reportExpiryTimer
 let slaStuckReaperTimer = null
+let publishingStuckReaperTimer = null
 
 async function runCommentClassifierBatch() {
   if (!listingsAiModule.enabled) return { skipped: 'ai_module_disabled' }
@@ -8785,7 +8796,7 @@ const startServer = async () => {
         reportExpiryTimer.unref()
       }
     }
-    // WF-05/WF-06 SLA stuck approval reaper � default hourly.
+    // WF-05/WF-06 SLA stuck approval reaper — default hourly.
     // Override with SLA_STUCK_REAPER_INTERVAL_MS / SLA_STUCK_REAPER_ENABLED=false.
     if (SLA_STUCK_REAPER_ENABLED) {
       slaStuckReaperTimer = setInterval(async () => {
@@ -8800,6 +8811,23 @@ const startServer = async () => {
       }, SLA_STUCK_REAPER_INTERVAL_MS)
       if (typeof slaStuckReaperTimer.unref === 'function') {
         slaStuckReaperTimer.unref()
+      }
+    }
+
+    // WF-03 publishing stuck-job SLA reaper (#175) — same schedule as WF-05/06.
+    if (PUBLISHING_STUCK_REAPER_ENABLED) {
+      publishingStuckReaperTimer = setInterval(async () => {
+        try {
+          const result = await runPublishingStuckJobsReaper({ pool: getPool() })
+          if ((result.reaped_destinations || 0) > 0) {
+            logger.info(result, 'Publishing stuck-jobs reaper tick')
+          }
+        } catch (err) {
+          logger.error({ err: err.message || String(err) }, 'Publishing stuck-jobs reaper failed')
+        }
+      }, PUBLISHING_STUCK_REAPER_INTERVAL_MS)
+      if (typeof publishingStuckReaperTimer.unref === 'function') {
+        publishingStuckReaperTimer.unref()
       }
     }
 
