@@ -266,7 +266,13 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 high market-impact confirm-remove → REMOVE_PROPOSED (two-person)', async () => {
-    const reporter = await agentAccount('WF05 High Reporter', { priceReportsSubmit: true, pool: pool() })
+    // Reporter is also platform_admin so OWN_CASE is reachable past
+    // requirePlatformAdmin — do not weaken the admin vote gate for this assert.
+    const reporter = await agentAccount('WF05 High Reporter', {
+      platformAdmin: true,
+      priceReportsSubmit: true,
+      pool: pool(),
+    })
     const pa = await agentAccount('WF05 High PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'High impact villa' })
     await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
@@ -518,7 +524,13 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 high-delta incorporate creates approval request without benchmark write', async () => {
-    const reporter = await agentAccount('WF06 High Reporter', { priceReportsSubmit: true, pool: pool() })
+    // Reporter is also platform_admin so OWN_CASE is reachable past
+    // requirePlatformAdmin — do not weaken the admin vote gate for this assert.
+    const reporter = await agentAccount('WF06 High Reporter', {
+      platformAdmin: true,
+      priceReportsSubmit: true,
+      pool: pool(),
+    })
     const pa = await agentAccount('WF06 High PA', { platformAdmin: true })
     const segmentId = `seg_ae_wf06hi_${reporter.userId.slice(0, 8)}`
 
@@ -724,7 +736,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
              AND actor_id::text = $3) AS second_vote_actions,
          (SELECT COUNT(*)::int FROM fin.outbox_events
            WHERE topic = 'valuation.price_report_incorporated'
-             AND payload->>'approval_request_id' = $1) AS outbox_rows,
+             AND payload->>'approval_request_id' = $1::text) AS outbox_rows,
          (SELECT COALESCE(data->'audit_trail', '[]'::jsonb)
             FROM market_pricing.agent_price_reports WHERE id = $2) AS audit_trail`,
       [approvalId, reportId, pa2.userId],
