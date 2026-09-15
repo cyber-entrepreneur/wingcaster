@@ -29,9 +29,8 @@ const dispatchMock = vi.hoisted(() => ({
 }))
 
 vi.mock('../lib/notifications/dispatch.js', () => dispatchMock)
-vi.mock('../notifications/platform-templates/resolver.js', () => ({
-  resolveTemplate: vi.fn(async () => null),
-}))
+// platform-templates/resolver is exercised via notify-submission-status's
+// real import chain when dispatch is mocked — no separate resolver stub needed.
 
 const {
   emitPortalSubmissionStatusChanged,

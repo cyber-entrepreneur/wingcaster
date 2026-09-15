@@ -232,4 +232,9 @@ describe('WF-03 cross-loop — Phase A screens are routed and importable', () =>
     expect(queue.PortalModerationQueuePage).toBeTypeOf('function')
     expect(detail.PortalModerationDetailPage).toBeTypeOf('function')
   })
+
+  // Follow-up (out of WF-03 e2e charter): listing address/title in
+  // PortalTrackerRow renders raw today. Wave 3 PII sweep should wrap through
+  // <PIIMask> default MASKED — https://github.com/cyber-entrepreneur/wingcaster/issues/177
+  it.todo('PortalTrackerRow listing content renders through <PIIMask> (issue 177)')
 })
