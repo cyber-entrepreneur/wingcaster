@@ -406,7 +406,7 @@ export function TemplateSettingsForm({
 
           {errors.variables && (
             <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-              <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden />
+              <AlertTriangle className="me-2 inline h-4 w-4" aria-hidden />
               {errors.variables}
             </div>
           )}
@@ -469,7 +469,7 @@ function Field({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="text-sm">
-        {label}{required && <span aria-hidden className="ml-1 text-red-600">*</span>}
+        {label}{required && <span aria-hidden className="ms-1 text-red-600">*</span>}
       </Label>
       {children}
       {error ? (
@@ -538,7 +538,7 @@ function VariableChipEditor({
                 {`{{${name}}}`}
                 <button
                   type="button"
-                  className="-mr-1 rounded p-0.5 hover:bg-muted"
+                  className="-me-1 rounded p-0.5 hover:bg-muted"
                   onClick={() => remove(name)}
                   aria-label={`Remove ${name}`}
                 >

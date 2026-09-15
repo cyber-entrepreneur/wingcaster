@@ -24,13 +24,13 @@ export function PropertyCard({ property, to }: PropertyCardProps) {
             alt={property.title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          <div className="absolute left-3 top-3 flex gap-2">
+          <div className="absolute start-3 top-3 flex gap-2">
             <Badge variant={property.type === 'sale' ? 'default' : 'secondary'}>
               {property.type === 'sale' ? 'For Sale' : 'For Rent'}
             </Badge>
             {featured && <Badge variant="destructive">Featured</Badge>}
           </div>
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full lc-overlay px-2 py-1 text-xs text-[var(--lc-text-inverse)]">
+          <div className="absolute bottom-3 end-3 flex items-center gap-1 rounded-full lc-overlay px-2 py-1 text-xs text-[var(--lc-text-inverse)]">
             <Eye className="h-3 w-3" />
             <Numeric>{(property.views || 0).toLocaleString()}</Numeric>
           </div>

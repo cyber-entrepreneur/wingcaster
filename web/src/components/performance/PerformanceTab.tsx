@@ -124,13 +124,13 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left">Channel</th>
-                    <th className="px-3 py-2 text-right">Impressions</th>
-                    <th className="px-3 py-2 text-right">Engagements</th>
-                    <th className="px-3 py-2 text-right">Clicks</th>
-                    <th className="px-3 py-2 text-right">Inquiries</th>
-                    <th className="px-3 py-2 text-right">Messages</th>
-                    <th className="px-3 py-2 text-right">Avg views/post</th>
+                    <th className="px-3 py-2 text-start">Channel</th>
+                    <th className="px-3 py-2 text-end">Impressions</th>
+                    <th className="px-3 py-2 text-end">Engagements</th>
+                    <th className="px-3 py-2 text-end">Clicks</th>
+                    <th className="px-3 py-2 text-end">Inquiries</th>
+                    <th className="px-3 py-2 text-end">Messages</th>
+                    <th className="px-3 py-2 text-end">Avg views/post</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -146,12 +146,12 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
                             <Badge variant="outline" className="text-[10px]">{c.published_posts} posts</Badge>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-medium">{c.impressions.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right">{c.engagements.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right">{c.clicks.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right">{c.inquiries.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right">{c.messages.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-muted-foreground">{c.avg_views_per_post.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end font-medium">{c.impressions.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end">{c.engagements.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end">{c.clicks.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end">{c.inquiries.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end">{c.messages.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-end text-muted-foreground">{c.avg_views_per_post.toLocaleString()}</td>
                       </tr>
                     )
                   })}
@@ -324,7 +324,7 @@ function ComparisonBar({
                   <div className={`h-full ${meta.band}`} style={{ width: `${Math.max(2, pct)}%` }} />
                 </div>
               </div>
-              <div className="w-24 flex-shrink-0 text-right text-xs font-semibold">{val.toLocaleString()}</div>
+              <div className="w-24 flex-shrink-0 text-end text-xs font-semibold">{val.toLocaleString()}</div>
             </li>
           )
         })}

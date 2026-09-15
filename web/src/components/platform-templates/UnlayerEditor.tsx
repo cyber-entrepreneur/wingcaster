@@ -116,11 +116,11 @@ function UnlayerEditorInner({
         <Tabs value={mode === 'unlayer' ? 'visual' : 'raw'} className="w-full">
           <TabsList className="mb-3">
             <TabsTrigger value="visual" onClick={() => onModeChange('unlayer')}>
-              <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              <LayoutTemplate className="me-1.5 h-3.5 w-3.5" aria-hidden />
               Visual builder
             </TabsTrigger>
             <TabsTrigger value="raw" onClick={() => onModeChange('raw')}>
-              <Code2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              <Code2 className="me-1.5 h-3.5 w-3.5" aria-hidden />
               HTML source
             </TabsTrigger>
           </TabsList>
@@ -171,7 +171,7 @@ function ModeSwitch({ mode, onModeChange }: { mode: PlatformTemplateEditorMode; 
           type="button"
           variant="outline"
           size="sm"
-          className="ml-2"
+          className="ms-2"
           onClick={() => onModeChange('raw')}
         >
           Switch to HTML source
@@ -381,7 +381,7 @@ class UnlayerErrorBoundary extends Component<{ children: ReactNode }, BoundarySt
               )}
             </div>
             <Button type="button" variant="outline" onClick={this.retry}>
-              <RefreshCcw className="mr-2 h-4 w-4" aria-hidden />
+              <RefreshCcw className="me-2 h-4 w-4" aria-hidden />
               Retry
             </Button>
           </CardContent>

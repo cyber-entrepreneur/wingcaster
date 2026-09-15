@@ -117,7 +117,7 @@ export function SendTestDialog({ template, open, onOpenChange, callerEmail, runE
 
         {template && !isEmail && (
           <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-            <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden />
+            <AlertTriangle className="me-2 inline h-4 w-4" aria-hidden />
             Test-send is only implemented for email templates. This template's channel is{' '}
             <b>{template.channel}</b>.
           </div>
@@ -172,7 +172,7 @@ export function SendTestDialog({ template, open, onOpenChange, callerEmail, runE
 
             {result && result.kind === 'ok' && (
               <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-                <CheckCircle2 className="mr-2 inline h-4 w-4" aria-hidden />
+                <CheckCircle2 className="me-2 inline h-4 w-4" aria-hidden />
                 Sent via <b>{result.provider}</b>
                 {result.provider_message_id && <> — message id <code>{result.provider_message_id}</code></>}.
                 Check your inbox at <b>{callerEmail}</b>. It should arrive within a minute; if it doesn't,
@@ -182,9 +182,9 @@ export function SendTestDialog({ template, open, onOpenChange, callerEmail, runE
 
             {result && result.kind === 'error' && (
               <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-                <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden />
+                <AlertTriangle className="me-2 inline h-4 w-4" aria-hidden />
                 {result.message}
-                {result.code && <span className="ml-1 text-xs opacity-75">({result.code})</span>}
+                {result.code && <span className="ms-1 text-xs opacity-75">({result.code})</span>}
               </div>
             )}
           </>
@@ -200,12 +200,12 @@ export function SendTestDialog({ template, open, onOpenChange, callerEmail, runE
           >
             {sending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
                 Sending…
               </>
             ) : (
               <>
-                <Send className="mr-2 h-4 w-4" aria-hidden />
+                <Send className="me-2 h-4 w-4" aria-hidden />
                 {result?.kind === 'ok' ? 'Sent' : 'Send test'}
               </>
             )}
