@@ -39,6 +39,51 @@ vi.mock('@/api/client', () => ({
   ),
 }))
 
+vi.mock('@/hooks/useOnboardingState', () => ({
+  useOnboardingState: () => ({
+    state: {
+      user_id: 'u1',
+      step: 'welcome',
+      path: null,
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null,
+      checklist: {
+        welcome_seen: false,
+        first_listing_drafted: false,
+        first_listing_published: false,
+        channels_connected: false,
+        notifications_enabled: false,
+        profile_completed: false,
+        subscription_active: false,
+      },
+    },
+    data: null,
+    patch: async () => ({}),
+    isLoading: false,
+    isError: false,
+    mutate: async () => ({}),
+    error: undefined,
+  }),
+}))
+
+vi.mock('@/pages/agent/onboarding/onboardingApi', () => ({
+  getMarketingAgentCount: async () => null,
+  postActivationCode: async () => ({
+    display_code: 'WC-TEST',
+    shared_number_e164: '+97145550199',
+    expires_at: new Date(Date.now() + 600000).toISOString(),
+  }),
+  getBindingStatus: async () => ({ bound: false }),
+  listWhatsAppDrafts: async () => [],
+  getWhatsAppDraft: async () => ({ id: 'd1', status: 'awaiting_approval', title: 'Test' }),
+  approveWhatsAppDraft: async () => ({}),
+  discardWhatsAppDraft: async () => undefined,
+  patchOnboardingDraft: async () => ({}),
+  getPublishedListing: async () => null,
+  trackOnboardingEvent: () => undefined,
+}))
+
 vi.mock('@/lib/usePageTitle', () => ({
   usePageTitle: () => undefined,
 }))
@@ -92,6 +137,10 @@ import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPa
 import { SettingsHomePage } from '@/pages/settings/SettingsHomePage'
 import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPage'
 import { ToastProvider } from '@/components/ui/toast'
+import { WelcomePage } from '@/pages/agent/onboarding/WelcomePage'
+import { WhatsAppIntakeTourPage } from '@/pages/agent/onboarding/WhatsAppIntakeTourPage'
+import { FirstListingReviewPage } from '@/pages/agent/onboarding/FirstListingReviewPage'
+import { CelebrationPage } from '@/pages/agent/onboarding/CelebrationPage'
 import { BrandProvider } from '@/context/BrandContext'
 import { StepUpProvider } from '@/components/mfa'
 import type { ComponentType } from 'react'
@@ -145,6 +194,10 @@ const pages: Array<[string, ComponentType]> = [
   ['Agent profile', AgentProfilePage],
   ['White-label site', PublicWhiteLabelSitePage],
   ['White-label property', PublicWhiteLabelPropertyPage],
+  ['Onboarding welcome', WelcomePage],
+  ['Onboarding WhatsApp', WhatsAppIntakeTourPage],
+  ['Onboarding first listing', FirstListingReviewPage],
+  ['Onboarding celebration', CelebrationPage],
 ]
 
 function mount(Page: ComponentType) {

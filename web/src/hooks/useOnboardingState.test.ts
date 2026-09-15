@@ -265,7 +265,7 @@ describe('useOnboardingState', () => {
     expect(result.current.state.checklist.first_listing_published).toBe(false)
   })
 
-  it('409 → no throw / treat onboarded', async () => {
+  it('409 → throws PatchConflictError after applying current step', async () => {
     const { result } = await loadedHook()
     harness.onboardingPatch = {
       status: 409,
@@ -280,12 +280,16 @@ describe('useOnboardingState', () => {
       }),
     }
 
-    let returned: OnboardingState | undefined
+    let thrown: unknown
     await act(async () => {
-      returned = await result.current.patch({ step: 'welcome', path: null })
+      try {
+        await result.current.patch({ step: 'welcome', path: null })
+      } catch (error) {
+        thrown = error
+      }
     })
 
-    expect(returned?.step).toBe('complete')
+    expect(thrown).toMatchObject({ name: 'PatchConflictError', status: 409 })
     expect(result.current.state.step).toBe('complete')
     expect(result.current.isError).toBe(false)
   })

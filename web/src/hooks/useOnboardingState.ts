@@ -107,6 +107,20 @@ export const EMPTY_CHECKLIST: OnboardingChecklistFlags = {
   subscription_active: false,
 }
 
+/** Thrown by `patch()` after a 409 illegal transition is applied locally. */
+export class PatchConflictError extends Error {
+  readonly status = 409
+  readonly state: OnboardingState
+  readonly currentStep?: OnboardingStep
+
+  constructor(state: OnboardingState, currentStep?: OnboardingStep) {
+    super('Onboarding state conflict (409)')
+    this.name = 'PatchConflictError'
+    this.state = state
+    this.currentStep = currentStep
+  }
+}
+
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   'welcome',
   'welcome_skipped',
@@ -577,11 +591,13 @@ export function useOnboardingState(): UseOnboardingStateResult {
             ...(currentStep === 'complete' ? { checklist_delta: { first_listing_published: true } } : {}),
           })
           setOnboarding(fallback)
+          let resolved = mergeOnboardingWithActivation(fallback, activationRef.current)
           try {
-            return await revalidate()
+            resolved = await revalidate()
           } catch {
-            return mergeOnboardingWithActivation(fallback, activationRef.current)
+            /* keep fallback */
           }
+          throw new PatchConflictError(resolved, currentStep)
         }
 
         if (!res.ok) {
@@ -592,6 +608,7 @@ export function useOnboardingState(): UseOnboardingStateResult {
         setOnboarding(normalizeOnboardingPayload(res.json))
         return await revalidate()
       } catch (err) {
+        if (err instanceof PatchConflictError) throw err
         setOnboarding(snapshot)
         throw err
       }

@@ -27,6 +27,77 @@ export function registerAgentRoutes(app, { entitlements, credits, pipeline, conf
     }
   })
 
+  /**
+   * Partial PATCH for AGT-ONB-003 inline editors (BE-NEW-07 / BE-VERIFY-19).
+   * Also mounted at `/api/onboarding/drafts/:id` for the onboarding funnel client.
+   */
+  async function patchDraftHandler(req, res) {
+    try {
+      const draft = await findOneModule(Collections.DRAFTS, (d) => d.id === req.params.id && d.agent_id === req.user.id)
+      if (!draft) return res.status(404).json({ error: 'Draft not found' })
+      const body = req.body && typeof req.body === 'object' ? req.body : {}
+      const extracted = { ...(draft.extracted_property || {}) }
+
+      if (body.price_cents != null && Number.isFinite(Number(body.price_cents))) {
+        const cents = Math.round(Number(body.price_cents))
+        extracted.price = cents / 100
+        extracted.price_cents = cents
+      } else if (body.price != null && Number.isFinite(Number(body.price))) {
+        const major = Number(body.price)
+        extracted.price = major
+        extracted.price_cents = Math.round(major * 100)
+      }
+      if (typeof body.currency === 'string' && body.currency.trim()) {
+        extracted.currency = body.currency.trim().toUpperCase()
+      }
+      if (typeof body.description === 'string') extracted.description = body.description
+      if (typeof body.address === 'string') {
+        extracted.address = body.address
+        extracted.address_display = body.address
+      }
+      if (typeof body.area_name === 'string') extracted.area_name = body.area_name
+      if (typeof body.building_name === 'string') extracted.building_name = body.building_name
+      if (typeof body.floor === 'string' || typeof body.floor === 'number') {
+        extracted.floor = String(body.floor)
+      }
+      if (body.lat != null && Number.isFinite(Number(body.lat))) extracted.lat = Number(body.lat)
+      if (body.lng != null && Number.isFinite(Number(body.lng))) extracted.lng = Number(body.lng)
+
+      let photo_urls = draft.photo_urls
+      if (Array.isArray(body.photo_urls)) photo_urls = body.photo_urls.filter(Boolean)
+      else if (Array.isArray(body.photos)) {
+        photo_urls = body.photos
+          .map((item) => (typeof item === 'string' ? item : item?.url))
+          .filter(Boolean)
+      }
+
+      const updated = await updateModule(
+        Collections.DRAFTS,
+        (d) => d.id === draft.id,
+        (d) => ({
+          ...d,
+          extracted_property: extracted,
+          photo_urls: photo_urls ?? d.photo_urls,
+          photos: photo_urls ?? d.photos,
+          address: extracted.address ?? d.address,
+          area_name: extracted.area_name ?? d.area_name,
+          building_name: extracted.building_name ?? d.building_name,
+          floor: extracted.floor ?? d.floor,
+          description: extracted.description ?? d.description,
+          price: extracted.price ?? d.price,
+          currency: extracted.currency ?? d.currency,
+          updated_at: new Date().toISOString(),
+        }),
+      )
+      res.json(updated || { ...draft, extracted_property: extracted, photo_urls })
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  }
+
+  app.patch('/api/agent/whatsapp-listings/drafts/:id', authMiddleware, patchDraftHandler)
+  app.patch('/api/onboarding/drafts/:id', authMiddleware, patchDraftHandler)
+
   app.post('/api/agent/whatsapp-listings/drafts/:id/approve', authMiddleware, async (req, res) => {
     try {
       const draft = await findOneModule(Collections.DRAFTS, (d) => d.id === req.params.id && d.agent_id === req.user.id)
