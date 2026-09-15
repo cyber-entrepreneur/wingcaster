@@ -3,7 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Building2, Check, Crown, Loader2, MapPin, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import { ContextEchoCard, EvidenceUploader } from '@/components/forms'
-import { StatusHero } from '@/components/recipient'
+import {
+  OutcomeTimeline,
+  PrimaryCtaPerState,
+  ResolverMessage,
+  StatusHero,
+} from '@/components/recipient'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +32,7 @@ import { useEvidenceFiles } from './useEvidenceFiles'
 import { usePackageFeatureFlags } from './usePackageFeatureFlags'
 
 type Phase = 'form' | 'success' | 'upsell'
+type Confidence = 'self_witnessed' | 'hearsay' | 'hard_evidence'
 
 function UpsellCard({ t }: { t: (key: Parameters<typeof priceReportT>[0]) => string }) {
   return (
@@ -50,10 +56,10 @@ function UpsellCard({ t }: { t: (key: Parameters<typeof priceReportT>[0]) => str
         ))}
       </ul>
       <div className="mt-[var(--lc-space-xl)] flex flex-col gap-[var(--lc-space-sm)] sm:flex-row sm:justify-center">
-        <Button asChild size="lg">
+        <Button asChild size="lg" className="min-h-tap">
           <Link to="/plans?highlight=wf06">{t('upsellPrimary')}</Link>
         </Button>
-        <Button asChild variant="ghost">
+        <Button asChild variant="ghost" className="min-h-tap">
           <Link to="/plans">{t('upsellSecondary')}</Link>
         </Button>
       </div>
@@ -90,13 +96,18 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
   const t = (key: Parameters<typeof priceReportT>[0]) => priceReportT(key, locale)
   usePageTitle(t('heroHeading'))
 
-  const { loading: flagsLoading, hasPriceReportsSubmit } =
-    usePackageFeatureFlags(featureFlagsOverride)
+  const {
+    loading: flagsLoading,
+    hasPriceReportsSubmit,
+    subscriptionUnavailable,
+    refresh: refreshFlags,
+  } = usePackageFeatureFlags(featureFlagsOverride)
 
   const listingId = searchParams.get('listing_id') || searchParams.get('property_id') || ''
   const echoFromQuery = useMemo(() => parseEcho(searchParams), [searchParams])
 
   const [phase, setPhase] = useState<Phase>('form')
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null)
   const [subjectKind, setSubjectKind] = useState<PriceReportSubjectKind>(
     listingId ? 'property' : 'external',
   )
@@ -109,10 +120,21 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
   const [currency, setCurrency] = useState('AED')
   const [soldDate, setSoldDate] = useState('')
   const [notes, setNotes] = useState('')
+  const [confidence, setConfidence] = useState<Confidence>('self_witnessed')
   const [submitting, setSubmitting] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  const evidence = useEvidenceFiles(PRICE_REPORT_EVIDENCE_MAX)
+  const evidence = useEvidenceFiles({
+    maxFiles: PRICE_REPORT_EVIDENCE_MAX,
+    maxBytes: EVIDENCE_MAX_BYTES,
+    locale,
+    tooLargeCopy: {
+      en: priceReportT('fileTooLarge', 'en'),
+      ar: priceReportT('fileTooLarge', 'ar'),
+    },
+    onTooLarge: (message) =>
+      addToast({ title: message, variant: 'error' }),
+  })
 
   const subjectSelected =
     subjectKind === 'property' ? Boolean(propertyId.trim()) : Boolean(externalTitle.trim())
@@ -170,14 +192,17 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
         currency,
         sold_date: soldDate || undefined,
         notes: notes.trim(),
-        supporting_document_url: evidence.firstCompleteUrl || undefined,
+        reporter_confidence: confidence,
+        supporting_document_ids: evidence.completeIds,
       })
+      setSubmittedAt(new Date().toISOString())
       setPhase('success')
     } catch (err: unknown) {
-      const e = err as { message?: string; error?: string; status?: number }
+      const e = err as { message?: string; error?: string; status?: number; code?: string }
       const message = e.message || e.error || t('networkError')
       if (
         e.error === 'FEATURE_NOT_ENABLED' ||
+        e.code === 'FEATURE_NOT_ENABLED' ||
         e.status === 403 ||
         /FEATURE_NOT_ENABLED|Pro-tier/i.test(String(message))
       ) {
@@ -210,6 +235,25 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
     )
   }
 
+  if (subscriptionUnavailable) {
+    return (
+      <div
+        className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)]"
+        data-testid="price-report-subscription-unavailable"
+        dir={isArabic ? 'rtl' : 'ltr'}
+      >
+        <div className="mx-auto max-w-[560px] space-y-[var(--lc-space-md)] text-center">
+          <h1 className="text-[length:var(--lc-type-heading-1)] text-[var(--lc-text-heading)]">
+            {t('networkError')}
+          </h1>
+          <Button type="button" className="min-h-tap" onClick={() => void refreshFlags()}>
+            {t('submitIdle')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (!hasPriceReportsSubmit || phase === 'upsell') {
     return (
       <div
@@ -223,6 +267,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
   }
 
   if (phase === 'success') {
+    const submitted = submittedAt || new Date().toISOString()
     return (
       <div
         className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6"
@@ -232,31 +277,57 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
         <div className="mx-auto max-w-[760px] space-y-[var(--lc-space-lg)]">
           <PageHero t={t} />
           <StatusHero state="pending" label={t('successLabel')} emphasis="default" />
+          <OutcomeTimeline
+            events={[
+              {
+                key: 'submitted',
+                label: t('timelineSubmitted'),
+                timestamp: submitted,
+                state: 'complete',
+              },
+              {
+                key: 'pa_review',
+                label: t('timelinePaReview'),
+                state: 'current',
+              },
+            ]}
+          />
+          <ResolverMessage
+            resolver={{ display_name: 'Platform Admin', role_label: 'PA' }}
+            decided_at={submitted}
+            message={null}
+            empty_state_copy={t('resolverWaiting')}
+          />
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-muted)]">
             {t('successSla')}
           </p>
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
             {t('successBody')}
           </p>
-          <div className="flex flex-wrap gap-[var(--lc-space-sm)]">
-            <Button asChild>
-              <Link to="/agent/pricing">{t('successPrimary')}</Link>
-            </Button>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => {
+          <PrimaryCtaPerState
+            layout="inline"
+            primary={{
+              key: 'view_reports',
+              label: t('successPrimary'),
+              variant: 'default',
+              href: '/agent/pricing',
+            }}
+            secondary={{
+              key: 'another',
+              label: t('successSecondary'),
+              variant: 'outline',
+              onClick: () => {
                 setPhase('form')
                 setSoldPrice('')
                 setNotes('')
                 setSoldDate('')
+                setConfidence('self_witnessed')
                 evidence.reset()
                 setFieldErrors({})
-              }}
-            >
-              {t('successSecondary')}
-            </Button>
-          </div>
+                setSubmittedAt(null)
+              },
+            }}
+          />
         </div>
       </div>
     )
@@ -278,6 +349,13 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
       }>
     : []
 
+  const stepperLabels = [
+    t('sectionSubjectShort'),
+    t('sectionRecommendationShort'),
+    t('sectionRationaleShort'),
+    t('sectionPublicationShort'),
+  ]
+
   return (
     <div
       className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-[var(--lc-space-2xl)] pb-[var(--lc-space-4xl)] sm:px-6"
@@ -289,9 +367,9 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
 
         <ol
           className="flex flex-wrap items-center gap-[var(--lc-space-sm)] text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]"
-          aria-label="Report sections"
+          aria-label={t('sectionStepperAria')}
         >
-          {['Subject', 'Recommendation', 'Rationale', 'Publication'].map((label, index) => (
+          {stepperLabels.map((label, index) => (
             <li key={label} className="inline-flex items-center gap-2">
               {index > 0 ? (
                 <span className="hidden h-px w-6 bg-[var(--lc-border-strong)] sm:inline-block" aria-hidden />
@@ -481,6 +559,44 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
                 <CharacterCounter value={notes.length} max={PRICE_REPORT_NOTES_MAX} />
               </div>
             </div>
+
+            <fieldset className="space-y-[var(--lc-space-sm)]">
+              <legend className="text-[length:var(--lc-type-overline)] text-[var(--lc-text-muted)]">
+                {t('confidenceLabel')}
+              </legend>
+              <div
+                role="radiogroup"
+                aria-label={t('confidenceLabel')}
+                className="flex max-w-[360px] overflow-hidden rounded-[var(--lc-radius-pill)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)]"
+              >
+                {(
+                  [
+                    ['self_witnessed', t('confidenceSelf')],
+                    ['hearsay', t('confidenceHearsay')],
+                    ['hard_evidence', t('confidenceEvidence')],
+                  ] as const
+                ).map(([value, label]) => {
+                  const selected = confidence === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={cn(
+                        'min-h-tap flex-1 px-2 text-xs transition-colors duration-fast',
+                        selected
+                          ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                          : 'text-[var(--lc-text-primary)]',
+                      )}
+                      onClick={() => setConfidence(value)}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </fieldset>
           </SectionCard>
 
           <SectionCard
@@ -495,7 +611,9 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
               max_bytes_per_file={EVIDENCE_MAX_BYTES}
               accepted_types={PRICE_REPORT_ACCEPTED_TYPES}
               onAdd={evidence.onAdd}
-              onRemove={evidence.onRemove}
+              onRemove={(id) => {
+                void evidence.onRemove(id)
+              }}
               label={t('evidenceLabel')}
               helper_text={t('evidenceHelper')}
               disabled={submitting || !subjectSelected}
@@ -516,13 +634,14 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
           <div className="sticky bottom-0 z-10 flex flex-col gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] py-[var(--lc-space-md)] shadow-[var(--lc-elevation-sm)] sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-[var(--lc-text-muted)]">{t('autosaveHelper')}</p>
             <div className="flex flex-col-reverse gap-[var(--lc-space-sm)] sm:flex-row sm:items-center">
-              <Button type="button" variant="ghost" disabled>
+              <Button type="button" variant="ghost" disabled className="min-h-tap">
                 {t('saveDraft')}
               </Button>
               <Button
                 type="submit"
                 size="lg"
                 disabled={!canSubmit}
+                className="min-h-tap"
                 aria-describedby={!canSubmit ? 'apr-submit-hint' : undefined}
               >
                 {submitting ? (
@@ -536,7 +655,7 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
               </Button>
               {!canSubmit ? (
                 <span id="apr-submit-hint" className="sr-only">
-                  Submit disabled:{' '}
+                  {t('submitDisabledAria')}:{' '}
                   {Object.values(validate())[0] || t('subjectRequired')}
                 </span>
               ) : null}
@@ -567,7 +686,7 @@ function PageHero({ t }: { t: (key: Parameters<typeof priceReportT>[0]) => strin
       </div>
       <Badge
         className="inline-flex items-center gap-1 border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent-bold)] text-[var(--lc-accent-bold-text)]"
-        aria-label="Pro-tier feature"
+        aria-label={t('proBadgeAria')}
       >
         <Crown className="h-3.5 w-3.5" aria-hidden />
         {t('proBadge')}

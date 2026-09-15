@@ -18,6 +18,8 @@ export type EvidenceFile = {
   thumbnail_url?: string
   /** Signed URL post-upload. */
   server_url?: string
+  /** Server sha256 digest once complete. */
+  sha256?: string
   error_message?: string
 }
 

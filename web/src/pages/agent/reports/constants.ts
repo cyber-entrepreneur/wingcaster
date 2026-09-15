@@ -50,18 +50,15 @@ export const BAD_COMPARABLE_EVIDENCE_MAX = 3
 export const PRICE_REPORT_EVIDENCE_MAX = 5
 export const EVIDENCE_MAX_BYTES = 10_485_760
 
+/** Backend evidence-upload allow-list (POST /api/pricing/evidence-uploads). */
 export const BAD_COMPARABLE_ACCEPTED_TYPES = [
   'image/jpeg',
   'image/png',
-  'image/heic',
+  'image/webp',
   'application/pdf',
-  'text/csv',
 ]
 
-export const PRICE_REPORT_ACCEPTED_TYPES = [
-  ...BAD_COMPARABLE_ACCEPTED_TYPES,
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
+export const PRICE_REPORT_ACCEPTED_TYPES = [...BAD_COMPARABLE_ACCEPTED_TYPES]
 
 export const PRICE_REPORT_CURRENCIES = [
   'AED',

@@ -8,6 +8,8 @@ const apiMock = vi.hoisted(() => ({
   reportComparable: vi.fn(),
   getTenantSubscription: vi.fn(),
   submitAgentPriceReport: vi.fn(),
+  uploadPricingEvidence: vi.fn(),
+  deletePricingEvidence: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({ api: apiMock }))
 
@@ -15,8 +17,14 @@ vi.mock('@/lib/usePageTitle', () => ({
   usePageTitle: () => {},
 }))
 
+const localeMock = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'ar',
+  isArabic: false,
+  dir: 'ltr' as 'ltr' | 'rtl',
+  setLocale: vi.fn(),
+}))
 vi.mock('@/hooks/useLocale', () => ({
-  useLocale: () => ({ locale: 'en' as const, isArabic: false, dir: 'ltr' as const, setLocale: vi.fn() }),
+  useLocale: () => localeMock,
 }))
 
 const toastMock = vi.hoisted(() => ({ addToast: vi.fn() }))
@@ -28,6 +36,7 @@ import { BadComparableReportPage } from './BadComparableReportPage'
 import { PriceReportPage } from './PriceReportPage'
 import { PRICE_REPORTS_SUBMIT_FEATURE } from './constants'
 import { flagsFromSubscription, hasPriceReportsSubmitFeature } from './types'
+import { badComparableT, priceReportT } from './copy'
 
 function renderBadComparable(initial = '/reports/comparables/new?comparable_id=cmp_1&title=Apt%202405') {
   return render(
@@ -61,8 +70,19 @@ function renderPriceReport(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localeMock.locale = 'en'
+  localeMock.isArabic = false
+  localeMock.dir = 'ltr'
   apiMock.reportComparable.mockResolvedValue({ id: 'rpt_1', status: 'pending' })
   apiMock.submitAgentPriceReport.mockResolvedValue({ id: 'aprt_1', status: 'pending_review' })
+  apiMock.uploadPricingEvidence.mockResolvedValue({
+    id: 'evd_server_1',
+    url: '/api/pricing/evidence-uploads/evd_server_1?token=abc',
+    sha256: 'a'.repeat(64),
+    content_type: 'image/png',
+    size_bytes: 12,
+  })
+  apiMock.deletePricingEvidence.mockResolvedValue({ deleted: true })
   apiMock.getTenantSubscription.mockResolvedValue({
     subscription: { tier: 'pro', package_code: 'pro-agent', properties_committed: 1 },
     tenant_id: 't1',
@@ -88,6 +108,15 @@ describe('flagsFromSubscription', () => {
   })
 })
 
+describe('locale copy EN→AR', () => {
+  it('switches page titles when locale is Arabic', () => {
+    expect(badComparableT('pageTitle', 'ar')).toBe('الإبلاغ عن مقارنة غير دقيقة')
+    expect(priceReportT('heroHeading', 'ar')).toBe('إرسال تقرير أسعار')
+    expect(priceReportT('sectionStepperAria', 'ar')).toBe('أقسام التقرير')
+    expect(priceReportT('fileTooLarge', 'ar')).toMatch(/10/)
+  })
+})
+
 describe('BadComparableReportPage', () => {
   it('submits a happy-path report via POST /pricing/report-comparable', async () => {
     const user = userEvent.setup()
@@ -109,9 +138,13 @@ describe('BadComparableReportPage', () => {
         comparable_id: 'cmp_1',
         comparable_type: 'external',
         reason: 'incorrect_price',
+        reporter_confidence: 'self_witnessed',
+        supporting_document_ids: [],
+        notes: expect.not.stringContaining('Evidence:'),
       }),
     )
     expect(await screen.findByText(/Report received — under PA review/i)).toBeInTheDocument()
+    expect(screen.getByText(/PA review · ETA 2 business days/i)).toBeInTheDocument()
   })
 
   it('blocks submit and surfaces validation when notes are too short', async () => {
@@ -125,6 +158,14 @@ describe('BadComparableReportPage', () => {
     expect(submit).toBeDisabled()
     expect(document.getElementById('bcr-notes-hint')).toHaveTextContent(/Add a bit more detail/i)
     expect(apiMock.reportComparable).not.toHaveBeenCalled()
+  })
+
+  it('renders Arabic page title when locale is ar', async () => {
+    localeMock.locale = 'ar'
+    localeMock.isArabic = true
+    localeMock.dir = 'rtl'
+    renderBadComparable()
+    expect(await screen.findByRole('heading', { name: 'الإبلاغ عن مقارنة غير دقيقة' })).toBeInTheDocument()
   })
 })
 
@@ -164,11 +205,14 @@ describe('PriceReportPage', () => {
         external_property_title: 'Marina Heights T2',
         sold_price: 2400000,
         currency: 'AED',
+        reporter_confidence: 'self_witnessed',
+        supporting_document_ids: [],
       }),
     )
     expect(
       await screen.findByText(/Report received — under PA editorial review/i),
     ).toBeInTheDocument()
+    expect(screen.getByText(/PA review · ETA 2 business days/i)).toBeInTheDocument()
   })
 
   it('shows validation errors when sold price is missing', async () => {
@@ -209,5 +253,10 @@ describe('PriceReportPage', () => {
 
     expect(await screen.findByTestId('price-report-upsell')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /Price reports are a Pro feature/i })).toBeInTheDocument()
+  })
+
+  it('uses localized section stepper aria', async () => {
+    renderPriceReport({ [PRICE_REPORTS_SUBMIT_FEATURE]: true })
+    expect(await screen.findByLabelText(/Report sections/i)).toBeInTheDocument()
   })
 })
