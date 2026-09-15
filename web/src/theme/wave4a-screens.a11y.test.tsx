@@ -190,6 +190,10 @@ describe('Wave 4A a11y — ACT skip-wizard focus trap', () => {
       await user.tab()
       expect(dialog.contains(document.activeElement)).toBe(true)
     }
+    for (let i = 0; i < 8; i += 1) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
     await user.keyboard('{Escape}')
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

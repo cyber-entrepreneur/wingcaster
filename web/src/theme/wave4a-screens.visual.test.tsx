@@ -3,9 +3,12 @@
  * Wave 4A ONB / WLB / ACT — visual / DOM snapshot matrix.
  *
  * Chromatic / Storybook are not configured in this repo. These Vitest
- * snapshots stand in for the visual budget across light/dark (and a
- * focused RTL set) for the 15 activation-funnel surfaces.
+ * snapshots stand in for the visual budget across light/dark × mobile/desktop
+ * (and a focused RTL set) for the 15 activation-funnel surfaces.
  * See scratchpad/wave4a-chromatic-gap.md.
+ *
+ * Dark ≠ light byte-for-byte: serialize stamps resolved `--lc-*` values as
+ * `data-lc-tokens` on the wrapper (jsdom class strings stay `var(--lc-*)`).
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -23,6 +26,13 @@ import {
   WAVE4A_SURFACES,
   Wlb004DraftingSurface,
 } from '@/theme/wave4a-fixtures'
+import {
+  assertNoPiiBleed,
+  serializeVisualRoot,
+  setVisualViewport,
+  stampLcTokens,
+  type ViewportAxis,
+} from '@/theme/visualSerialize'
 
 const THEME_CSS = readFileSync(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/design-tokens/broadcast-theme.css'),
@@ -52,24 +62,12 @@ beforeEach(() => {
   document.documentElement.lang = 'en'
   document.documentElement.dir = 'ltr'
   applyLcMode('light')
+  setVisualViewport('desktop')
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(FIXED_NOW)
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
-  })
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
   })
   document.body.querySelectorAll('[data-radix-portal]').forEach((n) => n.remove())
 })
@@ -81,108 +79,103 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function wrap(ui: ReactElement, path = '/onboarding/welcome') {
+function wrap(ui: ReactElement, pathName = '/onboarding/welcome') {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[pathName]}>
       <BrandProvider>
-        <ToastProvider>{ui}</ToastProvider>
+        <ToastProvider>
+          <div data-wave4a-visual-root>{ui}</div>
+        </ToastProvider>
       </BrandProvider>
     </MemoryRouter>,
   )
 }
 
-/** Stabilize DOM for snapshots (ids, portals, countdown). */
-function serialize(root: HTMLElement): string {
-  const clone = root.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('[id]').forEach((el) => {
-    const id = el.getAttribute('id') || ''
-    if (id.startsWith('radix-') || id.includes(':') || /^r\d/.test(id)) {
-      el.setAttribute('id', '__stable__')
-    }
-  })
-  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], for').forEach((el) => {
-    for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for'] as const) {
-      if (el.hasAttribute(attr)) {
-        const val = el.getAttribute(attr) || ''
-        if (val.startsWith('radix-') || val.includes(':')) {
-          el.setAttribute(attr, '__stable__')
-        }
-      }
-    }
-  })
-  clone.querySelectorAll('[data-handshake-live]').forEach((el) => {
-    el.textContent = 'Expires in __ minutes'
-  })
-  const portals = [
-    ...document.body.querySelectorAll('[data-radix-portal], [role="dialog"], [role="alertdialog"]'),
-  ]
-    .map((node) => {
-      const c = node.cloneNode(true) as HTMLElement
-      c.querySelectorAll('[id]').forEach((el) => {
-        const id = el.getAttribute('id') || ''
-        if (id.startsWith('radix-') || id.includes(':')) el.setAttribute('id', '__stable__')
-      })
-      return c.outerHTML
-    })
-    .join('\n')
-  const mode = document.documentElement.getAttribute('data-lc-mode') || 'light'
-  const dir = document.documentElement.dir || 'ltr'
-  const lang = document.documentElement.lang || 'en'
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${clone.innerHTML}\n<!-- portals -->\n${portals}`
+function snap(container: HTMLElement, mode: 'light' | 'dark'): string {
+  const root =
+    (container.querySelector('[data-wave4a-visual-root]') as HTMLElement | null) ?? container
+  stampLcTokens(root, mode)
+  const serialized = serializeVisualRoot(root, { mode })
+  assertNoPiiBleed(serialized)
+  return serialized
 }
 
-describe('Wave 4A visual matrix — 15 surfaces × light/dark', () => {
+const MODES = ['light', 'dark'] as const
+const VIEWPORTS: ViewportAxis[] = ['mobile', 'desktop']
+
+describe('Wave 4A visual matrix — 15 surfaces × light/dark × mobile/desktop', () => {
   it.each(
     WAVE4A_SURFACES.flatMap((surface) =>
-      (['light', 'dark'] as const).map((mode) => [surface.id, mode, surface] as const),
+      MODES.flatMap((mode) =>
+        VIEWPORTS.map((viewport) => [surface.id, mode, viewport, surface] as const),
+      ),
     ),
-  )('%s · %s', (_id, mode, surface) => {
+  )('%s · %s · %s', (_id, mode, viewport, surface) => {
     applyLcMode(mode)
+    setVisualViewport(viewport)
     document.documentElement.dir = 'ltr'
     document.documentElement.lang = 'en'
     const view = wrap(surface.render(), surface.path)
-    expect(serialize(view.container)).toMatchSnapshot()
+    expect(snap(view.container, mode)).toMatchSnapshot()
+  })
+
+  it('dark and light bodies differ after token stamp (theatrical-mode guard)', () => {
+    const surface = WAVE4A_SURFACES.find((s) => s.id === 'ONB-001')!
+    applyLcMode('light')
+    setVisualViewport('desktop')
+    const lightView = wrap(surface.render(), surface.path)
+    const lightSnap = snap(lightView.container, 'light')
+    cleanup()
+    applyLcMode('dark')
+    const darkView = wrap(surface.render(), surface.path)
+    const darkSnap = snap(darkView.container, 'dark')
+    expect(lightSnap).not.toEqual(darkSnap)
+    expect(lightSnap).toContain('#FAF8F7')
+    expect(darkSnap).toContain('#0C1533')
   })
 })
 
 describe('Wave 4A visual — RTL smoke (welcome, drafting, checklist, activate)', () => {
   it.each([
-    ['ONB-001', 'light'] as const,
-    ['WLB-004', 'dark'] as const,
-    ['ONB-005', 'light'] as const,
-    ['ACT-001', 'dark'] as const,
-  ])('%s · rtl · %s', (id, mode) => {
+    ['ONB-001', 'light', 'desktop'] as const,
+    ['WLB-004', 'dark', 'mobile'] as const,
+    ['ONB-005', 'light', 'mobile'] as const,
+    ['ACT-001', 'dark', 'desktop'] as const,
+  ])('%s · rtl · %s · %s', (id, mode, viewport) => {
     applyLcMode(mode)
+    setVisualViewport(viewport)
     document.documentElement.dir = 'rtl'
     document.documentElement.lang = 'ar'
     const surface = WAVE4A_SURFACES.find((s) => s.id === id)
     expect(surface).toBeTruthy()
     const view = wrap(surface!.render(), surface!.path)
-    expect(serialize(view.container)).toMatchSnapshot()
+    expect(snap(view.container, mode)).toMatchSnapshot()
   })
 })
 
 describe('Wave 4A visual — ONB-005 Pro pill + WLB-004 fallback', () => {
   it.each([
-    ['light', 'ltr'],
-    ['dark', 'rtl'],
-  ] as const)('ONB-005 Pro pill · %s · %s', (mode, dir) => {
+    ['light', 'ltr', 'desktop'],
+    ['dark', 'rtl', 'mobile'],
+  ] as const)('ONB-005 Pro pill · %s · %s · %s', (mode, dir, viewport) => {
     applyLcMode(mode)
+    setVisualViewport(viewport)
     document.documentElement.dir = dir
     document.documentElement.lang = dir === 'rtl' ? 'ar' : 'en'
     const view = wrap(<Onb005ChecklistSurface completed={2} pro />, '/dashboard')
-    expect(serialize(view.container)).toMatchSnapshot()
+    expect(snap(view.container, mode)).toMatchSnapshot()
   })
 
   it.each([
-    ['polling', 'light'],
-    ['fallback', 'dark'],
-  ] as const)('WLB-004 connection=%s · %s', (connection, mode) => {
+    ['polling', 'light', 'desktop'],
+    ['fallback', 'dark', 'mobile'],
+  ] as const)('WLB-004 connection=%s · %s · %s', (connection, mode, viewport) => {
     applyLcMode(mode)
+    setVisualViewport(viewport)
     const view = wrap(
       <Wlb004DraftingSurface connection={connection} />,
       '/onboarding/whatsapp/drafting/sess_1',
     )
-    expect(serialize(view.container)).toMatchSnapshot()
+    expect(snap(view.container, mode)).toMatchSnapshot()
   })
 })
