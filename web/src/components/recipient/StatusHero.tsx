@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
@@ -42,6 +43,11 @@ export type StatusHeroProps = {
    */
   emphasis?: 'default' | 'loud'
   className?: string
+  /**
+   * Optional content rendered inside the labelled \<section>\ (e.g. hero sub-copy)
+   * so screen readers pick it up with the hero landmark.
+   */
+  children?: ReactNode
 }
 
 type SurfaceSpec = {
@@ -145,6 +151,7 @@ export function StatusHero({
   glyph,
   emphasis = 'default',
   className,
+  children,
 }: StatusHeroProps) {
   const surface = resolveSurface(state, emphasis)
   const Glyph = glyph ?? surface.Glyph
@@ -198,6 +205,7 @@ export function StatusHero({
           ) : null}
         </div>
       </div>
+      {children}
     </section>
   )
 }

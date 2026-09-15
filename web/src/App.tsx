@@ -31,6 +31,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
 import { AccountRecoveryCompletePage } from '@/pages/AccountRecoveryCompletePage'
+import { ScheduledDeletionConfirmationPage } from '@/pages/public/ScheduledDeletionConfirmationPage'
 import { AgencyManagementPage } from '@/pages/AgencyManagementPage'
 import { WhiteLabelBuilderPage } from '@/pages/WhiteLabelBuilderPage'
 import { WidgetBuilderPage } from '@/pages/WidgetBuilderPage'
@@ -87,6 +88,7 @@ const BARE_CHROME_PREFIXES = [
   '/forgot-password',
   '/reset-password',
   '/account-recovery',
+  '/account/scheduled-deletion',
   '/register',
   '/site/',
   '/public/',
@@ -141,6 +143,10 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
       <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
+      <Route
+        path="/account/scheduled-deletion/:token"
+        element={<ScheduledDeletionConfirmationPage />}
+      />
       <Route path="/agency" element={<AgencyManagementPage />} />
       <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
       <Route
