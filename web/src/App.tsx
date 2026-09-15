@@ -20,16 +20,12 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
-<<<<<<< HEAD
 import {
   BadComparableReportPage,
   PriceReportPage,
   ComparableReportOutcomePage,
   PriceReportOutcomePage,
 } from '@/pages/agent/reports'
-=======
-import { BadComparableReportPage, PriceReportPage } from '@/pages/agent/reports'
->>>>>>> 89c196d (fix(agent): keep InboxConversationPage import after submitters rebase)
 import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
