@@ -15,8 +15,8 @@ on:
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'
+  # No branches filter — stacked Wave 4A/8 PRs targeting feat/* must still run CI.
   pull_request:
-    branches: [main]
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'
