@@ -2,9 +2,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -44,6 +46,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { useTenant } from '@/hooks/useTenant'
@@ -91,6 +100,30 @@ const EMPTY_FILTERS: Filters = {
   priceMax: '',
   dateFrom: '',
   dateTo: '',
+}
+
+
+const RESIZE_MIN = 60
+const RESIZE_MAX = 640
+const RESIZE_STEP = 8
+type SharePayload = {
+  title?: string
+  description?: string
+  url?: string
+}
+
+function parseSharePayload(raw: unknown): SharePayload {
+  if (!raw || typeof raw !== 'object') return {}
+  const o = raw as Record<string, unknown>
+  return {
+    title: typeof o.title === 'string' ? o.title : undefined,
+    description: typeof o.description === 'string' ? o.description : undefined,
+    url: typeof o.url === 'string' ? o.url : undefined,
+  }
+}
+
+function clampWidth(n: number): number {
+  return Math.min(RESIZE_MAX, Math.max(RESIZE_MIN, Math.round(n)))
 }
 
 function daysOnMarket(listed?: string): number | null {
@@ -164,6 +197,12 @@ export function ProListingsTable({
   const [priceEditValue, setPriceEditValue] = useState('')
   const [statusEditId, setStatusEditId] = useState<string | null>(null)
   const [draftColumns, setDraftColumns] = useState<ListingsColumnId[]>(prefs.columns)
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => ({ ...prefs.widths }))
+  const [resizeAnnounce, setResizeAnnounce] = useState('')
+  const [menuRowId, setMenuRowId] = useState<string | null>(null)
+  const widthsPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const columnWidthsRef = useRef(columnWidths)
+  columnWidthsRef.current = columnWidths
 
   // URL sync — sort + filters + view
   const sort: SortState = useMemo(() => {
@@ -199,6 +238,120 @@ export function ProListingsTable({
   useEffect(() => {
     setDraftColumns(prefs.columns)
   }, [prefs.columns])
+
+  useEffect(() => {
+    setColumnWidths({ ...prefs.widths })
+  }, [prefs.widths])
+
+  useEffect(() => {
+    return () => {
+      if (widthsPersistTimer.current) clearTimeout(widthsPersistTimer.current)
+    }
+  }, [])
+
+  const persistWidths = useCallback(
+    (next: Record<string, number>, immediate = false) => {
+      if (widthsPersistTimer.current) {
+        clearTimeout(widthsPersistTimer.current)
+        widthsPersistTimer.current = null
+      }
+      const run = () => {
+        void savePrefs({ widths: next })
+      }
+      if (immediate) {
+        run()
+        return
+      }
+      widthsPersistTimer.current = setTimeout(run, 300)
+    },
+    [savePrefs],
+  )
+
+  const applyColumnWidth = useCallback(
+    (columnId: string, width: number, opts?: { persistNow?: boolean; announce?: boolean }) => {
+      const clamped = clampWidth(width)
+      const next = { ...columnWidthsRef.current, [columnId]: clamped }
+      columnWidthsRef.current = next
+      setColumnWidths(next)
+      persistWidths(next, opts?.persistNow === true)
+      if (opts?.announce) {
+        setResizeAnnounce(`${columnId} column width ${clamped} pixels`)
+      }
+    },
+    [persistWidths],
+  )
+
+  const colWidthStyle = useCallback(
+    (id: ListingsColumnId): { width: number } | undefined =>
+      columnWidths[id] ? { width: columnWidths[id] } : undefined,
+    [columnWidths],
+  )
+
+  const shareListing = useCallback(
+    async (id: string) => {
+      try {
+        const payload = parseSharePayload(await api.getSharePayload(id))
+        if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && payload.url) {
+          await navigator.share({
+            title: payload.title,
+            text: payload.description,
+            url: payload.url,
+          })
+          return
+        }
+        addToast({
+          title: payload.title || 'Share listing',
+          description: payload.url || 'Public link unavailable',
+          variant: 'default',
+        })
+      } catch (err) {
+        addToast({
+          title: 'Could not share listing',
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'error',
+        })
+      }
+    },
+    [addToast],
+  )
+
+  const copyPublicLink = useCallback(
+    async (id: string) => {
+      try {
+        const payload = parseSharePayload(await api.getSharePayload(id))
+        if (!payload.url) {
+          addToast({ title: 'Public link unavailable', variant: 'error' })
+          return
+        }
+        await navigator.clipboard.writeText(payload.url)
+        addToast({ title: 'Public link copied', variant: 'default' })
+      } catch (err) {
+        addToast({
+          title: 'Could not copy link',
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'error',
+        })
+      }
+    },
+    [addToast],
+  )
+
+  const quickPublish = useCallback(
+    async (id: string) => {
+      try {
+        await api.bulkPublishProperties([id])
+        addToast({ title: 'Listing published', variant: 'default' })
+        onRefresh?.()
+      } catch (err) {
+        addToast({
+          title: 'Publish failed',
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'error',
+        })
+      }
+    },
+    [addToast, onRefresh],
+  )
 
   const patchParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -668,58 +821,108 @@ export function ProListingsTable({
                   </span>
                 </th>
                 {columns.includes('hrid') ? (
-                  <SortHeader label="ID" sortKey="hrid" sort={sort} onSort={toggleSort} sticky />
+                  <SortHeader
+                    label="ID"
+                    sortKey="hrid"
+                    sort={sort}
+                    onSort={toggleSort}
+                    sticky
+                    columnId="hrid"
+                    width={columnWidths.hrid}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('title') ? (
-                  <SortHeader label="Property" sortKey="title" sort={sort} onSort={toggleSort} sticky />
+                  <SortHeader
+                    label="Property"
+                    sortKey="title"
+                    sort={sort}
+                    onSort={toggleSort}
+                    sticky
+                    columnId="title"
+                    width={columnWidths.title}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('price') ? (
-                  <SortHeader label="Price" sortKey="price" sort={sort} onSort={toggleSort} align="end" />
+                  <SortHeader
+                    label="Price"
+                    sortKey="price"
+                    sort={sort}
+                    onSort={toggleSort}
+                    align="end"
+                    columnId="price"
+                    width={columnWidths.price}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('status') ? (
-                  <SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+                  <SortHeader
+                    label="Status"
+                    sortKey="status"
+                    sort={sort}
+                    onSort={toggleSort}
+                    columnId="status"
+                    width={columnWidths.status}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('portals') ? (
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-start text-[var(--lc-text-muted)]"
-                    style={{ font: 'var(--lc-type-overline)', letterSpacing: 'var(--lc-tracking-overline)' }}
-                  >
-                    Portals
-                  </th>
+                  <StaticHeader
+                    label="Portals"
+                    columnId="portals"
+                    width={columnWidths.portals}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('inquiries') ? (
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-end text-[var(--lc-text-muted)]"
-                    style={{ font: 'var(--lc-type-overline)', letterSpacing: 'var(--lc-tracking-overline)' }}
-                  >
-                    Inquiries
-                  </th>
+                  <StaticHeader
+                    label="Inquiries"
+                    columnId="inquiries"
+                    align="end"
+                    width={columnWidths.inquiries}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('views') ? (
-                  <SortHeader label="Views (MTD)" sortKey="views" sort={sort} onSort={toggleSort} align="end" />
+                  <SortHeader
+                    label="Views (MTD)"
+                    sortKey="views"
+                    sort={sort}
+                    onSort={toggleSort}
+                    align="end"
+                    columnId="views"
+                    width={columnWidths.views}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('dom') ? (
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-end text-[var(--lc-text-muted)]"
-                    style={{ font: 'var(--lc-type-overline)', letterSpacing: 'var(--lc-tracking-overline)' }}
-                  >
-                    Days on market
-                  </th>
+                  <StaticHeader
+                    label="Days on market"
+                    columnId="dom"
+                    align="end"
+                    width={columnWidths.dom}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('updated') ? (
-                  <SortHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} />
+                  <SortHeader
+                    label="Updated"
+                    sortKey="updated"
+                    sort={sort}
+                    onSort={toggleSort}
+                    columnId="updated"
+                    width={columnWidths.updated}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('owner') && showOwnerColumn ? (
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-start text-[var(--lc-text-muted)]"
-                    style={{ font: 'var(--lc-type-overline)', letterSpacing: 'var(--lc-tracking-overline)' }}
-                  >
-                    Owning agent
-                  </th>
+                  <StaticHeader
+                    label="Owning agent"
+                    columnId="owner"
+                    width={columnWidths.owner}
+                    onResize={applyColumnWidth}
+                  />
                 ) : null}
                 {columns.includes('actions') ? (
                   <th scope="col" className="px-2 py-2">
@@ -735,8 +938,6 @@ export function ProListingsTable({
                 const isFocused = index === focusIndex
                 const dom = daysOnMarket(row.listed_date)
                 const portals = listingPortals(row)
-                const colWidth = (id: ListingsColumnId) =>
-                  prefs.widths[id] ? { width: prefs.widths[id] } : undefined
                 return (
                   <tr
                     key={row.id}
@@ -748,6 +949,10 @@ export function ProListingsTable({
                       isFocused && 'outline outline-2 outline-[var(--lc-focus-ring)] outline-offset-[-2px]',
                     )}
                     onClick={() => setFocusIndex(index)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setMenuRowId(row.id)
+                    }}
                   >
                     <td className="sticky start-0 z-10 bg-[var(--lc-surface-raised)] px-2 py-1 shadow-[var(--lc-elevation-sm)]">
                       <span className="inline-flex min-h-tap min-w-tap items-center justify-center">
@@ -759,14 +964,17 @@ export function ProListingsTable({
                       </span>
                     </td>
                     {columns.includes('hrid') ? (
-                      <td className="sticky start-[44px] z-10 bg-[var(--lc-surface-raised)] px-3 py-2 shadow-[var(--lc-elevation-sm)]">
+                      <td
+                        className="sticky start-[44px] z-10 bg-[var(--lc-surface-raised)] px-3 py-2 shadow-[var(--lc-elevation-sm)]"
+                        style={colWidthStyle('hrid')}
+                      >
                         <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>{listingHrid(row)}</Numeric>
                       </td>
                     ) : null}
                     {columns.includes('title') ? (
                       <td
                         className="sticky start-[116px] z-10 max-w-[240px] bg-[var(--lc-surface-raised)] px-3 py-2 shadow-[var(--lc-elevation-sm)]"
-                        style={colWidth('title')}
+                        style={colWidthStyle('title')}
                       >
                         <Link
                           to={`/listings/${row.id}`}
@@ -783,6 +991,7 @@ export function ProListingsTable({
                     {columns.includes('price') ? (
                       <td
                         className="relative px-3 py-2 text-end"
+                        style={colWidthStyle('price')}
                         onDoubleClick={() => {
                           setPriceEditId(row.id)
                           setPriceEditValue(String(row.price || ''))
@@ -821,6 +1030,7 @@ export function ProListingsTable({
                     {columns.includes('status') ? (
                       <td
                         className="relative px-3 py-2"
+                        style={colWidthStyle('status')}
                         onDoubleClick={() => setStatusEditId(row.id)}
                       >
                         <StatusCell status={status} />
@@ -849,7 +1059,7 @@ export function ProListingsTable({
                       </td>
                     ) : null}
                     {columns.includes('portals') ? (
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2" style={colWidthStyle('portals')}>
                         <div className="flex items-center gap-1">
                           {portals.length === 0 ? (
                             <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
@@ -864,43 +1074,98 @@ export function ProListingsTable({
                       </td>
                     ) : null}
                     {columns.includes('inquiries') ? (
-                      <td className="px-3 py-2 text-end">
+                      <td className="px-3 py-2 text-end" style={colWidthStyle('inquiries')}>
                         <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>{listingInquiryCount(row)}</Numeric>
                       </td>
                     ) : null}
                     {columns.includes('views') ? (
-                      <td className="px-3 py-2 text-end">
+                      <td className="px-3 py-2 text-end" style={colWidthStyle('views')}>
                         <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>{row.views || 0}</Numeric>
                       </td>
                     ) : null}
                     {columns.includes('dom') ? (
-                      <td className="px-3 py-2 text-end">
+                      <td className="px-3 py-2 text-end" style={colWidthStyle('dom')}>
                         <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>{dom ?? '—'}</Numeric>
                       </td>
                     ) : null}
                     {columns.includes('updated') ? (
-                      <td className="px-3 py-2 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                      <td
+                        className="px-3 py-2 text-[var(--lc-text-muted)]"
+                        style={{ font: 'var(--lc-type-body-sm)', ...colWidthStyle('updated') }}
+                      >
                         {row.listed_date ? new Date(row.listed_date).toLocaleDateString() : '—'}
                       </td>
                     ) : null}
                     {columns.includes('owner') && showOwnerColumn ? (
-                      <td className="px-3 py-2 text-[var(--lc-text-secondary)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                      <td
+                        className="px-3 py-2 text-[var(--lc-text-secondary)]"
+                        style={{ font: 'var(--lc-type-body-sm)', ...colWidthStyle('owner') }}
+                      >
                         {row.agent_name || '—'}
                       </td>
                     ) : null}
                     {columns.includes('actions') ? (
-                      <td className="px-2 py-1">
-                        <button
-                          type="button"
-                          className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-status-unpublished-fg)]"
-                          aria-label={`Delete ${row.title}`}
-                          onClick={() => {
-                            setSingleDeleteId(row.id)
-                            setDeleteOpen(true)
-                          }}
+                      <td className="px-2 py-1" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu
+                          open={menuRowId === row.id}
+                          onOpenChange={(open) => setMenuRowId(open ? row.id : null)}
                         >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </button>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
+                              aria-label={`Actions for ${row.title}`}
+                              data-testid={`listing-row-menu-${row.id}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[12rem]">
+                            <DropdownMenuItem
+                              onSelect={() => navigate(`/listings/${row.id}`)}
+                            >
+                              Open detail
+                            </DropdownMenuItem>
+                            {/* Follow-up: enable Duplicate when a list-level duplicate API exists. */}
+                            <DropdownMenuItem
+                              disabled
+                              title="Duplicate is not available yet"
+                            >
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void shareListing(row.id)
+                              }}
+                            >
+                              Share
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void quickPublish(row.id)
+                              }}
+                            >
+                              Quick-publish
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void copyPublicLink(row.id)
+                              }}
+                            >
+                              Copy public link
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-[var(--lc-status-unpublished-fg)] focus:text-[var(--lc-status-unpublished-fg)]"
+                              onSelect={() => {
+                                setSingleDeleteId(row.id)
+                                setDeleteOpen(true)
+                              }}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     ) : null}
                   </tr>
@@ -958,6 +1223,10 @@ export function ProListingsTable({
           </button>
         </div>
       ) : null}
+
+      <div className="sr-only" aria-live="polite">
+        {resizeAnnounce}
+      </div>
 
       <TypedConfirmDialog
         open={deleteOpen}
@@ -1197,6 +1466,101 @@ export function ProListingsTable({
   )
 }
 
+type ResizeHandler = (
+  columnId: string,
+  width: number,
+  opts?: { persistNow?: boolean; announce?: boolean },
+) => void
+
+function ColumnResizeHandle({
+  columnId,
+  width,
+  onResize,
+}: {
+  columnId: ListingsColumnId
+  width?: number
+  onResize: ResizeHandler
+}) {
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const th = event.currentTarget.closest('th')
+    const startX = event.clientX
+    const base =
+      width ??
+      (th ? th.getBoundingClientRect().width : RESIZE_MIN)
+
+    const onMove = (ev: PointerEvent) => {
+      onResize(columnId, base + (ev.clientX - startX))
+    }
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      onResize(columnId, base + (ev.clientX - startX), { persistNow: true })
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    event.stopPropagation()
+    const th = event.currentTarget.closest('th')
+    const base = width ?? (th ? th.getBoundingClientRect().width : RESIZE_MIN)
+    const next = base + (event.key === 'ArrowLeft' ? -RESIZE_STEP : RESIZE_STEP)
+    onResize(columnId, next, { persistNow: true, announce: true })
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${columnId} column`}
+      aria-valuemin={RESIZE_MIN}
+      aria-valuemax={RESIZE_MAX}
+      aria-valuenow={width ? clampWidth(width) : undefined}
+      tabIndex={0}
+      className="absolute end-0 top-0 z-20 h-full w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-1 after:end-0 after:w-px after:bg-[var(--lc-border-strong)] hover:after:bg-[var(--lc-text-brand)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--lc-focus-ring)]"
+      onPointerDown={startDrag}
+      onKeyDown={onKeyDown}
+      onClick={(e) => e.stopPropagation()}
+    />
+  )
+}
+
+function StaticHeader({
+  label,
+  columnId,
+  align = 'start',
+  width,
+  onResize,
+}: {
+  label: string
+  columnId: ListingsColumnId
+  align?: 'start' | 'end'
+  width?: number
+  onResize: ResizeHandler
+}) {
+  return (
+    <th
+      scope="col"
+      className={cn(
+        'relative px-3 py-2 text-[var(--lc-text-muted)]',
+        align === 'end' ? 'text-end' : 'text-start',
+      )}
+      style={{
+        font: 'var(--lc-type-overline)',
+        letterSpacing: 'var(--lc-tracking-overline)',
+        ...(width ? { width } : {}),
+      }}
+    >
+      {label}
+      <ColumnResizeHandle columnId={columnId} width={width} onResize={onResize} />
+    </th>
+  )
+}
+
 function SortHeader({
   label,
   sortKey,
@@ -1204,6 +1568,9 @@ function SortHeader({
   onSort,
   align = 'start',
   sticky,
+  columnId,
+  width,
+  onResize,
 }: {
   label: string
   sortKey: ProListingsSortKey
@@ -1211,6 +1578,9 @@ function SortHeader({
   onSort: (key: ProListingsSortKey) => void
   align?: 'start' | 'end'
   sticky?: boolean
+  columnId?: ListingsColumnId
+  width?: number
+  onResize?: ResizeHandler
 }) {
   const active = sort?.key === sortKey
   const ariaSort = !active ? 'none' : sort.dir === 'asc' ? 'ascending' : 'descending'
@@ -1220,12 +1590,13 @@ function SortHeader({
       scope="col"
       aria-sort={ariaSort}
       className={cn(
-        'px-3 py-2',
+        'relative px-3 py-2',
         align === 'end' ? 'text-end' : 'text-start',
         sticky && 'sticky z-10 bg-[var(--lc-surface-sunken)] shadow-[var(--lc-elevation-sm)]',
         sticky && sortKey === 'hrid' && 'start-[44px]',
         sticky && sortKey === 'title' && 'start-[116px]',
       )}
+      style={width ? { width } : undefined}
     >
       <button
         type="button"
@@ -1239,6 +1610,9 @@ function SortHeader({
         {label}
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
+      {columnId && onResize ? (
+        <ColumnResizeHandle columnId={columnId} width={width} onResize={onResize} />
+      ) : null}
     </th>
   )
 }
