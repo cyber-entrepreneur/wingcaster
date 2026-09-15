@@ -266,14 +266,13 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 high market-impact confirm-remove → REMOVE_PROPOSED (two-person)', async () => {
-    // Reporter is also platform_admin so OWN_CASE is reachable past
-    // requirePlatformAdmin — do not weaken the admin vote gate for this assert.
-    const reporter = await agentAccount('WF05 High Reporter', {
-      platformAdmin: true,
-      priceReportsSubmit: true,
-      pool: pool(),
-    })
+    // Keep the filing reporter a normal agent (high-impact evidence is agent-owned).
+    // OWN_CASE is asserted via a separate platform_admin who we re-tag as
+    // reporter_id — reaches the handler past requirePlatformAdmin without
+    // weakening the admin vote gate.
+    const reporter = await agentAccount('WF05 High Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 High PA', { platformAdmin: true })
+    const ownAdmin = await agentAccount('WF05 Own-Case Admin', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'High impact villa' })
     await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
 
@@ -339,9 +338,13 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     expect(same.status).toBe(409)
     expect(same.body.code).toBe('SAME_REVIEWER')
 
+    await pool().query(
+      `UPDATE market_pricing.comparable_reports SET reporter_id = $1 WHERE id = $2`,
+      [ownAdmin.userId, reportId],
+    )
     const own = await request(app)
       .post(`/api/admin/valuation/approval-requests/${approvalId}/vote`)
-      .set('Authorization', `Bearer ${reporter.token}`)
+      .set('Authorization', `Bearer ${ownAdmin.token}`)
       .set('X-Wingcaster-Env', 'live')
       .send({ decision: 'approve', notes: 'own case' })
     expect(own.status).toBe(403)

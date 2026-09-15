@@ -1577,6 +1577,9 @@ async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}
 
     // Option A: vote + status + finalize (tombstone/report/audit) + outbox in one txn.
     // Recalc enqueue runs after commit via outbox dispatch (retryable).
+    // Do NOT swallow INSERT/UPDATE errors — a failed statement aborts the PG
+    // transaction; catching and continuing yields "current transaction is aborted"
+    // on later work and hides the root cause (e.g. self-approval trigger).
     let outboxRow = null
     const finalized = await runTransaction(async (client) => {
       await client.query(
@@ -1584,13 +1587,13 @@ async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}
          VALUES ($1, $2, $3, $4, $5::timestamptz)
          ON CONFLICT DO NOTHING`,
         [actionId, approvalRequestId, actorUuid, actionDecision, now],
-      ).catch(() => null)
+      )
       await client.query(
         `UPDATE fin.approval_requests
             SET status = 'APPROVED', updated_at = $2::timestamptz, decided_at = $2::timestamptz
           WHERE id = $1`,
         [approvalRequestId, now],
-      ).catch(() => null)
+      )
 
       const result = await finalizeApprovedRemoval({
         report,
