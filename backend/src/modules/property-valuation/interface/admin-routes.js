@@ -546,7 +546,9 @@ export function registerAdminRoutes(app, services) {
             `SELECT action_kind FROM fin.approval_requests WHERE id = $1 LIMIT 1`,
             [approvalId],
           )
-          actionKind = q?.rows?.[0]?.action_kind || null
+          // persistence query() returns a rows array; tolerate { rows } too.
+          const row = Array.isArray(q) ? q[0] : q?.rows?.[0]
+          actionKind = row?.action_kind || null
         } catch {
           actionKind = null
         }
@@ -585,21 +587,22 @@ export function registerAdminRoutes(app, services) {
         return res.json(result)
       }
 
-      if (actionKind === 'COMPARABLE_REMOVE') return runComparable()
-      if (actionKind === 'PRICE_REPORT_INCORPORATE') return runPrice()
+      if (actionKind === 'COMPARABLE_REMOVE') return await runComparable()
+      if (actionKind === 'PRICE_REPORT_INCORPORATE') return await runPrice()
 
       if (agentPriceReportAdminService?.castSecondApprovalVote) {
         try {
           return await runPrice()
         } catch (err) {
-          if (err?.code !== 'NOT_FOUND' && err?.status !== 404) throw err
+          if (err?.code !== 'NOT_FOUND' && err?.status !== 404 && err?.httpStatus !== 404) throw err
         }
       }
-      return runComparable()
+      return await runComparable()
     } catch (err) {
       try {
-        if (typeof sendDecisionError === 'function') {
-          try { return sendDecisionError(res, err) } catch { /* fall through */ }
+        if (typeof err?.toJSON === 'function' && (err.status || err.httpStatus)) {
+          const status = Number(err.status || err.httpStatus) || 500
+          if (status < 500) return res.status(status).json(err.toJSON())
         }
         return sendServiceError(res, err)
       } catch (e) { next(e) }
