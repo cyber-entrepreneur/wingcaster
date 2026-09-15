@@ -25,7 +25,7 @@ export default defineConfig({
     fileParallelism: false,
     // Forks + single worker: threads pool ignored parent NODE_OPTIONS and
     // OOMed GHA. Pin worker heap to 4GB so parent+worker fit ubuntu-latest
-    // (~7GB); CI shards across 24 runners so RSS stays under the ceiling.
+    // (~7GB); CI shards across 32 runners so RSS stays under the ceiling.
     pool: 'forks',
     maxWorkers: 1,
     minWorkers: 1,

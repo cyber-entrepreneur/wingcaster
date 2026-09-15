@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Wave 8 activation polish — accessibility contract
- * (CURSOR_SCREEN_WAVE_8_ACTIVATION_POLISH.md Phase B item 7 + non-negotiable #7).
- *
- * Extra scrutiny: Pro dense tables + keyboard nav (≥768), Guided fallback <768
- * with ui_mode=pro. Surfaces/consent/inbox/dialogs live in
- * wave8-activation-surfaces.a11y.test.tsx (split to avoid CI OOM).
- *
- * Chromatic / Storybook are not configured — see scratchpad/wave8-chromatic-gap.md.
+ * Wave 8 activation polish — surface a11y (consent, inbox, relationships, dialogs).
+ * Split from wave8-activation.a11y.test.tsx so each forks worker stays under
+ * the 4GB ubuntu-latest heap ceiling.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -252,6 +247,7 @@ import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { InboxPage } from '@/pages/InboxPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
+import { LOGIN_COPY } from '@/pages/agent/dashboard/copy'
 // Guided listings fallback ListingsPage covered in wave8-listings-fallback.a11y.test.tsx
 
 function setViewport(minWidth: number) {
@@ -429,170 +425,204 @@ afterEach(() => {
   purgePortals()
 })
 
-describe('Wave 8 a11y — discovery status', () => {
-  it('reports all Phase A Wave 8 modules present after e2e merge', () => {
-    const status = phaseAStatus()
-    expect(status.readyCount).toBe(10)
-    expect(status.proDashboard).toBe(true)
-    expect(status.proListingsTable).toBe(true)
-    expect(status.consentLanding).toBe(true)
-    expect(status.channelSourceBadges).toBe(true)
-    expect(status.relationshipsEditor).toBe(true)
-  })
-})
-
-describe('Wave 8 a11y — theme floors', () => {
-  it('broadcast theme still ships 44px tap floor + two-tone focus', () => {
-    expect(THEME_CSS).toContain('--lc-tap-target-min: 44px')
-    expect(THEME_CSS).toMatch(/--lc-focus-ring/)
-  })
-})
-
-describe('Wave 8 a11y — Pro dashboard (≥768)', () => {
-  it('exposes heading, density radiogroup, and quick actions with tap floor', async () => {
-    const { container } = renderProDashboard()
-    expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    const density = screen.getByRole('radiogroup', { name: /Dashboard density/i })
-    expect(within(density).getAllByRole('radio')).toHaveLength(3)
-    const newListing = screen.getByRole('button', { name: /New listing/i })
-    assertTapFloor(newListing, 'New listing')
+describe('Wave 8 a11y — public consent landing (token-only)', () => {
+  it('ready state has main landmark, no auth chrome, and passes axe', async () => {
+    const { container } = renderConsent()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Confirm this relationship/i })).toBeInTheDocument()
+    })
+    expect(container.querySelector('main')).toBeTruthy()
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByLabelText(/Skip to content/i)).toBeNull()
+    expect(screen.queryByTestId('bottom-tab-bar')).toBeNull()
+    expect(screen.getByText(/WingCaster/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Accept & confirm/i })).toBeInTheDocument()
     await expectNoAxeViolations(container)
   })
 
-  it('opens keyboard shortcuts dialog on ? and restores focus path', async () => {
+  it('missing-token and expired states are announced as alerts', async () => {
+    const missing = renderConsent('/public/relationships/consent?contactId=spoof')
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+    expect(apiMocks.getPublicRelationshipConsent).not.toHaveBeenCalled()
+    cleanup()
+    missing.unmount()
+
+    apiMocks.getPublicRelationshipConsent.mockRejectedValueOnce(
+      Object.assign(new Error('expired'), { status: 410, code: 'expired' }),
+    )
+    const { container } = renderConsent('/public/relationships/consent?token=old')
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/consent link has expired/i)).toBeInTheDocument()
+    await expectNoAxeViolations(container)
+  })
+
+  it('accept/decline CTAs meet tap floor', async () => {
+    renderConsent()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Decline/i })).toBeInTheDocument()
+    })
+    assertTapFloor(screen.getByRole('button', { name: /Decline/i }), 'Decline')
+    assertTapFloor(screen.getByRole('button', { name: /Accept & confirm/i }), 'Accept')
+  })
+})
+
+describe('Wave 8 a11y — inbox dual-badge smoke', () => {
+  it('ChannelSourceBadges announces channel from source and passes axe', async () => {
+    const { container } = render(
+      <ChannelSourceBadges channel="whatsapp" source="bayut" />,
+    )
+    expect(screen.getByLabelText(/WhatsApp from Bayut/i)).toBeInTheDocument()
+    await expectNoAxeViolations(container)
+  })
+
+  it('InboxRow dual-badge row passes axe', async () => {
+    const { container } = render(
+      <div role="list">
+        <div role="listitem">
+          <InboxRow conversation={sampleInboxConversation} onSelect={() => undefined} />
+        </div>
+      </div>,
+    )
+    expect(screen.getByLabelText(/WhatsApp from Bayut/i)).toBeInTheDocument()
+    await expectNoAxeViolations(container)
+  })
+})
+
+describe('Wave 8 a11y — relationships editor smoke', () => {
+  it('editor headings + pending actions pass axe', async () => {
+    const { container } = renderRelationships()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('heading', { name: /My relationships/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /Other agencies representing this contact/i }),
+    ).toBeInTheDocument()
+    await expectNoAxeViolations(container)
+  })
+})
+
+describe('Wave 8 a11y — RTL + dark smoke', () => {
+  it('Pro table stays operable under rtl + dark', async () => {
+    document.documentElement.dir = 'rtl'
+    document.documentElement.lang = 'ar'
+    applyLcMode('dark')
+    const { container } = renderProTable()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    await expectNoAxeViolations(container)
+  })
+
+  it('consent landing stays public-safe under dark RTL', async () => {
+    document.documentElement.dir = 'rtl'
+    document.documentElement.lang = 'ar'
+    applyLcMode('dark')
+    const { container } = renderConsent()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Confirm this relationship/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('navigation')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+})
+
+describe('Wave 8 a11y — Pro AR copy via useLocale', () => {
+  it('renders Arabic LOGIN_COPY when locale=ar', async () => {
+    localeState.locale = 'ar'
+    document.documentElement.lang = 'ar'
+    document.documentElement.dir = 'rtl'
+    renderProDashboard()
+    await waitFor(() => expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument())
+    const heading = screen.getByRole('heading', { level: 1 }).textContent ?? ''
+    const arGreetings = [
+      LOGIN_COPY['greeting.morning'].ar,
+      LOGIN_COPY['greeting.afternoon'].ar,
+      LOGIN_COPY['greeting.evening'].ar,
+    ]
+    expect(arGreetings.some((g) => heading.includes(g))).toBe(true)
+  })
+})
+
+describe('Wave 8 a11y — dialog focus traps (Tab + Shift+Tab)', () => {
+  async function assertFocusTrap(user: ReturnType<typeof userEvent.setup>) {
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => {
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    })
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  }
+
+  it('ProDashboard keyboard shortcuts dialog traps focus', async () => {
     const user = userEvent.setup()
     renderProDashboard()
+    await waitFor(() => expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Keyboard shortcuts/i })).toBeInTheDocument()
-    })
-    expect(screen.getByText(/Go to Inbox/i)).toBeInTheDocument()
+    await assertFocusTrap(user)
     await user.keyboard('{Escape}')
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: /Keyboard shortcuts/i })).toBeNull()
+      expect(screen.queryByRole('dialog')).toBeNull()
     })
   })
 
-  it('density radios are keyboard-operable', async () => {
+  it('Relationships create dialog traps focus', async () => {
     const user = userEvent.setup()
-    renderProDashboard()
-    const compact = screen.getByRole('radio', { name: /compact/i })
-    await user.click(compact)
-    expect(compact).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('pro-dashboard')).toHaveAttribute('data-density', 'compact')
-  })
-})
-
-describe('Wave 8 a11y — Pro listings table (≥768)', () => {
-  it('uses table semantics with sortable column headers', () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    expect(region).toBeInTheDocument()
-    expect(within(region).getByRole('table')).toBeInTheDocument()
-    const priceHeader = screen.getByRole('columnheader', { name: /Price/i })
-    expect(priceHeader).toHaveAttribute('aria-sort')
-    expect(screen.getByRole('checkbox', { name: /Select all on page/i })).toBeInTheDocument()
-  })
-
-  it('supports j/k row focus and space selection', async () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    region.focus()
-    expect(document.activeElement).toBe(region)
-    fireEvent.keyDown(region, { key: 'ArrowDown' })
-    fireEvent.keyDown(region, { key: ' ' })
+    renderRelationships()
     await waitFor(() => {
-      expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
     })
-    expect(screen.getByRole('region', { name: /Bulk actions/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Add relationship/i }))
+    await assertFocusTrap(user)
   })
 
-  it('passes jest-axe in dense Pro table state', async () => {
-    const { container } = renderProTable()
-    await expectNoAxeViolations(container)
-  })
-
-  it('New listing + row action targets meet tap floor', () => {
+  it('ProListingsTable customize-columns dialog traps focus', async () => {
+    const user = userEvent.setup()
     renderProTable()
-    assertTapFloor(screen.getByRole('button', { name: /New listing/i }), 'New listing')
-    assertTapFloor(
-      screen.getByRole('button', { name: /Actions for Marina Gate/i }),
-      'Row actions',
-    )
+    await user.click(screen.getByRole('button', { name: /Customize columns/i }))
+    await assertFocusTrap(user)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })
 
-describe('Wave 8 a11y — Guided fallback <768 with ui_mode=pro', () => {
-  it('AgentDashboardProGate keeps Guided shell (D-S-06) and passes axe', async () => {
-    setViewport(375)
-    uiModeState.mode = 'pro'
-    uiModeState.effectiveMode = 'guided'
-    uiModeState.shouldRenderPro = false
-    uiModeState.isProCapable = false
-
+describe('Wave 8 a11y — full InboxPage axe', () => {
+  it('InboxPage list view passes axe', async () => {
     const { container } = render(
       wrapProviders(
-        <MemoryRouter>
-          <main>
-            <AgentDashboardProGate
-              guided={<div data-testid="guided-dashboard">Guided dashboard</div>}
-            />
-          </main>
-        </MemoryRouter>,
-      ),
-    )
-
-    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
-    expect(screen.queryByTestId('pro-dashboard')).toBeNull()
-    await expectNoAxeViolations(container)
-  })
-
-  it('AgentDashboardModeMount Guided condition renders and passes axe', async () => {
-    setViewport(375)
-    uiModeState.mode = 'pro'
-    uiModeState.effectiveMode = 'guided'
-    uiModeState.shouldRenderPro = false
-    uiModeState.isProCapable = false
-
-    const { container } = render(
-      wrapProviders(
-        <MemoryRouter>
-          <main>
-            <AgentDashboardModeMount
-              shouldRenderPro={false}
-              guided={<div data-testid="guided-dashboard">Guided</div>}
-            />
-          </main>
-        </MemoryRouter>,
-      ),
-    )
-    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
-    expect(screen.queryByTestId('pro-dashboard')).toBeNull()
-    await expectNoAxeViolations(container)
-  })
-
-  it('real Guided AgentDashboardPage under Pro gate passes axe', async () => {
-    setViewport(375)
-    uiModeState.mode = 'pro'
-    uiModeState.effectiveMode = 'guided'
-    uiModeState.shouldRenderPro = false
-    uiModeState.isProCapable = false
-
-    const { container } = render(
-      wrapProviders(
-        <MemoryRouter initialEntries={['/dashboard']}>
+        <MemoryRouter initialEntries={['/inbox']}>
           <Routes>
-            <Route path="/dashboard" element={<AgentDashboardPage />} />
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/inbox/:id" element={<InboxPage />} />
           </Routes>
         </MemoryRouter>,
       ),
     )
     await waitFor(() => {
-      expect(screen.queryByTestId('pro-dashboard')).toBeNull()
+      expect(apiMocks.getConversations).toHaveBeenCalled()
     })
-    // Guided shell mounts (not Pro)
-    expect(container.querySelector('[data-dashboard-mode="pro"]')).toBeNull()
+    expect(screen.queryByText('Omar Hassan')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+})
+
+describe('Wave 8 a11y — PIIMask on relationships editor', () => {
+  it('masks contact name/email by default', async () => {
+    const { container } = renderRelationships()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Omar Hassan')).toBeNull()
+    expect(screen.queryByText('omar@example.com')).toBeNull()
+    expect(container.querySelector('[data-pii-revealed="false"]')).toBeTruthy()
     await expectNoAxeViolations(container)
   })
 })
