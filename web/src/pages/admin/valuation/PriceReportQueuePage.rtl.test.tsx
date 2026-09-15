@@ -153,6 +153,15 @@ describe('PriceReportQueuePage (PA-PVA-009)', () => {
     expect(screen.getAllByText(/Dubai Marina/i).length).toBeGreaterThan(0)
   })
 
+  it('does not leak plaintext agent name at runtime on queue', async () => {
+    renderQueue()
+    await waitFor(() => {
+      expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
+    expect(document.querySelector('[data-pii-kind="name"]')).toBeTruthy()
+  })
+
   it('does not expose a bulk Incorporate action; bulk bar offers Signal only / Reject / Request info', async () => {
     const user = userEvent.setup()
     renderQueue()

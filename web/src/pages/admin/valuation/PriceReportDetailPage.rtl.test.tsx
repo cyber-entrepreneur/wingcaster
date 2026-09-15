@@ -172,6 +172,7 @@ describe('PriceReportDetailPage (PA-PVA-009b)', () => {
     expect(screen.getByRole('button', { name: /Approve as signal only/i })).toBeTruthy()
     expect(screen.getByTestId('benchmark-chart')).toBeTruthy()
     expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
   })
 
   it('reviews with incorporate:true and weight for high-delta (two-person path)', async () => {
@@ -344,6 +345,15 @@ describe('PriceReportDetailPage (PA-PVA-009b)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Incorporate into benchmark/i })).toBeTruthy())
     await user.keyboard('?')
     await waitFor(() => expect(screen.getAllByText(/Show keyboard shortcuts|Keyboard shortcuts/i).length).toBeGreaterThan(0))
+  })
+
+  it('does not leak plaintext agent name at runtime on detail', async () => {
+    renderDetail()
+    await waitFor(() => {
+      expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
+    expect(document.querySelector('[data-pii-kind="name"]')).toBeTruthy()
   })
 
   it('audits PII reveal', async () => {

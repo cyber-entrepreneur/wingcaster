@@ -25,6 +25,8 @@ import { createAgentAccount, updatePlatformRole } from '../identity.js'
 import { signElevatedToken, signToken, ELEVATION_HEADER } from '../auth.js'
 import { findOne } from '../db.js'
 import { PRICE_REPORTS_SUBMIT_FEATURE_CODE } from '../lib/packages/registry.js'
+import { runSlaStuckRequestsReaper } from '../workers/sla-stuck-requests-reaper.js'
+import { runReportExpiryTick, reportExpiresAt } from '../workers/report-expiry-worker.js'
 
 async function agentAccount(label = 'Agent', { platformAdmin = false } = {}) {
   const userId = randomUUID()
@@ -583,5 +585,364 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     expect(again.status).toBe(410)
     expect(again.body.code).toBe('TOKEN_CONSUMED')
   })
-})
 
+  it('WF-05 reject-as-invalid -> rejected outcome', async () => {
+    const reporter = await agentAccount('WF05 Reject Reporter')
+    const pa = await agentAccount('WF05 Reject PA', { platformAdmin: true })
+    const comparableId = await seedExternalComparable(pool(), { title: 'Reject path comp' })
+
+    const submit = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'other',
+        notes: 'Looks fine to me after re-check.',
+      })
+    expect(submit.status).toBe(201)
+    const reportId = submit.body.id
+
+    const reject = await request(app)
+      .post(`/api/admin/pricing/reports/${reportId}/reject-as-invalid`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ reason_code: 'comparable_correct', notes: 'Listing still active on portal.' })
+    expect(reject.status, JSON.stringify(reject.body)).toBe(200)
+    expect(reject.body.status).toBe('rejected')
+    expect(reject.body.decision).toBe('REJECT_AS_INVALID')
+
+    const mine = await request(app)
+      .get('/api/pricing/my-comparable-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    expect(mine.status).toBe(200)
+    expect(mine.body.find((r) => r.id === reportId)?.status).toBe('rejected')
+  })
+
+  it('WF-05 request-info -> awaiting_info (needs-revision)', async () => {
+    const reporter = await agentAccount('WF05 Info Reporter')
+    const pa = await agentAccount('WF05 Info PA', { platformAdmin: true })
+    const comparableId = await seedExternalComparable(pool(), { title: 'Needs info comp' })
+
+    const submit = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'already_sold',
+        notes: 'Sold last week per broker.',
+      })
+    expect(submit.status).toBe(201)
+
+    const info = await request(app)
+      .post(`/api/admin/pricing/reports/${submit.body.id}/request-info`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({
+        reason_code: 'need_sale_record',
+        notes: 'Please attach DLD sale extract.',
+        requested_evidence: ['sale_record'],
+      })
+    expect(info.status, JSON.stringify(info.body)).toBe(200)
+    expect(info.body.status).toBe('awaiting_info')
+
+    const mine = await request(app)
+      .get('/api/pricing/my-comparable-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    expect(mine.body.find((r) => r.id === submit.body.id)?.status).toBe('awaiting_info')
+  })
+
+  it('WF-05 withdrawn -> proposal recalled to pending', async () => {
+    const reporter = await agentAccount('WF05 Withdraw Reporter')
+    const pa = await agentAccount('WF05 Withdraw PA', { platformAdmin: true })
+    const comparableId = await seedExternalComparable(pool(), { title: 'Withdraw path villa' })
+    await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
+
+    const submit = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'incorrect_price',
+        notes: 'Price looks fabricated on portal.',
+      })
+    expect(submit.status).toBe(201)
+    const reportId = submit.body.id
+
+    const elevation = signElevatedToken({ userId: pa.userId, tokenVersion: 1 })
+    const proposed = await request(app)
+      .post(`/api/admin/pricing/reports/${reportId}/confirm-remove`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .set(ELEVATION_HEADER, elevation)
+      .send({ notes: 'Proposing then withdrawing.' })
+    expect(proposed.status).toBe(202)
+    expect(proposed.body.status).toBe('remove_proposed')
+
+    const recall = await request(app)
+      .post(`/api/admin/pricing/reports/${reportId}/recall-proposal`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ reason: 'Found confirming sale record; withdrawing proposal.' })
+    expect(recall.status, JSON.stringify(recall.body)).toBe(200)
+    expect(recall.body.status).toBe('pending')
+
+    if (proposed.body.approval_request_id) {
+      const approval = await pool().query(
+        `SELECT status FROM fin.approval_requests WHERE id = $1`,
+        [proposed.body.approval_request_id],
+      )
+      expect(approval.rows[0]?.status).toBe('WITHDRAWN')
+    }
+  })
+
+  it('WF-05 expired/SLA auto-close via report-expiry worker', async () => {
+    const reporter = await agentAccount('WF05 Expiry Reporter')
+    const comparableId = await seedExternalComparable(pool(), { title: 'Expiry path comp' })
+    const submit = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'already_sold',
+        notes: 'Will expire for SLA auto-close.',
+      })
+    expect(submit.status).toBe(201)
+    const reportId = submit.body.id
+
+    await pool().query(
+      `UPDATE market_pricing.comparable_reports
+          SET expires_at = NOW() - INTERVAL '1 hour',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [reportId],
+    )
+
+    const tick = await runReportExpiryTick({ pool: pool() })
+    expect(tick.expired || tick.tables?.comparable_reports?.expired || 0).toBeGreaterThan(0)
+
+    const row = await pool().query(
+      `SELECT status FROM market_pricing.comparable_reports WHERE id = $1`,
+      [reportId],
+    )
+    expect(row.rows[0]?.status).toBe('expired')
+  })
+
+  it('WF-05 signal-only confirm-quarantine -> confirmed_quarantined', async () => {
+    const reporter = await agentAccount('WF05 Signal Reporter')
+    const pa = await agentAccount('WF05 Signal PA', { platformAdmin: true })
+    const comparableId = await seedExternalComparable(pool(), { title: 'Signal-only quarantine' })
+
+    const submit = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'wrong_details',
+        notes: 'Soft signal - quarantine instead of remove.',
+      })
+    expect(submit.status).toBe(201)
+
+    const quarantine = await request(app)
+      .post(`/api/admin/pricing/reports/${submit.body.id}/confirm-quarantine`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ notes: 'Temporary quarantine while portal catches up.', quarantine_hours: 72 })
+    expect(quarantine.status, JSON.stringify(quarantine.body)).toBe(200)
+    expect(quarantine.body.status).toBe('confirmed_quarantined')
+
+    const mine = await request(app)
+      .get('/api/pricing/my-comparable-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    expect(mine.body.find((r) => r.id === submit.body.id)?.status).toBe('confirmed_quarantined')
+  })
+
+  it('WF-06 PA reject -> rejected; agent outcome sees rejection', async () => {
+    const reporter = await agentAccount('WF06 Reject Reporter')
+    const pa = await agentAccount('WF06 Reject PA', { platformAdmin: true })
+    const submit = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        external_property_title: 'Reject path sale',
+        external_property_location: 'JLT',
+        property_type: 'apartment',
+        bedrooms: 1,
+        sold_price: 900000,
+        currency: 'AED',
+        notes: 'Agent claims closed sale.',
+        country_code: 'AE',
+      })
+    expect(submit.status).toBe(201)
+    const reportId = submit.body.id
+
+    const reject = await request(app)
+      .post(`/api/admin/pricing/agent-price-reports/${reportId}/review`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ status: 'rejected', reason_code: 'insufficient_evidence', notes: 'No DLD proof attached.' })
+    expect(reject.status, JSON.stringify(reject.body)).toBe(200)
+    expect(reject.body.status).toBe('rejected')
+
+    const mine = await request(app)
+      .get('/api/pricing/my-agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    expect(mine.status).toBe(200)
+    const outcome = mine.body.find((r) => r.id === reportId)
+    expect(outcome?.status).toBe('rejected')
+    expect(outcome?.incorporated).not.toBe(true)
+  })
+
+  it('WF-06 request-info loop -> request_info then agent resubmit state', async () => {
+    const reporter = await agentAccount('WF06 Info Reporter')
+    const pa = await agentAccount('WF06 Info PA', { platformAdmin: true })
+    const submit = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        external_property_location: 'Business Bay',
+        property_type: 'apartment',
+        bedrooms: 2,
+        sold_price: 1400000,
+        currency: 'AED',
+        country_code: 'AE',
+      })
+    expect(submit.status).toBe(201)
+
+    const info = await request(app)
+      .post(`/api/admin/pricing/agent-price-reports/${submit.body.id}/review`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ status: 'request_info', reason_code: 'need_sale_record', notes: 'Need DLD PDF.' })
+    expect(info.status, JSON.stringify(info.body)).toBe(200)
+    expect(info.body.status).toBe('request_info')
+
+    const mine = await request(app)
+      .get('/api/pricing/my-agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    expect(mine.body.find((r) => r.id === submit.body.id)?.status).toBe('request_info')
+  })
+
+  it('WF-06 agent-sees-rejection outcome fields after PA reject', async () => {
+    const reporter = await agentAccount('WF06 Outcome Reporter')
+    const pa = await agentAccount('WF06 Outcome PA', { platformAdmin: true })
+    const submit = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        external_property_title: 'Outcome reject sale',
+        sold_price: 1100000,
+        currency: 'AED',
+        country_code: 'AE',
+        notes: 'Will be rejected for outcome panel.',
+      })
+    expect(submit.status).toBe(201)
+    const reportId = submit.body.id
+
+    await request(app)
+      .post(`/api/admin/pricing/agent-price-reports/${reportId}/review`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ status: 'rejected', notes: 'Comparable already in pool; not a closed sale.' })
+
+    const mine = await request(app)
+      .get('/api/pricing/my-agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+    const outcome = mine.body.find((r) => r.id === reportId)
+    expect(outcome).toBeTruthy()
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.reviewed_at || outcome.updated_at).toBeTruthy()
+    expect(outcome.incorporated === true).toBe(false)
+  })
+
+  it('SLA stuck reaper -> dead_letter + sla_reaped audit for WF-05 and WF-06', async () => {
+    const reporter = await agentAccount('SLA Reaper Reporter')
+    const pa = await agentAccount('SLA Reaper PA', { platformAdmin: true })
+
+    // WF-05 high-impact ? REQUESTED approval, then age it past SLA
+    const comparableId = await seedExternalComparable(pool(), { title: 'SLA stuck comp' })
+    await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
+    const submit5 = await request(app)
+      .post('/api/pricing/report-comparable')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        comparable_id: comparableId,
+        comparable_type: 'external',
+        reason: 'incorrect_price',
+        notes: 'High impact stuck approval for reaper.',
+      })
+    expect(submit5.status).toBe(201)
+    const elevation = signElevatedToken({ userId: pa.userId, tokenVersion: 1 })
+    const proposed = await request(app)
+      .post(`/api/admin/pricing/reports/${submit5.body.id}/confirm-remove`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .set(ELEVATION_HEADER, elevation)
+      .send({ notes: 'Leave pending for SLA reaper.' })
+    expect(proposed.status).toBe(202)
+    const apr5 = proposed.body.approval_request_id
+    expect(apr5).toBeTruthy()
+
+    // WF-06 high-delta ? pending_second_approval
+    const segmentId = `seg_ae_sla_${reporter.userId.slice(0, 8)}`
+    await pool().query(
+      `INSERT INTO market_pricing.pricing_benchmarks
+         (id, segment_id, country_code, currency, price_point, computed_at, env, created_at, updated_at, data)
+       VALUES ($1, $2, 'AE', 'AED', 1000000, CURRENT_TIMESTAMP, 'live',
+               CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'::jsonb)`,
+      [randomUUID(), segmentId],
+    )
+    const submit6 = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        external_property_location: 'Marina',
+        property_type: 'apartment',
+        bedrooms: 2,
+        sold_price: 1850000,
+        currency: 'AED',
+        segment_id: segmentId,
+        recommendation_price_point: 1850000,
+        country_code: 'AE',
+      })
+    expect(submit6.status).toBe(201)
+    const review = await request(app)
+      .post(`/api/admin/pricing/agent-price-reports/${submit6.body.id}/review`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ status: 'verified', incorporate: true, notes: 'High delta stuck for reaper' })
+    expect(review.status).toBe(200)
+    const apr6 = review.body.approval_request_id || review.body.request_id
+    expect(apr6).toBeTruthy()
+
+    await pool().query(
+      `UPDATE fin.approval_requests
+          SET created_at = NOW() - INTERVAL '72 hours',
+              updated_at = NOW() - INTERVAL '72 hours'
+        WHERE id = ANY($1::uuid[])`,
+      [[apr5, apr6]],
+    )
+
+    const result = await runSlaStuckRequestsReaper({ pool: pool(), slaHours: 48 })
+    expect(result.reaped).toBeGreaterThanOrEqual(2)
+
+    for (const id of [apr5, apr6]) {
+      const row = await pool().query(
+        `SELECT status FROM fin.approval_requests WHERE id = $1`,
+        [id],
+      )
+      expect(row.rows[0]?.status).toBe('dead_letter')
+      const audit = await pool().query(
+        `SELECT type, action FROM public.audit_log
+          WHERE entity_id = $1 AND type = 'sla_reaped'
+          ORDER BY created_at DESC LIMIT 1`,
+        [id],
+      )
+      expect(audit.rows[0]?.type).toBe('sla_reaped')
+    }
+  })
+})

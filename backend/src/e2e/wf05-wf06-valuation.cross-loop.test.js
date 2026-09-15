@@ -209,9 +209,29 @@ describe('WF-06 service — incorporate transactional + high-delta deferral', ()
             status: 'REQUESTED',
           })
         }
-        return []
+        if (String(sql).includes('INSERT INTO fin.outbox_events')) {
+          if (!store.outbox_events) store.outbox_events = []
+          store.outbox_events.push({
+            id: params[0],
+            topic: params[2],
+            dedupe_key: params[3],
+            status: 'PENDING',
+          })
+        }
+        if (String(sql).includes('UPDATE fin.approval_requests') && String(sql).includes('APPROVED')) {
+          const row = store.approval_requests.find((r) => r.id === params[0])
+          if (row) row.status = 'APPROVED'
+        }
+        return { rows: [], rowCount: 0 }
       },
-      transaction: async (work) => work({}),
+      transaction: async (work) => {
+        // Real fake-txn semantics: client.query delegates to the same in-memory
+        // dal.query so nested approval/outbox writes inside work() persist.
+        const client = {
+          query: async (sql, params = []) => dal.query(sql, params),
+        }
+        return work(client)
+      },
     }
 
     const refreshCalls = []
