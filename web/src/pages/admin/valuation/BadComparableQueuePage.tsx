@@ -10,14 +10,16 @@
  * 5. `<PIIMask>` on reporter identifiers.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download, Globe, HelpCircle, Paperclip } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Globe, Paperclip } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useEnv } from '@/hooks/useEnv'
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import {
   PAQueueBulkBar,
   PAQueueBulkReasonDialog,
+  PAQueueKeyboardShortcutsPanel,
+  type PAQueueBulkAction,
   PAQueueFilterStrip,
   PAQueueTable,
   type PAQueueColumn,
@@ -34,6 +36,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { comparableReportsApi } from './api'
 import {
+  DETAIL_COPY,
   QUEUE_COPY,
   REASON_CATEGORY_OPTIONS,
   SEVERITY_OPTIONS,
@@ -55,7 +58,31 @@ import {
 import type { ComparableReportCounts, ComparableReportListItem } from './types'
 
 /** WF-05 bulk actions — confirm-remove / quarantine intentionally excluded. */
-export const WF05_BULK_ACTIONS = ['reject', 'request_info'] as const
+export const WF05_BULK_ACTIONS: readonly PAQueueBulkAction[] = ['reject', 'request_info']
+
+const WF05_SHORTCUTS = [
+  { keys: 'J', description: 'Next report' },
+  { keys: 'K', description: 'Previous report' },
+  { keys: 'Enter', description: 'Open report detail' },
+  { keys: 'X', description: 'Toggle row selection' },
+  { keys: 'Shift + A', description: 'Select all visible rows' },
+  { keys: '.', description: 'Refresh queue' },
+  { keys: '?', description: 'Show keyboard shortcuts' },
+  { keys: 'Esc', description: 'Close modal / clear selection' },
+]
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
+function isRtlDocument(): boolean {
+  if (typeof document === 'undefined') return false
+  const dir = document.documentElement.getAttribute('dir') || document.body?.getAttribute('dir') || 'ltr'
+  return dir.toLowerCase() === 'rtl'
+}
 
 const selectClassName = cn(
   'min-h-tap rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)]',
@@ -65,12 +92,12 @@ const selectClassName = cn(
 
 type BulkDialogMode = 'reject' | 'request_info' | null
 
-function buildSubtitle(counts: ComparableReportCounts | null): string {
+function buildSubtitle(counts: ComparableReportCounts | null, nextSlaLabel: string): string {
   if (!counts) return 'Loading…'
   return QUEUE_COPY.subtitleTemplate
     .replace('{N}', String(counts.pending ?? 0))
     .replace('{K}', String(counts.pending_at_risk ?? 0))
-    .replace('{T}', '—')
+    .replace('{T}', nextSlaLabel)
     .replace('{H}', String(counts.high_impact_awaiting_two_person ?? 0))
     .replace('{M}', String(counts.confirmed_removed_this_week ?? 0))
     .replace('{J}', String(counts.rejected_this_week ?? 0))
@@ -99,6 +126,9 @@ export function BadComparableQueuePage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkMode, setBulkMode] = useState<BulkDialogMode>(null)
   const [searchDraft, setSearchDraft] = useState(q)
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const sort = searchParams.get('sort') || 'market_impact:desc,sla_remaining:asc,submitted_at:asc'
 
   const patchParams = useCallback(
     (partial: Record<string, string | null>) => {
@@ -127,18 +157,23 @@ export function BadComparableQueuePage() {
         q: q || undefined,
         page,
         pageSize: 25,
-        sort: 'market_impact:desc,sla_remaining:asc,submitted_at:asc',
+        sort,
       })
       setRows(res.reports ?? [])
       setCounts(res.counts ?? null)
       setTotal(res.pagination?.total ?? res.reports?.length ?? 0)
+      setFocusedId((prev) => {
+        const list = res.reports ?? []
+        if (prev && list.some((r) => r.id === prev)) return prev
+        return list[0]?.id ?? null
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : QUEUE_COPY.loadError)
       setRows([])
     } finally {
       setLoading(false)
     }
-  }, [status, category, severity, impact, within, q, page, env])
+  }, [status, category, severity, impact, within, q, page, sort, env])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -183,25 +218,54 @@ export function BadComparableQueuePage() {
   )
 
   const selectedRows = rows.filter((r) => selectedIds.includes(r.id))
-  const highRiskCount = selectedRows.filter(
-    (r) =>
-      r.severity === 'high' ||
-      r.severity === 'critical' ||
-      r.market_impact?.tier === 'high',
+  const highSeverityCount = selectedRows.filter(
+    (r) => r.severity === 'high' || r.severity === 'critical',
   ).length
+  const highImpactCount = selectedRows.filter((r) => r.market_impact?.tier === 'high').length
+  const highRiskCount = highSeverityCount + highImpactCount
+  const reporterPatternSelected = selectedRows.some((r) => r.reporter.pattern_flag)
   const acrossCategories = new Set(selectedRows.map((r) => r.reason_category)).size
+
+  const nextSlaLabel = useMemo(() => {
+    const pending = rows.filter((r) => r.status === 'pending')
+    if (!pending.length) return '—'
+    const minHours = Math.min(...pending.map((r) => r.sla_hours_remaining))
+    if (!Number.isFinite(minHours)) return '—'
+    if (minHours <= 0) return 'overdue'
+    if (minHours < 1) return `${Math.max(1, Math.round(minHours * 60))}m`
+    return `${Math.round(minHours)}h`
+  }, [rows])
+
+  const toggleSort = (column: string) => {
+    const [currentCol, currentDir] = (sort.split(',')[0] || '').split(':')
+    const nextDir = currentCol === column && currentDir === 'asc' ? 'desc' : 'asc'
+    patchParams({ sort: `${column}:${nextDir}` })
+  }
+
+  const sortHeader = (column: string, label: string) => (
+    <button
+      type="button"
+      className="min-h-tap text-start font-medium underline-offset-2 hover:underline"
+      onClick={() => toggleSort(column)}
+    >
+      {label}
+    </button>
+  )
 
   const openDetail = (row: ComparableReportListItem) => {
     const returnTo = encodeURIComponent(
       `/admin/valuation/comparable-reports?${searchParams.toString()}`,
     )
-    navigate(`/admin/valuation/comparable-reports/${row.id}?return_to=${returnTo}`)
+    const queue_ids = rows.map((r) => r.id).join(',')
+    navigate(
+      `/admin/valuation/comparable-reports/${row.id}?return_to=${returnTo}&queue_ids=${encodeURIComponent(queue_ids)}`,
+    )
   }
 
   const columns: PAQueueColumn<ComparableReportListItem>[] = [
     {
       id: 'submitted',
-      header: QUEUE_COPY.columns.submitted,
+      header: sortHeader('submitted_at', QUEUE_COPY.columns.submitted),
       cell: (row) => {
         const sla = formatSlaChip(row.sla_hours_remaining)
         return (
@@ -307,12 +371,12 @@ export function BadComparableQueuePage() {
     },
     {
       id: 'severity',
-      header: QUEUE_COPY.columns.severity,
+      header: sortHeader('severity', QUEUE_COPY.columns.severity),
       cell: (row) => <SeverityBadge severity={row.severity} />,
     },
     {
       id: 'impact',
-      header: QUEUE_COPY.columns.impact,
+      header: sortHeader('market_impact', QUEUE_COPY.columns.impact),
       cell: (row) => <MarketImpactChip impact={row.market_impact} />,
     },
     {
@@ -362,6 +426,64 @@ export function BadComparableQueuePage() {
     },
   ]
 
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen(true)
+        return
+      }
+      if (e.key === 'Escape') {
+        setBulkMode(null)
+        setSelectedIds([])
+        setShortcutsOpen(false)
+        return
+      }
+      if (e.key === '.') {
+        e.preventDefault()
+        void load()
+        return
+      }
+      if (!rows.length) return
+      const idx = Math.max(0, rows.findIndex((r) => r.id === focusedId))
+      const rtl = isRtlDocument()
+      const nextKey = rtl ? 'ArrowLeft' : 'ArrowRight'
+      const prevKey = rtl ? 'ArrowRight' : 'ArrowLeft'
+      if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown' || e.key === nextKey) {
+        e.preventDefault()
+        setFocusedId(rows[Math.min(rows.length - 1, idx + 1)]?.id ?? null)
+        return
+      }
+      if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp' || e.key === prevKey) {
+        e.preventDefault()
+        setFocusedId(rows[Math.max(0, idx - 1)]?.id ?? null)
+        return
+      }
+      const focused = rows.find((r) => r.id === focusedId) || rows[0]
+      if (!focused) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        openDetail(focused)
+        return
+      }
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault()
+        setSelectedIds((prev) =>
+          prev.includes(focused.id) ? prev.filter((id) => id !== focused.id) : [...prev, focused.id],
+        )
+        return
+      }
+      if (e.key === 'A' && e.shiftKey) {
+        e.preventDefault()
+        setSelectedIds(rows.map((r) => r.id))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   if (!isAdmin) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -389,14 +511,49 @@ export function BadComparableQueuePage() {
       ) : null}
 
       <div className="mx-auto max-w-[1440px] px-4 py-6">
-        <header className="mb-4">
-          <h1
-            className="text-[var(--lc-text-heading)]"
-            style={{ font: 'var(--lc-type-heading-1)' }}
-          >
-            {QUEUE_COPY.pageTitle}
-          </h1>
-          <p className="mt-1 text-sm text-[var(--lc-text-muted)]">{buildSubtitle(counts)}</p>
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1
+              className="text-[var(--lc-text-heading)]"
+              style={{ font: 'var(--lc-type-heading-1)' }}
+            >
+              {QUEUE_COPY.pageTitle}
+            </h1>
+            <p className="mt-1 text-sm text-[var(--lc-text-muted)]">{buildSubtitle(counts, nextSlaLabel)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-tap"
+              onClick={() => {
+                const path = comparableReportsApi.exportCsvPath({
+                  status,
+                  category: category === 'any' ? undefined : category,
+                  severity: severity === 'any' ? undefined : severity,
+                  impact: impact === 'any' ? undefined : impact,
+                  within,
+                  q: q || undefined,
+                  sort,
+                })
+                window.open(path, '_blank', 'noopener,noreferrer')
+              }}
+            >
+              <Download className="me-1 h-4 w-4" aria-hidden />
+              {QUEUE_COPY.exportCsv || DETAIL_COPY.exportCsv}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-tap min-w-tap"
+              aria-label="Keyboard shortcuts"
+              onClick={() => setShortcutsOpen(true)}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </div>
         </header>
 
         <PAQueueFilterStrip
@@ -480,9 +637,23 @@ export function BadComparableQueuePage() {
             selectedCount={selectedIds.length}
             acrossCount={acrossCategories}
             highRiskCount={highRiskCount}
+            highSeverityCount={highSeverityCount}
+            highImpactCount={highImpactCount}
+            highSeverityLabel={DETAIL_COPY.highSeverity}
+            highImpactLabel={DETAIL_COPY.highImpact}
             onClearSelection={() => setSelectedIds([])}
-            onReject={() => setBulkMode('reject')}
-            onRequestInfo={() => setBulkMode('request_info')}
+            onReject={() => {
+              if (reporterPatternSelected) {
+                addToast({ title: DETAIL_COPY.bulkSkipReporterWarn, variant: 'warning' })
+              }
+              setBulkMode('reject')
+            }}
+            onRequestInfo={() => {
+              if (reporterPatternSelected) {
+                addToast({ title: DETAIL_COPY.bulkSkipReporterWarn, variant: 'warning' })
+              }
+              setBulkMode('request_info')
+            }}
             rejectLabel={QUEUE_COPY.bulk.rejectAsInvalid}
             requestInfoLabel={QUEUE_COPY.bulk.requestMoreInfo}
             stepUpNotice={QUEUE_COPY.bulk.stepUpNotice}
@@ -508,6 +679,7 @@ export function BadComparableQueuePage() {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           selectable
+          focusedId={focusedId}
           loading={loading}
           onRowClick={openDetail}
           aria-label="Bad-comparable-report queue"
@@ -586,6 +758,12 @@ export function BadComparableQueuePage() {
             })
           }
         }}
+      />
+
+      <PAQueueKeyboardShortcutsPanel
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        shortcuts={WF05_SHORTCUTS}
       />
 
       <PAQueueBulkReasonDialog

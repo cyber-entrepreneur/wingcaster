@@ -1998,11 +1998,41 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  undoAdminComparableReportDecision: (reportId: string) =>
+  undoAdminComparableReportDecision: (
+    reportId: string,
+    data?: { undo_token_id?: string },
+  ) =>
     fetchJson(`/admin/pricing/reports/${reportId}/undo-decision`, {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify(data || {}),
     }),
+  recallAdminComparableReportProposal: (
+    reportId: string,
+    data: { reason: string },
+  ) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/recall-proposal`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getAdminComparableReportEvidenceUrl: (reportId: string, evidenceId: string) =>
+    fetchJson(
+      `/admin/pricing/reports/${encodeURIComponent(reportId)}/evidence/${encodeURIComponent(evidenceId)}/url`,
+    ),
+  castSecondApprovalVote: (data: {
+    approval_request_id: string
+    decision: 'approve' | 'decline'
+    notes?: string
+  }) =>
+    fetchJson(
+      `/admin/valuation/approval-requests/${encodeURIComponent(data.approval_request_id)}/vote`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          decision: data.decision,
+          notes: data.notes,
+        }),
+      },
+    ),
   bulkRejectAdminComparableReportsAsInvalid: (data: Record<string, unknown>) =>
     fetchJson('/admin/pricing/reports/bulk-reject-as-invalid', {
       method: 'POST',

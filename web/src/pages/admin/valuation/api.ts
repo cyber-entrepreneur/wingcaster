@@ -2,7 +2,7 @@
  * WF-05 comparable-report API helpers (PA-PVA-008 / 008b).
  * Colocated wrappers over `@/api/client`.
  */
-import { api } from '@/api/client'
+import { api, API_BASE } from '@/api/client'
 import type {
   AffectedValuationRow,
   AuditTrailEvent,
@@ -54,7 +54,7 @@ export const comparableReportsApi = {
   exportCsvPath: (query: ComparableReportListQuery = {}): string => {
     const params = new URLSearchParams(toParams(query))
     const s = params.toString()
-    return `/admin/pricing/reports.csv${s ? `?${s}` : ''}`
+    return `${API_BASE}/admin/pricing/reports.csv${s ? `?${s}` : ''}`
   },
 
   confirmRemove: (reportId: string, body: { notes?: string }): Promise<DecisionResponse> =>
@@ -75,8 +75,30 @@ export const comparableReportsApi = {
     body: { reason_code: string; notes: string; requested_evidence?: string[] },
   ): Promise<DecisionResponse> => api.requestAdminComparableReportInfo(reportId, body),
 
-  undoDecision: (reportId: string): Promise<DecisionResponse> =>
-    api.undoAdminComparableReportDecision(reportId),
+  undoDecision: (
+    reportId: string,
+    body?: { undo_token_id?: string },
+  ): Promise<DecisionResponse> => api.undoAdminComparableReportDecision(reportId, body),
+
+  recallProposal: (
+    reportId: string,
+    body: { reason: string },
+  ): Promise<DecisionResponse> => api.recallAdminComparableReportProposal(reportId, body),
+
+  evidenceUrl: (
+    reportId: string,
+    evidenceId: string,
+  ): Promise<{ url: string; expires_at?: string }> =>
+    api.getAdminComparableReportEvidenceUrl(reportId, evidenceId) as Promise<{
+      url: string
+      expires_at?: string
+    }>,
+
+  castSecondVote: (body: {
+    approval_request_id: string
+    decision: 'approve' | 'decline'
+    notes?: string
+  }): Promise<DecisionResponse> => api.castSecondApprovalVote(body),
 
   bulkRejectAsInvalid: (body: {
     report_ids: string[]

@@ -495,7 +495,7 @@ describe('WF-05 bulk / undo / affected (Agent 6)', () => {
     })
     clock += UNDO_GRACE_MS + 1
     await expect(service.undoDecision('undo-1')).rejects.toMatchObject({
-      code: REPORT_ERROR.UNDO_WINDOW_EXPIRED,
+      code: REPORT_ERROR.UNDO_EXPIRED,
     })
   })
 

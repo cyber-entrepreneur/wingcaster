@@ -9,6 +9,7 @@ export type ComparableReportStatus =
   | 'expired'
   | 'pending_second_approval'
   | 'REMOVE_PROPOSED'
+  | 'remove_proposed'
 
 export type ReasonCategory =
   | 'wrong_price'
@@ -66,6 +67,7 @@ export interface MarketImpact {
 }
 
 export interface EvidenceFile {
+  id?: string | null
   filename: string
   uploaded_at: string
   size_bytes?: number
@@ -119,6 +121,8 @@ export interface ComparableReportListItem {
     proposed_by?: { id: string; display_name: string; initials?: string }
     proposed_at?: string
     approval_request_id?: string
+    notes?: string | null
+    weighting?: unknown
   } | null
 }
 
@@ -130,7 +134,9 @@ export interface ComparableReportDetail extends ComparableReportListItem {
     reason_category: ReasonCategory | string
     status: ComparableReportStatus | string
     decided_at?: string | null
+    decision?: string | null
   }>
+  approval_request_id?: string | null
 }
 
 export interface ComparableReportCounts {
@@ -191,6 +197,9 @@ export interface DecisionResponse {
   approval_request_id?: string
   recalculation_job_id?: string
   valuations_affected?: number
+  undo_token_id?: string
+  undo_expires_at?: string
+  pending_second_approval?: boolean
   [key: string]: unknown
 }
 

@@ -10,15 +10,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
+  Download,
   ExternalLink,
+  FileText,
+  HelpCircle,
+  Image as ImageIcon,
   MessageCircle,
   Pause,
   Trash2,
   Users,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { PAQueueKeyboardShortcutsPanel } from '@/components/queue'
 import { useEnv } from '@/hooks/useEnv'
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import { PIIMask, TwoPersonProgress } from '@/components/security'
@@ -63,10 +72,45 @@ import type {
   ReporterHistoryRow,
 } from './types'
 
-type DecisionModal = 'remove' | 'quarantine' | 'reject' | 'request_info' | null
+type DecisionModal = 'remove' | 'quarantine' | 'reject' | 'request_info' | 'recall' | 'second_confirm' | null
+
+const DETAIL_SHORTCUTS = [
+  { keys: 'R', description: 'Confirm-remove' },
+  { keys: 'Q', description: 'Confirm-quarantine' },
+  { keys: 'X', description: 'Reject as invalid' },
+  { keys: 'I', description: 'Request more info' },
+  { keys: 'C', description: 'Toggle read-confirm' },
+  { keys: 'J', description: 'Next report in queue' },
+  { keys: 'K', description: 'Previous report in queue' },
+  { keys: 'Esc', description: 'Close modal' },
+  { keys: '?', description: 'Show keyboard shortcuts' },
+]
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
+function isRtlDocument(): boolean {
+  if (typeof document === 'undefined') return false
+  const dir = document.documentElement.getAttribute('dir') || document.body?.getAttribute('dir') || 'ltr'
+  return dir.toLowerCase() === 'rtl'
+}
+
+function isImageContent(contentType?: string | null, filename?: string): boolean {
+  if (contentType?.startsWith('image/')) return true
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(filename || '')
+}
+
+function isPdf(contentType?: string | null, filename?: string): boolean {
+  if (contentType === 'application/pdf') return true
+  return /\.pdf$/i.test(filename || '')
+}
 
 export function BadComparableDetailPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, agent } = useAuth()
   const { env } = useEnv()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -89,6 +133,25 @@ export function BadComparableDetailPage() {
   const [audit, setAudit] = useState<AuditTrailEvent[]>([])
   const [history, setHistory] = useState<ReporterHistoryRow[]>([])
   const [tab, setTab] = useState(initialTab)
+  const [undoToken, setUndoToken] = useState<{
+    undo_token_id: string
+    undo_expires_at: string
+  } | null>(null)
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0)
+  const [pendingNavigateTo, setPendingNavigateTo] = useState<string | null>(null)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [secondVoteNotes, setSecondVoteNotes] = useState('')
+  const [relatedOpen, setRelatedOpen] = useState(false)
+  const [evidenceIndex, setEvidenceIndex] = useState<number | null>(null)
+  const [evidenceUrl, setEvidenceUrl] = useState<string | null>(null)
+  const [evidenceZoom, setEvidenceZoom] = useState(1)
+  const [liveMessage, setLiveMessage] = useState('')
+  const [deltaVisible, setDeltaVisible] = useState(true)
+  const queueIds = useMemo(() => {
+    const raw = searchParams.get('queue_ids')
+    if (!raw) return [] as string[]
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  }, [searchParams])
 
   const load = useCallback(async () => {
     if (!reportId) return
@@ -123,7 +186,15 @@ export function BadComparableDetailPage() {
   const isOwn = Boolean(report?.is_own)
   const isHighImpact = report?.market_impact?.tier === 'high'
   const requiresTwoPerson = Boolean(report?.requires_two_person || isHighImpact)
-  const alreadyDecided = report && !isPending && report.status !== 'pending_second_approval'
+  const awaitingSecond =
+    report?.status === 'pending_second_approval' || report?.status === 'REMOVE_PROPOSED' || report?.status === 'remove_proposed'
+  const alreadyDecided = Boolean(report && !isPending && !awaitingSecond)
+  const currentUserId = agent?.id || null
+  const isProposer = Boolean(
+    currentUserId && report?.proposal?.proposed_by?.id && String(report.proposal.proposed_by.id) === String(currentUserId),
+  )
+  const approvalRequestId =
+    report?.approval_request_id || report?.proposal?.approval_request_id || null
 
   const canLoudDecision = readConfirm && !isOwn && isPending && !submitting
   const canRequestInfo = !isOwn && isPending && !submitting
@@ -171,40 +242,148 @@ export function BadComparableDetailPage() {
     setQuarantineHours(72)
   }
 
-  const afterSuccess = (message: string, navigateBack = true) => {
+  useEffect(() => {
+    if (!undoToken?.undo_expires_at) {
+      setUndoSecondsLeft(0)
+      return
+    }
+    const tick = () => {
+      const ms = Date.parse(undoToken.undo_expires_at) - Date.now()
+      if (ms <= 0) {
+        setUndoSecondsLeft(0)
+        setUndoToken(null)
+        if (pendingNavigateTo) {
+          const dest = pendingNavigateTo
+          setPendingNavigateTo(null)
+          navigate(dest)
+        }
+        return
+      }
+      setUndoSecondsLeft(Math.ceil(ms / 1000))
+    }
+    tick()
+    const id = window.setInterval(tick, 250)
+    return () => window.clearInterval(id)
+  }, [undoToken, pendingNavigateTo, navigate])
+
+  useEffect(() => {
+    setDeltaVisible(true)
+    const t = window.setTimeout(() => setDeltaVisible(false), 4000)
+    return () => window.clearTimeout(t)
+  }, [reportId, report?.delta_pct])
+
+  const toastVoteError = (err: unknown) => {
+    const e = err as { code?: string; status?: number; message?: string }
+    if (e.code === 'OWN_CASE') {
+      addToast({ variant: 'error', title: DETAIL_COPY.ownCaseDecision })
+      return
+    }
+    if (e.code === 'SAME_REVIEWER') {
+      addToast({
+        variant: 'error',
+        title: 'Same reviewer cannot cast the second vote.',
+      })
+      return
+    }
+    if (e.code === 'TOKEN_CONSUMED' || e.status === 410) {
+      addToast({ variant: 'error', title: DETAIL_COPY.undoConsumed })
+      return
+    }
+    if (e.code === 'UNDO_EXPIRED' || e.code === 'UNDO_WINDOW_EXPIRED') {
+      addToast({ variant: 'error', title: DETAIL_COPY.undoExpired })
+      return
+    }
+    addToast({
+      variant: 'error',
+      title: e.message || (err instanceof Error ? err.message : 'Action failed'),
+    })
+  }
+
+  const afterSuccess = (
+    message: string,
+    opts: {
+      navigateBack?: boolean
+      undo?: { undo_token_id?: string; undo_expires_at?: string } | null
+    } = {},
+  ) => {
+    const navigateBack = opts.navigateBack !== false
     addToast({ title: message, variant: 'success' })
     closeModal()
+    if (opts.undo?.undo_token_id && opts.undo.undo_expires_at) {
+      setUndoToken({
+        undo_token_id: opts.undo.undo_token_id,
+        undo_expires_at: opts.undo.undo_expires_at,
+      })
+      if (navigateBack) setPendingNavigateTo(returnTo)
+      void load()
+      return
+    }
     if (navigateBack) {
+      // No undo token — keep prior short delay but prefer staying for second-PA path
       window.setTimeout(() => navigate(returnTo), 1500)
     } else {
       void load()
     }
   }
 
+  const handleUndo = async () => {
+    if (!report || !undoToken) return
+    try {
+      await comparableReportsApi.undoDecision(report.id, {
+        undo_token_id: undoToken.undo_token_id,
+      })
+      addToast({ title: DETAIL_COPY.undoDone, variant: 'success' })
+      setUndoToken(null)
+      setPendingNavigateTo(null)
+      await load()
+    } catch (err) {
+      toastVoteError(err)
+      setUndoToken(null)
+    }
+  }
+
+  const dismissUndoAndNavigate = () => {
+    setUndoToken(null)
+    if (pendingNavigateTo) {
+      const dest = pendingNavigateTo
+      setPendingNavigateTo(null)
+      navigate(dest)
+    }
+  }
+
   const submitRemove = async () => {
     if (!report) return
+    if (notes.trim().length < 5) {
+      addToast({ title: 'Notes must be at least 5 characters.', variant: 'warning' })
+      return
+    }
     setSubmitting(true)
     try {
-      const res = await comparableReportsApi.confirmRemove(report.id, { notes })
+      const res = await comparableReportsApi.confirmRemove(report.id, { notes: notes.trim() })
       const proposed =
         res.status === 'pending_second_approval' ||
         res.status === 'REMOVE_PROPOSED' ||
+        res.status === 'remove_proposed' ||
+        Boolean(res.pending_second_approval) ||
         Boolean(res.approval_request_id)
       if (proposed) {
-        afterSuccess(DETAIL_COPY.toastTwoPerson)
+        afterSuccess(DETAIL_COPY.toastTwoPerson, { navigateBack: false })
       } else {
         afterSuccess(
           DETAIL_COPY.toastRemove.replace(
             '{N}',
             String(res.valuations_affected ?? report.market_impact.valuations_affected),
           ),
+          {
+            undo: {
+              undo_token_id: res.undo_token_id as string | undefined,
+              undo_expires_at: res.undo_expires_at as string | undefined,
+            },
+          },
         )
       }
     } catch (err) {
-      addToast({
-        title: err instanceof Error ? err.message : 'Confirm-remove failed',
-        variant: 'error',
-      })
+      toastVoteError(err)
     } finally {
       setSubmitting(false)
     }
@@ -218,7 +397,9 @@ export function BadComparableDetailPage() {
         notes,
         quarantine_hours: quarantineHours,
       })
-      afterSuccess(DETAIL_COPY.toastQuarantine.replace('{H}', String(quarantineHours)), false)
+      afterSuccess(DETAIL_COPY.toastQuarantine.replace('{H}', String(quarantineHours)), {
+        navigateBack: false,
+      })
     } catch (err) {
       addToast({
         title: err instanceof Error ? err.message : 'Quarantine failed',
@@ -263,7 +444,7 @@ export function BadComparableDetailPage() {
           '{reporterName}',
           report.reporter.display_name,
         ),
-        false,
+        { navigateBack: false },
       )
     } catch (err) {
       addToast({
@@ -274,6 +455,146 @@ export function BadComparableDetailPage() {
       setSubmitting(false)
     }
   }
+
+
+  const openEvidence = async (index: number) => {
+    if (!report) return
+    const file = report.evidence?.files?.[index]
+    if (!file) return
+    setEvidenceIndex(index)
+    setEvidenceZoom(1)
+    setEvidenceUrl(null)
+    const evidenceId = file.id || file.filename
+    try {
+      if (file.url) {
+        setEvidenceUrl(file.url)
+      } else if (evidenceId) {
+        const res = await comparableReportsApi.evidenceUrl(report.id, String(evidenceId))
+        setEvidenceUrl(res.url)
+      }
+      setLiveMessage(`Opened evidence ${file.filename}`)
+    } catch {
+      addToast({ variant: 'error', title: 'Preview link expired. Refresh page.' })
+    }
+  }
+
+  const handleSecondVote = async (decision: 'approve' | 'decline') => {
+    if (!approvalRequestId) return
+    if (secondVoteNotes.trim().length < 5) {
+      addToast({ title: 'Notes must be at least 5 characters.', variant: 'warning' })
+      return
+    }
+    setSubmitting(true)
+    try {
+      await comparableReportsApi.castSecondVote({
+        approval_request_id: approvalRequestId,
+        decision,
+        notes: secondVoteNotes.trim(),
+      })
+      addToast({
+        variant: 'success',
+        title: decision === 'approve' ? DETAIL_COPY.toastSecondApproved : DETAIL_COPY.toastSecondDeclined,
+      })
+      setSecondVoteNotes('')
+      setModal(null)
+      await load()
+    } catch (err) {
+      toastVoteError(err)
+      await load()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRecall = async () => {
+    if (!report) return
+    if (notes.trim().length < 5) {
+      addToast({ title: 'Reason must be at least 5 characters.', variant: 'warning' })
+      return
+    }
+    setSubmitting(true)
+    try {
+      await comparableReportsApi.recallProposal(report.id, { reason: notes.trim() })
+      addToast({ title: DETAIL_COPY.toastRecalled, variant: 'success' })
+      closeModal()
+      await load()
+    } catch (err) {
+      toastVoteError(err)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const goQueueNeighbor = (delta: number) => {
+    if (!queueIds.length || !reportId) return
+    const idx = queueIds.indexOf(reportId)
+    if (idx < 0) return
+    const next = queueIds[idx + delta]
+    if (!next) return
+    const params = new URLSearchParams(searchParams)
+    navigate(`/admin/valuation/comparable-reports/${next}?${params.toString()}`)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen(true)
+        return
+      }
+      if (e.key === 'Escape') {
+        if (evidenceIndex != null) {
+          setEvidenceIndex(null)
+          setEvidenceUrl(null)
+          return
+        }
+        setModal(null)
+        setShortcutsOpen(false)
+        return
+      }
+      const rtl = isRtlDocument()
+      const nextKey = rtl ? 'ArrowLeft' : 'ArrowRight'
+      const prevKey = rtl ? 'ArrowRight' : 'ArrowLeft'
+      if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown' || e.key === nextKey) {
+        e.preventDefault()
+        goQueueNeighbor(1)
+        return
+      }
+      if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp' || e.key === prevKey) {
+        e.preventDefault()
+        goQueueNeighbor(-1)
+        return
+      }
+      if (awaitingSecond) return
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        openModal('remove')
+        return
+      }
+      if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault()
+        openModal('quarantine')
+        return
+      }
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault()
+        openModal('reject')
+        return
+      }
+      if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault()
+        openModal('request_info')
+        return
+      }
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault()
+        setReadConfirm((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   if (!isAdmin) {
     return (
@@ -459,7 +780,15 @@ export function BadComparableDetailPage() {
                 className="bg-[var(--lc-status-warning-bg)] px-4 py-2 text-sm text-[var(--lc-status-warning-fg)]"
                 data-delta-ribbon
               >
-                {deltaRibbon}
+          <div
+            role="status"
+            className={cn(
+              'mb-4 overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent-bold)] px-3 py-2 text-sm text-[var(--lc-accent-bold-text)] transition-all duration-700 ease-out',
+              deltaVisible ? 'max-h-24 opacity-100' : 'max-h-8 opacity-60',
+            )}
+          >
+            {deltaRibbon}
+          </div>
               </div>
               <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
                 <div>
@@ -511,26 +840,113 @@ export function BadComparableDetailPage() {
                   String(report.evidence?.file_count ?? 0),
                 )}
               </h3>
+              <div className="sr-only" aria-live="polite">
+                {liveMessage}
+              </div>
               {(report.evidence?.file_count ?? 0) === 0 ? (
                 <div className="rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] px-3 py-2 text-sm text-[var(--lc-status-warning-fg)]">
                   {DETAIL_COPY.evidenceZero}
                 </div>
               ) : (
-                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(report.evidence?.files ?? []).map((f) => (
-                    <li
-                      key={`${f.filename}-${f.uploaded_at}`}
-                      className="rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-2 text-xs"
-                    >
-                      <p className="truncate font-medium">{f.filename}</p>
-                      <p className="text-[var(--lc-text-muted)]">
-                        {formatRelativeSubmitted(f.uploaded_at)}
-                      </p>
+                <ul className="flex flex-wrap gap-3">
+                  {(report.evidence?.files ?? []).map((f, idx) => (
+                    <li key={`${f.id || f.filename}-${f.uploaded_at}`}>
+                      <button
+                        type="button"
+                        data-evidence-card
+                        className="relative h-[120px] w-[160px] overflow-hidden rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lc-focus-ring)]"
+                        aria-label={`Preview ${f.filename}`}
+                        onClick={() => void openEvidence(idx)}
+                      >
+                        {isImageContent(f.content_type, f.filename) && f.url ? (
+                          <img
+                            src={f.url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : isPdf(f.content_type, f.filename) ? (
+                          <div className="flex h-full flex-col items-center justify-center gap-1 p-2 text-xs text-[var(--lc-text-muted)]">
+                            <FileText className="h-8 w-8" aria-hidden />
+                            <span>PDF</span>
+                          </div>
+                        ) : (
+                          <div className="flex h-full flex-col items-center justify-center gap-1 p-2 text-xs text-[var(--lc-text-muted)]">
+                            <ImageIcon className="h-8 w-8" aria-hidden />
+                            <span className="truncate px-1">{f.filename}</span>
+                          </div>
+                        )}
+                      </button>
                     </li>
                   ))}
                 </ul>
               )}
             </section>
+
+            {(report.related_reports?.length ?? 0) > 0 ? (
+              <section className="mt-4">
+                <button
+                  type="button"
+                  className="flex min-h-tap w-full items-center justify-between rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-3 py-2 text-sm font-semibold"
+                  aria-expanded={relatedOpen}
+                  onClick={() => setRelatedOpen((v) => !v)}
+                >
+                  <span>
+                    {DETAIL_COPY.relatedReports.replace(
+                      '{N}',
+                      String(report.related_reports?.length ?? 0),
+                    )}
+                  </span>
+                  <span aria-hidden>{relatedOpen ? '▾' : '▸'}</span>
+                </button>
+                {(report.related_reports?.length ?? 0) >= 2 ? (
+                  <p
+                    role="status"
+                    className="mt-2 rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] px-3 py-2 text-sm text-[var(--lc-status-warning-fg)]"
+                  >
+                    {DETAIL_COPY.relatedSoftWarn}
+                  </p>
+                ) : null}
+                {relatedOpen ? (
+                  <div className="mt-2 overflow-x-auto rounded-[var(--lc-radius-md)] border border-[var(--lc-border)]">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[var(--lc-surface-sunken)] text-start">
+                        <tr>
+                          <th className="px-3 py-2">Reporter</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Decision date</th>
+                          <th className="px-3 py-2">Decision</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.related_reports!.map((r) => (
+                          <tr key={r.id} className="border-t border-[var(--lc-border)]">
+                            <td className="px-3 py-2">
+                              <PIIMask
+                                value={r.reporter}
+                                kind="name"
+                                auditContext={{ caseId: r.id, field: 'related_reporter' }}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <ReportStatusBadge status={String(r.status)} />
+                            </td>
+                            <td className="px-3 py-2">{r.decided_at ?? '—'}</td>
+                            <td className="px-3 py-2">
+                              <Link
+                                to={`/admin/valuation/comparable-reports/${r.id}`}
+                                className="text-[var(--lc-text-brand)] underline-offset-2 hover:underline"
+                              >
+                                {r.decision ?? r.status}
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
           </div>
 
           <div
@@ -587,7 +1003,7 @@ export function BadComparableDetailPage() {
                     <span>{DETAIL_COPY.twoPersonBanner}</span>
                   </div>
                 ) : null}
-                {requiresTwoPerson && report.status === 'pending_second_approval' ? (
+                {awaitingSecond ? (
                   <TwoPersonProgress
                     firstApprover={{
                       initials:
@@ -622,6 +1038,55 @@ export function BadComparableDetailPage() {
                   </p>
                 ) : null}
 
+                {awaitingSecond ? (
+                  <div
+                    role="status"
+                    className="rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] px-3 py-2 text-sm text-[var(--lc-status-warning-fg)]"
+                  >
+                    {DETAIL_COPY.secondPaBanner}
+                    {approvalRequestId ? (
+                      <>
+                        {' · '}
+                        <Link
+                          to={`/admin/fin/approvals?id=${approvalRequestId}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          Open approval request
+                        </Link>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {awaitingSecond && isProposer ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() => {
+                      setNotes('')
+                      setModal('recall')
+                    }}
+                  >
+                    {DETAIL_COPY.recallProposal}
+                  </Button>
+                ) : null}
+
+                {awaitingSecond && !isProposer && !isOwn ? (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() => {
+                      setSecondVoteNotes('')
+                      setModal('second_confirm')
+                    }}
+                  >
+                    {DETAIL_COPY.confirmSecondRemoval.confirm}
+                  </Button>
+                ) : null}
+
                 {alreadyDecided ? (
                   <p className="text-sm text-[var(--lc-text-muted)]">
                     {DETAIL_COPY.alreadyDecided
@@ -629,7 +1094,7 @@ export function BadComparableDetailPage() {
                       .replace('{decidedBy}', report.decided_by ?? 'a PA')
                       .replace('{decidedAt}', report.decided_at ?? '—')}
                   </p>
-                ) : (
+                ) : awaitingSecond ? null : (
                   <>
                     {/* All 4 WF-05 decisions — detail only (no inline queue Approve/Reject). */}
                     <Button
@@ -747,7 +1212,7 @@ export function BadComparableDetailPage() {
             <Button type="button" variant="outline" onClick={closeModal}>
               {DETAIL_COPY.confirmRemoveModal.cancel}
             </Button>
-            <Button type="button" disabled={submitting} onClick={() => void submitRemove()}>
+            <Button type="button" disabled={submitting || notes.trim().length < 5} onClick={() => void submitRemove()}>
               {requiresTwoPerson
                 ? DETAIL_COPY.confirmRemoveModal.propose
                 : DETAIL_COPY.confirmRemoveModal.confirm}
@@ -886,6 +1351,183 @@ export function BadComparableDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={modal === 'recall'} onOpenChange={(o) => !o && closeModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{DETAIL_COPY.recallModal.title}</DialogTitle>
+            <DialogDescription>{DETAIL_COPY.recallModal.body}</DialogDescription>
+          </DialogHeader>
+          <Label htmlFor="recall-reason">{DETAIL_COPY.recallModal.reasonLabel}</Label>
+          <textarea
+            id="recall-reason"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-3 py-2 text-sm"
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={closeModal}>
+              {DETAIL_COPY.recallModal.cancel}
+            </Button>
+            <Button type="button" disabled={submitting || notes.trim().length < 5} onClick={() => void handleRecall()}>
+              {DETAIL_COPY.recallModal.confirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modal === 'second_confirm'} onOpenChange={(o) => !o && closeModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{DETAIL_COPY.confirmSecondRemoval.title}</DialogTitle>
+            <DialogDescription>{DETAIL_COPY.confirmSecondRemoval.body}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-[var(--lc-text-muted)]">{DETAIL_COPY.confirmSecondRemoval.proposerNotes}</span>
+              <br />
+              {report?.proposal?.notes || report?.decision_notes || '—'}
+            </p>
+            <p>
+              <span className="text-[var(--lc-text-muted)]">{DETAIL_COPY.confirmSecondRemoval.weighting}</span>
+              <br />
+              tier {report?.market_impact?.tier} ·{' '}
+              <Numeric>{report?.market_impact?.valuations_affected ?? 0}</Numeric> valuations
+            </p>
+          </div>
+          <Label htmlFor="second-notes">{DETAIL_COPY.confirmSecondRemoval.yourNotes}</Label>
+          <textarea
+            id="second-notes"
+            rows={3}
+            value={secondVoteNotes}
+            onChange={(e) => setSecondVoteNotes(e.target.value)}
+            className="min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-3 py-2 text-sm"
+          />
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting || secondVoteNotes.trim().length < 5}
+              onClick={() => void handleSecondVote('decline')}
+            >
+              {DETAIL_COPY.confirmSecondRemoval.decline}
+            </Button>
+            <Button
+              type="button"
+              disabled={submitting || secondVoteNotes.trim().length < 5}
+              onClick={() => void handleSecondVote('approve')}
+            >
+              {DETAIL_COPY.confirmSecondRemoval.confirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={evidenceIndex != null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEvidenceIndex(null)
+            setEvidenceUrl(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {evidenceIndex != null ? report?.evidence?.files?.[evidenceIndex]?.filename : 'Evidence'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="min-h-tap min-w-tap"
+                aria-label="Previous evidence"
+                disabled={evidenceIndex == null || evidenceIndex <= 0}
+                onClick={() => evidenceIndex != null && void openEvidence(evidenceIndex - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="min-h-tap min-w-tap"
+                aria-label="Next evidence"
+                disabled={
+                  evidenceIndex == null ||
+                  evidenceIndex >= (report?.evidence?.files?.length ?? 1) - 1
+                }
+                onClick={() => evidenceIndex != null && void openEvidence(evidenceIndex + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="icon" className="min-h-tap min-w-tap" aria-label="Zoom out" onClick={() => setEvidenceZoom((z) => Math.max(0.5, z - 0.25))}>
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="outline" size="icon" className="min-h-tap min-w-tap" aria-label="Zoom in" onClick={() => setEvidenceZoom((z) => Math.min(3, z + 0.25))}>
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              {evidenceUrl ? (
+                <Button type="button" variant="outline" asChild>
+                  <a href={evidenceUrl} download target="_blank" rel="noopener noreferrer">
+                    <Download className="me-1 h-4 w-4" aria-hidden />
+                    Download
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-3 max-h-[70vh] overflow-auto rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] p-2">
+            {evidenceUrl && evidenceIndex != null && isImageContent(report?.evidence?.files?.[evidenceIndex]?.content_type, report?.evidence?.files?.[evidenceIndex]?.filename) ? (
+              <img
+                src={evidenceUrl}
+                alt=""
+                style={{ transform: `scale(${evidenceZoom})`, transformOrigin: 'top center' }}
+                className="mx-auto max-w-full transition-transform"
+              />
+            ) : evidenceUrl && evidenceIndex != null && isPdf(report?.evidence?.files?.[evidenceIndex]?.content_type, report?.evidence?.files?.[evidenceIndex]?.filename) ? (
+              <iframe title="Evidence PDF" src={evidenceUrl} className="h-[70vh] w-full rounded-[var(--lc-radius-md)]" />
+            ) : (
+              <p className="p-4 text-sm text-[var(--lc-text-muted)]">Preview unavailable — use Download.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {undoToken && undoSecondsLeft > 0 ? (
+        <div
+          role="status"
+          className="fixed inset-x-0 bottom-4 z-40 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-[var(--lc-radius-md)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-surface-raised)] px-4 py-3 text-sm shadow-[var(--lc-elevation-md)]"
+        >
+          <span>
+            {DETAIL_COPY.undoToast.replace('{S}', String(undoSecondsLeft))}
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="link" size="sm" onClick={() => void handleUndo()}>
+              Undo
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={dismissUndoAndNavigate}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <PAQueueKeyboardShortcutsPanel
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        shortcuts={DETAIL_SHORTCUTS}
+      />
     </div>
   )
 }

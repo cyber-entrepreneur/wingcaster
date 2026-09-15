@@ -8,7 +8,7 @@ import {
 } from '../../ledger/write.js'
 
 const NOT_READY = new Set([
-  'WF-04', 'WF-05', 'WF-06', 'WF-09', 'WF-14', 'WF-15', 'WF-20',
+  'WF-04', 'WF-06', 'WF-09', 'WF-14', 'WF-15', 'WF-20',
 ])
 
 async function grantCreditsOnClient(client, {
@@ -91,6 +91,85 @@ export async function dispatchWorkflowExecute(client, ctx) {
     }
   }
 
+
+  if (workflowCode === 'WF-05' || approval.action_kind === 'COMPARABLE_REMOVE') {
+    const reportId = inner.report_id || inner.reportId || payload.report_id || approval.subject_id
+    if (!reportId) {
+      throw finError('EXECUTE_PAYLOAD_INCOMPLETE', {
+        category: CATEGORY.VALIDATION,
+        httpStatus: 400,
+        details: {
+          error: 'EXECUTE_PAYLOAD_INCOMPLETE',
+          message: 'Comparable remove execute requires report_id in approval payload.',
+        },
+      })
+    }
+    const reportRes = await client.query(
+      `SELECT id, comparable_id, comparable_type, status, data
+         FROM market_pricing.comparable_reports
+        WHERE id = $1
+        LIMIT 1`,
+      [reportId],
+    )
+    const report = reportRes.rows?.[0]
+    if (!report) {
+      throw finError('EXECUTE_TARGET_MISSING', {
+        category: CATEGORY.PRECONDITION,
+        httpStatus: 404,
+        details: { error: 'EXECUTE_TARGET_MISSING', message: 'Comparable report not found for WF-05 execute.' },
+      })
+    }
+    const comparableId = report.comparable_id || inner.comparable_id
+    const comparableType = report.comparable_type || inner.comparable_type || 'external'
+    if (comparableType === 'external' && comparableId) {
+      await client.query(
+        `UPDATE market_pricing.external_comparables
+            SET status = 'removed',
+                updated_at = $2::timestamptz,
+                data = COALESCE(data, '{}'::jsonb) || jsonb_build_object(
+                  'pricing_comparable_excluded', true,
+                  'tombstoned_at', $2::text,
+                  'tombstone_report_id', $1::text
+                )
+          WHERE id = $3`,
+        [reportId, now, comparableId],
+      )
+    }
+    await client.query(
+      `UPDATE market_pricing.comparable_reports
+          SET status = 'confirmed_removed',
+              reviewed_at = COALESCE(reviewed_at, $2::timestamptz),
+              updated_at = $2::timestamptz,
+              data = COALESCE(data, '{}'::jsonb) || jsonb_build_object(
+                'decision_label', 'CONFIRM_REMOVE',
+                'second_approver_id', $3::text,
+                'second_approved_at', $2::text,
+                'approval_request_id', $4::text
+              )
+        WHERE id = $1`,
+      [reportId, now, actor.actorId, approval.id],
+    )
+    await insertAudit(client, {
+      environment,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      actorEmail: actor.actorEmail,
+      action: 'COMPARABLE_REPORT_CONFIRMED_REMOVED',
+      targetType: 'COMPARABLE_REPORT',
+      targetId: reportId,
+      afterState: { status: 'confirmed_removed', approval_request_id: approval.id },
+      reasonCode: actor.reasonCode,
+      approvalRequestId: approval.id,
+      now,
+    })
+    return {
+      executor: 'comparableRemove',
+      report_id: reportId,
+      short_action_summary: `Removed comparable via report ${String(reportId).slice(0, 8)}`,
+      outcome_url: `/admin/valuation/comparable-reports/${reportId}`,
+    }
+  }
+
   if (workflowCode === 'WF-07' || approval.action_kind === 'PACKAGE_PUBLISH') {
     throw finError('EXECUTOR_NOT_READY', {
       category: CATEGORY.PRECONDITION,
@@ -134,6 +213,12 @@ export function outcomeUrlFor(workflowCode, approval, extra = {}) {
   if (workflowCode === 'WF-14') {
     return `/admin/invoices?highlight=${approval.subject_id || approval.id}`
   }
+  if (workflowCode === 'WF-05') {
+    const reportId = approval.payload?.report_id || approval.payload?.payload?.report_id || approval.subject_id
+    return reportId
+      ? `/admin/valuation/comparable-reports/${reportId}`
+      : `/admin/fin/approvals?highlight=${approval.id}`
+  }
   return `/admin/fin/approvals?highlight=${approval.id}`
 }
 
@@ -155,16 +240,8 @@ export function buildDiff(approval, workflowCode) {
     ]
   }
 
-  if (workflowCode === 'WF-07' || approval.action_kind === 'PACKAGE_PUBLISH') {
-    return [
-      { field: 'State', before: inner.from_status || 'Draft', after: inner.to_status || 'Published', kind: 'string' },
-      ...(inner.package_code ? [{
-        field: 'Package', before: inner.package_code, after: inner.package_code, kind: 'string',
-      }] : []),
-    ]
-  }
 
-  if (impact.change) {
+    if (impact.change) {
     return [{
       field: impact.rate_key || 'Rate',
       before: impact.change?.from?.price ?? null,
@@ -189,6 +266,9 @@ export function actionSummary(approval, workflowCode) {
   }
   if (workflowCode === 'WF-07') {
     return `Publish package: ${inner.package_code || inner.package_version_id || approval.subject_id || 'package'}`
+  }
+  if (workflowCode === 'WF-05' || approval.action_kind === 'COMPARABLE_REMOVE') {
+    return `Remove comparable report ${inner.report_id || approval.subject_id || approval.id}`
   }
   return `${approval.action_kind} · ${workflowCode}`
 }
