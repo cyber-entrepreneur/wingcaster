@@ -12,6 +12,7 @@ const apiMock = vi.hoisted(() => ({
   bulkReviewAdminAgentPriceReports: vi.fn(),
   undoAdminAgentPriceReportReview: vi.fn(),
   exportAdminAgentPriceReportsCsv: vi.fn(),
+  castSecondApprovalVote: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({ api: apiMock }))
@@ -200,5 +201,54 @@ describe('PriceReportQueuePage (PA-PVA-009)', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/second approver is required/i)).toBeTruthy()
     expect(within(dialog).getByLabelText(/Signal weight/i)).toBeTruthy()
+  })
+
+  it('OWN_REPORT toast when reviewing own row', async () => {
+    apiMock.reviewAdminAgentPriceReport.mockRejectedValue(
+      Object.assign(new Error('own'), { code: 'OWN_REPORT', status: 403 }),
+    )
+    const user = userEvent.setup()
+    renderQueue()
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Signal only$/i }).length).toBeGreaterThan(0))
+    await user.click(screen.getAllByRole('button', { name: /^Signal only$/i })[0]!)
+    const dialog = await screen.findByRole('dialog')
+    const confirm = within(dialog).getByRole('button', { name: /Confirm|Publish|Signal/i })
+    await user.click(confirm)
+    await waitFor(() => expect(apiMock.reviewAdminAgentPriceReport).toHaveBeenCalled())
+  })
+
+  it('keyboard j/k move focus and ? opens shortcuts', async () => {
+    const user = userEvent.setup()
+    renderQueue()
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Agent-price-report review/i })).toBeTruthy())
+    await user.keyboard('j')
+    await user.keyboard('?')
+    await waitFor(() => expect(screen.getAllByText(/Keyboard shortcuts|Show keyboard shortcuts/i).length).toBeGreaterThan(0))
+  })
+
+  it('undo happy path posts undo_token_id from review result', async () => {
+    const expires = new Date(Date.now() + 4000).toISOString()
+    apiMock.reviewAdminAgentPriceReport.mockResolvedValue({
+      success: true,
+      status: 'verified',
+      undo_token_id: 'tok_q',
+      undo_expires_at: expires,
+    })
+    apiMock.undoAdminAgentPriceReportReview.mockResolvedValue({ success: true })
+    const user = userEvent.setup()
+    renderQueue()
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Signal only$/i }).length).toBeGreaterThan(0))
+    await user.click(screen.getAllByRole('button', { name: /^Signal only$/i })[0]!)
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /Confirm|Publish|Signal/i }))
+    await waitFor(() => expect(apiMock.reviewAdminAgentPriceReport).toHaveBeenCalled())
+    const undoBtn = await screen.findByRole('button', { name: /^Undo$/i })
+    await user.click(undoBtn)
+    await waitFor(() => {
+      expect(apiMock.undoAdminAgentPriceReportReview).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ undo_token_id: 'tok_q' }),
+      )
+    })
   })
 })

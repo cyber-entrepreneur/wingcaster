@@ -80,6 +80,9 @@ export interface PriceReportListItem {
   two_person_required?: boolean
   env?: string
   approval_request_id?: string | null
+  viewer_already_voted?: boolean
+  undo_token_id?: string | null
+  undo_expires_at?: string | null
   /** PAQueueRow compatibility */
   isOwn?: boolean
 }
@@ -164,6 +167,16 @@ export interface PriceReportReviewResult {
   benchmark_id?: string | null
   benchmark_refresh_queued?: boolean
   refresh_job_id?: string | null
+  undo_token_id?: string | null
+  undo_expires_at?: string | null
+  decision?: 'approve' | 'decline'
+  report_id?: string
+}
+
+export interface PriceReportSecondVoteBody {
+  approval_request_id: string
+  decision: 'approve' | 'decline'
+  notes?: string
 }
 
 export interface BenchmarkSeriesPoint {
