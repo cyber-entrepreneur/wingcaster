@@ -58,9 +58,14 @@ export interface UseUiModeResult {
 /**
  * Per-tenant Guided ↔ Pro preference + viewport gate.
  * Same user can be Guided in one agency and Pro in another.
+ *
+ * TODO(wave-8-dsh-mount): `tenant_memberships[0].ui_mode` (and any singular
+ * `tenant_membership` read) is superseded by `activeTenant.uiMode` from
+ * `useTenant()` — do not regress to a thin stub that reads memberships[0].
  */
 export function useUiMode(options?: { forceProCapable?: boolean }): UseUiModeResult {
   const { agent, loading: authLoading } = useAuth()
+  // Canonical path: active tenant from useTenant (not agent.tenant_memberships[0]).
   const { activeTenant, loading: tenantLoading, refresh } = useTenant()
   const isProCapable = useIsProCapable(options?.forceProCapable)
   const [switching, setSwitching] = useState(false)

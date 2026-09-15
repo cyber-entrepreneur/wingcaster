@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useLocale } from '@/hooks/useLocale'
 import { useTenant } from '@/hooks/useTenant'
 import { api } from '@/api/client'
 import { Numeric } from '@/components/ui/numeric'
@@ -24,6 +25,12 @@ import {
 } from '@/components/dashboard/pro/WidgetPaletteDrawer'
 import { formatPrice } from '@/lib/format'
 import { normalizeStatus } from '@/lib/listingStatus'
+import {
+  t,
+  WIDGET_TITLE_KEYS,
+  type DashboardCopyKey,
+  type DashboardLocale,
+} from '@/pages/agent/dashboard/copy'
 
 export interface ProDashboardProps {
   stats?: {
@@ -36,26 +43,30 @@ export interface ProDashboardProps {
   className?: string
 }
 
-const SHORTCUTS = [
-  { keys: '?', label: 'Open shortcuts' },
-  { keys: '⌘K', label: 'Command palette' },
-  { keys: '/', label: 'Focus search' },
-  { keys: 'G D', label: 'Go to Dashboard' },
-  { keys: 'G I', label: 'Go to Inbox' },
-  { keys: 'G L', label: 'Go to Listings' },
-  { keys: '1–9', label: 'Fullscreen widget N' },
-  { keys: 'E', label: 'Toggle edit mode' },
-  { keys: 'Esc', label: 'Exit fullscreen / edit' },
-] as const
+const SHORTCUT_ROWS: ReadonlyArray<{ keys: string; labelKey: DashboardCopyKey }> = [
+  { keys: '?', labelKey: 'shortcut.openShortcuts' },
+  { keys: '⌘K', labelKey: 'shortcut.commandPalette' },
+  { keys: '/', labelKey: 'shortcut.focusSearch' },
+  { keys: 'G D', labelKey: 'shortcut.goDashboard' },
+  { keys: 'G I', labelKey: 'shortcut.goInbox' },
+  { keys: 'G L', labelKey: 'shortcut.goListings' },
+  { keys: '1–9', labelKey: 'shortcut.fullscreenWidget' },
+  { keys: 'E', labelKey: 'shortcut.toggleEdit' },
+  { keys: 'Esc', labelKey: 'shortcut.exitFullscreen' },
+]
 
-const WIDGET_TITLES: Record<string, string> = Object.fromEntries(
-  WIDGET_CATALOG.map((w) => [w.id, w.title.replace(/ KPI$/, '').replace(/ value$/, '')]),
-)
+function greetingKeyForHour(hour: number): DashboardCopyKey {
+  if (hour < 12) return 'greeting.morning'
+  if (hour < 17) return 'greeting.afternoon'
+  return 'greeting.evening'
+}
 
-function greetingForHour(hour: number): string {
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
+function localizeStatus(status: string, copyLocale: DashboardLocale): string {
+  if (status === 'urgent') return t('status.urgent', copyLocale)
+  if (status === 'overdue') return t('status.overdue', copyLocale)
+  if (status === 'today') return t('status.today', copyLocale)
+  if (status === 'new') return t('status.new', copyLocale)
+  return status
 }
 
 type LiveData = {
@@ -76,6 +87,8 @@ type LiveData = {
 export function ProDashboard({ stats: statsProp, greetingName, className }: ProDashboardProps) {
   const { agent } = useAuth()
   const { activeTenant } = useTenant()
+  const { locale, isArabic } = useLocale()
+  const copyLocale: DashboardLocale = isArabic ? 'ar' : 'en'
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const {
@@ -176,17 +189,29 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
     return () => ro.disconnect()
   }, [])
 
-  const name = greetingName || agent?.name?.split(' ')[0] || 'there'
-  const greeting = useMemo(() => greetingForHour(new Date().getHours()), [])
+  const name = greetingName || agent?.name?.split(' ')[0] || t('greeting.nameFallback', copyLocale)
+  const greeting = useMemo(
+    () => t(greetingKeyForHour(new Date().getHours()), copyLocale),
+    [copyLocale],
+  )
   const dateLabel = useMemo(
     () =>
-      new Intl.DateTimeFormat(undefined, {
+      new Date().toLocaleDateString(locale, {
         weekday: 'long',
         month: 'long',
         day: 'numeric',
-      }).format(new Date()),
-    [],
+      }),
+    [locale],
   )
+
+  const widgetTitles = useMemo(() => {
+    const titles: Record<string, string> = {}
+    for (const w of WIDGET_CATALOG) {
+      const key = WIDGET_TITLE_KEYS[w.id]
+      titles[w.id] = key ? t(key, copyLocale) : w.title
+    }
+    return titles
+  }, [copyLocale])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -279,12 +304,12 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
     ).length
     const closed = live.inquiries.filter((i) => String(i.status) === 'closed_won').length
     return [
-      { label: 'Leads', value: leads },
-      { label: 'Viewings', value: viewings },
-      { label: 'Offers', value: offers },
-      { label: 'Closed', value: closed },
+      { label: t('funnel.leads', copyLocale), value: leads },
+      { label: t('funnel.viewings', copyLocale), value: viewings },
+      { label: t('funnel.offers', copyLocale), value: offers },
+      { label: t('funnel.closed', copyLocale), value: closed },
     ]
-  }, [live.inquiries, live.viewings])
+  }, [live.inquiries, live.viewings, copyLocale])
 
   const pipelineValue = Number(
     (live.operations as { pipeline?: { total_value?: number } } | null)?.pipeline?.total_value || 0,
@@ -304,67 +329,82 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
     } | null
     const rows: Array<{ id: string; title: string; status: string }> = []
     const sla = Number(ops?.sla_breached_count || 0)
-    if (sla > 0) rows.push({ id: 'sla', title: `${sla} SLA-breached inquir${sla === 1 ? 'y' : 'ies'}`, status: 'urgent' })
+    if (sla > 0) {
+      rows.push({
+        id: 'sla',
+        title: t(sla === 1 ? 'urgent.slaBreachedOne' : 'urgent.slaBreachedMany', copyLocale, {
+          count: sla,
+        }),
+        status: 'urgent',
+      })
+    }
     for (const task of ops?.tasks?.overdue?.slice(0, 3) || []) {
       rows.push({
         id: String(task.id || task.title),
-        title: String(task.title || task.label || 'Overdue task'),
+        title: String(task.title || task.label || t('urgent.overdueTask', copyLocale)),
         status: 'overdue',
       })
     }
     for (const viewing of ops?.todays_viewings?.slice(0, 3) || []) {
       rows.push({
         id: String(viewing.id),
-        title: String(viewing.property_title || viewing.client_name || 'Viewing'),
+        title: String(
+          viewing.property_title || viewing.client_name || t('urgent.viewing', copyLocale),
+        ),
         status: 'today',
       })
     }
     if (rows.length === 0) {
       return live.inquiries.slice(0, 4).map((inq) => ({
         id: String(inq.id),
-        title: String(inq.name || inq.contact_name || inq.message || 'Inquiry'),
+        title: String(inq.name || inq.contact_name || inq.message || t('urgent.inquiry', copyLocale)),
         status: String(inq.status || 'new'),
       }))
     }
     return rows
-  }, [live.operations, live.inquiries])
+  }, [live.operations, live.inquiries, copyLocale])
 
   const renderWidget = (id: string) => {
     switch (id) {
       case 'kpi-active':
         return (
           <KpiCard
-            label="Active listings"
+            label={t('kpi.activeListings', copyLocale)}
             value={live.stats.activeListings}
-            delta={{ direction: 'up', label: 'Live count' }}
+            delta={{ direction: 'up', label: t('kpi.delta.liveCount', copyLocale) }}
             onClick={() => navigate('/listings')}
           />
         )
       case 'kpi-views':
         return (
           <KpiCard
-            label="Views (MTD)"
+            label={t('kpi.viewsMtd', copyLocale)}
             value={live.stats.totalViews}
-            delta={{ direction: 'up', label: 'From dashboard stats' }}
+            delta={{ direction: 'up', label: t('kpi.delta.fromStats', copyLocale) }}
           />
         )
       case 'kpi-inquiries':
         return (
           <KpiCard
-            label="Inquiries"
+            label={t('kpi.inquiries', copyLocale)}
             value={live.stats.inquiries}
-            delta={{ direction: 'flat', label: 'Open pipeline' }}
+            delta={{ direction: 'flat', label: t('kpi.delta.openPipeline', copyLocale) }}
             onClick={() => navigate('/inbox')}
           />
         )
       case 'kpi-pipeline':
         return (
           <KpiCard
-            label="Pipeline value"
+            label={t('kpi.pipelineValue', copyLocale)}
             value={pipelineValue}
             delta={{
               direction: pipelineValue > 0 ? 'up' : 'flat',
-              label: `${Number((live.operations as { pipeline?: { open_opportunities?: number } } | null)?.pipeline?.open_opportunities || 0)} open`,
+              label: t('kpi.delta.openCount', copyLocale, {
+                count: Number(
+                  (live.operations as { pipeline?: { open_opportunities?: number } } | null)?.pipeline
+                    ?.open_opportunities || 0,
+                ),
+              }),
             }}
             onClick={() => navigate('/opportunities')}
           />
@@ -372,9 +412,12 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
       case 'kpi-bazaar':
         return (
           <KpiCard
-            label="Bazaar-driven leads"
+            label={t('kpi.bazaarLeads', copyLocale)}
             value={bazaarLeads || bazaarListings}
-            delta={{ direction: 'flat', label: `${bazaarListings} syndicated listings` }}
+            delta={{
+              direction: 'flat',
+              label: t('kpi.delta.syndicated', copyLocale, { count: bazaarListings }),
+            }}
           />
         )
       case 'urgent':
@@ -382,7 +425,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           <div className="space-y-2">
             {urgentItems.length === 0 ? (
               <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                No urgent items right now.
+                {t('urgent.empty', copyLocale)}
               </p>
             ) : (
               urgentItems.map((item) => (
@@ -393,12 +436,12 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
                   <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
                     {item.title}
                   </span>
-                  <Badge variant="secondary">{item.status}</Badge>
+                  <Badge variant="secondary">{localizeStatus(item.status, copyLocale)}</Badge>
                 </div>
               ))
             )}
             <Link to="/inbox" className="inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Open inbox
+              {t('action.openInbox', copyLocale)}
             </Link>
           </div>
         )
@@ -410,24 +453,32 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         return (
           <div>
             <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Today&apos;s operational load
+              {t('quota.load', copyLocale)}
             </p>
             <div className="mt-[var(--lc-space-sm)] flex flex-wrap gap-4">
               <div>
-                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Due today</div>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                  {t('quota.dueToday', copyLocale)}
+                </div>
                 <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.tasks?.due_today_count ?? 0}</Numeric>
               </div>
               <div>
-                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Overdue</div>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                  {t('quota.overdue', copyLocale)}
+                </div>
                 <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.tasks?.overdue_count ?? 0}</Numeric>
               </div>
               <div>
-                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>Viewings</div>
-                <Numeric style={{ font: 'var(--lc-type-data)' }}>{ops?.pending_viewings ?? live.viewings.length}</Numeric>
+                <div className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
+                  {t('quota.viewings', copyLocale)}
+                </div>
+                <Numeric style={{ font: 'var(--lc-type-data)' }}>
+                  {ops?.pending_viewings ?? live.viewings.length}
+                </Numeric>
               </div>
             </div>
             <Link to="/tasks" className="mt-2 inline-flex text-[var(--lc-text-brand)]" style={{ font: 'var(--lc-type-caption)' }}>
-              Open tasks
+              {t('action.openTasks', copyLocale)}
             </Link>
           </div>
         )
@@ -437,7 +488,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           <div className="flex gap-3 overflow-x-auto pb-1">
             {recentListings.length === 0 ? (
               <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                No listings yet.
+                {t('listings.empty', copyLocale)}
               </p>
             ) : (
               recentListings.map((p) => (
@@ -447,7 +498,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
                   className="min-w-[160px] shrink-0 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] p-2 hover:bg-[var(--lc-surface-selected)]"
                 >
                   <div className="line-clamp-2 text-[var(--lc-text-primary)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                    {String(p.title || 'Listing')}
+                    {String(p.title || t('listings.fallbackTitle', copyLocale))}
                   </div>
                   <div className="mt-1 text-[var(--lc-text-muted)]">
                     <Numeric style={{ font: 'var(--lc-type-data-sm)' }}>
@@ -468,20 +519,22 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           <ul className="space-y-2">
             {unreadThreads.length === 0 ? (
               <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                No unread threads.
+                {t('inbox.empty', copyLocale)}
               </li>
             ) : (
               unreadThreads.map((c) => (
                 <li key={String(c.id)} className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
-                      {String(c.contact_name || c.title || 'Thread')}
+                      {String(c.contact_name || c.title || t('inbox.threadFallback', copyLocale))}
                     </div>
                     <div className="truncate text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
                       {String(c.last_message || c.snippet || '')}
                     </div>
                   </div>
-                  <Badge variant="secondary">{String(c.platform || c.source || 'inbox')}</Badge>
+                  <Badge variant="secondary">
+                    {String(c.platform || c.source || t('inbox.badgeFallback', copyLocale))}
+                  </Badge>
                 </li>
               ))
             )}
@@ -492,20 +545,27 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
           <ul className="space-y-2">
             {todayTasks.length === 0 ? (
               <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                No tasks for today.
+                {t('tasks.empty', copyLocale)}
               </li>
             ) : (
-              todayTasks.map((t, idx) => (
-                <li key={String((t as { id?: string }).id || idx)} className="flex justify-between gap-2 border-b border-[var(--lc-border)] py-1">
+              todayTasks.map((taskRow, idx) => (
+                <li
+                  key={String((taskRow as { id?: string }).id || idx)}
+                  className="flex justify-between gap-2 border-b border-[var(--lc-border)] py-1"
+                >
                   <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
                     {String(
-                      (t as { title?: string; property_title?: string }).title ||
-                        (t as { property_title?: string }).property_title ||
-                        'Task',
+                      (taskRow as { title?: string; property_title?: string }).title ||
+                        (taskRow as { property_title?: string }).property_title ||
+                        t('tasks.fallbackTitle', copyLocale),
                     )}
                   </span>
                   <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-                    {String((t as { status?: string; scheduled_at?: string }).status || (t as { scheduled_at?: string }).scheduled_at || '')}
+                    {String(
+                      (taskRow as { status?: string; scheduled_at?: string }).status ||
+                        (taskRow as { scheduled_at?: string }).scheduled_at ||
+                        '',
+                    )}
                   </span>
                 </li>
               ))
@@ -541,7 +601,9 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             {live.inquiries.slice(0, 8).map((inq) => (
               <li key={String(inq.id)} className="flex justify-between gap-2 border-b border-[var(--lc-border)] py-1">
                 <span className="truncate" style={{ font: 'var(--lc-type-body-sm)' }}>
-                  Inquiry · {String(inq.name || inq.contact_name || inq.id)}
+                  {t('activity.inquiryRow', copyLocale, {
+                    name: String(inq.name || inq.contact_name || inq.id),
+                  })}
                 </span>
                 <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
                   {String(inq.created_at || inq.status || '')}
@@ -550,7 +612,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             ))}
             {live.inquiries.length === 0 ? (
               <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                Activity feed empty.
+                {t('activity.empty', copyLocale)}
               </li>
             ) : null}
           </ul>
@@ -561,7 +623,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             {live.viewings.slice(0, 7).map((v) => (
               <li key={String(v.id)} className="flex justify-between gap-2">
                 <span style={{ font: 'var(--lc-type-body-sm)' }}>
-                  {String(v.property_title || v.title || 'Viewing')}
+                  {String(v.property_title || v.title || t('calendar.viewingFallback', copyLocale))}
                 </span>
                 <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
                   {String(v.scheduled_at || '')}
@@ -570,7 +632,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             ))}
             {live.viewings.length === 0 ? (
               <li className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                No upcoming viewings.
+                {t('calendar.empty', copyLocale)}
               </li>
             ) : null}
           </ul>
@@ -578,7 +640,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
       default:
         return (
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-            Widget unavailable.
+            {t('widget.unavailable', copyLocale)}
           </p>
         )
     }
@@ -624,8 +686,10 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="capitalize">
-              {activeTenant?.kind === 'agency' ? 'Agency' : 'Personal'}
+            <Badge variant="secondary">
+              {activeTenant?.kind === 'agency'
+                ? t('tenant.agency', copyLocale)
+                : t('tenant.personal', copyLocale)}
               {activeTenant?.name ? ` · ${activeTenant.name}` : ''}
             </Badge>
             <button
@@ -633,12 +697,12 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
               className="min-h-tap rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] px-3 text-[var(--lc-text-muted)]"
               style={{ font: 'var(--lc-type-caption)' }}
               onClick={() => {
-                if (window.confirm('Reset dashboard to default layout? Your current arrangement will be lost.')) {
+                if (window.confirm(t('confirm.resetLayout', copyLocale))) {
                   resetLayout()
                 }
               }}
             >
-              Reset layout
+              {t('action.resetLayout', copyLocale)}
             </button>
           </div>
         </div>
@@ -646,14 +710,14 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         {layout.length === 0 ? (
           <div className="rounded-[var(--lc-radius-lg)] border border-dashed border-[var(--lc-border)] px-[var(--lc-space-xl)] py-[var(--lc-space-3xl)] text-center">
             <p style={{ font: 'var(--lc-type-heading-3)' }} className="text-[var(--lc-text-heading)]">
-              No widgets yet. Press `Add widget +` or use `/` to search.
+              {t('empty.noWidgets', copyLocale)}
             </p>
             <button
               type="button"
               className="mt-4 min-h-tap rounded-[var(--lc-radius-md)] bg-[var(--lc-action-primary)] px-4 text-[var(--lc-action-primary-text)]"
               onClick={() => setPaletteOpen(true)}
             >
-              Add widget
+              {t('action.addWidget', copyLocale)}
             </button>
           </div>
         ) : (
@@ -667,7 +731,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
               onFullscreen={setFullscreenId}
               onRemove={removeWidget}
               renderWidget={renderWidget}
-              titles={WIDGET_TITLES}
+              titles={widgetTitles}
               width={gridWidth}
             />
           </div>
@@ -687,12 +751,12 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
       <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Keyboard shortcuts</DialogTitle>
+            <DialogTitle>{t('shortcuts.title', copyLocale)}</DialogTitle>
           </DialogHeader>
           <ul className="space-y-2">
-            {SHORTCUTS.map((row) => (
+            {SHORTCUT_ROWS.map((row) => (
               <li key={row.keys} className="flex items-center justify-between gap-4">
-                <span style={{ font: 'var(--lc-type-body-sm)' }}>{row.label}</span>
+                <span style={{ font: 'var(--lc-type-body-sm)' }}>{t(row.labelKey, copyLocale)}</span>
                 <kbd
                   className="rounded-[var(--lc-radius-sm)] bg-[var(--lc-surface-sunken)] px-2 py-1 text-[var(--lc-text-primary)]"
                   style={{ font: 'var(--lc-type-data-sm)' }}
@@ -703,7 +767,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
             ))}
           </ul>
           <p className="mt-3 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            Press `?` any time to reopen
+            {t('shortcuts.reopen', copyLocale)}
           </p>
         </DialogContent>
       </Dialog>
