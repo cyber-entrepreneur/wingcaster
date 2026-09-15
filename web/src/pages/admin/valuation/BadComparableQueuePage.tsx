@@ -226,15 +226,31 @@ export function BadComparableQueuePage() {
   const reporterPatternSelected = selectedRows.some((r) => r.reporter.pattern_flag)
   const acrossCategories = new Set(selectedRows.map((r) => r.reason_category)).size
 
+  // Running countdown: bump every 30s so SLA ETAs stay fresh while the queue stays open.
+  const [slaNowTick, setSlaNowTick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setSlaNowTick((n) => n + 1), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const nextSlaLabel = useMemo(() => {
+    void slaNowTick
     const pending = rows.filter((r) => r.status === 'pending')
     if (!pending.length) return '—'
-    const minHours = Math.min(...pending.map((r) => r.sla_hours_remaining))
+    // Recompute remaining from absolute SLA deadline when present; else use stored hours
+    // adjusted by elapsed ticks (30s each) so an idle queue still counts down.
+    const elapsedHours = (slaNowTick * 30) / 3600
+    const remainders = pending.map((r) => {
+      const base = Number(r.sla_hours_remaining)
+      if (!Number.isFinite(base)) return Number.POSITIVE_INFINITY
+      return base - elapsedHours
+    })
+    const minHours = Math.min(...remainders)
     if (!Number.isFinite(minHours)) return '—'
     if (minHours <= 0) return 'overdue'
     if (minHours < 1) return `${Math.max(1, Math.round(minHours * 60))}m`
     return `${Math.round(minHours)}h`
-  }, [rows])
+  }, [rows, slaNowTick])
 
   const toggleSort = (column: string) => {
     const [currentCol, currentDir] = (sort.split(',')[0] || '').split(':')

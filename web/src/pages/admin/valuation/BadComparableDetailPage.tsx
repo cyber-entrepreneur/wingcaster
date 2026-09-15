@@ -32,6 +32,7 @@ import { useEnv } from '@/hooks/useEnv'
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import { PIIMask, TwoPersonProgress } from '@/components/security'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -159,7 +160,7 @@ export function BadComparableDetailPage() {
     setError(null)
     try {
       const [detail, aff, hist, trail] = await Promise.all([
-        comparableReportsApi.get(reportId),
+        comparableReportsApi.get(reportId, { queue_context: 'pending' }),
         comparableReportsApi.affectedValuations(reportId).catch(() => ({ valuations: [] })),
         comparableReportsApi.reporterHistory(reportId).catch(() => ({ reports: [] })),
         comparableReportsApi.auditTrail(reportId).catch(() => ({ events: [] })),
@@ -525,15 +526,21 @@ export function BadComparableDetailPage() {
     }
   }
 
-  const goQueueNeighbor = (delta: number) => {
-    if (!queueIds.length || !reportId) return
-    const idx = queueIds.indexOf(reportId)
-    if (idx < 0) return
-    const next = queueIds[idx + delta]
+  const goQueueNeighbor = useCallback((delta: number) => {
+    if (!reportId) return
+    let next: string | undefined
+    if (delta < 0 && report?.prev_id) next = report.prev_id
+    else if (delta > 0 && report?.next_id) next = report.next_id
+    else if (queueIds.length) {
+      const idx = queueIds.indexOf(reportId)
+      if (idx < 0) return
+      next = queueIds[idx + delta]
+    }
     if (!next) return
     const params = new URLSearchParams(searchParams)
+    if (!params.get('queue_context')) params.set('queue_context', 'pending')
     navigate(`/admin/valuation/comparable-reports/${next}?${params.toString()}`)
-  }
+  }, [navigate, queueIds, report?.next_id, report?.prev_id, reportId, searchParams])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -657,27 +664,75 @@ export function BadComparableDetailPage() {
       ) : null}
 
       <div className="sticky top-0 z-10 border-b border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-4 py-2">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-[1440px] items-center gap-3">
           <Link
             to={returnTo}
-            className="text-sm text-[var(--lc-text-brand)] underline-offset-2 hover:underline"
+            className="shrink-0 text-sm text-[var(--lc-text-brand)] underline-offset-2 hover:underline"
             aria-label="Back to bad-comparable-report queue"
           >
             {DETAIL_COPY.backToQueue}
           </Link>
-          <EnvBadge env={env} />
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            aria-label="Copy link"
-            onClick={() => {
-              void navigator.clipboard.writeText(window.location.href)
-              addToast({ title: DETAIL_COPY.copyLinkToast, variant: 'success' })
-            }}
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
+          {report.queue_position != null && report.queue_total != null ? (
+            <Badge
+              role="status"
+              data-queue-position
+              aria-label={DETAIL_COPY.queuePosition
+                .replace('{n}', String(report.queue_position))
+                .replace('{total}', String(report.queue_total))}
+              className="shrink-0 rounded-[var(--lc-radius-pill)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent)] text-[var(--lc-accent-text,var(--lc-text-inverse))]"
+            >
+              Report <Numeric className="mx-0.5">{report.queue_position}</Numeric> of{' '}
+              <Numeric className="mx-0.5">{report.queue_total}</Numeric> pending
+            </Badge>
+          ) : null}
+          <div className="ms-auto flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-tap min-w-tap"
+              aria-label={DETAIL_COPY.prevReport}
+              disabled={!report.prev_id && !(queueIds.length && queueIds.indexOf(reportId!) > 0)}
+              onClick={() => goQueueNeighbor(-1)}
+              data-queue-nav="prev"
+            >
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-tap min-w-tap"
+              aria-label={DETAIL_COPY.nextReport}
+              disabled={
+                !report.next_id
+                && !(
+                  queueIds.length
+                  && reportId
+                  && queueIds.indexOf(reportId) >= 0
+                  && queueIds.indexOf(reportId) < queueIds.length - 1
+                )
+              }
+              onClick={() => goQueueNeighbor(1)}
+              data-queue-nav="next"
+            >
+              <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+            </Button>
+            <EnvBadge env={env} />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="min-h-tap min-w-tap"
+              aria-label="Copy link"
+              onClick={() => {
+                void navigator.clipboard.writeText(window.location.href)
+                addToast({ title: DETAIL_COPY.copyLinkToast, variant: 'success' })
+              }}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

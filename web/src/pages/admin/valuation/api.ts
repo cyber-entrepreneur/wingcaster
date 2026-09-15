@@ -32,8 +32,14 @@ export const comparableReportsApi = {
   list: (query: ComparableReportListQuery = {}): Promise<ComparableReportListResponse> =>
     api.listAdminComparableReports(toParams(query)),
 
-  get: (reportId: string): Promise<ComparableReportDetail> =>
-    api.getAdminComparableReport(reportId),
+  get: (
+    reportId: string,
+    opts?: { queue_context?: string },
+  ): Promise<ComparableReportDetail> => {
+    const params: Record<string, string> = {}
+    if (opts?.queue_context) params.queue_context = opts.queue_context
+    return api.getAdminComparableReport(reportId, params)
+  },
 
   reporterHistory: (reportId: string, limit = 10): Promise<{ reports: ReporterHistoryRow[] }> =>
     api.getAdminComparableReportReporterHistory(reportId, { limit: String(limit) }),

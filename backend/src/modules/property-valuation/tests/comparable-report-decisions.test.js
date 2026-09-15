@@ -475,8 +475,13 @@ describe('WF-05 bulk / undo / affected (Agent 6)', () => {
 
   it('undoDecision restores within grace and refuses after', async () => {
     let clock = Date.parse('2026-09-08T12:00:00.000Z')
-    const dal = memoryDal({ comparable_reports: [baseReport({ id: 'undo-1' })] })
-    const service = createComparableReportDecisionService({ dal, now: () => clock, logger })
+    const dal = memoryDal({ comparable_reports: [baseReport({ id: 'undo-1' })], audit_log: [] })
+    const service = createComparableReportDecisionService({
+      dal,
+      now: () => clock,
+      logger,
+      runTransaction: async (fn) => fn({ query: async () => ({ rows: [] }) }),
+    })
     await service.bulkRejectAsInvalid({
       report_ids: ['undo-1'],
       reason_code: 'out_of_scope',
@@ -563,5 +568,295 @@ describe('WF-05 bulk / undo / affected (Agent 6)', () => {
     const res = mockRes()
     await handler(req, res, (err) => { throw err })
     expect(res.status).toHaveBeenCalledWith(410)
+  })
+})
+
+
+describe('WF-05 undoDecision audit rows (PR #130 follow-up)', () => {
+  const logger = {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    child: () => logger,
+  }
+  const memTx = async (fn) => fn({ query: async () => ({ rows: [] }) })
+
+  function decidedReport(overrides = {}) {
+    const decidedAt = '2026-09-08T12:00:00.000Z'
+    const undo = {
+      undo_token_id: 'tok-1',
+      undo_expires_at: new Date(Date.parse(decidedAt) + UNDO_GRACE_MS).toISOString(),
+      undo_consumed: false,
+    }
+    return baseReport({
+      id: 'undo-audit-1',
+      status: 'rejected',
+      reviewed_by: 'pa-3',
+      reviewed_at: decidedAt,
+      data: {
+        ...undo,
+        decision: {
+          action: 'reject_as_invalid',
+          decided_by: 'pa-3',
+          decided_at: decidedAt,
+          previous_status: 'pending',
+          previous_data: {},
+          undo_token_id: undo.undo_token_id,
+          undo_expires_at: undo.undo_expires_at,
+        },
+      },
+      ...overrides,
+    })
+  }
+
+  it('successful undo writes one audit row with outcome reverted', async () => {
+    let clock = Date.parse('2026-09-08T12:00:01.000Z')
+    const dal = memoryDal({ comparable_reports: [decidedReport()], audit_log: [] })
+    const service = createComparableReportDecisionService({ dal, now: () => clock, logger, runTransaction: memTx })
+    await service.undoDecision('undo-audit-1', {
+      actorId: 'pa-3',
+      undoTokenId: 'tok-1',
+      requestIp: '1.2.3.4',
+      userAgent: 'vitest',
+    })
+    const audits = dal.store.audit_log
+    expect(audits).toHaveLength(1)
+    expect(audits[0].type).toBe('comparable_report_undo_attempt')
+    expect(audits[0].metadata.outcome).toBe('reverted')
+    expect(audits[0].entity_id).toBe('undo-audit-1')
+  })
+
+  it('expired token → 410 + audit outcome expired', async () => {
+    let clock = Date.parse('2026-09-08T12:00:00.000Z') + UNDO_GRACE_MS + 1
+    const dal = memoryDal({ comparable_reports: [decidedReport()], audit_log: [] })
+    const service = createComparableReportDecisionService({ dal, now: () => clock, logger, runTransaction: memTx })
+    await expect(
+      service.undoDecision('undo-audit-1', { actorId: 'pa-3', undoTokenId: 'tok-1' }),
+    ).rejects.toMatchObject({ code: REPORT_ERROR.UNDO_EXPIRED, httpStatus: 410 })
+    expect(dal.store.audit_log).toHaveLength(1)
+    expect(dal.store.audit_log[0].metadata.outcome).toBe('expired')
+  })
+
+  it('token consumed by recalc commit → 409 + audit outcome token_consumed', async () => {
+    const dal = memoryDal({
+      comparable_reports: [
+        decidedReport({
+          data: {
+            undo_token_id: 'tok-1',
+            undo_expires_at: new Date(Date.now() + 60_000).toISOString(),
+            undo_consumed: false,
+            decision: {
+              action: 'confirm_remove',
+              decided_by: 'pa-3',
+              decided_at: new Date().toISOString(),
+              previous_status: 'pending',
+              previous_data: {},
+              recalc_job_id: 'job-1',
+              undo_token_id: 'tok-1',
+            },
+          },
+        }),
+      ],
+      audit_log: [],
+    })
+    const service = createComparableReportDecisionService({
+      dal,
+      logger,
+      runTransaction: memTx,
+      recalculationJobService: {
+        get: vi.fn(async () => ({ id: 'job-1', status: 'succeeded' })),
+      },
+    })
+    await expect(
+      service.undoDecision('undo-audit-1', { actorId: 'pa-3', undoTokenId: 'tok-1' }),
+    ).rejects.toMatchObject({ code: REPORT_ERROR.RECALC_COMMITTED, httpStatus: 409 })
+    expect(dal.store.audit_log[0].metadata.outcome).toBe('token_consumed')
+  })
+
+  it('wrong reviewer and own-case rejections write audit rows', async () => {
+    const dalWrong = memoryDal({ comparable_reports: [decidedReport()], audit_log: [] })
+    let clock = Date.parse('2026-09-08T12:00:01.000Z')
+    const svcWrong = createComparableReportDecisionService({ dal: dalWrong, now: () => clock, logger, runTransaction: memTx })
+    await expect(
+      svcWrong.undoDecision('undo-audit-1', { actorId: 'other-pa', undoTokenId: 'tok-1' }),
+    ).rejects.toMatchObject({ code: REPORT_ERROR.SAME_REVIEWER, httpStatus: 409 })
+    expect(dalWrong.store.audit_log[0].metadata.outcome).toBe('wrong_reviewer')
+
+    const dalOwn = memoryDal({
+      comparable_reports: [decidedReport({ reporter_id: 'pa-3' })],
+      audit_log: [],
+    })
+    const svcOwn = createComparableReportDecisionService({ dal: dalOwn, now: () => clock, logger, runTransaction: memTx })
+    await expect(
+      svcOwn.undoDecision('undo-audit-1', { actorId: 'pa-3', undoTokenId: 'tok-1' }),
+    ).rejects.toMatchObject({ code: REPORT_ERROR.OWN_CASE, httpStatus: 403 })
+    expect(dalOwn.store.audit_log[0].metadata.outcome).toBe('own_case')
+  })
+
+  it('audit-insert failure surfaces 5xx and logs at alert level', async () => {
+    const dal = memoryDal({ comparable_reports: [decidedReport()], audit_log: [] })
+    const origInsert = dal.insert.bind(dal)
+    dal.insert = async (collection, item) => {
+      if (collection === 'audit_log') throw new Error('audit down')
+      return origInsert(collection, item)
+    }
+    let clock = Date.parse('2026-09-08T12:00:01.000Z')
+    const service = createComparableReportDecisionService({ dal, now: () => clock, logger, runTransaction: memTx })
+    await expect(
+      service.undoDecision('undo-audit-1', { actorId: 'pa-3', undoTokenId: 'tok-1' }),
+    ).rejects.toMatchObject({ httpStatus: 500, code: 'AUDIT_WRITE_FAILED' })
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ alert: true }),
+      expect.stringMatching(/undo_attempt audit insert failed/i),
+    )
+  })
+})
+
+describe('WF-05 castSecondApprovalVote atomicity Option A (PR #130 follow-up)', () => {
+  const logger = {
+    warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn(), child: () => logger,
+  }
+
+  function proposedReport() {
+    return baseReport({
+      id: 'apr-1',
+      status: 'remove_proposed',
+      reviewed_by: 'pa-proposer',
+      approval_request_id: 'apreq-1',
+      comparable_id: 'cmp-ext-1',
+      comparable_type: 'external',
+      data: { approval_request_id: 'apreq-1' },
+    })
+  }
+
+  function buildAtomicService({ throwInFinalize = false, throwAfterCommit = false, outboxRows }) {
+    const dal = memoryDal({
+      comparable_reports: [proposedReport()],
+      external_comparables: [{ id: 'cmp-ext-1', status: 'active', data: {} }],
+      audit_log: [],
+    })
+    const enqueued = []
+    const runTransaction = vi.fn(async (fn) => {
+      const snapshot = structuredClone(dal.store)
+      const client = {
+        query: vi.fn(async () => ({ rows: [] })),
+      }
+      try {
+        return await fn(client)
+      } catch (err) {
+        for (const key of Object.keys(dal.store)) delete dal.store[key]
+        Object.assign(dal.store, structuredClone(snapshot))
+        throw err
+      }
+    })
+    const marketImpactService = {
+      scoreComparable: vi.fn(async () => {
+        if (throwInFinalize) throw new Error('finalize boom')
+        return {
+          tier: 'high',
+          valuations_affected: 3,
+          pct_move_median: -10,
+          pct_move_max: -12,
+          affected_property_ids: ['p1', 'p2'],
+          requires_two_person: true,
+        }
+      }),
+    }
+    const service = createComparableReportDecisionService({
+      dal,
+      logger,
+      marketImpactService,
+      runTransaction,
+      writeAuditFn: vi.fn(async () => {}),
+      insertOutboxFn: vi.fn(async (_client, row) => {
+        const entry = {
+          id: row.id || 'obx-1',
+          topic: row.topic,
+          dedupe_key: row.dedupeKey,
+          payload: row.payload,
+          status: 'PENDING',
+          dispatched_at: null,
+          published_at: null,
+        }
+        outboxRows.push(entry)
+        return entry
+      }),
+      afterCommitBeforeDispatch: throwAfterCommit
+        ? async () => { throw new Error('post-commit boom') }
+        : null,
+      recalculationJobService: {
+        enqueue: vi.fn(async (payload, requestedBy) => {
+          const job = { id: `job-${enqueued.length + 1}`, status: 'queued', ...payload, requested_by: requestedBy }
+          enqueued.push(job)
+          return job
+        }),
+      },
+    })
+    return { service, dal, enqueued, outboxRows, runTransaction }
+  }
+
+  it('happy path approve finalizes and dispatches outbox recalc', async () => {
+    const outboxRows = []
+    const { service, dal, enqueued } = buildAtomicService({ outboxRows })
+    const result = await service.castSecondApprovalVote({
+      approvalRequestId: 'apreq-1',
+      decision: 'approve',
+      viewerId: 'pa-second',
+      viewerEmail: 'second@test.local',
+      notes: 'Second look confirms removal',
+      env: 'live',
+    })
+    expect(result.status).toBe('confirmed_removed')
+    expect(dal.store.comparable_reports[0].status).toBe('confirmed_removed')
+    expect(dal.store.external_comparables[0].status).toBe('removed')
+    expect(outboxRows[0].status).toBe('PUBLISHED')
+    expect(outboxRows[0].dispatched_at).toBeTruthy()
+    expect(enqueued.length).toBe(2)
+  })
+
+  it('throw between commit and enqueue leaves outbox PENDING; poll dispatches', async () => {
+    const outboxRows = []
+    const { service, dal, enqueued } = buildAtomicService({ throwAfterCommit: true, outboxRows })
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: 'apreq-1',
+        decision: 'approve',
+        viewerId: 'pa-second',
+        env: 'live',
+      }),
+    ).rejects.toThrow(/post-commit boom/)
+    expect(dal.store.comparable_reports[0].status).toBe('confirmed_removed')
+    expect(outboxRows).toHaveLength(1)
+    expect(outboxRows[0].dispatched_at).toBeNull()
+    expect(outboxRows[0].status).toBe('PENDING')
+    expect(enqueued).toHaveLength(0)
+
+    // Follow-up poll / dispatch recovers the outbox
+    const jobs = await service.dispatchComparableRemovedOutbox({
+      propertyIds: outboxRows[0].payload.property_ids,
+      requestedBy: 'pa-second',
+      outboxRow: outboxRows[0],
+    })
+    expect(jobs).toHaveLength(2)
+    expect(outboxRows[0].dispatched_at).toBeTruthy()
+    expect(outboxRows[0].status).toBe('PUBLISHED')
+  })
+
+  it('throw inside finalize rolls back — no partial state', async () => {
+    const outboxRows = []
+    const { service, dal, enqueued } = buildAtomicService({ throwInFinalize: true, outboxRows })
+    await expect(
+      service.castSecondApprovalVote({
+        approvalRequestId: 'apreq-1',
+        decision: 'approve',
+        viewerId: 'pa-second',
+        env: 'live',
+      }),
+    ).rejects.toThrow(/finalize boom/)
+    expect(dal.store.comparable_reports[0].status).toBe('remove_proposed')
+    expect(dal.store.external_comparables[0].status).toBe('active')
+    expect(outboxRows).toHaveLength(0)
+    expect(enqueued).toHaveLength(0)
   })
 })

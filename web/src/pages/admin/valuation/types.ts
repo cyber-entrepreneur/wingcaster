@@ -137,6 +137,12 @@ export interface ComparableReportDetail extends ComparableReportListItem {
     decision?: string | null
   }>
   approval_request_id?: string | null
+  /** Present when detail read includes queue_context=pending */
+  queue_position?: number | null
+  queue_total?: number | null
+  prev_id?: string | null
+  next_id?: string | null
+  queue_context?: string | null
 }
 
 export interface ComparableReportCounts {

@@ -740,7 +740,7 @@ export function createComparableReportReadService({
     }
   }
 
-  async function getReport(reportId, { viewerId, req } = {}) {
+  async function getReport(reportId, { viewerId, req, queueContext = null } = {}) {
     const env = resolveSessionEnv(req || { get: () => null, user: { id: viewerId } })
     const report = await dal.findOne(Collections.COMPARABLE_REPORTS, (r) => r.id === reportId)
     if (!report) return null
@@ -753,7 +753,42 @@ export function createComparableReportReadService({
       allReports,
       includeDetail: true,
     })
-    return stripInternal(hydrated)
+    const detail = stripInternal(hydrated)
+
+    const ctx = String(queueContext || req?.query?.queue_context || '').trim().toLowerCase()
+    if (ctx === 'pending') {
+      const impactCache = new Map()
+      const pending = []
+      for (const row of allReports || []) {
+        if (reportEnv(row) !== env) continue
+        const h = await hydrateReport(row, {
+          viewerId,
+          env,
+          allReports,
+          impactCache,
+        })
+        // Brief queue-position is "of total pending" — status === pending only.
+        if (String(normalizeReportStatus(h.status) || h.status) !== 'pending') continue
+        pending.push(h)
+      }
+      const sortSpec = parseSort('market_impact:desc,sla_remaining:asc,submitted_at:asc')
+      pending.sort((a, b) => compareBySort(a, b, sortSpec))
+      const idx = pending.findIndex((r) => String(r.id) === String(reportId))
+      const queue_total = pending.length
+      const queue_position = idx >= 0 ? idx + 1 : null
+      const prev_id = idx > 0 ? pending[idx - 1].id : null
+      const next_id = idx >= 0 && idx < pending.length - 1 ? pending[idx + 1].id : null
+      return {
+        ...detail,
+        queue_position,
+        queue_total,
+        prev_id,
+        next_id,
+        queue_context: 'pending',
+      }
+    }
+
+    return detail
   }
 
   async function getReporterHistory(reportId, { limit = 10, viewerId, req } = {}) {

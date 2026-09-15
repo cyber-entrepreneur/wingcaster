@@ -622,6 +622,7 @@ export function registerAdminRoutes(app, services) {
       const report = await comparableReportReadService.getReport(req.params.reportId, {
         viewerId: req.user?.id,
         req,
+        queueContext: req.query?.queue_context || null,
       })
       if (!report) return res.status(404).json({ error: 'Report not found' })
       stampEnv(req, res, report.env)
@@ -689,6 +690,8 @@ export function registerAdminRoutes(app, services) {
       const restored = await decisionService.undoDecision(req.params.reportId, {
         actorId: req.user.id,
         undoTokenId: req.body?.undo_token_id || req.body?.undoTokenId || null,
+        requestIp: req.ip || req.headers?.['x-forwarded-for'] || null,
+        userAgent: req.get?.('user-agent') || req.headers?.['user-agent'] || null,
       })
       res.json({ success: true, report: restored })
     } catch (err) {

@@ -1966,8 +1966,10 @@ export const api = {
     const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
     return fetchJson(`/admin/pricing/reports${qs}`)
   },
-  getAdminComparableReport: (reportId: string) =>
-    fetchJson(`/admin/pricing/reports/${reportId}`),
+  getAdminComparableReport: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}${qs}`)
+  },
   getAdminComparableReportReporterHistory: (reportId: string, params?: Record<string, string>) => {
     const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
     return fetchJson(`/admin/pricing/reports/${reportId}/reporter-history${qs}`)
