@@ -13,6 +13,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
 import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
 import { PublishOutcomePage } from '@/pages/agent/PublishOutcomePage'
+import { PortalTrackerPage } from '@/pages/agent/PortalTrackerPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -125,6 +126,9 @@ function AppRoutes() {
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
       <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
+      {/* AGT-PUB-006 ledger + receipt deep-link */}
+      <Route path="/publishing/receipts/:id" element={<PublishOutcomePage />} />
+      <Route path="/publishing/tracker" element={<PortalTrackerPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />

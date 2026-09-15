@@ -17,6 +17,11 @@ import { Button } from '@/components/ui/button'
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import { EnvWarningStrip } from '@/components/nav/EnvWarningStrip'
 import {
+  TrackerFilterBar,
+  TrackerKpiStrip,
+  PortalTrackerRow,
+} from '@/pages/agent/PortalTrackerScreen'
+import {
   PAQueueFilterStrip,
   PAQueueTable,
   PAQueueBulkBar,
@@ -404,7 +409,52 @@ const TRACKER_ROWS: TrackerRow[] = [
   },
 ]
 
-/** AGT-PUB-006 dense tracker composition. */
+const TRACKER_SUMMARY = {
+  scope: {
+    from: null,
+    to: null,
+    filters_applied: {
+      status: [] as string[],
+      portal: [] as string[],
+      listing_id: null,
+      from: null,
+      to: null,
+    },
+  },
+  total_submissions: 23,
+  success_rate: 0.87,
+  credits_spent: 46,
+  top_failure_class: {
+    class: 'portal_rules_violation',
+    display_label: 'Rules violation',
+    count: 2,
+  },
+}
+
+function trackerRowModel(row: TrackerRow) {
+  return {
+    distribution_attempt_id: row.id,
+    listing: {
+      id: row.id,
+      address_line: row.listing,
+      thumbnail_url: null,
+    },
+    portal: {
+      code: row.portal.toLowerCase().replace(/\s+/g, '_'),
+      display_name: row.portal,
+      channel_token_key: null,
+    },
+    submitted_at: TS,
+    updated_at: TS,
+    status: row.status,
+    error_class: null,
+    error_message: null,
+    credits_charged: row.credits,
+    portal_live_url: null,
+  }
+}
+
+/** AGT-PUB-006 dense tracker — composes real PortalTrackerScreen primitives. */
 export function Wf03TrackerFixture({
   viewport = 'desktop',
 }: {
@@ -424,66 +474,29 @@ export function Wf03TrackerFixture({
       <div aria-live="polite" className="sr-only" data-testid="tracker-live-region">
         Submission for Marina Gate T2 · 1204 on Bayut is now In review.
       </div>
-      <section
-        aria-label="Portal submissions summary"
-        className="mt-[var(--lc-space-md)] grid grid-cols-2 gap-[var(--lc-space-sm)] md:grid-cols-4"
-      >
-        {[
-          ['Live', 12],
-          ['In review', 4],
-          ['Failed', 2],
-          ['Credits used', 38],
-        ].map(([label, value]) => (
-          <article
-            key={String(label)}
-            className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-sm)]"
-          >
-            <h2 className="text-sm text-[var(--lc-text-muted)]">{label}</h2>
-            <Numeric className="text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
-              {value}
-            </Numeric>
-          </article>
-        ))}
-      </section>
-
-      <div
-        role="toolbar"
-        aria-label="Filter portal submissions"
-        className="mt-[var(--lc-space-md)] flex flex-wrap gap-2"
-      >
-        {['All portals', 'Status', 'Last 7 days'].map((chip) => (
-          <Button
-            key={chip}
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-haspopup="dialog"
-            aria-expanded={false}
-            className="min-h-tap"
-          >
-            {chip}
-          </Button>
-        ))}
-      </div>
+      <TrackerKpiStrip
+        className="mt-[var(--lc-space-md)]"
+        summary={TRACKER_SUMMARY}
+      />
+      <TrackerFilterBar
+        className="mt-[var(--lc-space-md)]"
+        filters={{
+          status: [],
+          portal: [],
+          submittedWithin: '7d',
+          q: '',
+          listing_id: '',
+        }}
+        onChange={() => {}}
+        onClear={() => {}}
+        filtersActive={false}
+      />
 
       {viewport === 'mobile' ? (
-        <ul className="mt-[var(--lc-space-md)] space-y-2" aria-label="Portal submissions">
+        <ul className="mt-[var(--lc-space-md)]" aria-label="Portal submissions">
           {TRACKER_ROWS.map((row) => (
             <li key={row.id}>
-              <a
-                role="button"
-                href={`/publish/receipt/${row.id}`}
-                className="flex min-h-tap items-center justify-between gap-3 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-3 focus-visible:outline-none"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{row.listing}</p>
-                  <p className="text-sm text-[var(--lc-text-muted)]">{row.portal}</p>
-                </div>
-                <PortalStatusPill status={row.status} />
-                <span aria-hidden="true" className="text-[var(--lc-text-muted)]">
-                  ›
-                </span>
-              </a>
+              <PortalTrackerRow row={trackerRowModel(row)} />
             </li>
           ))}
         </ul>

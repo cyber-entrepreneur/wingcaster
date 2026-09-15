@@ -217,6 +217,8 @@ import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/in
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
 import { attachInboxWebSocket } from './ws/inbox.js'
 import { startInboxListener } from './ws/inbox-events.js'
+import { attachPublishingWebSocket } from './ws/publishing.js'
+import { startPublishingListener } from './ws/publishing-events.js'
 import { maskEmail, maskPhone } from './account-recovery/mask.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
@@ -8498,20 +8500,24 @@ const startServer = async () => {
   }
 
   const server = http.createServer(app)
-  attachInboxWebSocket(server, {
-    verifyAuth: async (token) => {
-      const decoded = verifyToken(token)
-      if (!decoded?.id) return null
-      const user = await findUserById(decoded.id)
-      if (!user) return null
-      return { id: user.id }
-    },
-  })
+  const verifyWsAuth = async (token) => {
+    const decoded = verifyToken(token)
+    if (!decoded?.id) return null
+    const user = await findUserById(decoded.id)
+    if (!user) return null
+    return { id: user.id }
+  }
+  attachInboxWebSocket(server, { verifyAuth: verifyWsAuth })
+  attachPublishingWebSocket(server, { verifyAuth: verifyWsAuth })
   // Cross-instance inbox event delivery: every process LISTENs on the
   // shared `inbox_events` channel, so a message processed by one instance
   // reaches WebSocket clients attached to any other instance.
   startInboxListener().catch((err) => {
     logger.warn({ err: err?.message || String(err) }, 'inbox pg listener boot failed')
+  })
+  // AGT-PUB-006 tracker live push — LISTEN portal_submission_events.
+  startPublishingListener().catch((err) => {
+    logger.warn({ err: err?.message || String(err) }, 'publishing pg listener boot failed')
   })
 
   server.listen(port, () => {

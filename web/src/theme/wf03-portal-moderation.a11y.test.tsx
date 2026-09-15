@@ -111,7 +111,7 @@ describe('Wave 2 WF-03 a11y — tap floor + focus rings', () => {
 
   it('tracker filter chips meet tap floor', () => {
     wrap(<Wf03TrackerFixture viewport="desktop" />)
-    for (const name of [/All portals/i, /Status/i, /Last 7 days/i]) {
+    for (const name of [/^Status$/i, /^Portal$/i]) {
       assertTapFloor(screen.getByRole('button', { name }), `tracker chip ${name}`)
     }
   })
@@ -176,7 +176,7 @@ describe('Wave 2 WF-03 a11y — tracker dense readability', () => {
   it('mobile tracker uses list + single tab-stop rows', () => {
     wrap(<Wf03TrackerFixture viewport="mobile" />)
     expect(screen.getByRole('list', { name: /Portal submissions/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('link').length).toBeGreaterThan(0)
   })
 
   it('status pills are never color-only (glyph + label in DOM)', () => {

@@ -15,6 +15,8 @@ import { resolveTemplate } from '../../notifications/platform-templates/resolver
 import { renderTemplate, renderText } from '../../notifications/platform-templates/variables.js'
 import { dispatchConsumerNotification } from '../notifications/dispatch.js'
 import logger from '../logger.js'
+import { mapDistributionStatusToTracker } from './tracker.js'
+import { emitPortalSubmissionEvent } from '../../ws/publishing-events.js'
 
 export const STATUS_TEMPLATE_CODES = Object.freeze({
   live: 'portal_submission.status_changed.live',
@@ -193,6 +195,26 @@ export async function emitPortalSubmissionStatusChanged({
     dispatch({ ...payload, channel: 'in_app' }),
     dispatch({ ...payload, channel: 'push' }),
   ])
+
+  // Fan-out to AGT-PUB-006 tracker WebSocket subscribers (cross-instance via NOTIFY).
+  const trackerStatus = mapDistributionStatusToTracker(status)
+  try {
+    await emitPortalSubmissionEvent(userId, {
+      type: 'portal_submission.status_changed',
+      distribution_attempt_id: distributionAttemptId,
+      status: trackerStatus,
+      payload: {
+        portal_name: portalName,
+        listing_address: listingAddress ?? null,
+        status: trackerStatus,
+      },
+    })
+  } catch (err) {
+    logger.warn(
+      { err: err?.message || String(err), distributionAttemptId },
+      'portal_submission.status_changed: ws emit failed',
+    )
+  }
 
   return {
     ok: Boolean(in_app?.ok || push?.ok),
