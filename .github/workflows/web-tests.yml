@@ -26,8 +26,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web:
-    name: Typecheck, tests, production build
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,46 +39,64 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
-
-      # `npm ci` in web/ triggers a postinstall that installs the backend too;
-      # --ignore-scripts keeps this job to the frontend, which is all it tests.
       - name: Install
         run: npm ci --ignore-scripts
-
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # ubuntu-latest ~7GB RAM. One vitest process across 100+ DOM-heavy files
-      # accumulates until the worker is OOM-killed ("Worker exited unexpectedly")
-      # even with 6–8GB heaps (which exceed runner RAM). Split by directory so
-      # each process resets RSS, and pin forks to 4GB so parent+worker+OS fit.
-      - name: Tests — pages/agent
+  # ubuntu-latest ~7GB. One forks worker OOMs by ~20–25 DOM-heavy files at a
+  # 4GB heap; 6–8GB heaps get OS-killed. Shard across parallel runners so each
+  # process stays small and RSS never accumulates across the full suite.
+  test:
+    name: Tests (${{ matrix.shard }}/12)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Vitest shard ${{ matrix.shard }}/12
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/pages/agent
+        run: npx vitest run --shard=${{ matrix.shard }}/12
 
-      - name: Tests — pages (non-agent)
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/pages --exclude 'src/pages/agent/**'
-
-      - name: Tests — components
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/components
-
-      - name: Tests — unit (hooks/lib/api/…)
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/hooks src/lib src/api src/app src/wf03 src/wf04
-
-      - name: Tests — theme visual + a11y
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run src/theme
-
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
       - name: Production build
         env:
           VITE_GIT_SHA: ${{ github.sha }}
           # SENTRY_AUTH_TOKEN intentionally unset in CI — plugin no-ops; maps stay local.
         run: npx vite build
+
+  # Preserves the historical required check name while the real work is sharded.
+  web:
+    name: Typecheck, tests, production build
+    needs: [typecheck, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All web CI gates passed
+        run: echo ok
