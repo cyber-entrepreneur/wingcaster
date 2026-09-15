@@ -24,6 +24,7 @@ import {
   type PAQueueSubmittedWithin,
 } from '@/components/queue'
 import { cn } from '@/lib/utils'
+import { usePriceReportCopy } from './priceReportCopy'
 import {
   PriceReportIncorporateDialog,
   PriceReportReasonDialog,
@@ -102,6 +103,7 @@ function normalizeListPayload(raw: unknown): PriceReportListResponse {
 export function PriceReportQueuePage() {
   const { isAdmin } = useAuth()
   const { addToast } = useToast()
+  const { t } = usePriceReportCopy()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -235,7 +237,7 @@ export function PriceReportQueuePage() {
       if (result.pending_second_approval) {
         addToast({
           variant: 'warning',
-          title: 'Incorporation request created. Awaiting second approver.',
+          title: t('toast.second_approval.pending'),
         })
       } else {
         addToast({ variant: 'success', title: toastLabel })
@@ -252,11 +254,11 @@ export function PriceReportQueuePage() {
     } catch (err) {
       const code = (err as { code?: string })?.code
       if (code === 'OWN_REPORT') {
-        addToast({ variant: 'warning', title: "You can't act on this row — you are the submitting agent." })
+        addToast({ variant: 'warning', title: t('toast.own_row.blocked') })
       } else {
         addToast({
           variant: 'error',
-          title: err instanceof Error ? err.message : 'Review failed',
+          title: err instanceof Error ? err.message : t('toast.action.failed'),
         })
       }
     } finally {
@@ -287,7 +289,7 @@ export function PriceReportQueuePage() {
     } catch (err) {
       addToast({
         variant: 'error',
-        title: err instanceof Error ? err.message : 'Bulk review failed',
+        title: err instanceof Error ? err.message : t('toast.bulk.failed'),
       })
     } finally {
       setBusy(false)
@@ -303,8 +305,7 @@ export function PriceReportQueuePage() {
       })
       addToast({
         variant: 'success',
-        title: 'Review undone.',
-        description: 'تم التراجع عن المراجعة.',
+        title: t('toast.undo.success'),
       })
       setUndo(null)
       await load()
@@ -313,19 +314,17 @@ export function PriceReportQueuePage() {
       if (e.code === 'TOKEN_CONSUMED' || e.status === 410) {
         addToast({
           variant: 'error',
-          title: 'Undo unavailable — make a corrective decision on this report.',
-          description: 'التراجع غير متاح — اتّخذ قراراً تصحيحياً على هذا التقرير.',
+          title: t('toast.undo.token_consumed'),
         })
       } else if (e.code === 'UNDO_EXPIRED') {
         addToast({
           variant: 'error',
-          title: 'Undo window expired.',
-          description: 'انتهت مهلة التراجع.',
+          title: t('toast.undo.expired'),
         })
       } else {
         addToast({
           variant: 'error',
-          title: e.message || (err instanceof Error ? err.message : 'Undo failed'),
+          title: e.message || (err instanceof Error ? err.message : t('toast.action.failed')),
         })
       }
       setUndo(null)
@@ -390,7 +389,7 @@ export function PriceReportQueuePage() {
         if (selectedIds.length > 1) {
           addToast({
             variant: 'warning',
-            title: 'Incorporate must be reviewed one report at a time.',
+            title: t('toast.incorporate.single_only'),
           })
           return
         }

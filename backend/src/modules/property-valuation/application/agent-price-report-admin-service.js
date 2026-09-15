@@ -6,8 +6,9 @@
  */
 
 import { createHash, randomUUID } from 'crypto'
+import { insertOutbox } from '../../../fin/ledger/write.js'
 import { scoreTenureRisk } from '../../../lib/moderation/tenure-risk.js'
-import { normalizeClientEnv } from '../../../lib/session-env.js'
+import { normalizeClientEnv, toFinEnvironment } from '../../../lib/session-env.js'
 import { Collections } from '../infrastructure/db.js'
 import {
   HIGH_DELTA_THRESHOLD_PCT,
@@ -24,6 +25,7 @@ const REVIEW_STATUSES = new Set(['verified', 'rejected', 'request_info'])
 const UNDO_GRACE_MS = 5000
 const DEFAULT_PAGE_SIZE = 25
 const MAX_PAGE_SIZE = 100
+const PRICE_REPORT_INCORPORATED_OUTBOX_TOPIC = 'valuation.price_report_incorporated'
 
 /** Typed error codes for second-approver vote + undo (PA-PVA-009 gap-closure). */
 export const PRICE_REPORT_ERROR = Object.freeze({
@@ -65,6 +67,7 @@ export function createAgentPriceReportAdminService({
   benchmarkService,
   adapter = null,
   logger = console,
+  insertOutboxFn = insertOutbox,
 }) {
   async function listReports(query = {}, { viewerId = null, env: envInput = 'live' } = {}) {
     const env = normalizeClientEnv(envInput)
@@ -270,10 +273,21 @@ export function createAgentPriceReportAdminService({
     }
   }
 
-  async function commitIncorporate({ report, delta, viewerId, env, notes, reasonCode, now }) {
+  async function commitIncorporate({
+    report,
+    delta,
+    viewerId,
+    env,
+    notes,
+    reasonCode,
+    now,
+    enqueueRefresh = true,
+  }) {
     const reportId = report.id
     let refreshJob = null
 
+    // Nested dal.transaction() reuses the ambient ALS client when called inside
+    // an outer txn (postgres-adapter.js:301–307) — vote + incorporate + audit share one COMMIT.
     const result = await dal.transaction(async () => {
       // Benchmark write first; if status update throws, transaction rolls both back.
       const benchmark = await benchmarkService.writeBenchmarkFromReport(report, { env, actorId: viewerId })
@@ -282,6 +296,12 @@ export function createAgentPriceReportAdminService({
         // Force a failure surface for tests that inject throw-after-write via data flag
         if (r.data?.__force_status_write_failure) {
           throw Object.assign(new Error('Forced status write failure'), { status: 500, code: 'STATUS_WRITE_FAILED' })
+        }
+        if (r.data?.__force_incorporate_throw) {
+          throw Object.assign(new Error('Forced commitIncorporate failure'), {
+            status: 500,
+            code: 'INCORPORATE_FAILED',
+          })
         }
         const undo = issueUndoToken(now)
         return {
@@ -311,11 +331,13 @@ export function createAgentPriceReportAdminService({
       return { benchmark }
     })
 
-    refreshJob = await benchmarkService.enqueueBenchmarkRefresh({
-      segmentId: resolveSegmentId(report),
-      propertyType: report.property_type || null,
-      requestedBy: viewerId,
-    })
+    if (enqueueRefresh) {
+      refreshJob = await benchmarkService.enqueueBenchmarkRefresh({
+        segmentId: resolveSegmentId(report),
+        propertyType: report.property_type || null,
+        requestedBy: viewerId,
+      })
+    }
 
     const reportAfter = await dal.findOne(
       Collections.AGENT_PRICE_REPORTS,
@@ -453,14 +475,71 @@ export function createAgentPriceReportAdminService({
   }
 
   async function appendAuditEvent(reportId, event) {
-    await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => ({
-      ...r,
-      data: {
-        ...(r.data || {}),
-        audit_trail: [ ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []), event ],
-      },
-      updated_at: event.at || new Date().toISOString(),
-    }))
+    await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === reportId, (r) => {
+      if (r.data?.__force_audit_write_failure) {
+        throw Object.assign(new Error('Forced audit write failure'), {
+          status: 500,
+          code: 'AUDIT_WRITE_FAILED',
+        })
+      }
+      return {
+        ...r,
+        data: {
+          ...(r.data || {}),
+          audit_trail: [ ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []), event ],
+        },
+        updated_at: event.at || new Date().toISOString(),
+      }
+    })
+  }
+
+  async function writePriceReportIncorporatedOutbox(client, {
+    env,
+    reportId,
+    segmentId,
+    viewerId,
+    approvalRequestId,
+    now,
+  }) {
+    const topic = PRICE_REPORT_INCORPORATED_OUTBOX_TOPIC
+    const payload = {
+      report_id: reportId,
+      segment_id: segmentId,
+      requested_by: viewerId,
+      approval_request_id: approvalRequestId,
+    }
+    const dedupeKey = `${topic}:${reportId}:${approvalRequestId || 'none'}`
+    const id = randomUUID()
+    const finEnv = toFinEnvironment(env)
+    const base = {
+      id,
+      environment: finEnv,
+      topic,
+      dedupe_key: dedupeKey,
+      payload,
+      status: 'PENDING',
+      dispatched_at: null,
+      published_at: null,
+      attempts: 0,
+      created_at: now,
+      updated_at: now,
+    }
+
+    if (client?.query) {
+      await insertOutboxFn(client, {
+        environment: finEnv,
+        topic,
+        dedupeKey,
+        payload,
+        now,
+      })
+      return base
+    }
+    if (typeof dal.insert === 'function') {
+      await dal.insert('outbox_events', base)
+      return base
+    }
+    return base
   }
 
   async function undoReview(reportId, { viewerId, env: envInput = 'live', undoTokenId = null } = {}) {
@@ -984,10 +1063,13 @@ export function createAgentPriceReportAdminService({
       }
     }
 
-    // approve → finalize + incorporate
+    // approve → finalize + incorporate + audit + outbox in ONE txn (Option A).
+    // Recalc enqueue lives on outbox poller so incorporate arithmetic can't hold the vote open.
     const delta = await benchmarkService.computeBenchmarkDelta(report, env)
     let incorporateResult = null
-    await dal.transaction(async () => {
+    let outboxRow = null
+
+    incorporateResult = await dal.transaction(async (client) => {
       if (typeof dal.query === 'function') {
         await dal.query(
           `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
@@ -1012,34 +1094,37 @@ export function createAgentPriceReportAdminService({
           updated_at: now,
         }))
       }
-    })
 
-    incorporateResult = await commitIncorporate({
-      report: { ...report, status: 'pending_second_approval' },
-      delta,
-      viewerId,
-      env,
-      notes: notes || report.review_notes,
-      reasonCode: report.reason_code,
-      now,
-    })
+      const result = await commitIncorporate({
+        report: { ...report, status: 'pending_second_approval' },
+        delta,
+        viewerId,
+        env,
+        notes: notes || report.review_notes,
+        reasonCode: report.reason_code,
+        now,
+        enqueueRefresh: false,
+      })
 
-    await dal.update(Collections.AGENT_PRICE_REPORTS, (r) => r.id === report.id, (r) => ({
-      ...r,
-      data: {
-        ...(r.data || {}),
-        audit_trail: [
-          ...(Array.isArray(r.data?.audit_trail) ? r.data.audit_trail : []),
-          {
-            actor: { id: viewerId, role: 'platform_admin' },
-            action: 'second_approval_approved',
-            at: now,
-            reason: null,
-            notes: notes || null,
-          },
-        ],
-      },
-    }))
+      await appendAuditEvent(report.id, {
+        actor: { id: viewerId, role: 'platform_admin' },
+        action: 'second_approval_approved',
+        at: now,
+        reason: null,
+        notes: notes || null,
+      })
+
+      outboxRow = await writePriceReportIncorporatedOutbox(client, {
+        env,
+        reportId: report.id,
+        segmentId: resolveSegmentId(report),
+        viewerId,
+        approvalRequestId,
+        now,
+      })
+
+      return result
+    })
 
     return {
       success: true,
@@ -1047,6 +1132,13 @@ export function createAgentPriceReportAdminService({
       status: 'incorporated',
       approval_request_id: approvalRequestId,
       report_id: report.id,
+      outbox: outboxRow
+        ? {
+            topic: outboxRow.topic || PRICE_REPORT_INCORPORATED_OUTBOX_TOPIC,
+            status: outboxRow.status,
+            dispatched_at: outboxRow.dispatched_at ?? null,
+          }
+        : null,
       ...incorporateResult,
     }
   }
