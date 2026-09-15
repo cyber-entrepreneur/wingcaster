@@ -69,7 +69,7 @@ export function mapDistributionStatusToTracker(rawStatus) {
   if (status === 'in_review' || status === 'pending_moderation') return 'in_review'
   if (status === 'rejected') return 'rejected'
   if (status === 'expired') return 'expired'
-  if (status === 'failed' || status === 'error') return 'failed'
+  if (status === 'failed' || status === 'error' || status === 'dead_letter') return 'failed'
   return 'submitted'
 }
 
@@ -86,7 +86,7 @@ CASE
     THEN 'rejected'
   WHEN lower(COALESCE(a.status, j.status, '')) = 'expired'
     THEN 'expired'
-  WHEN lower(COALESCE(a.status, j.status, '')) IN ('failed', 'error')
+  WHEN lower(COALESCE(a.status, j.status, '')) IN ('failed', 'error', 'dead_letter')
     THEN 'failed'
   ELSE 'submitted'
 END

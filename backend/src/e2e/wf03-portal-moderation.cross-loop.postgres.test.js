@@ -537,13 +537,9 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
     expect(after.body.job.aggregate).toBe('all_succeeded')
   })
 
-  it('dead-letter branch: all retryable fails → N retries exhausted → terminal status', async () => {
-    // TODO(BE): https://github.com/cyber-entrepreneur/wingcaster/issues/176
-    // Ideal terminal status is distribution_jobs.status='dead_letter'. Today
-    // retry only flips to pending_retry; there is no max-retry → dead_letter
-    // path. This test drives exhaustion end-to-end and asserts the observable
-    // terminal state (failed + retry_count >= MAX). Promote the assertion to
-    // dead_letter when #176 lands.
+  it('dead-letter branch: all retryable fails → N retries exhausted → dead_letter + audit', async () => {
+    // Closes #176 — max retry → distribution_jobs.status='dead_letter' +
+    // audit_log type='destination_dead_lettered'.
     const { userId, token } = await agentSession('dl')
     const propertyId = await seedProperty(pool(), {
       agentId: userId,
@@ -584,37 +580,63 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
         .set('Authorization', `Bearer ${token}`)
         .send({ error_classes_to_retry: ['PORTAL_DOWN'] })
       expect(res.status).toBe(200)
-      expect(res.body.retried_destination_ids.sort()).toEqual([...destIds].sort())
 
-      for (const destId of destIds) {
-        await pool().query(
-          `UPDATE public.distribution_jobs
-              SET status = 'failed',
-                  updated_at = CURRENT_TIMESTAMP,
-                  error_message = $2
-            WHERE id = $1`,
-          [destId, `portal_down after retry ${cycle + 1}`],
-        )
-        await seedAttempt(pool(), {
-          distributionJobId: destId,
-          status: 'failed',
-          errorClass: 'portal_down',
-          errorMessage: `portal_down after retry ${cycle + 1}`,
-        })
+      if (cycle < PUBLISHING_MAX_RETRIES - 1) {
+        expect(res.body.retried_destination_ids.sort()).toEqual([...destIds].sort())
+        // Simulate portal failing again so the next cycle can retry.
+        for (const destId of destIds) {
+          await pool().query(
+            `UPDATE public.distribution_jobs
+                SET status = 'failed',
+                    updated_at = CURRENT_TIMESTAMP,
+                    error_message = $2
+              WHERE id = $1`,
+            [destId, `portal_down after retry ${cycle + 1}`],
+          )
+          await seedAttempt(pool(), {
+            distributionJobId: destId,
+            status: 'failed',
+            errorClass: 'portal_down',
+            errorMessage: `portal_down after retry ${cycle + 1}`,
+          })
+        }
+      } else {
+        // Final cycle parks destinations in dead_letter — no further retries.
+        expect(res.body.retried_destination_ids.sort()).toEqual([...destIds].sort())
       }
     }
 
     const rows = await pool().query(
-      `SELECT id, status, retry_count FROM public.distribution_jobs
+      `SELECT id, status, retry_count, error_message FROM public.distribution_jobs
         WHERE id = ANY($1::text[])`,
       [destIds],
     )
     expect(rows.rows).toHaveLength(2)
     for (const row of rows.rows) {
       expect(Number(row.retry_count)).toBeGreaterThanOrEqual(PUBLISHING_MAX_RETRIES)
-      // Prefer dead_letter when implemented; until then exhausted = failed.
-      expect(['failed', 'dead_letter']).toContain(row.status)
+      expect(row.status).toBe('dead_letter')
     }
+
+    const audits = await pool().query(
+      `SELECT type, entity_id, metadata FROM public.audit_log
+        WHERE type = 'destination_dead_lettered'
+          AND entity_id = ANY($1::text[])`,
+      [destIds],
+    )
+    expect(audits.rows).toHaveLength(2)
+    for (const audit of audits.rows) {
+      expect(audit.metadata?.retry_count).toBeGreaterThanOrEqual(PUBLISHING_MAX_RETRIES)
+      expect(audit.metadata?.final_error).toBeTruthy()
+    }
+
+    // No further retry attempts once dead_lettered.
+    const blocked = await request(app)
+      .post(`/api/publishing/jobs/${jobId}/retry-all`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ error_classes_to_retry: ['PORTAL_DOWN'] })
+    expect(blocked.status).toBe(200)
+    expect(blocked.body.retried_destination_ids || []).toEqual([])
+    expect(blocked.body.skipped.every((s) => s.reason === 'dead_letter')).toBe(true)
 
     const receipt = await request(app)
       .get(`/api/publishing/jobs/${jobId}`)
@@ -624,11 +646,9 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
     expect(receipt.body.job.counts.failed).toBe(2)
   })
 
-  // TODO(BE): https://github.com/cyber-entrepreneur/wingcaster/issues/175
-  // stuck-job SLA reaper — surface the gap, don't hide it. No publishing /
-  // tracker SLA worker under backend/src/workers/ today. it.fails keeps CI
-  // green while documenting the expected expired transition.
-  it.fails('deadlock-non-happen: stuck mid-lifecycle job expires via SLA reaper', async () => {
+  it('deadlock-non-happen: stuck mid-lifecycle job expires via SLA reaper', async () => {
+    // Closes #175 — publishing stuck-job SLA reaper flips destinations to
+    // dead_letter + writes audit_log type=sla_reaped.
     const { userId, token } = await agentSession('stuck')
     const propertyId = await seedProperty(pool(), {
       agentId: userId,
@@ -662,32 +682,46 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
         WHERE id = $1`,
       [destId],
     )
+    await pool().query(
+      `UPDATE public.publishing_jobs
+          SET submitted_at = CURRENT_TIMESTAMP - INTERVAL '48 hours',
+              created_at = CURRENT_TIMESTAMP - INTERVAL '48 hours',
+              updated_at = CURRENT_TIMESTAMP - INTERVAL '48 hours'
+        WHERE id = $1`,
+      [jobId],
+    )
 
-    let tick = null
-    try {
-      ;({ tick } = await import('../workers/publishing-stuck-job-reaper.js'))
-    } catch {
-      expect.fail(
-        'TODO(BE): stuck-job SLA reaper — https://github.com/cyber-entrepreneur/wingcaster/issues/175',
-      )
-    }
+    const { tick } = await import('../workers/publishing-stuck-jobs-reaper.js')
     expect(typeof tick).toBe('function')
-    await tick()
+    const summary = await tick({ pool: pool(), slaHours: 24 })
+    expect(summary.reaped_destinations).toBeGreaterThanOrEqual(1)
+    expect(summary.destination_ids).toContain(destId)
 
     const row = await pool().query(
       `SELECT status FROM public.distribution_jobs WHERE id = $1`,
       [destId],
     )
-    expect(row.rows[0].status).toBe('expired')
+    expect(row.rows[0].status).toBe('dead_letter')
 
-    const tracker = await request(buildApp())
-      .get('/api/publishing/tracker')
-      .query({ status: 'expired', limit: 20 })
-      .set('Authorization', `Bearer ${token}`)
-    expect(tracker.status).toBe(200)
-    const expiredRows = tracker.body.rows.filter(
-      (r) => r.listing?.id === propertyId || r.listing_id === propertyId,
+    const parent = await pool().query(
+      `SELECT completed_at, data FROM public.publishing_jobs WHERE id = $1`,
+      [jobId],
     )
-    expect(expiredRows.some((r) => r.status === 'expired')).toBe(true)
+    expect(parent.rows[0].completed_at).toBeTruthy()
+    expect(parent.rows[0].data?.sla_reaped).toBe(true)
+
+    const audits = await pool().query(
+      `SELECT type, entity_id, metadata FROM public.audit_log
+        WHERE type = 'sla_reaped' AND entity_id = $1`,
+      [destId],
+    )
+    expect(audits.rows).toHaveLength(1)
+    expect(audits.rows[0].metadata?.publishing_job_id).toBe(jobId)
+
+    const receipt = await request(buildApp())
+      .get(`/api/publishing/jobs/${jobId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(receipt.status).toBe(200)
+    expect(receipt.body.job.counts.failed).toBeGreaterThanOrEqual(1)
   })
 })

@@ -14,6 +14,21 @@ import { recordDistributionAttempt } from './record-attempt.js'
 /** Transient classes eligible for retry (API returns UPPER_SNAKE). */
 export const RETRYABLE_ERROR_CLASSES = Object.freeze(['PORTAL_DOWN', 'UNKNOWN_ERROR'])
 
+/** Matches consumer-notification DISPATCH_MAX_RETRIES until publishing has its own policy. */
+export const DEFAULT_PUBLISHING_MAX_RETRIES = 5
+
+export const DESTINATION_DEAD_LETTERED_AUDIT_TYPE = 'destination_dead_lettered'
+export const DESTINATION_DEAD_LETTER_STATUS = 'dead_letter'
+
+/**
+ * @param {number} [override]
+ * @returns {number}
+ */
+export function resolvePublishingMaxRetries(override) {
+  const n = Number(override ?? process.env.PUBLISHING_MAX_RETRIES ?? DEFAULT_PUBLISHING_MAX_RETRIES)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_PUBLISHING_MAX_RETRIES
+}
+
 const RETRYABLE_SNAKE = new Set(
   RETRYABLE_ERROR_CLASSES.map((c) => c.toLowerCase()),
 )
@@ -29,8 +44,15 @@ const IN_REVIEW_STATUSES = new Set([
   'queued',
   'draft',
 ])
-/** Explicit failure / retry-queue statuses. */
-const FAILED_STATUSES = new Set(['failed', 'error', 'pending_retry', 'rejected', 'expired'])
+/** Explicit failure / retry-queue / dead-letter statuses. */
+const FAILED_STATUSES = new Set([
+  'failed',
+  'error',
+  'pending_retry',
+  'rejected',
+  'expired',
+  'dead_letter',
+])
 
 /**
  * Map DB snake_case error_class → brief UPPER_SNAKE for JSON.
@@ -95,7 +117,9 @@ export function computeAggregate(counts) {
  * @param {string|null|undefined} errorClassSnakeOrApi
  */
 export function isRetryAvailable(status, errorClassSnakeOrApi) {
-  if (String(status || '').toLowerCase() !== 'failed') return false
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'dead_letter') return false
+  if (normalized !== 'failed') return false
   const snake = toDbErrorClass(errorClassSnakeOrApi)
   return Boolean(snake && RETRYABLE_SNAKE.has(snake))
 }
@@ -384,15 +408,20 @@ export function buildPublishingJobPayload(rows, requestedId) {
         ? 'social'
         : 'realestate',
       status,
+      raw_status: row.job_status || null,
       error_class: errorClass,
       portal_message: row.attempt_error_message || row.job_error_message || null,
+      retry_count: Number(row.retry_count || 0),
       credit_charged: Number(row.credit_charged || 0),
       credit_reserved: Number(row.credit_reserved || 0),
       credit_held: Number(row.credit_held || 0),
       credit_released: Number(row.credit_released || 0),
       event_at: row.attempted_at || row.published_at || row.job_updated_at || row.job_created_at || null,
       live_url: status === 'succeeded' ? liveUrlFromRow(row) : null,
-      retry_available: isRetryAvailable(status, row.error_class),
+      retry_available:
+        isRetryAvailable(status, row.error_class)
+        && String(row.job_status || '').toLowerCase() !== 'dead_letter'
+        && Number(row.retry_count || 0) < resolvePublishingMaxRetries(),
       fix_deep_link: fixDeepLink(row, status),
       moderation_queue_deep_link: moderationDeepLink(row, status),
       correlation_id: row.attempt_id || row.destination_id,
@@ -477,6 +506,14 @@ export async function retryPublishingDestination({
     throw err
   }
 
+  const rawStatus = String(dest.raw_status || dest.status || '').toLowerCase()
+  if (rawStatus === 'dead_letter') {
+    const err = new Error('Destination is dead_letter — retries exhausted')
+    err.code = 'DEAD_LETTER'
+    err.status = 409
+    throw err
+  }
+
   if (dest.status !== 'failed') {
     const err = new Error('Only failed destinations can be retried')
     err.code = 'NOT_FAILED'
@@ -498,6 +535,73 @@ export async function retryPublishingDestination({
   }
 
   const now = new Date().toISOString()
+  const maxRetries = resolvePublishingMaxRetries()
+  const nextRetryCount = Number(dest.retry_count || 0) + 1
+
+  // #176 — after the Nth retry failure path, park in dead_letter (no further attempts).
+  if (nextRetryCount >= maxRetries) {
+    const finalError = dest.portal_message || `max_retries_${maxRetries}`
+    await query(
+      `UPDATE public.distribution_jobs
+          SET status = $2,
+              retry_count = $3,
+              error_message = $4,
+              updated_at = CURRENT_TIMESTAMP,
+              data = COALESCE(data, '{}'::jsonb) || jsonb_build_object(
+                'dead_lettered_at', $5::text,
+                'final_error', $4::text,
+                'retry_count', $3::int,
+                'retry_source', 'manual'
+              )
+        WHERE id = $1`,
+      [destinationId, DESTINATION_DEAD_LETTER_STATUS, nextRetryCount, finalError, now],
+    )
+
+    await recordDistributionAttempt({
+      distributionJobId: destinationId,
+      status: DESTINATION_DEAD_LETTER_STATUS,
+      errorMessage: finalError,
+      errorClass: toDbErrorClass(apiClass),
+      attemptedAt: now,
+      extra: {
+        retry_source: 'manual',
+        previous_error_class: toDbErrorClass(apiClass),
+        final_error: finalError,
+        retry_count: nextRetryCount,
+      },
+    })
+
+    await query(
+      `INSERT INTO public.audit_log (
+         id, agent_id, agency_id, type, action, entity_type, entity_id,
+         metadata, created_at, data
+       ) VALUES (
+         $1, $2, $3, $4, $4, 'distribution_job', $5,
+         $6::jsonb, CURRENT_TIMESTAMP, $6::jsonb
+       )`,
+      [
+        randomUUID(),
+        agentId || null,
+        agencyId || null,
+        DESTINATION_DEAD_LETTERED_AUDIT_TYPE,
+        destinationId,
+        JSON.stringify({
+          type: DESTINATION_DEAD_LETTERED_AUDIT_TYPE,
+          distribution_job_id: destinationId,
+          publishing_job_id: jobId,
+          final_error: finalError,
+          retry_count: nextRetryCount,
+          max_retries: maxRetries,
+          previous_error_class: toDbErrorClass(apiClass),
+        }),
+      ],
+    )
+
+    const updated = await getPublishingJob({ jobId, agentId, agencyId })
+    const updatedDest = updated?.destinations.find((d) => d.id === destinationId)
+    return { job: updated, destination: updatedDest, dead_lettered: true }
+  }
+
   await query(
     `UPDATE public.distribution_jobs
         SET status = 'pending_retry',
@@ -555,6 +659,10 @@ export async function retryAllPublishingDestinations({
   const retried = []
   const skipped = []
   for (const dest of payload.destinations) {
+    if (String(dest.raw_status || '').toLowerCase() === 'dead_letter') {
+      skipped.push({ id: dest.id, reason: 'dead_letter' })
+      continue
+    }
     if (dest.status !== 'failed') {
       skipped.push({ id: dest.id, reason: 'not_failed' })
       continue
