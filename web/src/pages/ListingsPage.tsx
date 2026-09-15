@@ -202,10 +202,12 @@ export function ListingsPage() {
     (effectiveMode === 'pro' || searchParams.get('view') === 'table')
 
   /** SHR-NAV-008: active tenant governs the list scope (shared by initial load + refresh). */
-  async function fetchScopedListings(): Promise<ListingCardProperty[]> {
+  const viewerAgentId = agent?.id
+  const fetchScopedListings = useCallback(async (): Promise<ListingCardProperty[]> => {
+    if (!viewerAgentId) return []
     const params: Record<string, string> = { include_unsyndicated: '1' }
     if (!isAgency) {
-      params.agentId = agent!.id
+      params.agentId = viewerAgentId
     }
     const data = await api.getProperties(params)
     let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
@@ -217,19 +219,19 @@ export function ListingsPage() {
         return (
           rowAgency === agencyId ||
           rowTenant === activeTenant?.id ||
-          r.agent_id === agent!.id
+          r.agent_id === viewerAgentId
         )
       })
     } else {
-      rows = rows.filter((r) => r.agent_id === agent!.id)
+      rows = rows.filter((r) => r.agent_id === viewerAgentId)
     }
 
     return rows
-  }
+  }, [viewerAgentId, isAgency, agencyId, activeTenant?.id])
 
   useEffect(() => {
     if (authLoading) return
-    if (!agent) {
+    if (!viewerAgentId) {
       setLoading(false)
       return
     }
@@ -254,7 +256,7 @@ export function ListingsPage() {
     return () => {
       cancelled = true
     }
-  }, [agent, authLoading, activeTenant?.id, isAgency, agencyId, addToast])
+  }, [viewerAgentId, authLoading, fetchScopedListings, addToast])
 
   async function loadListings() {
     setLoading(true)

@@ -7,6 +7,7 @@ const getProperties = vi.hoisted(() => vi.fn())
 const getInquiries = vi.hoisted(() => vi.fn())
 const addToast = vi.hoisted(() => vi.fn())
 const authAgent = vi.hoisted(() => ({ id: 'agt_me', name: 'Sara' }))
+const tenantFns = vi.hoisted(() => ({ refresh: vi.fn(), switchTenant: vi.fn() }))
 
 const tenantState = vi.hoisted(() => ({
   activeTenantId: 'personal:agt_me',
@@ -54,7 +55,7 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
-    agent: { id: 'agt_me', name: 'Sara' },
+    agent: authAgent,
     loading: false,
   }),
 }))
@@ -68,8 +69,8 @@ vi.mock('@/hooks/useTenant', () => ({
     switching: false,
     error: null,
     isMultiTenant: false,
-    refresh: vi.fn(),
-    switchTenant: vi.fn(),
+    refresh: tenantFns.refresh,
+    switchTenant: tenantFns.switchTenant,
   }),
 }))
 
