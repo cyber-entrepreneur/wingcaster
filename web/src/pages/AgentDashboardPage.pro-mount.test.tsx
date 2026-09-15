@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 
 const useUiModeMock = vi.fn()
 
@@ -16,22 +17,16 @@ vi.mock('@/hooks/useUiMode', () => ({
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
-    agent: {
-      id: 'agent-1',
-      name: 'Sara Khalil',
-      ui_mode: 'pro',
-      tenant_memberships: [{ ui_mode: 'pro' }],
-    },
+    agent: { id: 'agent-1', name: 'Sara Khalil', ui_mode: 'pro' },
     loading: false,
   }),
 }))
 
-vi.mock('@/hooks/useLocale', () => ({
-  useLocale: () => ({
-    locale: 'en',
-    setLocale: async () => ({ ok: true as const }),
-    dir: 'ltr' as const,
-    isArabic: false,
+vi.mock('@/hooks/useTenant', () => ({
+  useTenant: () => ({
+    activeTenant: { id: 'personal:agent-1', name: 'Personal', kind: 'personal', uiMode: 'pro' },
+    loading: false,
+    refresh: vi.fn(),
   }),
 }))
 
@@ -40,9 +35,13 @@ import {
   AgentDashboardProGate,
 } from '@/pages/agent/dashboard/AgentDashboardModeMount'
 
+function wrap(ui: React.ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>)
+}
+
 describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
   it('mounts ProDashboard when shouldRenderPro is true', async () => {
-    render(
+    wrap(
       <AgentDashboardModeMount
         shouldRenderPro
         agentName="Sara"
@@ -57,7 +56,7 @@ describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
   })
 
   it('keeps Guided when shouldRenderPro is false (D-S-06 mobile fallback)', () => {
-    render(
+    wrap(
       <AgentDashboardModeMount
         shouldRenderPro={false}
         guided={<div data-testid="guided-dashboard" />}
@@ -82,7 +81,7 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    render(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('pro-dashboard')).toBeTruthy()
@@ -98,7 +97,7 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    render(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
 
     expect(screen.getByTestId('guided-dashboard')).toBeTruthy()
     expect(screen.queryByTestId('pro-dashboard')).toBeNull()

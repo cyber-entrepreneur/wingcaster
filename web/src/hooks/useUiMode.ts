@@ -1,89 +1,120 @@
-import { useMemo } from 'react'
-import { useAuth, type AuthAgent, type TenantMembership } from '@/context/AuthContext'
+import { useCallback, useMemo, useState } from 'react'
+import { API_BASE } from '@/api/client'
+import { useAuth } from '@/context/AuthContext'
 import { useIsProCapable } from '@/hooks/useIsProCapable'
+import { useTenant } from '@/hooks/useTenant'
+import type { UiMode } from '@/lib/uiMode'
 
-export type UiMode = 'guided' | 'pro'
+export type { UiMode } from '@/lib/uiMode'
+export { normalizeUiMode, isUiMode } from '@/lib/uiMode'
+
+function readAuthToken(): string | null {
+  try {
+    return localStorage.getItem('fi_token') || localStorage.getItem('sa_token')
+  } catch {
+    return null
+  }
+}
+
+export type PersistUiModeResult =
+  | { ok: true; mode: UiMode }
+  | { ok: false; error: string }
+
+/** PATCH ui_mode for the active tenant membership (AGT-SET-002). */
+export async function persistUiMode(mode: UiMode): Promise<PersistUiModeResult> {
+  const token = readAuthToken()
+  const res = await fetch(`${API_BASE}/users/me`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ ui_mode: mode }),
+  })
+  if (!res.ok) {
+    return { ok: false, error: `Failed to save ui_mode (${res.status})` }
+  }
+  const body = (await res.json().catch(() => null)) as { ui_mode?: string } | null
+  return { ok: true, mode: body?.ui_mode === 'pro' ? 'pro' : mode }
+}
 
 export interface UseUiModeResult {
-  /** Server-persisted preference for the active tenant context. Never flipped by viewport. */
-  uiMode: UiMode
-  /** Render mode after D-S-06 gate: Pro only when uiMode=pro AND viewport ≥768px. */
+  /** Server preference for the active tenant (`guided` | `pro`). */
+  mode: UiMode
+  /**
+   * What the UI should render now.
+   * Pro only when server mode is `pro` AND viewport ≥768px (D-S-06).
+   */
   effectiveMode: UiMode
-  /** True when Pro layout should mount (uiMode=pro && isProCapable). */
+  isProCapable: boolean
+  /** Convenience: true when the Pro surface should render (effectiveMode === 'pro'). */
   shouldRenderPro: boolean
   loading: boolean
-}
-
-function asUiMode(value: unknown): UiMode | null {
-  if (value === 'pro' || value === 'guided') return value
-  return null
-}
-
-/**
- * Canonical membership read (Wave-8 DSH mount): `agent.tenant_memberships[0].ui_mode`
- * (plural). Also accepts nested `data.ui_mode` (JSONB column per AGT-DSH-002 brief).
- * Singular `tenant_membership` is intentionally ignored — that shape loses.
- */
-function uiModeFromTenantMemberships(memberships: TenantMembership[] | undefined): UiMode | null {
-  if (!Array.isArray(memberships) || memberships.length === 0) return null
-  const first = memberships[0]
-  if (!first || typeof first !== 'object') return null
-
-  const direct = asUiMode(first.ui_mode)
-  if (direct) return direct
-
-  const nested = first.data
-  if (nested && typeof nested === 'object') {
-    return asUiMode(nested.ui_mode)
-  }
-  return null
+  switching: boolean
+  setMode: (next: UiMode) => Promise<PersistUiModeResult>
+  refresh: () => Promise<void>
 }
 
 /**
- * Resolve effective `ui_mode` from `/auth/me`-shaped payloads.
- * Prefer per-tenant membership override (`tenant_memberships[0]`), then user/agent
- * data, then top-level field. Defaults to Guided when Agent 1's PATCH/GET wiring
- * is not yet present.
+ * Per-tenant Guided ↔ Pro preference + viewport gate.
+ * Same user can be Guided in one agency and Pro in another.
  */
-export function resolveUiModeFromAgent(
-  agent: AuthAgent | Record<string, unknown> | null | undefined,
-): UiMode {
-  if (!agent) return 'guided'
+export function useUiMode(options?: { forceProCapable?: boolean }): UseUiModeResult {
+  const { agent, loading: authLoading } = useAuth()
+  const { activeTenant, loading: tenantLoading, refresh } = useTenant()
+  const isProCapable = useIsProCapable(options?.forceProCapable)
+  const [switching, setSwitching] = useState(false)
+  const [optimistic, setOptimistic] = useState<UiMode | null>(null)
 
-  const memberships = (agent as AuthAgent).tenant_memberships
-  const fromMemberships = uiModeFromTenantMemberships(memberships)
-  if (fromMemberships) return fromMemberships
+  const mode: UiMode = useMemo(() => {
+    if (optimistic) return optimistic
+    const fromTenant = activeTenant?.uiMode
+    return fromTenant === 'pro' ? 'pro' : 'guided'
+  }, [activeTenant?.uiMode, optimistic])
 
-  const data = (agent as { data?: unknown }).data
-  if (data && typeof data === 'object') {
-    const fromData = asUiMode((data as { ui_mode?: unknown }).ui_mode)
-    if (fromData) return fromData
-  }
+  const effectiveMode: UiMode = mode === 'pro' && isProCapable ? 'pro' : 'guided'
 
-  const direct = asUiMode((agent as { ui_mode?: unknown }).ui_mode)
-  if (direct) return direct
-
-  return 'guided'
-}
-
-/**
- * Minimal Guided/Pro preference hook for Wave-8 mount branching.
- * Agent 1 (`feat/wave-8-pro`) may replace the read path with a dedicated
- * context + PATCH `/api/users/me` without changing `UseUiModeResult`.
- */
-export function useUiMode(): UseUiModeResult {
-  const { agent, loading } = useAuth()
-  const isProCapable = useIsProCapable()
-
-  const uiMode = useMemo(() => resolveUiModeFromAgent(agent), [agent])
-
-  const shouldRenderPro = uiMode === 'pro' && isProCapable
-  const effectiveMode: UiMode = shouldRenderPro ? 'pro' : 'guided'
+  const setMode = useCallback(
+    async (next: UiMode): Promise<PersistUiModeResult> => {
+      if (next === 'pro' && !isProCapable) {
+        return {
+          ok: false,
+          error: 'Pro mode is available on tablet or larger screens (≥768px).',
+        }
+      }
+      const prev = mode
+      setOptimistic(next)
+      setSwitching(true)
+      try {
+        const result = await persistUiMode(next)
+        if (!result.ok) {
+          setOptimistic(prev)
+          return result
+        }
+        await refresh()
+        setOptimistic(null)
+        return result
+      } catch (err) {
+        setOptimistic(prev)
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Could not switch modes',
+        }
+      } finally {
+        setSwitching(false)
+      }
+    },
+    [isProCapable, mode, refresh],
+  )
 
   return {
-    uiMode,
+    mode,
     effectiveMode,
-    shouldRenderPro,
-    loading,
+    isProCapable,
+    shouldRenderPro: effectiveMode === 'pro',
+    loading: Boolean(agent) && (authLoading || tenantLoading),
+    switching,
+    setMode,
+    refresh,
   }
 }
