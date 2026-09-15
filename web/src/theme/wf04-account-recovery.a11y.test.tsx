@@ -18,7 +18,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { axe, toHaveNoViolations } from 'jest-axe'
 import type { ReactElement } from 'react'
 import { ToastProvider } from '@/components/ui/toast'
-import { phaseAStatus } from '@/theme/wf04-phase-a-discovery'
+import { PHASE_A_PAGES, phaseAStatus } from '@/theme/wf04-phase-a-discovery'
 import {
   FIXED_NOW,
   mockQueueListResponse,
@@ -256,7 +256,7 @@ describe('Wave 3 WF-04 a11y — discovery status', () => {
       deletionCountdown: true,
       acrQueue: true,
       acrDetail: true,
-      readyCount: 4,
+      readyCount: Object.keys(PHASE_A_PAGES).length,
     })
   })
 })
@@ -397,6 +397,18 @@ describe('Wave 3 WF-04 a11y — cast-vote modal focus trap', () => {
       expect(dialog.contains(document.activeElement)).toBe(true)
     })
 
+    // Tab wrap: cycling forward stays inside the dialog.
+    for (let i = 0; i < 8; i += 1) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+
+    // Shift+Tab wrap: cycling backward stays inside the dialog.
+    for (let i = 0; i < 8; i += 1) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+
     await user.keyboard('{Escape}')
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull()
@@ -473,7 +485,8 @@ describe('Wave 3 WF-04 a11y — jest-axe + RTL dir smoke', () => {
     const { container } = wrapQueue()
     await screen.findByText('Blue Door LB')
     expect(screen.queryByText('omar.khoury@example.ae')).toBeNull()
-    // Radix Tabs triggers can reference lazy content ids before panels mount.
+    // TODO(a11y): #162 — re-enable axe aria-valid-attr-value once Radix Tabs
+    // aria-controls ids resolve before panels mount (lazy content references).
     expect(
       await axe(container, {
         rules: { 'aria-valid-attr-value': { enabled: false } },
@@ -485,10 +498,78 @@ describe('Wave 3 WF-04 a11y — jest-axe + RTL dir smoke', () => {
     const { container } = wrapDetail()
     await screen.findByRole('heading', { name: /Recovery case/i })
     expect(screen.queryByText('sara.mansouri@elitedubai.com')).toBeNull()
+    // TODO(a11y): #163 — re-enable axe heading-order once detail Decision panel
+    // + shared Timeline heading hierarchy is flattened.
     expect(
       await axe(container, {
         rules: {
-          // Decision panel sticky + timeline may nest headings from shared Timeline.
+          'heading-order': { enabled: false },
+        },
+      }),
+    ).toHaveNoViolations()
+  })
+
+  it('PA-ACR-001 high-value row passes axe (snap 10)', async () => {
+    listMock.mockResolvedValue(
+      mockQueueListResponse([
+        sampleAcrQueueCase({
+          id: 'acr_hv',
+          account_value_tier: 'high_value',
+          requires_two_person: true,
+        }),
+      ]),
+    )
+    const { container } = wrapQueue()
+    await screen.findByText('Blue Door LB')
+    expect(screen.getAllByText(/High-value/i).length).toBeGreaterThan(0)
+    // TODO(a11y): #162 — same Tabs aria-controls lazy-id issue as masked queue scan.
+    expect(
+      await axe(container, {
+        rules: { 'aria-valid-attr-value': { enabled: false } },
+      }),
+    ).toHaveNoViolations()
+  })
+
+  it('PA-ACR-002 two-person progress passes axe (snap 13)', async () => {
+    getCaseMock.mockResolvedValue(
+      sampleAcrDetailCase({
+        account_value_tier: 'high_value',
+        requires_two_person: true,
+        first_vote: {
+          reviewer_id: 'pa_other',
+          vote: 'approve',
+          at: '2026-09-07T12:00:00Z',
+        },
+        current_reviewer: {
+          id: 'pa_current',
+          is_first_reviewer_candidate: false,
+          is_second_reviewer_candidate: true,
+        },
+      }),
+    )
+    const { container } = wrapDetail()
+    await screen.findByRole('progressbar', { name: /Two-person approval progress/i })
+    // TODO(a11y): #163 — same heading-order issue as pending detail scan.
+    expect(
+      await axe(container, {
+        rules: {
+          'heading-order': { enabled: false },
+        },
+      }),
+    ).toHaveNoViolations()
+  })
+
+  it('PA-ACR-002 cast-vote modal open passes axe (snap 14)', async () => {
+    const user = userEvent.setup()
+    const { container } = wrapDetail()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Approve · Issue recovery link/i }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    // TODO(a11y): #163 — dialog sits above detail headings; keep heading-order tracked.
+    expect(
+      await axe(container, {
+        rules: {
           'heading-order': { enabled: false },
         },
       }),

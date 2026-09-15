@@ -176,3 +176,9 @@ export function mockQueueListResponse(cases: ReturnType<typeof sampleAcrQueueCas
     },
   }
 }
+
+/** Alias used by AccountRecoveryQueuePage unit tests. */
+export const sampleCase = sampleAcrQueueCase
+
+/** Alias used by AccountRecoveryDetailPage unit tests. */
+export const baseCase = sampleAcrDetailCase

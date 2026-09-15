@@ -16,6 +16,8 @@ export default defineConfig({
     // DOM opt in via `// @vitest-environment jsdom` at the top of the file —
     // vitest reads that directive per-file and swaps environments.
     globals: true,
+    // Stabilize Date/Intl for visual snapshots (must be set before module load).
+    env: { TZ: 'UTC' },
     environment: 'node',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'backend/src/**/*.{test,spec}.js'],
     hookTimeout: 60000,
