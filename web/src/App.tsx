@@ -54,6 +54,7 @@ import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
+import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -123,6 +124,7 @@ function AppRoutes() {
       <Route path="/listings/new" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
+      <Route path="/listings/:id/portals/submit" element={<PortalSubmitPage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
       <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
