@@ -638,7 +638,8 @@ describe('WF-06 second-approver vote + undo tokens', () => {
     const approval = dal.store.approval_requests.find((r) => r.id === first.approval_request_id)
     expect(report.status).toBe('pending_second_approval')
     expect(approval.status).toBe('REQUESTED')
-    // First-approver action from createIncorporateApprovalRequest remains; second vote must not land.
+    // First reviewer is tracked on report.reviewed_by (no self-approval action row).
+    // Second vote must not land after incorporate failure.
     expect(
       dal.store.approval_actions.filter(
         (a) => a.request_id === first.approval_request_id && String(a.actor_id) === 'pa-2',

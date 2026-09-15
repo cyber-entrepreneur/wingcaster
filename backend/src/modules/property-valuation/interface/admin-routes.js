@@ -103,7 +103,7 @@ export function registerAdminRoutes(app, services) {
     : Promise.resolve(null)
 
   function sendServiceError(res, err) {
-    const status = err.status || err.httpStatus || 500
+    const status = Number(err.status || err.httpStatus || err.statusCode) || 500
     if (status >= 500) throw err
     return res.status(status).json({
       error: err.code || err.message,
