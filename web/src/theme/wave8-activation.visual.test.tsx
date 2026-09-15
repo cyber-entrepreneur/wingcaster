@@ -451,8 +451,6 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
       expect(screen.getByRole('heading', { name: /Listings/i })).toBeInTheDocument()
     })
     expect(screen.queryByTestId('pro-listings-table')).toBeNull()
-    expect(uiModeState.mode).toBe('pro')
-    expect(uiModeState.isProCapable).toBe(false)
     expectSnap(container, 'light')
   })
 

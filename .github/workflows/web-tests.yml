@@ -48,11 +48,18 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Tests
+      # Split suites: one vitest process across 130+ files accumulates DOM
+      # snapshots until V8 OOMs even at 8GB, and ubuntu-latest only has ~7GB
+      # RAM. Fresh processes + 6GB heap keep each phase under the runner ceiling.
+      - name: Tests — app (non-theme)
         env:
-          # Full visual + a11y matrix OOMs the default ~2GB heap mid-suite.
-          NODE_OPTIONS: --max-old-space-size=8192
-        run: npx vitest run
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npx vitest run --exclude 'src/theme/**'
+
+      - name: Tests — theme visual + a11y
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npx vitest run src/theme
 
       - name: Production build
         env:
