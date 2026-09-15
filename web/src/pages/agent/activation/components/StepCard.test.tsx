@@ -5,6 +5,10 @@ import userEvent from '@testing-library/user-event'
 import { StepCard } from './StepCard'
 import { makeStep } from '../testFixtures'
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({ locale: 'en', setLocale: vi.fn(), dir: 'ltr' }),
+}))
+
 describe('StepCard state variants', () => {
   it('renders not_started with circle glyph and Start CTA', () => {
     render(

@@ -138,6 +138,23 @@ Single-column, centered, max-width 720px.
 
 ---
 
+## PII posture
+
+Portal credentials are **secrets** (username / password / API key / agency_id). Treat them with the same discipline as PA-ACR reveal surfaces:
+
+| Surface | Posture |
+|---|---|
+| Credential drawer fields | Plaintext only while the sheet is open and focused. Never put secrets in URL query strings, route state, toasts, or analytics payloads. |
+| Connected row pill | Show **masked** identifier only (`{masked_username}` / `sara@***`). Prefer server-supplied `masked_identifier`. Never re-echo the password after save. |
+| Retry / Manage drawer | Prefill non-secret fields when the adapter returns them; leave password/secret fields empty. |
+| Error toasts | Map `error_class` to friendly copy. Never dump raw credential payloads or adapter stack traces into the UI. |
+| Logs / telemetry | Log `portal_code` + `error_class` only. No credential bodies. |
+| Empty / Locked | Empty registry shows no credential UI at all — no placeholder forms that invite accidental paste of secrets. |
+
+`<PIIMask>` is not required on this screen because the only post-save PII is the already-masked portal identifier; passwords never reappear. If a future revision surfaces full usernames, wrap them in `<PIIMask kind="username">` with `auditContext={{ caseId, field: 'portal_username' }}`.
+
+---
+
 ## State variants (deltas)
 
 | Variant | Trigger | Behavior |

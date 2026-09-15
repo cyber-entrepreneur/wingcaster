@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ActivationProgressBar } from './ActivationProgressBar'
+
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({ locale: 'en', setLocale: vi.fn(), dir: 'ltr' }),
+}))
 
 describe('ActivationProgressBar', () => {
   it('renders 0 of 5 complete with empty bar', () => {

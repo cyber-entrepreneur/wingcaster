@@ -41,6 +41,10 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('./api', () => apiMock)
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({ locale: 'en', setLocale: vi.fn(), dir: 'ltr' }),
+}))
+
 vi.mock('@/components/nav/LanguageSelector', () => ({
   LanguageSelector: () => <div data-testid="language-selector">Language</div>,
 }))
@@ -292,6 +296,7 @@ describe('AGT-ACT-004 portal credentials', () => {
       expect(apiMock.completeActivationStep).toHaveBeenCalledWith(
         'portal_credentials',
         'dashboard_action',
+        expect.objectContaining({ connected_count: 1 }),
       ),
     )
   })
@@ -323,11 +328,47 @@ describe('AGT-ACT-005 invite team', () => {
     expect(screen.getByRole('tab', { name: 'Share link' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Invitation code' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Bulk email' })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Invitation code' }))
     await user.click(screen.getByRole('button', { name: /Mark step complete/i }))
     await waitFor(() =>
-      expect(apiMock.completeActivationStep).toHaveBeenCalledWith('invite_team', 'dashboard_action'),
+      expect(apiMock.completeActivationStep).toHaveBeenCalledWith(
+        'invite_team',
+        'dashboard_action',
+        expect.objectContaining({
+          invitations_sent: 1,
+          methods_used: expect.arrayContaining(['share_link', 'invitation_code']),
+        }),
+      ),
     )
     expect(navigateMock).toHaveBeenCalledWith('/channels?source=activation')
+  })
+
+  it('masks invitee emails with PIIMask and celebrates when invite_team flips 4→5', async () => {
+    const user = userEvent.setup()
+    authMock.agent = { id: 'usr_test', name: 'Test', email: 't@example.com', agency_name: 'Elite RE', role: 'owner' }
+    const almostDone = makeActivationState({
+      signup_path: 'agency',
+      steps: [
+        withState('whatsapp', 'complete', { sub_route: '/activate/whatsapp' }, 'direct'),
+        withState('first_listing', 'complete', { sub_route: '/activate/first-listing' }, 'direct'),
+        withState('portal_credentials', 'complete', { sub_route: '/activate/portal-credentials' }, 'direct'),
+        withState('working_hours', 'complete', { sub_route: '/activate/working-hours' }, 'direct'),
+        withState('invite_team', 'not_started', { sub_route: '/activate/invite-team' }),
+      ],
+    })
+    stubState(almostDone, [{ code: 'bayut', display_name: 'Bayut' }])
+    apiMock.fetchShareLink.mockResolvedValue({ url: 'https://wingcaster.app/join/elite?code=INV-1', code: 'INV-1' })
+    apiMock.fetchAgencyInvitations.mockResolvedValue([
+      { id: 'inv_1', email: 'sara@example.com', sent_at: '2026-09-08T10:00:00Z', status: 'pending' },
+    ])
+    wrap(<ActivationInviteTeamPage />, '/activate/invite-team')
+    await waitFor(() => expect(screen.getByText('Invite your team')).toBeInTheDocument())
+    // Masked by default — full email not shown in plain text
+    expect(screen.queryByText('sara@example.com')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Mark step complete/i }))
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith('/channels?source=activation&celebrate=1'),
+    )
   })
 })
 
@@ -363,6 +404,42 @@ describe('AGT-ACT complete/defer POSTs', () => {
     await user.click(screen.getByRole('button', { name: /Mark step complete/i }))
     await waitFor(() =>
       expect(apiMock.completeActivationStep).toHaveBeenCalledWith('whatsapp', 'dashboard_action'),
+    )
+    expect(navigateMock).toHaveBeenCalledWith('/activate')
+  })
+
+  it('tertiary WhatsApp skip records no_business_whatsapp and defers', async () => {
+    const user = userEvent.setup()
+    const state = makeActivationState({
+      steps: [
+        withState('whatsapp', 'not_started', { sub_route: '/activate/whatsapp' }),
+        withState('first_listing', 'not_started', { sub_route: '/activate/first-listing' }),
+        withState('portal_credentials', 'locked', { sub_route: '/activate/portal-credentials' }),
+        withState('working_hours', 'not_started', { sub_route: '/activate/working-hours' }),
+        withState('invite_team', 'locked', { sub_route: '/activate/invite-team' }),
+      ],
+    })
+    stubState(state, [])
+    apiMock.fetchWhatsAppActivationCode.mockResolvedValue({
+      display_code: 'WC-A7K3',
+      shared_number_e164: '+971500000000',
+      expires_at: new Date(Date.now() + 600000).toISOString(),
+    })
+    apiMock.fetchWhatsAppBindingStatus.mockResolvedValue({ bound: false })
+    apiMock.recordOnboardingEvent.mockResolvedValue(undefined)
+    wrap(<ActivationWhatsAppPage />, '/activate/whatsapp')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Skip — I don't use WhatsApp for business/i })).toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: /Skip — I don't use WhatsApp for business/i }))
+    await waitFor(() => expect(apiMock.deferActivationStep).toHaveBeenCalledWith('whatsapp'))
+    expect(apiMock.recordOnboardingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'activation_defer',
+        family: 'activation',
+        step_id: 'whatsapp',
+        reason: 'no_business_whatsapp',
+      }),
     )
     expect(navigateMock).toHaveBeenCalledWith('/activate')
   })

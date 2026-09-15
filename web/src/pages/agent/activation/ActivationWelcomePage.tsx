@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { ActivationChrome, ActivationFooterHelper } from './components/ActivationChrome'
 import { LockedInfoDialog } from './components/LockedInfoDialog'
 import { StepCard } from './components/StepCard'
-import { stepLockHelper } from './copy'
+import { act, stepLockHelper, type ActivationLocale } from './copy'
 import type { ActivationStep } from './types'
 import { useActivationState } from './useActivationState'
 
@@ -27,7 +28,9 @@ function featureHref(step: ActivationStep): string {
 }
 
 export function ActivationWelcomePage() {
-  usePageTitle('Activation wizard')
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
+  usePageTitle(act('welcome.title', locale))
   const navigate = useNavigate()
   const location = useLocation()
   const { state, isLoading, isError, refresh, defer, completedCount, totalCount } =
@@ -77,10 +80,10 @@ export function ActivationWelcomePage() {
           className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-xl)] shadow-[var(--lc-elevation-sm)]"
         >
           <h1 className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-1)' }}>
-            We couldn&apos;t load your activation progress. Try again in a moment.
+            {act('welcome.error', locale)}
           </h1>
           <Button type="button" onClick={() => void refresh()}>
-            Retry
+            {act('common.retry', locale)}
           </Button>
         </div>
       </ActivationChrome>
@@ -92,8 +95,11 @@ export function ActivationWelcomePage() {
   const handlePrimary = (step: ActivationStep) => {
     if (step.state === 'locked') {
       setLocked({
-        title: step.id === 'invite_team' ? 'Invite team' : 'Not available yet',
-        helper: stepLockHelper(step, state.signup_path) || 'Available soon',
+        title:
+          step.id === 'invite_team'
+            ? act('locked.inviteTitle', locale)
+            : act('locked.genericTitle', locale),
+        helper: stepLockHelper(step, state.signup_path, locale) || act('locked.genericTitle', locale),
       })
       return
     }
@@ -115,14 +121,13 @@ export function ActivationWelcomePage() {
             className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
             style={{ font: 'var(--lc-type-display)' }}
           >
-            Unlock every WingCaster feature
+            {act('welcome.h1', locale)}
           </h1>
           <p
             className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]"
             style={{ font: 'var(--lc-type-body-lg)' }}
           >
-            Five short steps get you from account-created to fully activated. Do them in any order — your
-            progress saves automatically.
+            {act('welcome.sub', locale)}
           </p>
         </>
       }

@@ -6,6 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useLocale } from '@/hooks/useLocale'
+import { act, type ActivationLocale } from '../copy'
 
 export interface LockedInfoDialogProps {
   open: boolean
@@ -15,6 +17,8 @@ export interface LockedInfoDialogProps {
 }
 
 export function LockedInfoDialog({ open, onOpenChange, title, helper }: LockedInfoDialogProps) {
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -24,7 +28,7 @@ export function LockedInfoDialog({ open, onOpenChange, title, helper }: LockedIn
         </DialogHeader>
         <div className="mt-[var(--lc-space-lg)] flex justify-end">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Got it
+            {act('locked.gotIt', locale)}
           </Button>
         </div>
       </DialogContent>

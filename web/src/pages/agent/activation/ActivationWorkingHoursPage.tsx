@@ -4,13 +4,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { ActivationChrome } from './components/ActivationChrome'
+import { act, type ActivationLocale } from './copy'
 import { completedCaption } from './format'
 import { useActivationState } from './useActivationState'
 
 export function ActivationWorkingHoursPage() {
-  usePageTitle('Working hours')
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
+  usePageTitle(act('hours.pageTitle', locale))
   const navigate = useNavigate()
   const { state, isLoading, complete, defer, completedCount, totalCount } = useActivationState()
   const [weekdayStart, setWeekdayStart] = useState('09:00')
@@ -34,7 +38,7 @@ export function ActivationWorkingHoursPage() {
   if (isLoading || !state) {
     return (
       <ActivationChrome
-        breadcrumb={{ step: 4, title: 'Set your working hours' }}
+        breadcrumb={{ step: 4, title: act('hours.breadcrumb', locale) }}
         completed={0}
         total={0}
         progressSize="sm"
@@ -47,7 +51,7 @@ export function ActivationWorkingHoursPage() {
 
   return (
     <ActivationChrome
-      breadcrumb={{ step: 4, title: 'Set your working hours' }}
+      breadcrumb={{ step: 4, title: act('hours.breadcrumb', locale) }}
       completed={completedCount}
       total={totalCount}
       progressSize="sm"
@@ -57,19 +61,20 @@ export function ActivationWorkingHoursPage() {
         className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
         style={{ font: 'var(--lc-type-heading-1)' }}
       >
-        Set your working hours &amp; response time
+        {act('hours.h1', locale)}
       </h1>
       <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-lg)' }}>
-        Tell leads when to expect a reply so auto-responders never overpromise.
+        {act('hours.sub', locale)}
       </p>
 
       {alreadyComplete ? (
         <>
           <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            <Numeric>{completedCaption(step?.completed_via, step?.completed_at)}</Numeric>. Nothing to do here.
+            <Numeric>{completedCaption(step?.completed_via, step?.completed_at, locale)}</Numeric>.{' '}
+            {act('common.nothingTodo', locale)}
           </p>
           <Button type="button" onClick={() => goBack()}>
-            Return to activation wizard →
+            {act('common.returnWizard', locale)}
           </Button>
         </>
       ) : (
@@ -94,7 +99,7 @@ export function ActivationWorkingHoursPage() {
         >
           <div className="grid grid-cols-1 gap-[var(--lc-space-md)] sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="weekday-start">Weekdays from</Label>
+              <Label htmlFor="weekday-start">{act('hours.weekdayFrom', locale)}</Label>
               <Input
                 id="weekday-start"
                 type="time"
@@ -103,11 +108,11 @@ export function ActivationWorkingHoursPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="weekday-end">Weekdays until</Label>
+              <Label htmlFor="weekday-end">{act('hours.weekdayUntil', locale)}</Label>
               <Input id="weekday-end" type="time" value={weekdayEnd} onChange={(e) => setWeekdayEnd(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="weekend-start">Weekend from</Label>
+              <Label htmlFor="weekend-start">{act('hours.weekendFrom', locale)}</Label>
               <Input
                 id="weekend-start"
                 type="time"
@@ -116,12 +121,12 @@ export function ActivationWorkingHoursPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="weekend-end">Weekend until</Label>
+              <Label htmlFor="weekend-end">{act('hours.weekendUntil', locale)}</Label>
               <Input id="weekend-end" type="time" value={weekendEnd} onChange={(e) => setWeekendEnd(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="response-mins">Typical first-reply time (minutes)</Label>
+            <Label htmlFor="response-mins">{act('hours.response', locale)}</Label>
             <Input
               id="response-mins"
               type="number"
@@ -134,7 +139,7 @@ export function ActivationWorkingHoursPage() {
           </div>
           <div className="flex flex-col gap-[var(--lc-space-sm)]">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Mark step complete →'}
+              {saving ? act('common.saving', locale) : act('common.markComplete', locale)}
             </Button>
             <Button
               type="button"
@@ -144,7 +149,7 @@ export function ActivationWorkingHoursPage() {
                 navigate('/activate')
               }}
             >
-              I&apos;ll do this later
+              {act('common.later', locale)}
             </Button>
           </div>
         </form>
