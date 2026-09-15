@@ -1247,6 +1247,35 @@ export const api = {
     source?: string | null
   }> => fetchJson(`/conversations/${id}/ai-suggestions`, { method: 'POST', body: '{}' }),
 
+  getMyAiUsageToday: (): Promise<{
+    used: number
+    cap: number
+    resets_at: string
+    monthly_cap?: number | null
+  }> => fetchJson('/users/me/ai-usage/today'),
+
+  getAgencyAiUsage: (): Promise<{
+    members: Array<{
+      user_id: string
+      name_masked: string
+      daily_cap: number
+      today_used: number
+      month_used: number
+      month_cap: number | null
+    }>
+    agency_month_total: number
+    top_days: Array<{ usage_date: string; suggestions_used: number }>
+  }> => fetchJson('/agency/ai-usage'),
+
+  patchAgencyAiCaps: (
+    userId: string,
+    payload: { daily_cap: number; monthly_cap?: number | null },
+  ): Promise<{ user_id: string; daily_cap: number; monthly_cap: number | null }> =>
+    fetchJson(`/agency/ai-caps/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
   getListingComments: (
     listingId: string,
     options?: { category?: string | string[] },

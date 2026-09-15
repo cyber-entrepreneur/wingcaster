@@ -10,6 +10,10 @@ import { findAll, insert } from '../../db.js'
 import { personalTenantId } from '../../tenant-authorization.js'
 import { assertOwnsConversation } from '../authz.js'
 import { recordAiCall } from '../ai-usage-logger.js'
+import {
+  assertAiSuggestionAllowed,
+  recordAiSuggestionUsage,
+} from '../ai-caps.js'
 
 export const AI_SUGGESTION_MODEL = 'claude-haiku-4-5-20251001'
 export const AI_SUGGESTION_TIMEOUT_MS = 5_000
@@ -116,16 +120,23 @@ function buildSystemPrompt(language) {
  * @param {{
  *   conversationId: string,
  *   userId: string,
+ *   activeTenantId?: string | null,
  *   deps?: Record<string, unknown>,
  * }} args
  */
-export async function generateAiSuggestions({ conversationId, userId, deps = {} }) {
+export async function generateAiSuggestions({ conversationId, userId, activeTenantId = null, deps = {} }) {
   const assertOwns = /** @type {typeof assertOwnsConversation} */ (
     deps.assertOwnsConversation || assertOwnsConversation
   )
   const findAllFn = /** @type {typeof findAll} */ (deps.findAll || findAll)
   const insertFn = /** @type {typeof insert} */ (deps.insert || insert)
   const recordAiCallFn = /** @type {typeof recordAiCall} */ (deps.recordAiCall || recordAiCall)
+  const assertCap = /** @type {typeof assertAiSuggestionAllowed} */ (
+    deps.assertAiSuggestionAllowed || assertAiSuggestionAllowed
+  )
+  const recordUsage = /** @type {typeof recordAiSuggestionUsage} */ (
+    deps.recordAiSuggestionUsage || recordAiSuggestionUsage
+  )
   const timeoutMs = Number(deps.timeoutMs || AI_SUGGESTION_TIMEOUT_MS)
   const apiKey = deps.apiKey !== undefined ? deps.apiKey : process.env.ANTHROPIC_API_KEY
   const createMessage = deps.createMessage
@@ -135,6 +146,9 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
   if (!apiKey && !createMessage) {
     return { suggestions: [], degraded: true }
   }
+
+  // Cap check immediately before calling Anthropic.
+  const capState = await assertCap(userId, { activeTenantId })
 
   const allMessages = await findAllFn(
     'conversation_messages',
@@ -194,12 +208,13 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
     const inputTokens = Number(response?.usage?.input_tokens || 0)
     const outputTokens = Number(response?.usage?.output_tokens || 0)
 
-    let tenantId = null
-    try {
-      tenantId = personalTenantId(userId)
-    } catch {
-      tenantId = null
-    }
+    const tenantId = capState.tenantId || (() => {
+      try {
+        return personalTenantId(userId)
+      } catch {
+        return null
+      }
+    })()
 
     try {
       await insertFn('audit_log', {
@@ -235,12 +250,29 @@ export async function generateAiSuggestions({ conversationId, userId, deps = {} 
       relatedEntityId: conversation.id,
     })
 
+    if (tenantId) {
+      try {
+        await recordUsage({
+          userId,
+          tenantId,
+          inputTokens,
+          outputTokens,
+          usageDate: capState.usageDate,
+        })
+      } catch {
+        // metering is best-effort after a successful model call
+      }
+    }
+
     return {
       suggestions,
       model,
       latency_ms: latencyMs,
     }
-  } catch {
+  } catch (err) {
+    if (err?.status === 429 && (err.code === 'AI_DAILY_CAP' || err.code === 'AI_MONTHLY_CAP')) {
+      throw err
+    }
     return { suggestions: [], degraded: true }
   } finally {
     clearTimeout(timer)

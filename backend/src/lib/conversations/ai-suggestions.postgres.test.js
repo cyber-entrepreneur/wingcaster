@@ -22,6 +22,19 @@ const usageLogger = vi.hoisted(() => ({
   recordAiCall: vi.fn(async () => undefined),
 }))
 
+const aiCaps = vi.hoisted(() => ({
+  assertAiSuggestionAllowed: vi.fn(async (userId) => ({
+    agencyId: null,
+    dailyCap: 200,
+    monthlyCap: null,
+    tenantId: `personal:${userId}`,
+    used: 0,
+    usageDate: '2026-09-15',
+    resetsAt: '2026-09-16T00:00:00.000Z',
+  })),
+  recordAiSuggestionUsage: vi.fn(async () => undefined),
+}))
+
 const anthropic = vi.hoisted(() => ({
   create: vi.fn(),
 }))
@@ -29,6 +42,7 @@ const anthropic = vi.hoisted(() => ({
 vi.mock('../../db.js', () => dal)
 vi.mock('../authz.js', () => authz)
 vi.mock('../ai-usage-logger.js', () => usageLogger)
+vi.mock('../ai-caps.js', () => aiCaps)
 vi.mock('../../tenant-authorization.js', () => ({
   personalTenantId: (userId) => `personal:${userId}`,
 }))
@@ -123,6 +137,16 @@ describe('ai-suggestions', () => {
     expect(result.model).toBe('claude-haiku-4-5-20251001')
     expect(typeof result.latency_ms).toBe('number')
 
+    expect(aiCaps.assertAiSuggestionAllowed).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      activeTenantId: null,
+    }))
+    expect(aiCaps.recordAiSuggestionUsage).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      tenantId: 'personal:user-1',
+      inputTokens: 12,
+      outputTokens: 18,
+    }))
+
     expect(anthropic.create).toHaveBeenCalledWith(
       expect.objectContaining({
         system: expect.stringMatching(/SAME language|language code: ar|Never auto-translate/i),
@@ -145,6 +169,24 @@ describe('ai-suggestions', () => {
       }),
     )
     expect(usageLogger.recordAiCall).toHaveBeenCalled()
+  })
+
+  it('throws AI_DAILY_CAP before calling Anthropic', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    aiCaps.assertAiSuggestionAllowed.mockRejectedValueOnce(
+      Object.assign(new Error('AI daily suggestion cap reached'), {
+        status: 429,
+        code: 'AI_DAILY_CAP',
+        cap: 200,
+        used: 200,
+        resets_at: '2026-09-16T00:00:00.000Z',
+      }),
+    )
+
+    await expect(
+      generateAiSuggestions({ conversationId: 'conv-1', userId: 'user-1' }),
+    ).rejects.toMatchObject({ status: 429, code: 'AI_DAILY_CAP' })
+    expect(anthropic.create).not.toHaveBeenCalled()
   })
 
   it('returns degraded on timeout', async () => {
