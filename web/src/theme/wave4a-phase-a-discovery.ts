@@ -65,18 +65,22 @@ const PAGE_CANDIDATES = {
     'pages/agent/activation/ActivatePage.tsx',
   ],
   'ACT-002': [
+    'pages/agent/activation/ActivationWhatsAppPage.tsx',
     'pages/agent/activation/WhatsAppConnectPage.tsx',
     'pages/agent/activation/ActivateWhatsAppPage.tsx',
   ],
   'ACT-003': [
+    'pages/agent/activation/ActivationFirstListingPage.tsx',
     'pages/agent/activation/FirstListingPage.tsx',
     'pages/agent/activation/ActivateFirstListingPage.tsx',
   ],
   'ACT-004': [
+    'pages/agent/activation/ActivationPortalCredentialsPage.tsx',
     'pages/agent/activation/PortalCredentialsPage.tsx',
     'pages/agent/activation/PortalCredentialsLockedPage.tsx',
   ],
   'ACT-005': [
+    'pages/agent/activation/ActivationInviteTeamPage.tsx',
     'pages/agent/activation/InviteTeamPage.tsx',
     'pages/agent/activation/InviteTeamStepPage.tsx',
   ],

@@ -13,7 +13,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
 import type { OnboardingState } from '@/components/onboarding/useOnboardingState'
 import { makeState } from '@/pages/agent/onboarding/testState'
-import { makeActivationState, midFlowSolo } from '@/pages/agent/activation/testFixtures'
+import { makeActivationState, midFlowSolo, agencyOwnerState } from '@/pages/agent/activation/testFixtures'
 
 expect.extend(toHaveNoViolations)
 
@@ -46,6 +46,16 @@ const apiMock = vi.hoisted(() => ({
   revokeInvitation: vi.fn(),
 }))
 
+const authAgent = vi.hoisted(() => ({
+  current: {
+    id: 'u1',
+    name: 'Sara Agent',
+    email: 'sara@example.com',
+    role: 'agent',
+    agency_name: 'Elite Realty',
+  } as Record<string, unknown>,
+}))
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return { ...actual, useNavigate: () => navigateMock }
@@ -65,7 +75,7 @@ vi.mock('@/hooks/useOnboardingState', () => ({
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
-    agent: { id: 'u1', name: 'Sara Agent', email: 'sara@example.com', role: 'agent' },
+    agent: authAgent.current,
     loading: false,
   }),
 }))
@@ -88,6 +98,21 @@ vi.mock('@/pages/agent/onboarding/onboardingApi', () => ({
   getMarketingAgentCount: vi.fn(async () => 2499),
   trackOnboardingEvent: vi.fn(),
   getPublishedListing: vi.fn(async () => null),
+  getWhatsAppDraft: vi.fn(async () => ({
+    id: 'draft_1',
+    status: 'awaiting_approval',
+    title: '2BR · Downtown Dubai',
+    price: 2_400_000,
+    currency: 'AED',
+    beds: 2,
+    baths: 2,
+    area: '1,200 sqft',
+    address: '42 Marina Walk, Dubai',
+    description: 'Bright 2-bedroom apartment on the marina.',
+    photo_urls: ['https://example.test/a.jpg'],
+  })),
+  approveWhatsAppDraft: vi.fn(),
+  discardWhatsAppDraft: vi.fn(),
 }))
 
 vi.mock('@/pages/agent/activation/api', () => apiMock)
@@ -107,18 +132,42 @@ vi.mock('@/pages/agent/activation/onboardingHook', () => ({
 import { WelcomePage } from '@/pages/agent/onboarding/WelcomePage'
 import { OnboardingChecklistWidget } from '@/pages/agent/onboarding/OnboardingChecklistWidget'
 import { CelebrationPage } from '@/pages/agent/onboarding/CelebrationPage'
+import { FirstListingReviewPage } from '@/pages/agent/onboarding/FirstListingReviewPage'
 import { ActivationWelcomePage } from '@/pages/agent/activation/ActivationWelcomePage'
 import { ActivationPortalCredentialsPage } from '@/pages/agent/activation/ActivationPortalCredentialsPage'
+import { ActivationWhatsAppPage } from '@/pages/agent/activation/ActivationWhatsAppPage'
+import { ActivationFirstListingPage } from '@/pages/agent/activation/ActivationFirstListingPage'
+import { ActivationInviteTeamPage } from '@/pages/agent/activation/ActivationInviteTeamPage'
 import { SkipWizardDialog } from '@/pages/agent/activation/components/SkipWizardDialog'
+
+vi.mock('@/pages/agent/onboarding/useOnlineStatus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/pages/agent/onboarding/useOnlineStatus')>()
+  return {
+    ...actual,
+    useOnlineStatus: () => true,
+  }
+})
+
+vi.mock('@/pages/agent/activation/useOnlineStatus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/pages/agent/activation/useOnlineStatus')>()
+  return {
+    ...actual,
+    useOnlineStatus: () => true,
+  }
+})
 
 function shell(ui: ReactElement, path = '/onboarding/welcome', extraMain = true) {
   const routed = (
     <Routes>
       <Route path="/onboarding/welcome" element={ui} />
       <Route path="/onboarding/first-listing/published" element={ui} />
+      <Route path="/onboarding/first-listing/:draftId" element={ui} />
       <Route path="/dashboard" element={ui} />
       <Route path="/activate" element={ui} />
       <Route path="/activate/portal-credentials" element={ui} />
+      <Route path="/activate/whatsapp" element={ui} />
+      <Route path="/activate/first-listing" element={ui} />
+      <Route path="/activate/invite-team" element={ui} />
     </Routes>
   )
   return render(
@@ -137,6 +186,13 @@ beforeEach(() => {
   onboardingHook.state = makeState()
   onboardingHook.isLoading = false
   onboardingHook.isError = false
+  authAgent.current = {
+    id: 'u1',
+    name: 'Sara Agent',
+    email: 'sara@example.com',
+    role: 'agent',
+    agency_name: 'Elite Realty',
+  }
   Object.values(apiMock).forEach((fn) => fn.mockReset())
   apiMock.fetchActivationState.mockResolvedValue(midFlowSolo())
   apiMock.fetchPortalRegistry.mockResolvedValue([])
@@ -181,6 +237,9 @@ describe('Wave 4A a11y — real ONB pages (feat/wave-4a-onb)', () => {
       false,
     )
     expect(container.querySelector('[data-onboarding-checklist]')).toBeTruthy()
+    // Widget ships its own <section> landmark; shell also wraps <main>. Disable
+    // landmark-unique here (same class of harness exemption as LoginPage in
+    // a11y-top-pages.rtl.test.tsx) — markup fix belongs to the DSH mount PR.
     expect(
       await axe(container, {
         rules: { 'landmark-unique': { enabled: false } },
@@ -208,6 +267,7 @@ describe('Wave 4A a11y — real ONB pages (feat/wave-4a-onb)', () => {
       false,
     )
     expect(screen.getByRole('button', { name: /Onboarding progress/i })).toBeInTheDocument()
+    // See ONB-005 card case — Pro pill shares the nested-landmark harness conflict.
     expect(
       await axe(container, {
         rules: { 'landmark-unique': { enabled: false } },
@@ -254,8 +314,81 @@ describe('Wave 4A a11y — real ACT pages (feat/wave-4a-act)', () => {
       await user.tab()
       expect(dialog.contains(document.activeElement)).toBe(true)
     }
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
     await user.keyboard('{Escape}')
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('ACT-002 WhatsApp connect has no axe violations', async () => {
+    apiMock.fetchActivationState.mockResolvedValue(
+      makeActivationState({
+        steps: makeActivationState().steps.map((s) =>
+          s.id === 'whatsapp' ? { ...s, state: 'in_progress' as const } : s,
+        ),
+      }),
+    )
+    apiMock.fetchWhatsAppActivationCode.mockResolvedValue({
+      display_code: 'WC-A4K9-JAMIL',
+      shared_number_e164: '+9714XXXXXXX',
+      expires_at: '2026-09-09T12:15:00.000Z',
+    })
+    apiMock.fetchWhatsAppBindingStatus.mockResolvedValue({ bound: false })
+    const { container } = shell(<ActivationWhatsAppPage />, '/activate/whatsapp', false)
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /Connect your business WhatsApp/i })).toBeInTheDocument(),
+    )
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('ACT-003 first listing has no axe violations', async () => {
+    apiMock.fetchActivationState.mockResolvedValue(
+      makeActivationState({
+        steps: makeActivationState().steps.map((s) => {
+          if (s.id === 'whatsapp') return { ...s, state: 'complete' as const }
+          if (s.id === 'first_listing') return { ...s, state: 'in_progress' as const }
+          return s
+        }),
+      }),
+    )
+    const { container } = shell(<ActivationFirstListingPage />, '/activate/first-listing', false)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: /How do you want to create your first listing/i }),
+      ).toBeInTheDocument(),
+    )
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('ACT-005 invite team masks pending emails + axe clean', async () => {
+    authAgent.current = {
+      id: 'u1',
+      name: 'Sara Owner',
+      email: 'owner@agency.test',
+      role: 'owner',
+      agency_name: 'Elite Realty',
+    }
+    apiMock.fetchActivationState.mockResolvedValue(agencyOwnerState())
+    apiMock.fetchShareLink.mockResolvedValue({
+      url: 'https://example.test/join/abc',
+      code: 'JOIN-1',
+      expires_at: null,
+    })
+    apiMock.fetchAgencyInvitations.mockResolvedValue([
+      {
+        id: 'inv_1',
+        email: 'teammate@agency.test',
+        status: 'pending',
+        sent_at: '2026-09-08T10:00:00.000Z',
+      },
+    ])
+    const { container } = shell(<ActivationInviteTeamPage />, '/activate/invite-team', false)
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Invite your team/i })).toBeInTheDocument())
+    await waitFor(() => expect(container.querySelector('[data-pii-revealed="false"]')).toBeTruthy())
+    expect(screen.queryByText('teammate@agency.test')).toBeNull()
+    expect(await axe(container)).toHaveNoViolations()
   })
 
   it('ACT-004 locked portal credentials has no axe violations', async () => {
@@ -269,6 +402,17 @@ describe('Wave 4A a11y — real ACT pages (feat/wave-4a-act)', () => {
     const { container } = shell(<ActivationPortalCredentialsPage />, '/activate/portal-credentials', false)
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /Portal credentials/i })).toBeInTheDocument(),
+    )
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('Wave 4A a11y — real ONB-003 review page', () => {
+  it('ONB-003 FirstListingReviewPage has no axe violations', async () => {
+    onboardingHook.state = makeState({ step: 'draft_review', path: 'whatsapp' })
+    const { container } = shell(<FirstListingReviewPage />, '/onboarding/first-listing/draft_1')
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /drafted your first listing/i })).toBeInTheDocument(),
     )
     expect(await axe(container)).toHaveNoViolations()
   })

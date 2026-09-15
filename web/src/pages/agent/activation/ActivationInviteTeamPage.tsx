@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { PIIMask } from '@/components/security'
 import {
   fetchAgencyInvitations,
   fetchShareLink,
@@ -294,7 +295,20 @@ export function ActivationInviteTeamPage() {
             <tbody>
               {invites.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--lc-border)]">
-                  <td className="py-2">{row.email}</td>
+                  <td className="py-2">
+                    <PIIMask
+                      kind="email"
+                      value={row.email}
+                      auditContext={{ caseId: row.id, field: 'invitee_email' }}
+                      onReveal={async (ctx) => {
+                        await recordOnboardingEvent({
+                          event: 'pii_reveal',
+                          step_id: 'invite_team',
+                          metadata: { caseId: ctx.caseId, field: ctx.field, kind: ctx.kind },
+                        })
+                      }}
+                    />
+                  </td>
                   <td className="py-2">
                     <Numeric>{row.sent_at ? new Date(row.sent_at).toLocaleDateString() : '—'}</Numeric>
                   </td>
