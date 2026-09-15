@@ -108,7 +108,8 @@ function maskedName(value: string): string {
 
 function assertNameMasked(plaintext: string) {
   expect(screen.queryByText(plaintext)).toBeNull()
-  expect(screen.getByText(maskedName(plaintext))).toBeInTheDocument()
+  // List row + detail header can both show the same masked label.
+  expect(screen.getAllByText(maskedName(plaintext)).length).toBeGreaterThan(0)
   const masks = document.querySelectorAll('[data-pii-kind="name"][data-pii-revealed="false"]')
   expect(masks.length).toBeGreaterThan(0)
 }
