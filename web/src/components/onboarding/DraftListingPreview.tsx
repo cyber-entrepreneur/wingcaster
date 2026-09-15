@@ -111,12 +111,12 @@ export function DraftListingPreview({
         ) : null}
 
         {draft.title ? (
-          <h3
+          <p
             className="text-[var(--lc-text-heading)]"
             style={{ font: 'var(--lc-type-heading-3)' }}
           >
             {draft.title}
-          </h3>
+          </p>
         ) : null}
 
         {chips.length > 0 ? (

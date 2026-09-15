@@ -41,6 +41,11 @@ describe('broadcast session channel', () => {
       writable: true,
       value: MockBroadcastChannel,
     })
+    // jsdom: ensure window sees the same constructor used by canUseBroadcastChannel()
+    ;(window as unknown as { BroadcastChannel: typeof BroadcastChannel }).BroadcastChannel =
+      MockBroadcastChannel as unknown as typeof BroadcastChannel
+    globalThis.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
+    window.BroadcastChannel = MockBroadcastChannel as unknown as typeof BroadcastChannel
   })
 
   afterEach(() => {
