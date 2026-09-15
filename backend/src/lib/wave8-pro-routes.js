@@ -9,8 +9,8 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { findAll, findOne, insert, query, remove, transaction, update } from '../db.js'
 import { findUserById, updateUser } from '../identity.js'
+import { fromRow } from '../persistence/table-mapper.js'
 import { personalTenantId } from '../tenant-authorization.js'
-import { assertOwnsProperty } from './authz.js'
 import { validate } from './validation.js'
 
 const DENSITIES = ['compact', 'comfortable', 'spacious']
@@ -199,11 +199,72 @@ function csvEscape(value) {
 async function mapOwnedProperties(userId, ids) {
   const owned = []
   const missing = []
+  if (!ids?.length) return { owned, missing }
+
+  // One properties round-trip for bulk ownership (up to 500 ids).
+  const rawRows = await query(
+    `SELECT id, agent_id, agency_id, tenant_id, status, price, marketplace_syndicated, data FROM properties WHERE id = ANY($1)`,
+    [ids],
+  )
+  const byId = new Map(rawRows.map((row) => {
+    const prop = fromRow('properties', row)
+    return [prop.id, prop]
+  }))
+
+  const agent = await findOne('agents', (row) => row.id === userId || row.user_id === userId)
+  const memberships = await findAll(
+    'agency_members',
+    (member) =>
+      member.status === 'active' && (member.agent_id === userId || member.user_id === userId),
+  )
+  const callerAgencyIds = new Set(
+    [agent?.agency_id, ...memberships.map((m) => m.agency_id)].filter(Boolean),
+  )
+
+  const targetAgentIds = [
+    ...new Set([...byId.values()].map((p) => p.agent_id).filter(Boolean)),
+  ]
+  const targetAgents = targetAgentIds.length
+    ? await findAll(
+      'agents',
+      (a) => targetAgentIds.includes(a.id) || targetAgentIds.includes(a.user_id),
+    )
+    : []
+  const agentLookup = new Map()
+  for (const a of targetAgents) {
+    agentLookup.set(a.id, a)
+    if (a.user_id) agentLookup.set(a.user_id, a)
+  }
+  const targetMemberships = targetAgentIds.length
+    ? await findAll(
+      'agency_members',
+      (m) =>
+        m.status === 'active' &&
+        (targetAgentIds.includes(m.agent_id) || targetAgentIds.includes(m.user_id)),
+    )
+    : []
+
   for (const id of ids) {
-    try {
-      const prop = await assertOwnsProperty(userId, id)
+    const prop = byId.get(id)
+    if (!prop) {
+      missing.push(id)
+      continue
+    }
+    if (prop.agent_id === userId) {
       owned.push(prop)
-    } catch {
+      continue
+    }
+    const propAgencyIds = new Set([prop.agency_id].filter(Boolean))
+    const target = prop.agent_id ? agentLookup.get(prop.agent_id) : null
+    if (target?.agency_id) propAgencyIds.add(target.agency_id)
+    for (const m of targetMemberships) {
+      if (m.agent_id === prop.agent_id || m.user_id === prop.agent_id) {
+        propAgencyIds.add(m.agency_id)
+      }
+    }
+    if ([...propAgencyIds].some((agencyId) => callerAgencyIds.has(agencyId))) {
+      owned.push(prop)
+    } else {
       missing.push(id)
     }
   }

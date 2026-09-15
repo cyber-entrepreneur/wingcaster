@@ -8,7 +8,31 @@ const dal = vi.hoisted(() => ({
   insert: vi.fn(async (_c, item) => item),
   update: vi.fn(async () => 1),
   remove: vi.fn(async () => 1),
-  query: vi.fn(async () => []),
+  // Batch ownership path used by mapOwnedProperties (replaces N sequential assertOwnsProperty).
+  query: vi.fn(async (_sql, params = []) => {
+    const ids = Array.isArray(params[0]) ? params[0] : []
+    return ids.map((id) => ({
+      id,
+      agent_id: 'user-1',
+      agency_id: null,
+      tenant_id: 'personal:user-1',
+      status: 'active',
+      price: 100000,
+      marketplace_syndicated: false,
+      title: `Listing ${id}`,
+      type: 'sale',
+      city: 'Dubai',
+      location: 'JVC',
+      bedrooms: 2,
+      bathrooms: 2,
+      area: 100,
+      views: 10,
+      listed_date: '2026-01-01',
+      reference: `REF-${id}`,
+      data: {},
+    }))
+  }),
+  // Transaction wrap used by #161 β bulk-audit atomic write.
   transaction: vi.fn(async (work) => work({})),
 }))
 
@@ -283,8 +307,13 @@ describe('wave8-pro-routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.updated).toEqual(['p1'])
     expect(dal.transaction).toHaveBeenCalled()
-    expect(dal.query).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO public.audit_log'),
+    // mapOwnedProperties also uses query() for ownership SELECT — isolate audit INSERT.
+    const auditCalls = dal.query.mock.calls.filter(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO public.audit_log'),
+    )
+    expect(auditCalls).toHaveLength(1)
+    const [, auditParams] = auditCalls[0]
+    expect(auditParams).toEqual(
       expect.arrayContaining([
         expect.any(String),
         'user-1',
@@ -295,7 +324,6 @@ describe('wave8-pro-routes', () => {
         'p1',
       ]),
     )
-    const auditParams = dal.query.mock.calls[0][1]
     const metadata = auditParams.find((p) => p && typeof p === 'object' && p.batch_id)
     expect(metadata).toEqual(expect.objectContaining({
       actor_user_id: 'user-1',
@@ -306,16 +334,21 @@ describe('wave8-pro-routes', () => {
     }))
   })
 
-  it('bulk archive writes one batch audit INSERT for all property ids', async () => {
+  it('bulk archive writes per-property audit rows in one txn-wrapped INSERT', async () => {
     const res = await request(buildApp())
       .post('/api/properties/bulk/archive')
       .send({ ids: ['p1', 'p2'] })
     expect(res.status).toBe(200)
     expect(res.body.updated).toEqual(['p1', 'p2'])
     expect(dal.transaction).toHaveBeenCalled()
-    expect(dal.query).toHaveBeenCalledTimes(1)
-    const [sql, params] = dal.query.mock.calls[0]
+    // Ownership SELECT (#167) + one multi-row audit INSERT (#161) — not a single query().
+    const auditCalls = dal.query.mock.calls.filter(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO public.audit_log'),
+    )
+    expect(auditCalls).toHaveLength(1)
+    const [sql, params] = auditCalls[0]
     expect(sql).toContain('INSERT INTO public.audit_log')
+    // One value-group per property id (shared batch_id across rows).
     expect(sql.match(/\(\$/g)?.length).toBe(2)
     expect(params.filter((p) => p === 'p1' || p === 'p2')).toEqual(['p1', 'p2'])
     expect(params).toContain('personal:user-1')

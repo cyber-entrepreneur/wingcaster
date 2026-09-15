@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
+import { z } from 'zod'
 import { api } from '@/api/client'
 
-export interface SavedView {
-  id: string
-  resource: string
-  name: string
-  owner_user_id: string
-  shared_with_tenant: boolean
-  filter: Record<string, unknown>
-  sort: unknown[]
-  column_prefs: Record<string, unknown>
-  created_at?: string
-  updated_at?: string
-}
+export const SavedViewSchema = z.object({
+  id: z.string(),
+  resource: z.string(),
+  name: z.string(),
+  owner_user_id: z.string(),
+  shared_with_tenant: z.boolean(),
+  filter: z.record(z.unknown()),
+  sort: z.array(z.unknown()),
+  column_prefs: z.record(z.unknown()),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+})
+
+export type SavedView = z.infer<typeof SavedViewSchema>
 
 export interface UseSavedViewsResult {
   views: SavedView[]
@@ -97,7 +100,7 @@ export function useSavedViews(tenantId: string | null | undefined): UseSavedView
     setLoading(true)
     try {
       const res = await api.getSavedViews(tenantId, 'listings')
-      const remote = (res.views || []).map((v) => v as unknown as SavedView)
+      const remote = (res.views || []).map((v) => SavedViewSchema.parse(v))
       setViews([...SEED_VIEWS, ...remote.filter((v) => !v.id.startsWith('seed-'))])
     } catch {
       setViews(SEED_VIEWS)
@@ -119,14 +122,14 @@ export function useSavedViews(tenantId: string | null | undefined): UseSavedView
       column_prefs?: Record<string, unknown>
     }) => {
       if (!tenantId) throw new Error('No active tenant')
-      const created = (await api.createSavedView(tenantId, {
+      const created = SavedViewSchema.parse(await api.createSavedView(tenantId, {
         resource: 'listings',
         name: input.name,
         filter: input.filter || {},
         sort: input.sort || [],
         shared_with_tenant: !!input.shared_with_tenant,
         column_prefs: input.column_prefs || {},
-      })) as unknown as SavedView
+      }))
       setViews((prev) => [...prev, created])
       return created
     },
@@ -136,7 +139,7 @@ export function useSavedViews(tenantId: string | null | undefined): UseSavedView
   const renameView = useCallback(
     async (id: string, name: string) => {
       if (!tenantId || id.startsWith('seed-')) return
-      const updated = (await api.updateSavedView(tenantId, id, { name })) as unknown as SavedView
+      const updated = SavedViewSchema.parse(await api.updateSavedView(tenantId, id, { name }))
       setViews((prev) => prev.map((v) => (v.id === id ? { ...v, ...updated } : v)))
     },
     [tenantId],
@@ -145,9 +148,9 @@ export function useSavedViews(tenantId: string | null | undefined): UseSavedView
   const shareView = useCallback(
     async (id: string, shared: boolean) => {
       if (!tenantId || id.startsWith('seed-')) return
-      const updated = (await api.updateSavedView(tenantId, id, {
+      const updated = SavedViewSchema.parse(await api.updateSavedView(tenantId, id, {
         shared_with_tenant: shared,
-      })) as unknown as SavedView
+      }))
       setViews((prev) => prev.map((v) => (v.id === id ? { ...v, ...updated } : v)))
     },
     [tenantId],
