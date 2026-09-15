@@ -90,12 +90,7 @@ describe('Broadcast a11y — top 10 pages', () => {
     )
 
     await waitFor(async () => {
-      // Radix Tabs uses colon ids (`radix-:rN:-*`) that axe 4.x can flag even though browsers accept them.
-      expect(
-        await axe(container, {
-          rules: { 'aria-valid-attr-value': { enabled: false } },
-        }),
-      ).toHaveNoViolations()
+      expect(await axe(container)).toHaveNoViolations()
     })
   })
 })

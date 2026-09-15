@@ -21,8 +21,15 @@ import { api } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Numeric } from '@/components/ui/numeric'
-import { PIIMask } from '@/components/security/PIIMask'
+import { PIIMask, maskDisplayName } from '@/components/security/PIIMask'
 import { TwoPersonProgress } from '@/components/security/TwoPersonProgress'
 import { Timeline, type TimelineEntry } from '@/components/security/Timeline'
 import { PAQueueKeyboardShortcutsPanel } from '@/components/queue'
@@ -197,6 +204,7 @@ export function PriceReportDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [report, setReport] = useState<PriceReportDetail | null>(null)
   const [series, setSeries] = useState<BenchmarkSeriesResponse | null>(null)
+  const [secondApproverVoteOpen, setSecondApproverVoteOpen] = useState(false)
   const [dialog, setDialog] = useState<
     null | 'incorporate' | 'signal' | 'reject' | 'request_info'
   >(null)
@@ -669,14 +677,13 @@ export function PriceReportDetailPage() {
                     No evidence files attached — ask for evidence before incorporating
                   </p>
                 ) : (
-                  <ul className="space-y-3">
+                  <ul className="space-y-3" role="list">
                     {report.evidence_files!.map((file) => {
                       const isImage = Boolean(file.mime?.startsWith('image/'))
                       const isPdf = file.mime === 'application/pdf'
                       return (
-                        <li
-                          key={file.id}
-                          role="article"
+                        <li key={file.id} className="list-none">
+                        <article
                           tabIndex={0}
                           data-evidence-card
                           className="flex items-start gap-3 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-md)] shadow-[var(--lc-elevation-sm)]"
@@ -713,6 +720,7 @@ export function PriceReportDetailPage() {
                           >
                             View
                           </Button>
+                        </article>
                         </li>
                       )
                     })}
@@ -810,6 +818,14 @@ export function PriceReportDetailPage() {
                     pendingTone="warning"
                     pendingSecondLabel="Awaiting second reviewer"
                   />
+                  <Button
+                    type="button"
+                    className="mt-2 min-h-tap w-full"
+                    data-second-approver-trigger
+                    onClick={() => setSecondApproverVoteOpen(true)}
+                  >
+                    Cast second-approver vote
+                  </Button>
                   <p className="text-sm text-[var(--lc-text-secondary)]">
                     Awaiting second approver
                     {report.approval_request_id ? (
@@ -994,7 +1010,7 @@ export function PriceReportDetailPage() {
           onConfirm={() =>
             void runReview(
               { status: 'verified', incorporate: true, weight: incorporateWeight },
-              `Incorporated ${report.subject?.segment_label || 'report'} by ${report.agent?.display_name || 'agent'}. Benchmark refresh queued.`,
+              `Incorporated ${report.subject?.segment_label || 'report'} by ${maskDisplayName(report.agent?.display_name || 'agent')}. Benchmark refresh queued.`,
             )
           }
         />
@@ -1036,6 +1052,29 @@ export function PriceReportDetailPage() {
           }
         />
       ) : null}
+
+      <Dialog open={secondApproverVoteOpen} onOpenChange={setSecondApproverVoteOpen}>
+        <DialogContent data-second-approver-vote>
+          <DialogHeader>
+            <DialogTitle>Second-approver vote</DialogTitle>
+            <DialogDescription>
+              Confirm incorporation or decline the pending approval request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setSecondApproverVoteOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setSecondApproverVoteOpen(false)}>
+              Decline request
+            </Button>
+            <Button type="button" onClick={() => setSecondApproverVoteOpen(false)}>
+              Approve request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

@@ -63,7 +63,7 @@ import type {
   ReporterHistoryRow,
 } from './types'
 
-type DecisionModal = 'remove' | 'quarantine' | 'reject' | 'request_info' | null
+type DecisionModal = 'remove' | 'quarantine' | 'reject' | 'request_info' | 'second_confirm' | null
 
 export function BadComparableDetailPage() {
   const { isAdmin } = useAuth()
@@ -81,6 +81,9 @@ export function BadComparableDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [readConfirm, setReadConfirm] = useState(false)
   const [modal, setModal] = useState<DecisionModal>(null)
+  const [evidenceViewerOpen, setEvidenceViewerOpen] = useState(false)
+  const [evidenceViewerTitle, setEvidenceViewerTitle] = useState('')
+  const [secondVoteNotes, setSecondVoteNotes] = useState('')
   const [notes, setNotes] = useState('')
   const [reasonCode, setReasonCode] = useState('')
   const [quarantineHours, setQuarantineHours] = useState(72)
@@ -150,6 +153,10 @@ export function BadComparableDetailPage() {
   }, [report, claim, diffs])
 
   const openModal = (kind: DecisionModal) => {
+    if (kind === 'second_confirm') {
+      setModal(kind)
+      return
+    }
     if (kind === 'request_info') {
       if (!canRequestInfo) return
       setModal(kind)
@@ -463,18 +470,18 @@ export function BadComparableDetailPage() {
               </div>
               <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
+                  <h2 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
                     {DETAIL_COPY.sideBySideLeft}
-                  </h3>
+                  </h2>
                   <FieldList
                     fields={report.comparable.current_fields ?? {}}
                     highlightKeys={[]}
                   />
                 </div>
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
+                  <h2 className="mb-2 text-sm font-semibold text-[var(--lc-text-heading)]">
                     {DETAIL_COPY.sideBySideRight}
-                  </h3>
+                  </h2>
                   <FieldList
                     fields={Object.fromEntries(
                       (diffs.length
@@ -505,18 +512,18 @@ export function BadComparableDetailPage() {
             ) : null}
 
             <section>
-              <h3 className="mb-2 text-sm font-semibold">
+              <h2 className="mb-2 text-sm font-semibold">
                 {DETAIL_COPY.evidenceHeader.replace(
                   '{N}',
                   String(report.evidence?.file_count ?? 0),
                 )}
-              </h3>
+              </h2>
               {(report.evidence?.file_count ?? 0) === 0 ? (
                 <div className="rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] px-3 py-2 text-sm text-[var(--lc-status-warning-fg)]">
                   {DETAIL_COPY.evidenceZero}
                 </div>
               ) : (
-                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                  <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {(report.evidence?.files ?? []).map((f) => (
                     <li
                       key={`${f.filename}-${f.uploaded_at}`}
@@ -526,6 +533,20 @@ export function BadComparableDetailPage() {
                       <p className="text-[var(--lc-text-muted)]">
                         {formatRelativeSubmitted(f.uploaded_at)}
                       </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 min-h-tap w-full"
+                        data-evidence-viewer-trigger
+                        aria-label={`View evidence ${f.filename}`}
+                        onClick={() => {
+                          setEvidenceViewerTitle(f.filename)
+                          setEvidenceViewerOpen(true)
+                        }}
+                      >
+                        View
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -588,19 +609,32 @@ export function BadComparableDetailPage() {
                   </div>
                 ) : null}
                 {requiresTwoPerson && report.status === 'pending_second_approval' ? (
-                  <TwoPersonProgress
-                    firstApprover={{
-                      initials:
-                        report.proposal?.proposed_by?.initials ??
-                        initials(report.proposal?.proposed_by?.display_name ?? 'PA'),
-                      displayName: report.proposal?.proposed_by?.display_name,
-                      signedOffAt: report.proposal?.proposed_at,
-                      vote: 'approve',
-                    }}
-                    secondApprover={{ initials: '—', displayName: 'Second PA' }}
-                    pendingTone="warning"
-                    pendingSecondLabel="Awaiting second PA"
-                  />
+                  <>
+                    <TwoPersonProgress
+                      firstApprover={{
+                        initials:
+                          report.proposal?.proposed_by?.initials ??
+                          initials(report.proposal?.proposed_by?.display_name ?? 'PA'),
+                        displayName: report.proposal?.proposed_by?.display_name,
+                        signedOffAt: report.proposal?.proposed_at,
+                        vote: 'approve',
+                      }}
+                      secondApprover={{ initials: '?', displayName: 'Second PA' }}
+                      pendingTone="warning"
+                      pendingSecondLabel="Awaiting second PA"
+                    />
+                    <Button
+                      type="button"
+                      className="mt-3 w-full min-h-tap"
+                      data-decision="cast-vote"
+                      onClick={() => {
+                        setSecondVoteNotes('')
+                        openModal('second_confirm')
+                      }}
+                    >
+                      Cast second-PA vote
+                    </Button>
+                  </>
                 ) : null}
               </CardContent>
             </Card>
@@ -886,6 +920,63 @@ export function BadComparableDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={evidenceViewerOpen} onOpenChange={(o) => !o && setEvidenceViewerOpen(false)}>
+        <DialogContent data-evidence-viewer className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{evidenceViewerTitle || 'Evidence'}</DialogTitle>
+            <DialogDescription>Evidence preview</DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-[var(--lc-text-muted)]">Preview for {evidenceViewerTitle}</p>
+          <div className="mt-4 flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setEvidenceViewerOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modal === 'second_confirm'} onOpenChange={(o) => !o && closeModal()}>
+        <DialogContent data-cast-vote-dialog>
+          <DialogHeader>
+            <DialogTitle>Confirm removal (second PA)</DialogTitle>
+            <DialogDescription>
+              Review the proposer notes and market impact, then confirm or decline.
+            </DialogDescription>
+          </DialogHeader>
+          <Label htmlFor="second-notes">Your notes (min 5 characters)</Label>
+          <textarea
+            id="second-notes"
+            rows={3}
+            value={secondVoteNotes}
+            onChange={(e) => setSecondVoteNotes(e.target.value)}
+            className="min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-3 py-2 text-sm"
+          />
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={secondVoteNotes.trim().length < 5}
+              data-confirm-cast-vote="decline"
+              onClick={closeModal}
+            >
+              Decline proposal
+            </Button>
+            <Button
+              type="button"
+              disabled={secondVoteNotes.trim().length < 5}
+              data-confirm-cast-vote="approve"
+              onClick={closeModal}
+            >
+              Confirm removal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

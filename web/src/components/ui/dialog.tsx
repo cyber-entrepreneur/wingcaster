@@ -27,7 +27,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onCloseAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -36,6 +36,18 @@ export const DialogContent = React.forwardRef<
         'fixed start-1/2 top-1/2 z-modal max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-6 text-[var(--lc-text-primary)] shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className,
       )}
+      onCloseAutoFocus={(event) => {
+        onCloseAutoFocus?.(event)
+        if (event.defaultPrevented) return
+        // jsdom often drops Radix restore onto <body>; re-focus the pre-open element.
+        const prev = (event.currentTarget as HTMLElement | null)?.ownerDocument
+          ?.querySelector<HTMLElement>('[data-dialog-invoker="true"]')
+        if (prev) {
+          event.preventDefault()
+          prev.focus()
+          prev.removeAttribute('data-dialog-invoker')
+        }
+      }}
       {...props}
     >
       {children}

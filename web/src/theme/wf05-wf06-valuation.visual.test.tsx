@@ -18,7 +18,8 @@ import { ToastProvider } from '@/components/ui/toast'
 import { StatusHero } from '@/components/recipient/StatusHero'
 import { WeightingPanel } from '@/pages/agent/reports/WeightingPanel'
 import {
-  assertNoPlaintextPii,
+  assertNoPlaintextPiiInHtml,
+  installMatchMediaFixture,
   assertNoVisiblePlaintextPii,
   FIXED_NOW,
   mockComparableQueueList,
@@ -224,19 +225,7 @@ beforeEach(() => {
   priceHook.error = null
   priceHook.report = samplePriceOutcomeIncorporated()
 
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: query.includes('1024') || query.includes('min-width: 1024'),
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  })
+  installMatchMediaFixture('desktop')
   document.body.querySelectorAll('[data-radix-portal]').forEach((n) => n.remove())
 })
 
@@ -304,7 +293,7 @@ function applyTheme(mode: Mode, dir: Dir) {
 async function snap(label: string, root: HTMLElement) {
   const html = serialize(root)
   assertNoVisiblePlaintextPii(root, label)
-  assertNoPlaintextPii(html, label)
+  assertNoPlaintextPiiInHtml(html, label)
   expect(html).toMatchSnapshot()
 }
 
@@ -565,3 +554,102 @@ describe('Wave 5 WF-05/WF-06 visual matrix — Chromatic stand-ins (PII-safe)', 
     await snap('16 PVA-009b detail two-person', view.container)
   })
 })
+
+describe('Wave 5 WF-05/WF-06 visual matrix — mobile 375x812', () => {
+  beforeEach(() => {
+    installMatchMediaFixture('mobile')
+  })
+
+  it('01 StatusHero-loud-approved-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <ToastProvider>
+        <StatusHero state="approved" label="We removed this comparable" emphasis="loud" />
+      </ToastProvider>,
+    )
+    await snap('01m StatusHero loud mobile', view.container)
+  })
+
+  it('05 AGT-APR-004-submit-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <MemoryRouter initialEntries={['/reports/comparables/new?comparable_id=cmp_1&title=Apt%202405']}>
+        <Routes>
+          <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: /Report a bad comparable/i })
+    await snap('05m APR-004 submit mobile', view.container)
+  })
+
+  it('06 AGT-APR-005-submit-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <MemoryRouter initialEntries={['/reports/prices/new']}>
+        <Routes>
+          <Route
+            path="/reports/prices/new"
+            element={<PriceReportPage featureFlagsOverride={{ 'valuation.price_reports.submit': true }} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: /Submit a price report/i })
+    await snap('06m APR-005 submit mobile', view.container)
+  })
+
+  it('11 PA-PVA-008-queue-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <MemoryRouter initialEntries={['/admin/valuation/comparable-reports']}>
+        <Routes>
+          <Route path="/admin/valuation/comparable-reports" element={<BadComparableQueuePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Villa · Saadiyat')
+    await snap('11m PVA-008 queue mobile', view.container)
+  })
+
+  it('13 PA-PVA-008b-detail-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <MemoryRouter initialEntries={['/admin/valuation/comparable-reports/cmr_001']}>
+        <Routes>
+          <Route path="/admin/valuation/comparable-reports/:reportId" element={<BadComparableDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Villa · Saadiyat')
+    await snap('13m PVA-008b detail mobile', view.container)
+  })
+
+  it('15 PA-PVA-009-queue-mobile', async () => {
+    applyTheme('light', 'ltr')
+    const view = render(
+      <MemoryRouter initialEntries={['/admin/valuation/price-reports?status=pending_review']}>
+        <Routes>
+          <Route path="/admin/valuation/price-reports" element={<PriceReportQueuePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findAllByText(/Dubai Marina/i)
+    await snap('15m PVA-009 queue mobile', view.container)
+  })
+
+  it('16 PA-PVA-009b-detail-mobile', async () => {
+    applyTheme('light', 'ltr')
+    clientApi.getAdminAgentPriceReport.mockResolvedValue(samplePriceTwoPersonDetail())
+    const view = render(
+      <MemoryRouter initialEntries={['/admin/valuation/price-reports/aprt_1']}>
+        <Routes>
+          <Route path="/admin/valuation/price-reports/:reportId" element={<PriceReportDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('progressbar', { name: /Two-person approval progress/i })
+    await snap('16m PVA-009b detail mobile', view.container)
+  })
+})
+

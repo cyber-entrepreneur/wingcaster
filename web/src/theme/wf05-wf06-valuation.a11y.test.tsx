@@ -38,6 +38,7 @@ import {
   samplePriceOutcomeSignalOnly,
   samplePriceQueueItem,
   samplePriceTwoPersonDetail,
+  installMatchMediaFixture,
 } from '@/theme/wf05-wf06-fixtures'
 
 expect.extend(toHaveNoViolations)
@@ -229,19 +230,7 @@ beforeEach(() => {
   priceHook.error = null
   priceHook.report = samplePriceOutcomeIncorporated()
 
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: query.includes('1024') || query.includes('min-width: 1024'),
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  })
+  installMatchMediaFixture('desktop')
 })
 
 afterEach(() => {
@@ -685,9 +674,7 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
     await screen.findByText('Villa · Saadiyat')
     expect(screen.queryByText('Ahmed Khan')).toBeNull()
     expect(
-      await axe(container, {
-        rules: { 'aria-valid-attr-value': { enabled: false } },
-      }),
+      await axe(container),
     ).toHaveNoViolations()
   })
 
@@ -696,9 +683,7 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
     await screen.findByText('Villa · Saadiyat')
     expect(screen.queryByText('Ahmed Khan')).toBeNull()
     expect(
-      await axe(container, {
-        rules: { 'heading-order': { enabled: false } },
-      }),
+      await axe(container),
     ).toHaveNoViolations()
   })
 
@@ -708,9 +693,7 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
     expect(document.querySelector('[data-pii-kind="name"][data-pii-revealed="false"]')).toBeTruthy()
     expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
     expect(
-      await axe(container, {
-        rules: { 'aria-valid-attr-value': { enabled: false } },
-      }),
+      await axe(container),
     ).toHaveNoViolations()
   })
 
@@ -723,14 +706,7 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
     expect(screen.queryByText('Sara Al Mansouri')).toBeNull()
     expect(container.querySelector('h1.sr-only')?.textContent ?? '').not.toMatch(/Sara Al Mansouri/)
     expect(
-      await axe(container, {
-        rules: {
-          'heading-order': { enabled: false },
-          // Phase A evidence cards use <li role="article"> — product follow-up.
-          'aria-allowed-role': { enabled: false },
-          list: { enabled: false },
-        },
-      }),
+      await axe(container),
     ).toHaveNoViolations()
   })
 
@@ -758,3 +734,104 @@ describe('Wave 5 a11y — jest-axe on all 8 primary screens + RTL smoke', () => 
     expect(calm.container.querySelector('section')?.className).toMatch(/--lc-surface-sunken/)
   })
 })
+
+
+
+async function openAndTrap(
+  user: ReturnType<typeof userEvent.setup>,
+  invoker: HTMLElement,
+  assertDialog?: (dialog: HTMLElement) => void,
+) {
+  invoker.setAttribute('data-dialog-invoker', 'true')
+  await user.click(invoker)
+  const dialog = await screen.findByRole('dialog')
+  assertDialog?.(dialog)
+  await waitFor(() => {
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  })
+  for (let i = 0; i < 8; i += 1) {
+    await user.tab()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  }
+  for (let i = 0; i < 8; i += 1) {
+    await user.tab({ shift: true })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  }
+  await user.keyboard('{Escape}')
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  await waitFor(() => {
+    expect(invoker).toHaveFocus()
+  })
+}
+
+describe('Wave 5 a11y - dialog focus traps', () => {
+  it('confirm-remove traps Tab/Shift+Tab and returns focus to invoker', async () => {
+    const user = userEvent.setup()
+    wrapDetail()
+    await screen.findByText('Villa · Saadiyat')
+    await user.click(screen.getByLabelText(/I have reviewed the evidence/i))
+    const invoker = screen.getByRole('button', { name: /^Confirm and remove$/i })
+    await openAndTrap(user, invoker)
+  })
+
+  it('confirm-quarantine traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    wrapDetail()
+    await screen.findByText('Villa · Saadiyat')
+    await user.click(screen.getByLabelText(/I have reviewed the evidence/i))
+    const invoker = screen.getByRole('button', { name: /^Confirm and quarantine$/i })
+    await openAndTrap(user, invoker)
+  })
+
+  it('reject-as-invalid traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    wrapDetail()
+    await screen.findByText('Villa · Saadiyat')
+    await user.click(screen.getByLabelText(/I have reviewed the evidence/i))
+    const invoker = screen.getByRole('button', { name: /^Reject as invalid$/i })
+    await openAndTrap(user, invoker)
+  })
+
+  it('request-info traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    wrapDetail()
+    await screen.findByText('Villa · Saadiyat')
+    const invoker = screen.getByRole('button', { name: /^Request more info$/i })
+    await openAndTrap(user, invoker)
+  })
+
+  it('evidence-viewer traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    wrapDetail()
+    await screen.findByText('Villa · Saadiyat')
+    const invoker = await screen.findByRole('button', { name: /View evidence sale-receipt/i })
+    await openAndTrap(user, invoker, (dialog) => {
+      expect(dialog).toHaveAttribute('data-evidence-viewer')
+    })
+  })
+
+  it('cast-vote (second PA) traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    comparableApi.get.mockResolvedValue(sampleComparableTwoPersonDetail())
+    wrapDetail()
+    await screen.findByRole('progressbar', { name: /Two-person approval progress/i })
+    const invoker = screen.getByRole('button', { name: /Cast second-PA vote/i })
+    await openAndTrap(user, invoker, (dialog) => {
+      expect(dialog).toHaveAttribute('data-cast-vote-dialog')
+    })
+  })
+
+  it('second-approver vote traps focus and returns to invoker', async () => {
+    const user = userEvent.setup()
+    clientApi.getAdminAgentPriceReport.mockResolvedValue(samplePriceTwoPersonDetail())
+    wrapPriceDetail()
+    await screen.findByRole('progressbar', { name: /Two-person approval progress/i })
+    const invoker = screen.getByRole('button', { name: /Cast second-approver vote/i })
+    await openAndTrap(user, invoker, (dialog) => {
+      expect(dialog).toHaveAttribute('data-second-approver-vote')
+    })
+  })
+})
+

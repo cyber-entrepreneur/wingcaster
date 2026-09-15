@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
 
@@ -132,22 +131,40 @@ export function PAQueueFilterStrip({
         </div>
       ) : null}
 
-      <Tabs
-        value={values.status}
-        onValueChange={(status) => patch({ status })}
-        className="mb-[var(--lc-space-sm)]"
+      {/* Manual tablist — avoids Radix useId colon ids that axe flags on aria-controls. */}
+      <div
+        role="tablist"
+        aria-label="Status"
+        className="mb-[var(--lc-space-sm)] flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0"
       >
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
-          {statusOptions.map((opt) => (
-            <TabsTrigger key={opt.value} value={opt.value} disabled={disabled} className="gap-1.5">
+        {statusOptions.map((opt) => {
+          const selected = values.status === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="tab"
+              id={`pa-queue-status-${opt.value}`}
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              disabled={disabled}
+              className={cn(
+                'inline-flex min-h-tap items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all duration-fast ease-out focus-visible:outline-none',
+                'disabled:pointer-events-none disabled:opacity-50',
+                selected
+                  ? 'bg-[var(--lc-surface)] text-[var(--lc-text-primary)] shadow-sm'
+                  : 'text-[var(--lc-text-muted)]',
+              )}
+              onClick={() => patch({ status: opt.value })}
+            >
               {opt.label}
               {typeof opt.count === 'number' ? (
                 <Numeric className="text-[var(--lc-text-muted)]">{opt.count}</Numeric>
               ) : null}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+            </button>
+          )
+        })}
+      </div>
 
       <div className="flex flex-wrap items-end gap-[var(--lc-space-sm)]">
         <div className="flex min-w-[9rem] flex-col gap-1">

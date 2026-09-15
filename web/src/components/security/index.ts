@@ -9,6 +9,7 @@
 
 export {
   PIIMask,
+  maskDisplayName,
   type PIIMaskProps,
   type PIIMaskKind,
   type PIIMaskAuditContext,

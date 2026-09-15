@@ -19,28 +19,74 @@ import type {
 
 export const FIXED_NOW = new Date('2026-09-10T12:00:00.000Z').getTime()
 
-/** Plaintext that must NEVER appear in default-state visual snapshots. */
-export const PLAINTEXT_PII_FORBIDDEN = [
+/** Seed plaintext samples used in fixtures (must stay MASKED in snaps). */
+export const PLAINTEXT_PII_SAMPLES = [
   'Ahmed Khan',
   'Sara Al Mansouri',
   'omar.khoury@example.ae',
   '+971 55 123 4512',
 ] as const
 
-export function assertNoPlaintextPii(html: string, label: string) {
-  for (const leak of PLAINTEXT_PII_FORBIDDEN) {
-    if (html.includes(leak)) {
-      throw new Error(`PII leak in ${label}: found plaintext "${leak}"`)
+/**
+ * Regex denylist for Chromatic stand-in PII sweeps.
+ * Phone / email shapes plus fixture name samples and common "First Last" heuristics.
+ */
+export const PLAINTEXT_PII_PATTERNS: RegExp[] = [
+  /\+\d{2,3}\s?\d/,
+  /@[^\s"'<>]+\.[a-z]{2,}/i,
+  /\bAhmed\s+Khan\b/,
+  /\bSara\s+Al\s+Mansouri\b/,
+  /\bomar\.khoury@example\.ae\b/i,
+  // Name-shape heuristic scoped to known personal given names in fixtures
+  /\b(?:Ahmed|Sara|Omar|Fatima|Mohammed)\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b/,
+]
+
+/** @deprecated Prefer assertNoPlaintextPiiInHtml — kept as alias during rename. */
+export const PLAINTEXT_PII_FORBIDDEN = PLAINTEXT_PII_SAMPLES
+
+export function assertNoPlaintextPiiInHtml(html: string, label: string) {
+  for (const pattern of PLAINTEXT_PII_PATTERNS) {
+    const match = html.match(pattern)
+    if (match) {
+      throw new Error(`PII leak in ${label}: matched ${pattern} → "${match[0]}"`)
     }
   }
 }
 
+/** @deprecated Use assertNoPlaintextPiiInHtml */
+export function assertNoPlaintextPii(html: string, label: string) {
+  assertNoPlaintextPiiInHtml(html, label)
+}
+
+function isExcludedFromVisiblePii(el: Element): boolean {
+  if (el.getAttribute('aria-hidden') === 'true') return true
+  if (el.classList.contains('sr-only')) return true
+  let parent: Element | null = el.parentElement
+  while (parent) {
+    if (parent.getAttribute('aria-hidden') === 'true') return true
+    if (parent.classList.contains('sr-only')) return true
+    parent = parent.parentElement
+  }
+  return false
+}
+
 /**
- * Full-page Chromatic stand-in PII gate (visible + sr-only).
- * PA-PVA-009b sr-only heading no longer echoes agent display_name.
+ * Walk visible DOM text (excludes [aria-hidden="true"] and .sr-only).
+ * Full HTML (incl. sr-only) is gated separately via assertNoPlaintextPiiInHtml.
  */
 export function assertNoVisiblePlaintextPii(root: HTMLElement, label: string) {
-  assertNoPlaintextPii(root.innerHTML, label)
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const chunks: string[] = []
+  let node = walker.nextNode()
+  while (node) {
+    const parent = node.parentElement
+    if (parent && !isExcludedFromVisiblePii(parent)) {
+      const t = node.textContent?.trim()
+      if (t) chunks.push(t)
+    }
+    node = walker.nextNode()
+  }
+  assertNoPlaintextPiiInHtml(chunks.join(' '), `${label} (visible)`)
 }
 
 
@@ -82,7 +128,13 @@ export function sampleComparableQueueItem(
       pct_move_median: -11.2,
       pct_move_max: -18.7,
     },
-    evidence: { file_count: 3, files: [] },
+    evidence: {
+      file_count: 2,
+      files: [
+        { filename: 'sale-receipt.pdf', uploaded_at: '2026-09-09T10:00:00.000Z' },
+        { filename: 'facade.jpg', uploaded_at: '2026-09-09T10:05:00.000Z' },
+      ],
+    },
     is_own: false,
     requires_two_person: true,
     env: 'live',
@@ -134,7 +186,7 @@ export function sampleComparableTwoPersonDetail(
     status: 'pending_second_approval',
     requires_two_person: true,
     proposal: {
-      proposed_by: { id: 'pa_1', display_name: 'PA Layla', initials: 'PL' },
+      proposed_by: { id: 'pa_1', display_name: 'PA Reviewer', initials: 'PR' },
       proposed_at: new Date(FIXED_NOW - 1_800_000).toISOString(),
       approval_request_id: 'apr_req_wf05',
     },
@@ -369,4 +421,43 @@ export function samplePriceOutcomeSignalOnly(): AgentPriceReportRow {
       resolver: { display_name: 'PA-Priya', avatar_url: null },
     },
   }
+}
+
+
+export type MatchMediaViewport = 'mobile' | 'desktop'
+
+/** matchMedia + viewport fixture. Mobile: 375x812. Desktop: >=1024. */
+export function installMatchMediaFixture(viewport: MatchMediaViewport = 'desktop') {
+  const width = viewport === 'mobile' ? 375 : 1280
+  const height = viewport === 'mobile' ? 812 : 900
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: height })
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => {
+      const q = query.toLowerCase()
+      let matches = false
+      if (viewport === 'desktop') {
+        matches = q.includes('min-width: 1024') || q.includes('min-width:1024') || q.includes('(min-width: 1024')
+        if (q.includes('max-width') && !q.includes('min-width')) matches = false
+      } else {
+        matches =
+          q.includes('max-width') ||
+          q.includes('(max-width') ||
+          !(q.includes('min-width: 1024') || q.includes('min-width:1024'))
+      }
+      return {
+        matches,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }
+    },
+  })
+  document.documentElement.setAttribute('data-viewport', viewport)
 }
