@@ -20,6 +20,12 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import {
+  BadComparableReportPage,
+  PriceReportPage,
+  ComparableReportOutcomePage,
+  PriceReportOutcomePage,
+} from '@/pages/agent/reports'
 import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
@@ -56,10 +62,6 @@ import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
-import {
-  ComparableReportOutcomePage,
-  PriceReportOutcomePage,
-} from '@/pages/agent/reports'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -139,6 +141,12 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005).
+          Static /new routes MUST precede :reportId outcome routes. */}
+      <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+      <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
+      <Route path="/reports/prices/new" element={<PriceReportPage />} />
+      <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
       {/* AGT-REC-002 comparable-report outcome + matrix-legacy alias */}
       <Route
         path="/reports/comparables/:reportId/outcome"

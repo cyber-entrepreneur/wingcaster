@@ -1,6 +1,35 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createModule } from '../index.js'
 
+vi.mock('../../../lib/credits/feature-check.js', () => ({
+  checkEntitlement: vi.fn().mockResolvedValue({ enabled: true, registered: true }),
+}))
+
+vi.mock('../../../lib/credits/tenant-context.js', () => ({
+  resolveRequestCreditTenant: vi.fn().mockReturnValue({
+    creditTenantId: 'personal:user-1',
+    publicTenantId: 'personal:user-1',
+    scope: 'personal',
+    scopeId: 'user-1',
+  }),
+}))
+
+vi.mock('../../../db.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    insert: vi.fn(async (_collection, item) => item),
+    findAll: vi.fn(async () => []),
+    findOne: vi.fn(async () => null),
+    query: vi.fn(async () => []),
+  }
+})
+
+vi.mock('../../../tenant-authorization.js', () => ({
+  listUserAgencyMemberships: vi.fn().mockResolvedValue([]),
+  listAgencyMemberships: vi.fn().mockResolvedValue([]),
+}))
+
 function fakeExpress() {
   const routes = []
   const app = {

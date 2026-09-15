@@ -3,11 +3,36 @@ import { parseCsv, normalizeExternalComparable, registerAdminRoutes } from '../i
 import { registerPublicRoutes } from '../interface/public-routes.js'
 import { registerRoleRoutes } from '../interface/role-routes.js'
 import { listUserAgencyMemberships, listAgencyMemberships } from '../../../tenant-authorization.js'
+import { insert as dbInsert } from '../../../db.js'
 
 vi.mock('../../../tenant-authorization.js', () => ({
   listUserAgencyMemberships: vi.fn().mockResolvedValue([]),
   listAgencyMemberships: vi.fn().mockResolvedValue([]),
 }))
+
+vi.mock('../../../lib/credits/feature-check.js', () => ({
+  checkEntitlement: vi.fn().mockResolvedValue({ enabled: true, registered: true }),
+}))
+
+vi.mock('../../../lib/credits/tenant-context.js', () => ({
+  resolveRequestCreditTenant: vi.fn().mockReturnValue({
+    creditTenantId: 'personal:agent-1',
+    publicTenantId: 'personal:agent-1',
+    scope: 'personal',
+    scopeId: 'agent-1',
+  }),
+}))
+
+vi.mock('../../../db.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    insert: vi.fn(async (_collection, item) => item),
+    findAll: vi.fn(async () => []),
+    findOne: vi.fn(async () => null),
+    query: vi.fn(async () => []),
+  }
+})
 
 // Ownership checks in public-routes hit the real authz layer (which reads
 // `properties` + `agency_members` via ../../../db.js). Route-handler tests
@@ -298,63 +323,113 @@ describe('Public Route Registration', () => {
     expect(paths).toContain('GET /api/pricing/comparables/:propertyId')
     expect(paths).toContain('GET /api/pricing/trends/:areaId')
     expect(paths).toContain('POST /api/pricing/report-comparable')
+    expect(paths).toContain('POST /api/pricing/bad-comparable-reports')
     expect(paths).toContain('POST /api/pricing/agent-price-reports')
+    expect(paths).toContain('POST /api/pricing/evidence-uploads')
   })
+
+  function mockDal(seed = {}) {
+    const store = {
+      comparable_reports: [...(seed.comparable_reports || [])],
+      agent_price_reports: [...(seed.agent_price_reports || [])],
+      audit_log: [],
+      pricing_evidence_files: [...(seed.pricing_evidence_files || [])],
+    }
+    return {
+      store,
+      findAll: vi.fn(async (collection, filter) => (store[collection] || []).filter(filter || (() => true))),
+      findOne: vi.fn(async (collection, filter) => (store[collection] || []).find(filter || (() => true)) || null),
+      insert: vi.fn(async (collection, item) => {
+        if (!store[collection]) store[collection] = []
+        store[collection].push(item)
+        return item
+      }),
+    }
+  }
 
   it('report comparable route creates pending report', async () => {
     const { app, routes } = fakeExpress()
-    const inserted = []
-    const services = {
-      dal: {
-        insert: vi.fn().mockImplementation((collection, item) => {
-          inserted.push(item)
-          return Promise.resolve(item)
-        }),
-      },
-      logger,
-    }
-    registerPublicRoutes(app, services)
+    const dal = mockDal()
+    registerPublicRoutes(app, { dal, logger })
 
     const route = routes.find((r) => r.path === '/api/pricing/report-comparable')
-    const req = { user: { id: 'user-1' }, body: { comparable_id: 'comp-1', comparable_type: 'external', reason: 'fake_listing', notes: 'Already sold' } }
+    const req = {
+      user: { id: 'user-1' },
+      body: {
+        comparable_id: 'comp-1',
+        comparable_type: 'external',
+        reason: 'fake_listing',
+        notes: 'Already sold',
+        reporter_confidence: 'self_witnessed',
+        supporting_document_ids: [],
+      },
+    }
     const res = mockRes()
-    const handler = route.handlers[route.handlers.length - 1]
-    await handler(req, res, () => {})
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(201)
-    expect(inserted[0]).toMatchObject({ comparable_id: 'comp-1', comparable_type: 'external', reason: 'fake_listing', status: 'pending' })
-    expect(inserted[0].expires_at).toBeTruthy()
-    expect(new Date(inserted[0].expires_at).getTime()).toBeGreaterThan(new Date(inserted[0].created_at).getTime())
+    const report = dal.store.comparable_reports[0]
+    expect(report).toMatchObject({
+      comparable_id: 'comp-1',
+      comparable_type: 'external',
+      reason: 'fake_listing',
+      status: 'pending',
+      reporter_confidence: 'self_witnessed',
+    })
+    expect(report.expires_at).toBeTruthy()
+    expect(dbInsert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({ type: 'bad_comparable_submit' }),
+    )
   })
 
   it('report comparable route rejects missing fields', async () => {
     const { app, routes } = fakeExpress()
-    const services = { dal: { insert: vi.fn() }, logger }
-    registerPublicRoutes(app, services)
+    registerPublicRoutes(app, { dal: mockDal(), logger })
 
     const route = routes.find((r) => r.path === '/api/pricing/report-comparable')
     const req = { user: { id: 'user-1' }, body: { comparable_id: 'comp-1' } }
     const res = mockRes()
-    const handler = route.handlers[route.handlers.length - 1]
-    await handler(req, res, () => {})
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(400)
     expect(res.json).toHaveBeenCalledWith({ error: 'comparable_id, comparable_type, and reason are required' })
   })
 
+  it('report comparable rejects open duplicates with 409', async () => {
+    const { app, routes } = fakeExpress()
+    const dal = mockDal({
+      comparable_reports: [{
+        id: 'existing-1',
+        reporter_id: 'user-1',
+        comparable_id: 'comp-1',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      }],
+    })
+    registerPublicRoutes(app, { dal, logger })
+    const route = routes.find((r) => r.path === '/api/pricing/report-comparable')
+    const req = {
+      user: { id: 'user-1' },
+      body: {
+        comparable_id: 'comp-1',
+        comparable_type: 'external',
+        reason: 'incorrect_price',
+        notes: 'Duplicate attempt with enough notes for validation.',
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'DUPLICATE_REPORT', existing_report_id: 'existing-1' }),
+    )
+  })
+
   it('agent price report route creates pending report', async () => {
     const { app, routes } = fakeExpress()
-    const inserted = []
-    const services = {
-      dal: {
-        insert: vi.fn().mockImplementation((collection, item) => {
-          inserted.push(item)
-          return Promise.resolve(item)
-        }),
-      },
-      logger,
-    }
-    registerPublicRoutes(app, services)
+    const dal = mockDal()
+    registerPublicRoutes(app, { dal, logger })
 
     const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
     const req = {
@@ -365,38 +440,98 @@ describe('Public Route Registration', () => {
         currency: 'USD',
         sold_date: '2026-01-15',
         notes: 'Verified sale',
+        reporter_confidence: 'hard_evidence',
+        supporting_document_ids: [],
+        segment_id: 'seg_dxb_marina',
+        country_code: 'ae',
+        recommendation_price_point: 415000,
       },
     }
     const res = mockRes()
-    const handler = route.handlers[route.handlers.length - 1]
-    await handler(req, res, () => {})
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(201)
-    expect(inserted[0]).toMatchObject({
+    const report = dal.store.agent_price_reports[0]
+    expect(report).toMatchObject({
       agent_id: 'agent-1',
       property_id: 'prop-1',
       sold_price: 420000,
       currency: 'USD',
       sold_date: '2026-01-15',
       status: 'pending_review',
+      reporter_confidence: 'hard_evidence',
+      segment_id: 'seg_dxb_marina',
+      country_code: 'AE',
+      recommendation_price_point: 415000,
     })
-    expect(inserted[0].expires_at).toBeTruthy()
-    expect(new Date(inserted[0].expires_at).getTime()).toBeGreaterThan(new Date(inserted[0].created_at).getTime())
+    expect(report.expires_at).toBeTruthy()
+    expect(dbInsert).toHaveBeenCalledWith(
+      'audit_log',
+      expect.objectContaining({ type: 'price_report_submit' }),
+    )
   })
 
   it('agent price report route rejects invalid sold price', async () => {
     const { app, routes } = fakeExpress()
-    const services = { dal: { insert: vi.fn() }, logger }
-    registerPublicRoutes(app, services)
+    registerPublicRoutes(app, { dal: mockDal(), logger })
 
     const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
     const req = { user: { id: 'agent-1' }, body: { sold_price: 0 } }
     const res = mockRes()
-    const handler = route.handlers[route.handlers.length - 1]
-    await handler(req, res, () => {})
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(400)
     expect(res.json).toHaveBeenCalledWith({ error: 'sold_price is required' })
+  })
+
+  it('agent price report returns 403 FEATURE_NOT_ENABLED when entitlement is off', async () => {
+    const { checkEntitlement } = await import('../../../lib/credits/feature-check.js')
+    vi.mocked(checkEntitlement).mockResolvedValueOnce({ enabled: false, registered: true })
+    const { app, routes } = fakeExpress()
+    registerPublicRoutes(app, { dal: mockDal(), logger })
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: { sold_price: 100000, currency: 'USD', notes: 'enough notes for the soft floor here' },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'FEATURE_NOT_ENABLED',
+        required_capability: 'valuation.price_reports.submit',
+        upsell_url: '/plans?highlight=wf06',
+      }),
+    )
+  })
+
+  it('agent price report rate-limits after daily quota', async () => {
+    const { app, routes } = fakeExpress()
+    const now = new Date().toISOString()
+    const prior = Array.from({ length: 200 }, (_, i) => ({
+      id: `r${i}`,
+      reporter_id: 'agent-1',
+      created_at: now,
+    }))
+    const dal = mockDal({ agent_price_reports: prior })
+    registerPublicRoutes(app, { dal, logger })
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        external_property_title: 'Villa 9',
+        sold_price: 900000,
+        currency: 'AED',
+        notes: 'Enough depth for the soft floor on a rate-limited path.',
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(429)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'RATE_LIMITED', daily_quota: 200, used: 200 }),
+    )
   })
 })
 

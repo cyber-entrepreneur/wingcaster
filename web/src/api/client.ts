@@ -1872,6 +1872,50 @@ export const api = {
     fetchJson(`/pricing/trends/${areaId}?property_type=${encodeURIComponent(propertyType)}`),
   reportComparable: (data: Record<string, unknown>) =>
     fetchJson('/pricing/report-comparable', { method: 'POST', body: JSON.stringify(data) }),
+  uploadPricingEvidence: async (
+    file: File,
+  ): Promise<{
+    id: string
+    url: string
+    sha256: string
+    content_type: string
+    size_bytes: number
+    scan_status?: string
+    filename?: string
+  }> => {
+    const form = new FormData()
+    form.append('file', file)
+    const token = getToken()
+    const uploadHeaders: Record<string, string> = {
+      'X-Wingcaster-Env': readWingcasterEnvHeader(),
+    }
+    if (token) uploadHeaders.Authorization = `Bearer ${token}`
+    const elevated = getElevatedToken()
+    if (elevated) uploadHeaders['X-Elevated-Token'] = elevated
+    const res = await fetch(`${API_BASE}/pricing/evidence-uploads`, {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: form,
+    })
+    const bodyText = await res.text()
+    const parsed = (() => {
+      try {
+        return bodyText ? JSON.parse(bodyText) : null
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok) {
+      const error = new Error(parsed?.error || `Upload failed (${res.status})`) as Error &
+        Record<string, unknown>
+      Object.assign(error, parsed || {}, { status: res.status })
+      throw error
+    }
+    if (!parsed) throw new Error('Evidence upload returned non-JSON')
+    return parsed
+  },
+  deletePricingEvidence: (id: string) =>
+    fetchJson(`/pricing/evidence-uploads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getMyComparableReports: () => fetchJson('/pricing/my-comparable-reports'),
   getMyAgentPriceReports: (): Promise<AgentPriceReport[]> => fetchJson('/pricing/my-agent-price-reports'),
   /** AGT-REC-002 — preferred user-scoped by-id (falls back in hooks when absent). */

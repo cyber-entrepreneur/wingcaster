@@ -1,5 +1,5 @@
 import { useId, useRef, type ChangeEvent } from 'react'
-import { AlertOctagon, FileText, Plus, Table, X } from 'lucide-react'
+import { AlertOctagon, FileText, Plus, RotateCcw, Table, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +18,8 @@ export type EvidenceFile = {
   thumbnail_url?: string
   /** Signed URL post-upload. */
   server_url?: string
+  /** Server sha256 digest once complete. */
+  sha256?: string
   error_message?: string
 }
 
@@ -32,10 +34,12 @@ export type EvidenceUploaderProps = {
    * APR-004: jpeg/png/heic/pdf/csv; APR-005 adds XLSX.
    */
   accepted_types: string[]
-  /** Stub — parent handles upload; this only surfaces the picker. */
+  /** Parent starts upload for newly picked files. */
   onAdd: (files: File[]) => void
-  /** Stub — parent removes from controlled `files`. */
+  /** Parent removes a tile (and deletes remote evidence when complete). */
   onRemove: (id: string) => void
+  /** Parent retries a failed upload for the given tile id. */
+  onRetry?: (id: string) => void
   helper_text?: string
   label?: string
   disabled?: boolean
@@ -74,8 +78,7 @@ function FileGlyph({ contentType }: { contentType: string }) {
  *
  * Used by: AGT-APR-004 (`max_files=3`), AGT-APR-005 (`max_files=5`),
  * PA-CRD-005 grant initiator (`max_files=3`).
- *
- * Stub visual + prop shape only — no real upload / signed-URL logic.
+ * Parent owns multipart upload / signed-URL persistence.
  */
 export function EvidenceUploader({
   files,
@@ -84,6 +87,7 @@ export function EvidenceUploader({
   accepted_types,
   onAdd,
   onRemove,
+  onRetry,
   helper_text,
   label,
   disabled = false,
@@ -174,13 +178,31 @@ export function EvidenceUploader({
               />
             ) : null}
 
+            {file.status === 'error' && onRetry ? (
+              <button
+                type="button"
+                className={cn(
+                  'absolute bottom-1 start-1 inline-flex min-h-tap min-w-tap items-center justify-center',
+                  'rounded-[var(--lc-radius-sm)] bg-[var(--lc-surface-inverse)] text-[var(--lc-text-inverse)]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lc-border-focus)]',
+                  'disabled:pointer-events-none disabled:opacity-40',
+                )}
+                aria-label={`Retry upload ${file.name}`}
+                disabled={disabled}
+                onClick={() => onRetry(file.id)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            ) : null}
+
             <button
               type="button"
               className={cn(
-                'absolute end-1 top-1 flex h-6 w-6 items-center justify-center rounded-full',
+                'absolute end-1 top-1 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full',
                 'bg-[var(--lc-surface-inverse)] text-[var(--lc-text-inverse)]',
                 'opacity-100 md:opacity-0 md:group-hover:opacity-100',
                 'focus-visible:opacity-100 focus-visible:outline-none',
+                'focus-visible:ring-2 focus-visible:ring-[var(--lc-border-focus)]',
                 'disabled:pointer-events-none disabled:opacity-40',
               )}
               aria-label={`Remove ${file.name}`}
