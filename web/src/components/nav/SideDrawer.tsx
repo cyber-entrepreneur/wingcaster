@@ -285,6 +285,7 @@ export function SideDrawer({
   const copy = NAV_GROUP_COPY[locale]
   const location = useLocation()
   const titleId = useId()
+  // TS 5.9 DOM lib maps <nav> → HTMLElement (HTMLNavElement removed).
   const panelRef = useRef<HTMLElement>(null)
   const prevPathRef = useRef(location.pathname)
 
