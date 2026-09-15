@@ -85,7 +85,7 @@ export function CrmShell({ children, badges = {} }: CrmShellProps) {
                 {badge != null && badge > 0 && (
                   <Badge
                     className={cn(
-                      'ml-auto h-4 min-w-[1.25rem] px-1 text-[10px]',
+                      'ms-auto h-4 min-w-[1.25rem] px-1 text-[10px]',
                       active
                         ? 'bg-[var(--lc-action-primary-text)] text-[var(--lc-action-primary)]'
                         : 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]',

@@ -217,7 +217,7 @@ function VersionList({
               type="button"
               onClick={() => onSelect(v.id)}
               aria-pressed={isSelected}
-              className="block w-full rounded-t-md p-3 text-left focus:outline-none"
+              className="block w-full rounded-t-md p-3 text-start focus:outline-none"
               aria-label={`Show diff for version ${v.version}`}
             >
               <div className="flex items-center gap-2">
@@ -245,7 +245,7 @@ function VersionList({
                 disabled={v.version === currentVersion}
                 aria-label={`Revert to version ${v.version}`}
               >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                <RotateCcw className="me-1.5 h-3.5 w-3.5" aria-hidden />
                 Revert to this
               </Button>
             </div>
@@ -328,7 +328,7 @@ function DiffSection({
                     : 'text-foreground'
               }
             >
-              <span aria-hidden className="mr-2 select-none text-muted-foreground">
+              <span aria-hidden className="me-2 select-none text-muted-foreground">
                 {row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}
               </span>
               {row.text || ' '}
@@ -457,7 +457,7 @@ function RevertConfirmDialog({
         )}
         {error && (
           <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-            <AlertTriangle className="mr-2 inline h-4 w-4" aria-hidden />
+            <AlertTriangle className="me-2 inline h-4 w-4" aria-hidden />
             {error}
           </div>
         )}
@@ -468,12 +468,12 @@ function RevertConfirmDialog({
           <Button onClick={() => void onConfirm()} disabled={busy || !version}>
             {busy ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
                 Reverting…
               </>
             ) : (
               <>
-                <RotateCcw className="mr-2 h-4 w-4" aria-hidden />
+                <RotateCcw className="me-2 h-4 w-4" aria-hidden />
                 Revert
               </>
             )}

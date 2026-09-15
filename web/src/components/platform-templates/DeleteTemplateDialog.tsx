@@ -156,12 +156,12 @@ export function DeleteTemplateDialog({ template, open, onOpenChange, onConfirm }
           >
             {busy ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
                 Deleting…
               </>
             ) : (
               <>
-                <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                <Trash2 className="me-2 h-4 w-4" aria-hidden />
                 Delete template
               </>
             )}

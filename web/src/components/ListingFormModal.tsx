@@ -789,7 +789,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
               value={amenityQuery}
               onChange={(e) => setAmenityQuery(e.target.value)}
             />
-            <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
+            <div className="max-h-72 space-y-4 overflow-y-auto pe-1">
               {categories.map((cat) => (
                 <div key={cat.id}>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">

@@ -15,7 +15,7 @@ function NavBadge({ badge }: { badge: SettingsNavBadge }) {
   if (badge.kind === 'count') {
     if (badge.value <= 0) return null
     return (
-      <Badge variant="secondary" className="ml-auto shrink-0">
+      <Badge variant="secondary" className="ms-auto shrink-0">
         <Numeric>{badge.value}</Numeric>
       </Badge>
     )
@@ -25,7 +25,7 @@ function NavBadge({ badge }: { badge: SettingsNavBadge }) {
     badge.tone === 'warning' ? 'underOffer' : badge.tone === 'danger' ? 'unpublished' : 'secondary'
 
   return (
-    <Badge variant={variant} className="ml-auto shrink-0">
+    <Badge variant={variant} className="ms-auto shrink-0">
       {badge.label}
     </Badge>
   )

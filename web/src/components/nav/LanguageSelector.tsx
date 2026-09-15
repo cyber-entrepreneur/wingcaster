@@ -103,7 +103,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
         <span
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute inset-y-[var(--lc-space-3xs)] left-[var(--lc-space-3xs)] z-0',
+            'pointer-events-none absolute inset-y-[var(--lc-space-3xs)] start-[var(--lc-space-3xs)] z-0',
             'w-[calc((100%-var(--lc-space-3xs)*2-var(--lc-space-3xs))/2)]',
             'rounded-[var(--lc-radius-pill)]',
             'bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',

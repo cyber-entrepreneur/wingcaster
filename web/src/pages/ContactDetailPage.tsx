@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock, Loader2, Mail, MessageSquare, Phone, Plus, Sparkles, Tag, User } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Loader2, Mail, MessageSquare, Phone, Plus, Sparkles, Tag, User, type LucideIcon } from 'lucide-react'
 import { Contact360Panel } from '@/components/contact-360/Contact360Panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,13 +29,55 @@ interface Contact {
   created_at: string
 }
 
+/** Optional payload fields rendered in the timeline UI. */
+interface TimelineEventData {
+  content?: string
+  notes?: string
+  message?: string
+}
+
 interface TimelineEvent {
   id: string
   type: string
   title: string
   timestamp: string
   actor: string
-  data: any
+  data?: TimelineEventData
+}
+
+interface ContactNote {
+  id: string
+  content: string
+  author_name: string
+  created_at: string
+}
+
+interface ContactTask {
+  id: string
+  contact_id: string
+  title: string
+  status: string
+  due_at: string
+  type: string
+}
+
+interface ContactOpportunity {
+  id: string
+  contact_id: string
+  stage: string
+  probability: number
+  deal_value: number | null
+  expected_close_date: string | null
+  notes?: string
+}
+
+/** Narrowed API list payloads for this page. */
+interface TasksListResponse {
+  items?: ContactTask[]
+}
+
+interface TimelineResponse {
+  events?: TimelineEvent[]
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -49,7 +91,7 @@ const TYPE_COLORS: Record<string, string> = {
   activity: 'bg-slate-100 text-slate-700',
 }
 
-const TYPE_ICONS: Record<string, any> = {
+const TYPE_ICONS: Record<string, LucideIcon> = {
   message: MessageSquare,
 }
 
@@ -60,9 +102,9 @@ export function ContactDetailPage() {
   usePageTitle('Contact')
   const [contact, setContact] = useState<Contact | null>(null)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
-  const [notes, setNotes] = useState<any[]>([])
-  const [tasks, setTasks] = useState<any[]>([])
-  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [notes, setNotes] = useState<ContactNote[]>([])
+  const [tasks, setTasks] = useState<ContactTask[]>([])
+  const [opportunities, setOpportunities] = useState<ContactOpportunity[]>([])
   const [loading, setLoading] = useState(true)
   const [noteContent, setNoteContent] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -71,20 +113,21 @@ export function ContactDetailPage() {
   const loadAll = async () => {
     if (!id) return
     try {
+      // API JSON boundaries — fetchJson is untyped; narrow to page interfaces.
       const [c, tl, nt, ts, opps] = await Promise.all([
-        api.getContact(id),
-        api.getContactTimeline(id).catch(() => ({ events: [] })),
-        api.getContactNotes(id).catch(() => []),
-        api.getTasks({ contact_id: id, limit: '50' }).catch(() => ({ items: [] })),
-        api.getOpportunities().catch(() => []),
+        api.getContact(id) as Promise<Contact>,
+        api.getContactTimeline(id).catch(() => ({ events: [] })) as Promise<TimelineResponse>,
+        api.getContactNotes(id).catch(() => []) as Promise<ContactNote[]>,
+        api.getTasks({ contact_id: id, limit: '50' }).catch(() => ({ items: [] })) as Promise<TasksListResponse>,
+        api.getOpportunities().catch(() => []) as Promise<ContactOpportunity[]>,
       ])
       setContact(c)
       setTimeline(tl.events || [])
       setNotes(nt || [])
-      setTasks((ts.items || []).filter((t: any) => t.contact_id === id))
-      setOpportunities((opps || []).filter((o: any) => o.contact_id === id))
-    } catch (e: any) {
-      addToast({ title: 'Failed to load contact', description: e.message, variant: 'error' })
+      setTasks((ts.items || []).filter((t) => t.contact_id === id))
+      setOpportunities((opps || []).filter((o) => o.contact_id === id))
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to load contact', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     }
   }
 
@@ -102,8 +145,8 @@ export function ContactDetailPage() {
       setNoteContent('')
       await loadAll()
       addToast({ title: 'Note added', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to add note', description: e.message, variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to add note', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     } finally {
       setSavingNote(false)
     }
@@ -116,8 +159,8 @@ export function ContactDetailPage() {
       await api.updateContact(contact.id, { tags: nextTags })
       setContact((prev) => (prev ? { ...prev, tags: nextTags } : prev))
       setTagInput('')
-    } catch (e: any) {
-      addToast({ title: 'Failed to add tag', description: e.message, variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to add tag', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     }
   }
 
@@ -126,8 +169,8 @@ export function ContactDetailPage() {
       await api.completeTask(taskId)
       await loadAll()
       addToast({ title: 'Task completed', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to complete task', description: e.message, variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to complete task', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     }
   }
 

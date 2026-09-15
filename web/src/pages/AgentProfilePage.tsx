@@ -9,15 +9,34 @@ import { PropertyCard } from '@/components/PropertyCard'
 import { api } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import type { Agent, Property, Transaction } from '@/types'
+
+interface AgentEngagement {
+  followers_total?: number
+  views_total?: number
+}
+
+/** Agent profile payload as used by this page (API JSON boundary). */
+interface AgentProfile extends Agent {
+  engagement?: AgentEngagement
+}
+
+interface AgentReview {
+  id: string
+  reviewer_name: string
+  verified_transaction?: boolean | number
+  rating: number
+  comment: string
+}
 
 export function AgentProfilePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { addToast } = useToast()
-  const [agent, setAgent] = useState<any>(null)
-  const [listings, setListings] = useState<any[]>([])
-  const [transactions, setTransactions] = useState<any[]>([])
-  const [reviews, setReviews] = useState<any[]>([])
+  const [agent, setAgent] = useState<AgentProfile | null>(null)
+  const [listings, setListings] = useState<Property[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [reviews, setReviews] = useState<AgentReview[]>([])
   const [loading, setLoading] = useState(true)
   const [following, setFollowing] = useState(false)
   const [followBusy, setFollowBusy] = useState(false)
@@ -28,21 +47,22 @@ export function AgentProfilePage() {
     if (!id) return
     setLoading(true)
     Promise.all([
-      api.getAgent(id),
-      api.getAgentTransactions(id),
-      api.getAgentReviews(id),
+      // API JSON boundaries — fetchJson is untyped; narrow to page interfaces.
+      api.getAgent(id) as Promise<AgentProfile>,
+      api.getAgentTransactions(id) as Promise<Transaction[]>,
+      api.getAgentReviews(id) as Promise<AgentReview[]>,
     ]).then(([agentData, txData, reviewData]) => {
       setAgent(agentData)
       setTransactions(txData)
       setReviews(reviewData)
       setListings(agentData.listings || [])
       setLoading(false)
-      api.getFollowingAgent(agentData.id).then((r) => setFollowing(!!r.following)).catch((err: any) => {
-        addToast({ title: 'Could not check follow status', description: err.message, variant: 'error' })
+      api.getFollowingAgent(agentData.id).then((r: { following?: boolean }) => setFollowing(!!r.following)).catch((err: unknown) => {
+        addToast({ title: 'Could not check follow status', description: err instanceof Error ? err.message : undefined, variant: 'error' })
       })
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
       setLoading(false)
-      addToast({ title: 'Failed to load agent profile', description: err.message || 'Could not load profile', variant: 'error' })
+      addToast({ title: 'Failed to load agent profile', description: err instanceof Error ? err.message : 'Could not load profile', variant: 'error' })
     })
   }, [id, addToast])
 
@@ -59,8 +79,8 @@ export function AgentProfilePage() {
         setFollowing(true)
         addToast({ title: 'Following', variant: 'success' })
       }
-    } catch (e: any) {
-      addToast({ title: 'Follow action failed', description: e.message || 'Sign in as another agent to follow', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Follow action failed', description: e instanceof Error ? e.message : 'Sign in as another agent to follow', variant: 'error' })
     } finally {
       setFollowBusy(false)
     }
@@ -81,7 +101,7 @@ export function AgentProfilePage() {
           <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
             <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
               <AvatarImage src={agent.photo} alt={agent.name} />
-              <AvatarFallback className="text-2xl">{agent.name?.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
+              <AvatarFallback className="text-2xl">{agent.name?.split(' ').map((n) => n[0]).join('')}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
@@ -123,7 +143,7 @@ export function AgentProfilePage() {
               <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
                 <h3 className="mb-4 text-lg font-semibold">Recent Transactions</h3>
                 <div className="space-y-3">
-                  {transactions.map((t: any) => (
+                  {transactions.map((t) => (
                     <div key={t.id} className="flex items-center justify-between rounded-lg border p-3">
                       <div><p className="font-medium">{t.location}</p><p className="text-xs text-muted-foreground">{t.property_type} • {t.bedrooms} • {t.date}</p></div>
                       <div className="text-right">
@@ -140,7 +160,7 @@ export function AgentProfilePage() {
               <div className="rounded-xl border bg-[var(--lc-surface)] p-6">
                 <h3 className="mb-4 text-lg font-semibold">Reviews ({reviews.length})</h3>
                 <div className="space-y-4">
-                  {reviews.map((r: any) => (
+                  {reviews.map((r) => (
                     <div key={r.id} className="border-b pb-4 last:border-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -160,7 +180,7 @@ export function AgentProfilePage() {
               <div>
                 <h3 className="mb-4 text-lg font-semibold">Active Listings ({listings.length})</h3>
                 <div className="grid gap-6 sm:grid-cols-2">
-                  {listings.map((p: any) => <PropertyCard key={p.id} property={p} />)}
+                  {listings.map((p) => <PropertyCard key={p.id} property={p} />)}
                 </div>
               </div>
             )}
@@ -171,7 +191,7 @@ export function AgentProfilePage() {
               <h3 className="mb-4 text-lg font-semibold">Agent Stats</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Active Listings</span><span className="font-semibold">{listings.length}</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Total Views</span><span className="font-semibold">{listings.reduce((acc: number, p: any) => acc + (p.views || 0), 0).toLocaleString()}</span></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">Total Views</span><span className="font-semibold">{listings.reduce((acc, p) => acc + (p.views || 0), 0).toLocaleString()}</span></div>
                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Rating</span><span className="flex items-center gap-1 font-semibold"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{agent.rating}</span></div>
                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Reviews</span><span className="font-semibold">{agent.review_count}</span></div>
                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Experience</span><span className="font-semibold">{new Date().getFullYear() - agent.experience_since} years</span></div>

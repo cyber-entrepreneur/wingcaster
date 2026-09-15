@@ -19,7 +19,7 @@ export function UsageChart({ data, title }: UsageChartProps) {
               aria-label={`${d.label}: ${d.value}`}
             />
           </div>
-          <span className="w-8 text-right text-xs font-medium">{d.value}</span>
+          <span className="w-8 text-end text-xs font-medium">{d.value}</span>
         </div>
       ))}
     </div>

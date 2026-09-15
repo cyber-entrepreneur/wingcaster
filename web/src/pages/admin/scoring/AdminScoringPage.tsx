@@ -8,12 +8,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 
+interface ScoringLogicConfig {
+  logic?: string
+  [key: string]: unknown
+}
+
 interface Dimension {
   id: string
   name: string
   slug: string
-  scoring_logic_config: any
+  scoring_logic_config: ScoringLogicConfig
   is_active: boolean
+}
+
+interface GoogleUsageSummary {
+  monthly_spend_usd?: number
+  budget_usd_monthly?: number
+  items?: unknown[]
 }
 
 interface SourceType {
@@ -49,7 +60,7 @@ export function AdminScoringPage() {
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([])
   const [aiConfigs, setAiConfigs] = useState<AiConfig[]>([])
   const [signals, setSignals] = useState<{ items: Signal[]; total: number }>({ items: [], total: 0 })
-  const [usage, setUsage] = useState<any>(null)
+  const [usage, setUsage] = useState<GoogleUsageSummary | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [newDim, setNewDim] = useState({ name: '', slug: '', name_ar: '', scoring_logic_config: '{"logic":"weighted_average"}' })
@@ -69,15 +80,16 @@ export function AdminScoringPage() {
         api.listAdminSourceTypes() as Promise<{ items: SourceType[] }>,
         api.listAdminAiConfigs() as Promise<{ items: AiConfig[] }>,
         api.listAdminSignals({ limit: '50' }) as Promise<{ items: Signal[]; total: number }>,
-        api.getAdminGoogleUsage() as Promise<any>,
+        // fetch/JSON boundary — admin Google usage payload is untyped on the client
+        api.getAdminGoogleUsage() as Promise<GoogleUsageSummary>,
       ])
       setDimensions(dims.items)
       setSourceTypes(srcs.items)
       setAiConfigs(cfgs.items)
       setSignals(sigs)
       setUsage(use)
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message || 'Failed to load scoring data', variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to load scoring data', variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -88,13 +100,13 @@ export function AdminScoringPage() {
     try {
       await api.createAdminDimension({
         ...newDim,
-        scoring_logic_config: JSON.parse(newDim.scoring_logic_config),
+        scoring_logic_config: JSON.parse(newDim.scoring_logic_config) as ScoringLogicConfig,
       })
       addToast({ title: 'Dimension created' })
       setNewDim({ name: '', slug: '', name_ar: '', scoring_logic_config: '{"logic":"weighted_average"}' })
       loadAll()
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
     }
   }
 
@@ -105,8 +117,8 @@ export function AdminScoringPage() {
       addToast({ title: 'Source type created' })
       setNewSource({ name: '', slug: '', archetype: 'google_places', input_method: 'google_places_api' })
       loadAll()
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
     }
   }
 
@@ -117,8 +129,8 @@ export function AdminScoringPage() {
       addToast({ title: 'AI config created' })
       setNewAi({ name: '', provider: 'gemini', model: '', system_prompt: '', scoring_prompt_template: '' })
       loadAll()
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
     }
   }
 
@@ -127,8 +139,8 @@ export function AdminScoringPage() {
       await api.verifyAdminSignal(id)
       addToast({ title: 'Signal verified' })
       loadAll()
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
     }
   }
 
@@ -137,8 +149,8 @@ export function AdminScoringPage() {
       await api.rejectAdminSignal(id, 'Rejected from admin')
       addToast({ title: 'Signal rejected' })
       loadAll()
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
     }
   }
 
@@ -171,8 +183,8 @@ export function AdminScoringPage() {
                   <div key={d.id} className="flex items-center justify-between border-b py-2 text-sm">
                     <div>
                       <span className="font-medium">{d.name}</span>
-                      <span className="ml-2 text-muted-foreground">{d.slug}</span>
-                      <span className="ml-2 rounded bg-gray-100 px-1 text-xs">{d.scoring_logic_config?.logic}</span>
+                      <span className="ms-2 text-muted-foreground">{d.slug}</span>
+                      <span className="ms-2 rounded bg-gray-100 px-1 text-xs">{d.scoring_logic_config?.logic}</span>
                     </div>
                     <span className="text-xs">{d.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
@@ -202,8 +214,8 @@ export function AdminScoringPage() {
                   <div key={s.id} className="flex items-center justify-between border-b py-2 text-sm">
                     <div>
                       <span className="font-medium">{s.name}</span>
-                      <span className="ml-2 text-muted-foreground">{s.slug}</span>
-                      <span className="ml-2 rounded bg-gray-100 px-1 text-xs">{s.archetype}</span>
+                      <span className="ms-2 text-muted-foreground">{s.slug}</span>
+                      <span className="ms-2 rounded bg-gray-100 px-1 text-xs">{s.archetype}</span>
                     </div>
                     <span className="text-xs">{s.input_method}</span>
                   </div>
@@ -232,8 +244,8 @@ export function AdminScoringPage() {
                   <div key={c.id} className="flex items-center justify-between border-b py-2 text-sm">
                     <div>
                       <span className="font-medium">{c.name}</span>
-                      <span className="ml-2 text-muted-foreground">{c.provider}</span>
-                      <span className="ml-2 text-muted-foreground">{c.model}</span>
+                      <span className="ms-2 text-muted-foreground">{c.provider}</span>
+                      <span className="ms-2 text-muted-foreground">{c.model}</span>
                     </div>
                     <span className="text-xs">{c.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
