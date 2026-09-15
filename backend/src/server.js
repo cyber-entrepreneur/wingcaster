@@ -107,6 +107,11 @@ import {
 } from './tenant-authorization.js'
 import logger from './lib/logger.js'
 import {
+  initSentry,
+  addAuthBreadcrumb,
+  Sentry,
+} from './lib/observability/sentry.js'
+import {
   FreeTrialAlreadyClaimedError,
   assertFreeTierListingAllowed,
   assertNoPriorClaim,
@@ -451,7 +456,14 @@ const ACTIVITY_LOG_RETENTION_DAYS = Math.max(1, Math.min(3650, Number(process.en
 const RATE_LIMIT_GENERAL_MAX = Math.max(1, Number(process.env.RATE_LIMIT_GENERAL_MAX || (isProduction ? 200 : 500)))
 const RATE_LIMIT_AUTH_MAX = Math.max(1, Number(process.env.RATE_LIMIT_AUTH_MAX || (isProduction ? 20 : 100)))
 
+// Sentry must initialize before Express app / route handlers.
+initSentry()
+
 const app = express()
+
+// Sentry request context — first Express middleware.
+app.use(Sentry.Handlers.requestHandler())
+
 let retryWorkerTimer = null
 let consumerAutomationWorkerTimer = null
 let notificationRetryWorkerTimer = null
@@ -1269,13 +1281,20 @@ async function buildAuthSession(user, agent, { activeTenantId = null, env = null
 app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
   const { email, password, identifier_type, identifier } = req.validated
   const user = await resolveLoginUser({ identifier_type, identifier, email })
-  if (!user?.password_hash || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!user?.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
+    addAuthBreadcrumb('login_fail', { reason: 'invalid_credentials' }, 'warning')
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
   if (!user.verified || !user.verified_at) {
     const otp = await latestUserOtp(user.id)
+    addAuthBreadcrumb('login_fail', { reason: 'email_not_verified', user_id: user.id }, 'warning')
     return res.status(401).json({ error: 'email_not_verified', otp_id: otp?.id || null })
   }
   const agent = await findAgentForUser(user.id)
-  if (!agent) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!agent) {
+    addAuthBreadcrumb('login_fail', { reason: 'agent_missing', user_id: user.id }, 'warning')
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
 
   // Phase 7f — the password is correct, but an account with a second factor
   // gets a challenge instead of a session. Deliberately after the agent lookup
@@ -1283,9 +1302,15 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
   // credentials rather than leaking that the password was right.
   const challenge = await startSigninChallengeIfRequired(user, req)
   if (challenge) {
+    addAuthBreadcrumb('mfa_challenge', {
+      user_id: user.id,
+      challenge_id: challenge.id,
+      method: challenge.method,
+    })
     return res.json({ status: '2fa_required', challenge_id: challenge.id, method: challenge.method })
   }
 
+  addAuthBreadcrumb('login_success', { user_id: user.id })
   res.json(await buildAuthSession(user, agent, { req }))
 })
 
@@ -7374,6 +7399,12 @@ app.post('/api/admin/account-recovery/:caseId/reveal-audit', authMiddleware, val
       ip: req.ip,
       userAgent: req.get('user-agent') || null,
     })
+    // Breadcrumb only — never include the revealed value.
+    addAuthBreadcrumb('pii_reveal', {
+      case_id: req.params.caseId,
+      field: req.validated.field,
+      user_id: req.user.id,
+    })
     return res.json(payload)
   } catch (err) {
     if (err instanceof RevealAuditError) {
@@ -7457,6 +7488,12 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
       environment: resolveWingcasterEnv(req),
       issueRecoveryToken,
       logActivity,
+    })
+    addAuthBreadcrumb('cast_vote', {
+      case_id: req.params.caseId,
+      vote: req.validated.vote,
+      user_id: req.user.id,
+      http_status: result.httpStatus,
     })
     return res.status(result.httpStatus).json(result.body)
   } catch (err) {
@@ -8412,7 +8449,18 @@ app.get('/api/ready', async (req, res) => {
   })
 })
 
+// Dev-only: verify Sentry capture reaches the dashboard when SENTRY_DSN is set.
+if (!isProduction) {
+  app.get('/api/dev/sentry-test', (_req, res) => {
+    Sentry.captureException(new Error('sentry test'))
+    res.json({ ok: true, message: 'sentry test event captured (requires SENTRY_DSN)' })
+  })
+}
+
 // ==================== ERROR HANDLING ====================
+// Sentry error handler must sit before the app's own error middleware.
+app.use(Sentry.Handlers.errorHandler())
+
 app.use((err, req, res, _next) => {
   if (err instanceof NotFoundError) {
     logger.warn({ path: req.path, method: req.method }, 'Tenant resource not found or inaccessible')

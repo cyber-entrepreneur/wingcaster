@@ -5,6 +5,8 @@ import { StepUpProvider as MfaStepUpProvider } from '@/components/mfa'
 import { BrandProvider } from '@/context/BrandContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ErrorFallback } from '@/components/ErrorFallback'
+import { Sentry } from '@/lib/observability/sentry'
 import { PersonaAppShell } from '@/app/PersonaAppShell'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -108,6 +110,11 @@ function usesBareChrome(pathname: string): boolean {
 
 function AppRoutes() {
   return (
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <ErrorFallback error={error} resetError={resetError} />
+      )}
+    >
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<AgentDashboardPage />} />
@@ -221,6 +228,7 @@ function AppRoutes() {
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Sentry.ErrorBoundary>
   )
 }
 
