@@ -1,14 +1,25 @@
 /**
  * Shared submit gates for price / comparable reports (Wave 5 / PR #127).
  * Entitlement · daily rate limit · anti-dup · audit.
+ *
+ * Entitlement is a boolean package_feature_flags capability
+ * (`valuation.price_reports.submit` on Pro / Pro Elite — migration 338).
+ * It is intentionally NOT a metered_features row; do not route through
+ * checkEntitlement (that helper requires metered_features registration).
  */
 
 import { randomUUID } from 'node:crypto'
 import { findAll, findOne, insert, query } from '../../../db.js'
-import { checkEntitlement } from '../../../lib/credits/feature-check.js'
 import { resolveRequestCreditTenant } from '../../../lib/credits/tenant-context.js'
 import { PRICE_REPORTS_SUBMIT_FEATURE_CODE } from '../../../lib/packages/registry.js'
 import logger from '../../../lib/logger.js'
+
+const OPEN_SUBSCRIPTION_STATUSES = Object.freeze([
+  'PENDING_START',
+  'ACTIVE',
+  'PAUSED',
+  'CANCELED_AT_PERIOD_END',
+])
 
 export const DEFAULT_DAILY_SUBMIT_CAP = 200
 export const PRICE_REPORT_SUBJECT_DAILY_CAP = 3
@@ -27,7 +38,21 @@ export const REPORTER_CONFIDENCE_VALUES = Object.freeze([
   'hard_evidence',
 ])
 
+function featureNotEnabledBody() {
+  return {
+    error: 'FEATURE_NOT_ENABLED',
+    code: 'FEATURE_NOT_ENABLED',
+    required_capability: PRICE_REPORTS_SUBMIT_FEATURE_CODE,
+    upsell_url: UPSELL_URL,
+  }
+}
+
 /**
+ * Package-flag entitlement for AGT-APR-004 / AGT-APR-005.
+ * Enabled iff the tenant has an open subscription whose package_version
+ * carries `valuation.price_reports.submit` with enabled=true.
+ * Absence of the flag (Free / lower tiers) = disabled — matches migration 338.
+ *
  * @returns {{ ok: true, tenant: object, entitlement: object } | { ok: false, status: number, body: object }}
  */
 export async function requirePriceReportsSubmitEntitlement(req) {
@@ -40,38 +65,51 @@ export async function requirePriceReportsSubmitEntitlement(req) {
     }
   }
 
-  let entitlement
+  let flagEnabled = false
   try {
-    entitlement = await checkEntitlement(tenant.creditTenantId, PRICE_REPORTS_SUBMIT_FEATURE_CODE)
+    const subRows = await query(
+      `SELECT s.package_version_id
+         FROM public.tenant_subscriptions s
+        WHERE s.tenant_id = $1
+          AND s.status = ANY($2::text[])
+        LIMIT 1`,
+      [tenant.creditTenantId, [...OPEN_SUBSCRIPTION_STATUSES]],
+    )
+    const subscription = subRows[0] || null
+    if (subscription?.package_version_id) {
+      const flagRows = await query(
+        `SELECT enabled FROM public.package_feature_flags
+          WHERE package_version_id = $1 AND feature_code = $2`,
+        [subscription.package_version_id, PRICE_REPORTS_SUBMIT_FEATURE_CODE],
+      )
+      flagEnabled = Boolean(flagRows[0]?.enabled)
+    }
   } catch (err) {
-    logger.warn({ err: err.message }, 'checkEntitlement failed for price reports submit')
-    // Fail closed when the feature registry / package flags are unavailable.
+    logger.warn({ err: err.message }, 'package_feature_flags lookup failed for price reports submit')
     return {
       ok: false,
       status: 403,
-      body: {
-        error: 'FEATURE_NOT_ENABLED',
-        code: 'FEATURE_NOT_ENABLED',
-        required_capability: PRICE_REPORTS_SUBMIT_FEATURE_CODE,
-        upsell_url: UPSELL_URL,
-      },
+      body: featureNotEnabledBody(),
     }
   }
 
-  if (!entitlement.enabled) {
+  if (!flagEnabled) {
     return {
       ok: false,
       status: 403,
-      body: {
-        error: 'FEATURE_NOT_ENABLED',
-        code: 'FEATURE_NOT_ENABLED',
-        required_capability: PRICE_REPORTS_SUBMIT_FEATURE_CODE,
-        upsell_url: UPSELL_URL,
-      },
+      body: featureNotEnabledBody(),
     }
   }
 
-  return { ok: true, tenant, entitlement }
+  return {
+    ok: true,
+    tenant,
+    entitlement: {
+      enabled: true,
+      registered: true,
+      feature_code: PRICE_REPORTS_SUBMIT_FEATURE_CODE,
+    },
+  }
 }
 
 async function resolveDailyCap(req) {

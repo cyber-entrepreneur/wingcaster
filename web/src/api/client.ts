@@ -2103,20 +2103,40 @@ export const api = {
   },
   getAdminAgentPriceReport: (id: string) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}`),
-  reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
+  reviewAdminAgentPriceReport: (
+    id: string,
+    data: {
+      status: 'verified' | 'rejected' | 'request_info'
+      incorporate?: boolean
+      weight?: number
+      reason_code?: string
+      notes?: string
+    },
+  ) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  bulkReviewAdminAgentPriceReports: (data: Record<string, unknown>) =>
+  bulkReviewAdminAgentPriceReports: (data: {
+    ids: string[]
+    status: 'verified' | 'rejected' | 'request_info'
+    reason_code?: string
+    notes?: string
+    incorporate?: boolean
+  }) =>
     fetchJson('/admin/pricing/agent-price-reports/bulk-review', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  undoAdminAgentPriceReportReview: (id: string) =>
+  undoAdminAgentPriceReportReview: (id: string, data?: { undo_token_id?: string }) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/undo-review`, {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify(data || {}),
+    }),
+  revealAdminAgentPriceReportPii: (id: string, data: { field: string; kind?: string }) =>
+    fetchJson(`/admin/pricing/agent-price-reports/${id}/reveal-audit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
   getAdminAgentPriceReportEvidenceUrl: (reportId: string, evidenceId: string) =>
     fetchJson(`/admin/pricing/agent-price-reports/${reportId}/evidence/${evidenceId}/url`),

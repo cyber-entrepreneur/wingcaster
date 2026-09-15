@@ -3,16 +3,23 @@ import { parseCsv, normalizeExternalComparable, registerAdminRoutes } from '../i
 import { registerPublicRoutes } from '../interface/public-routes.js'
 import { registerRoleRoutes } from '../interface/role-routes.js'
 import { listUserAgencyMemberships, listAgencyMemberships } from '../../../tenant-authorization.js'
-import { insert as dbInsert } from '../../../db.js'
+import { insert as dbInsert, query as dbQuery } from '../../../db.js'
 
 vi.mock('../../../tenant-authorization.js', () => ({
   listUserAgencyMemberships: vi.fn().mockResolvedValue([]),
   listAgencyMemberships: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('../../../lib/credits/feature-check.js', () => ({
-  checkEntitlement: vi.fn().mockResolvedValue({ enabled: true, registered: true }),
-}))
+function mockPriceReportsSubmitEntitledQuery(sql) {
+  const text = String(sql)
+  if (text.includes('tenant_subscriptions')) {
+    return [{ package_version_id: 'pro-version' }]
+  }
+  if (text.includes('package_feature_flags')) {
+    return [{ enabled: true }]
+  }
+  return []
+}
 
 vi.mock('../../../lib/credits/tenant-context.js', () => ({
   resolveRequestCreditTenant: vi.fn().mockReturnValue({
@@ -30,8 +37,14 @@ vi.mock('../../../db.js', async (importOriginal) => {
     insert: vi.fn(async (_collection, item) => item),
     findAll: vi.fn(async () => []),
     findOne: vi.fn(async () => null),
-    query: vi.fn(async () => []),
+    // Default: Pro-tier package flag for valuation.price_reports.submit
+    // (migration 338). Submit happy-paths need this; 403 tests override.
+    query: vi.fn(async (sql) => mockPriceReportsSubmitEntitledQuery(sql)),
   }
+})
+
+beforeEach(() => {
+  vi.mocked(dbQuery).mockImplementation(async (sql) => mockPriceReportsSubmitEntitledQuery(sql))
 })
 
 // Ownership checks in public-routes hit the real authz layer (which reads
@@ -443,6 +456,7 @@ describe('Public Route Registration', () => {
         reporter_confidence: 'hard_evidence',
         supporting_document_ids: [],
         segment_id: 'seg_dxb_marina',
+        segment_label: 'Dubai Marina',
         country_code: 'ae',
         recommendation_price_point: 415000,
       },
@@ -461,13 +475,116 @@ describe('Public Route Registration', () => {
       status: 'pending_review',
       reporter_confidence: 'hard_evidence',
       segment_id: 'seg_dxb_marina',
+      segment_label: 'Dubai Marina',
       country_code: 'AE',
       recommendation_price_point: 415000,
+      env: 'live',
     })
     expect(report.expires_at).toBeTruthy()
     expect(dbInsert).toHaveBeenCalledWith(
       'audit_log',
       expect.objectContaining({ type: 'price_report_submit' }),
+    )
+  })
+
+  it('agent price report route persists segment recommendation and country fields', async () => {
+    const { app, routes } = fakeExpress()
+    const inserted = []
+    const services = {
+      dal: {
+        insert: vi.fn().mockImplementation((collection, item) => {
+          inserted.push(item)
+          return Promise.resolve(item)
+        }),
+      },
+      logger,
+    }
+    registerPublicRoutes(app, services)
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        sold_price: 420000,
+        currency: 'USD',
+        notes: 'Verified sale with segment fields.',
+        segment_id: 'seg_dxb_marina',
+        segment_label: 'Dubai Marina',
+        country_code: 'ae',
+        recommendation_price_point: 415000,
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(201)
+    expect(inserted[0]).toMatchObject({
+      segment_id: 'seg_dxb_marina',
+      country_code: 'AE',
+      recommendation_price_point: 415000,
+      env: 'live',
+    })
+  })
+
+  it('returns INVALID_BODY 400 when segment_id is missing', async () => {
+    const { app, routes } = fakeExpress()
+    const services = {
+      dal: {
+        insert: vi.fn().mockImplementation((_c, item) => Promise.resolve(item)),
+      },
+      logger,
+    }
+    registerPublicRoutes(app, services)
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        sold_price: 420000,
+        currency: 'USD',
+        notes: 'Missing segment on purpose.',
+        segment_label: 'Dubai Marina',
+        country_code: 'AE',
+        recommendation_price_point: 415000,
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringMatching(/segment_id/) }),
+        ]),
+      }),
+    )
+  })
+
+
+  it('agent price report route rejects negative recommendation_price_point', async () => {
+    const { app, routes } = fakeExpress()
+    registerPublicRoutes(app, { dal: { insert: vi.fn() }, logger })
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        sold_price: 100000,
+        currency: 'USD',
+        notes: 'Negative recommendation should fail.',
+        segment_id: 'seg_x',
+        segment_label: 'X',
+        country_code: 'AE',
+        recommendation_price_point: -1,
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: 'recommendation_price_point' }),
+        ]),
+      }),
     )
   })
 
@@ -481,12 +598,28 @@ describe('Public Route Registration', () => {
     await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(400)
-    expect(res.json).toHaveBeenCalledWith({ error: 'sold_price is required' })
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: 'sold_price' }),
+        ]),
+      }),
+    )
   })
 
   it('agent price report returns 403 FEATURE_NOT_ENABLED when entitlement is off', async () => {
-    const { checkEntitlement } = await import('../../../lib/credits/feature-check.js')
-    vi.mocked(checkEntitlement).mockResolvedValueOnce({ enabled: false, registered: true })
+    const { query } = await import('../../../db.js')
+    vi.mocked(query).mockImplementation(async (sql) => {
+      const text = String(sql)
+      if (text.includes('tenant_subscriptions')) {
+        return [{ package_version_id: 'free-version' }]
+      }
+      if (text.includes('package_feature_flags')) {
+        return [] // Free tier — flag absent = disabled (migration 338)
+      }
+      return []
+    })
     const { app, routes } = fakeExpress()
     registerPublicRoutes(app, { dal: mockDal(), logger })
     const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
