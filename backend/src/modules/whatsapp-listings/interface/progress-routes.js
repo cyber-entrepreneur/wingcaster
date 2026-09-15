@@ -5,12 +5,15 @@
  *   GET|HEAD /api/whatsapp-listings/drafts/progress-capability
  *   GET|HEAD /api/whatsapp-listings/drafts/:sessionId/progress   (SSE)
  *   GET      /api/whatsapp-listings/drafts/:sessionId/state      (poll)
+ *   POST     /api/onboarding/wlb/session                         (mint SSE token)
  *
  * Agent-prefixed aliases (same handlers, same auth):
  *   /api/agent/whatsapp-listings/drafts/...
  *
- * Auth: Bearer header preferred. EventSource may pass `?token=` as a fallback
- * because browsers cannot set Authorization on EventSource.
+ * Auth: Bearer session JWT preferred for HEAD/state/capability.
+ * EventSource must use a short-lived SSE-scoped `?token=` minted by
+ * POST /api/onboarding/wlb/session — full session JWTs in the query string
+ * are rejected.
  */
 
 import { authMiddleware } from '../../../auth.js'
@@ -23,18 +26,34 @@ import {
   normalizeProgressMode,
   synthesizeEventsFromSnapshot,
 } from '../application/draft-progress.js'
+import {
+  mintWlbSseToken,
+  redeemWlbSseToken,
+  WLB_SSE_TTL_SECONDS,
+} from '../application/wlb-sse-token.js'
 
 /**
- * Accept Authorization: Bearer … OR ?token= / ?access_token=
- * so EventSource clients can authenticate.
+ * Accept Authorization: Bearer … OR a single-use WLB SSE `?token=`.
+ * Full session JWTs in the query string are rejected (security: JWT out of URL).
  */
 export function authMiddlewareWithQueryToken(req, res, next) {
-  if (!req.headers.authorization) {
-    const token = req.query?.token || req.query?.access_token
-    if (typeof token === 'string' && token.length) {
-      req.headers.authorization = `Bearer ${token}`
-    }
+  if (req.headers.authorization) {
+    return authMiddleware(req, res, next)
   }
+
+  const raw = req.query?.token || req.query?.access_token
+  if (typeof raw === 'string' && raw.length) {
+    const redeemed = redeemWlbSseToken(raw, {
+      expectedSessionId: req.params?.sessionId,
+    })
+    if (!redeemed.ok) {
+      return res.status(redeemed.status).json({ error: redeemed.error })
+    }
+    req.user = { id: redeemed.userId, role: 'agent' }
+    req.wlbSse = { session_id: redeemed.sessionId, jti: redeemed.jti }
+    return next()
+  }
+
   return authMiddleware(req, res, next)
 }
 
@@ -179,6 +198,35 @@ export function registerProgressRoutes(app, { config, bus = draftProgressBus } =
     }
   }
 
+  /**
+   * Mint a 60s single-use SSE token for EventSource auth.
+   * Body: { session_id: string }
+   */
+  async function handleMintWlbSession(req, res) {
+    const sessionId =
+      (typeof req.body?.session_id === 'string' && req.body.session_id) ||
+      (typeof req.body?.sessionId === 'string' && req.body.sessionId) ||
+      ''
+    if (!sessionId) {
+      return res.status(400).json({ error: 'session_id is required' })
+    }
+    try {
+      const session = await findOneModule(Collections.SESSIONS, (s) => s.id === sessionId)
+      if (!session) return res.status(404).json({ error: 'Session not found' })
+      if (session.agent_id !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' })
+      }
+      const minted = mintWlbSseToken({ userId: req.user.id, sessionId })
+      return res.status(200).json({
+        sse_token: minted.sse_token,
+        expires_in: minted.expires_in ?? WLB_SSE_TTL_SECONDS,
+        session_id: sessionId,
+      })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
   const prefixes = ['/api/whatsapp-listings', '/api/agent/whatsapp-listings']
 
   for (const prefix of prefixes) {
@@ -201,6 +249,8 @@ export function registerProgressRoutes(app, { config, bus = draftProgressBus } =
       handleState,
     )
   }
+
+  app.post('/api/onboarding/wlb/session', authMiddleware, handleMintWlbSession)
 
   // Expose for tests.
   return {

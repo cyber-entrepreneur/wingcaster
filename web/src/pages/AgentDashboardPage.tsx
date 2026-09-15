@@ -13,7 +13,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth, type Agent } from '@/context/AuthContext'
+import { useLocale } from '@/hooks/useLocale'
+import { useOnboardingState } from '@/hooks/useOnboardingState'
+import {
+  OnboardingChecklistWidget,
+  shouldRenderOnboardingChecklist,
+} from '@/pages/agent/onboarding'
+import {
+  ONB_DISCARD_TOAST_KEY,
+  ONB_SKIP_TOAST_KEY,
+  readSessionFlag,
+  writeSessionFlag,
+} from '@/pages/agent/onboarding/helpers'
+import { t as onbT } from '@/pages/agent/onboarding/copy'
 import { api, type InboxConversation } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
@@ -64,6 +77,54 @@ type AgentOnboardingFields = {
 }
 type PropertyWithClicks = Property & { clicks?: number }
 
+function agentUiMode(agent: Agent | null | undefined): string {
+  const raw = agent?.ui_mode ?? agent?.uiMode
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : 'guided'
+}
+
+type Zone3Urgent = { label: string; title: string; sub?: string; to?: string }
+
+function dashboardZone3Urgent(input: {
+  inquiries: InquiryListItem[]
+  operations: DashboardOperations | null
+  queuedDistributions: DistQueueRow[]
+}): Zone3Urgent | null {
+  const lead = input.inquiries.find((i) => i.status === 'new' || Boolean((i as InquiryListItem & { sla_overdue?: boolean }).sla_overdue))
+  if (lead) {
+    const overdue = Boolean((lead as InquiryListItem & { sla_overdue?: boolean }).sla_overdue)
+    return {
+      label: overdue ? 'SLA OVERDUE' : 'NEW LEAD',
+      title: `${lead.name || 'A client'} asked about ${lead.property_title || 'a listing'}`,
+      sub: lead.message ? String(lead.message) : undefined,
+      to: '/dashboard/inbox',
+    }
+  }
+  const sla = Number(input.operations?.sla_breached_count || 0)
+  if (sla > 0) {
+    return {
+      label: 'SLA BREACHED',
+      title: `${sla} conversation${sla === 1 ? '' : 's'} need a reply`,
+      to: '/dashboard/inbox',
+    }
+  }
+  const overdue = Number(input.operations?.tasks?.overdue_count ?? input.operations?.overdue_follow_ups ?? 0)
+  if (overdue > 0) {
+    return {
+      label: 'OVERDUE TASKS',
+      title: `${overdue} task${overdue === 1 ? '' : 's'} overdue`,
+      to: '/tasks',
+    }
+  }
+  const failed = input.queuedDistributions.find((d) => d.status === 'failed')
+  if (failed) {
+    return {
+      label: 'PUBLISH FAILED',
+      title: `We couldn't post to ${failed.platform || 'a channel'}`,
+    }
+  }
+  return null
+}
+
 export function AgentDashboardPage() {
   const { agent, loading: authLoading } = useAuth()
   const { effectiveMode, mode, isProCapable } = useUiMode()
@@ -104,6 +165,31 @@ export function AgentDashboardPage() {
 function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolean }) {
   const { agent, isAdmin, updateProfile, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  const { isArabic } = useLocale()
+  const onboarding = useOnboardingState()
+
+  useEffect(() => {
+    const locale = isArabic ? 'ar' : 'en'
+    if (readSessionFlag(ONB_SKIP_TOAST_KEY) === '1') {
+      writeSessionFlag(ONB_SKIP_TOAST_KEY, '')
+      try {
+        sessionStorage.removeItem(ONB_SKIP_TOAST_KEY)
+      } catch {
+        /* private mode */
+      }
+      addToast({ description: onbT('welcome.toast.skip', locale) })
+    }
+    if (readSessionFlag(ONB_DISCARD_TOAST_KEY) === '1') {
+      writeSessionFlag(ONB_DISCARD_TOAST_KEY, '')
+      try {
+        sessionStorage.removeItem(ONB_DISCARD_TOAST_KEY)
+      } catch {
+        /* private mode */
+      }
+      addToast({ description: onbT('review.toast.discard', locale) })
+    }
+  }, [addToast, isArabic])
+
   const [activeTab, setActiveTab] = useState('listings')
   const [myListings, setMyListings] = useState<Property[]>([])
   const [inquiries, setInquiries] = useState<InquiryListItem[]>([])
@@ -598,11 +684,10 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     ga_note: 'First-party marketplace analytics. Google Analytics 4 (free) can be connected later via a Measurement ID.',
   }
 
-  const agentOnboarding = agent as typeof agent & AgentOnboardingFields
-  const onboardingStatus = String(agentOnboarding?.onboarding_status || 'active')
-  const onboardingStage = String(agentOnboarding?.onboarding_stage || 'active')
+  const onboardingStatus = String(agent?.onboarding_status || 'active')
+  const onboardingStage = String(agent?.onboarding_stage || 'active')
   const showOnboardingBanner = onboardingStatus !== 'active'
-  const onboardingSteps = (agentOnboarding?.onboarding_steps || {}) as Record<string, boolean>
+  const onboardingSteps = (agent?.onboarding_steps || {}) as Record<string, boolean>
 
   const stepLabelMap: Record<string, string> = {
     contact_verified: 'Contact verified',
@@ -616,6 +701,13 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
   const queuedDistributions = (Object.values(distributions).flat() as DistQueueRow[])
     .filter((d) => d?.owner_type === 'agent' && (d?.status === 'pending_retry' || d?.status === 'failed'))
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+
+  const isProUi = agentUiMode(agent) === 'pro'
+  const showOnboardingChecklist =
+    !onboarding.isError &&
+    (onboarding.isLoading || shouldRenderOnboardingChecklist(onboarding.state))
+  const zone3Urgent = dashboardZone3Urgent({ inquiries, operations, queuedDistributions })
+  const showZone3 = Boolean(zone3Urgent) || (!isProUi && showOnboardingChecklist)
 
   return (
     <div className="min-h-screen bg-[var(--lc-bg-page)]">
@@ -659,6 +751,15 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {isProUi && showOnboardingChecklist ? (
+                <OnboardingChecklistWidget
+                  variant="pill"
+                  state={onboarding.state}
+                  patch={onboarding.patch}
+                  isLoading={onboarding.isLoading}
+                  isError={onboarding.isError}
+                />
+              ) : null}
               <Link to="/dashboard/inbox">
                 <Button variant="outline" className="gap-2">
                   <Inbox className="h-4 w-4" />
@@ -684,6 +785,44 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <TryProNudgeBanner />
+        {showZone3 ? (
+          <div data-dashboard-zone="3" className="mb-6 space-y-4">
+            {zone3Urgent ? (
+              <Card
+                data-dashboard-urgent-card
+                className="border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]"
+              >
+                <CardHeader className="pb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {zone3Urgent.label}
+                  </p>
+                  <CardTitle className="text-base">{zone3Urgent.title}</CardTitle>
+                  {zone3Urgent.sub ? <CardDescription>{zone3Urgent.sub}</CardDescription> : null}
+                </CardHeader>
+                {zone3Urgent.to ? (
+                  <CardContent>
+                    <Button asChild>
+                      <Link to={zone3Urgent.to}>
+                        {zone3Urgent.label === 'NEW LEAD' || zone3Urgent.label === 'SLA OVERDUE' || zone3Urgent.label === 'SLA BREACHED'
+                          ? 'Reply now'
+                          : 'Open'}
+                      </Link>
+                    </Button>
+                  </CardContent>
+                ) : null}
+              </Card>
+            ) : null}
+            {!isProUi && showOnboardingChecklist ? (
+              <OnboardingChecklistWidget
+                variant="card"
+                state={onboarding.state}
+                patch={onboarding.patch}
+                isLoading={onboarding.isLoading}
+                isError={onboarding.isError}
+              />
+            ) : null}
+          </div>
+        ) : null}
         {showOnboardingBanner && (
           <Card className="mb-6 border-amber-200 bg-amber-50/60">
             <CardHeader className="pb-3">

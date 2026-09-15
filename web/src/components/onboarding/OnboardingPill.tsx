@@ -1,5 +1,7 @@
 import { ProgressRing } from '@/components/onboarding/ProgressRing'
+import { tUi, type OnboardingUiLocale } from '@/components/onboarding/copy'
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
 
 export interface OnboardingPillProps {
@@ -18,7 +20,6 @@ export interface OnboardingPillProps {
  * Compact Pro-mode top-bar pill (ring + `n/4` label).
  *
  * Used by: AGT-DSH-002 (Pro dashboard); opens sheet with `<OnboardingChecklistCard>` content.
- * Stub visual + prop types only.
  */
 export function OnboardingPill({
   completed,
@@ -27,8 +28,10 @@ export function OnboardingPill({
   'aria-label': ariaLabel,
   className,
 }: OnboardingPillProps) {
+  const { isArabic } = useLocale()
+  const locale: OnboardingUiLocale = isArabic ? 'ar' : 'en'
   const label =
-    ariaLabel ?? `Finish setting up — ${completed} of ${total} steps done`
+    ariaLabel ?? tUi('pill.aria', locale, { completed, total })
 
   return (
     <button
@@ -37,7 +40,7 @@ export function OnboardingPill({
       aria-label={label}
       title={label}
       className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-[var(--lc-radius-lg)]',
+        'inline-flex h-11 min-h-tap items-center gap-1.5 rounded-[var(--lc-radius-lg)]',
         'border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-2',
         'text-[var(--lc-text-primary)] shadow-[var(--lc-elevation-sm)]',
         'focus-visible:outline-none',

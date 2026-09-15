@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 export type TourFrameStep = 1 | 2 | 3 | 4 | 5
 
 export interface TourFrameProps {
-  /** 1-based active step (AGT-WLB-001…005 map to steps 2…5 of the tour; step 1 reserved). */
+  /** 1-based active step — AGT-WLB connect=1 … ready=5 (see TOUR_STEPS). */
   step: TourFrameStep
   /** Always 5 for the AGT-WLB family. */
   totalSteps: 5
