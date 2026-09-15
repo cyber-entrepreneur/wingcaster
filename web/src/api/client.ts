@@ -2134,18 +2134,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data || {}),
     }),
-  castSecondApprovalVote: (data: {
-    approval_request_id: string
-    decision: 'approve' | 'decline'
-    notes?: string
-  }) =>
-    fetchJson(`/admin/valuation/approval-requests/${encodeURIComponent(data.approval_request_id)}/vote`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decision: data.decision,
-        notes: data.notes,
-      }),
-    }),
   revealAdminAgentPriceReportPii: (id: string, data: { field: string; kind?: string }) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/reveal-audit`, {
       method: 'POST',
