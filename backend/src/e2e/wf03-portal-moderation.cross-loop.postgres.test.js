@@ -272,7 +272,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .query({ status: 'in_review', limit: 50 })
       .set('Authorization', `Bearer ${token}`)
     expect(queueBefore.status).toBe(200)
-    const reviewRows = queueBefore.body.items.filter(
+    const reviewRows = queueBefore.body.rows.filter(
       (row) =>
         (row.listing?.id === propertyId || row.listing_id === propertyId)
         && (row.portal?.code === 'property_finder' || row.portal === 'property_finder'),
@@ -323,7 +323,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .query({ status: 'live', portal: 'property_finder', limit: 50 })
       .set('Authorization', `Bearer ${token}`)
     expect(trackerAfter.status).toBe(200)
-    const liveRows = trackerAfter.body.items.filter(
+    const liveRows = trackerAfter.body.rows.filter(
       (row) => row.listing?.id === propertyId || row.listing_id === propertyId,
     )
     expect(liveRows.length).toBeGreaterThanOrEqual(1)
@@ -393,7 +393,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .query({ status: 'rejected', limit: 20 })
       .set('Authorization', `Bearer ${token}`)
     expect(tracker.status).toBe(200)
-    const rows = tracker.body.items.filter(
+    const rows = tracker.body.rows.filter(
       (r) => r.listing?.id === propertyId || r.listing_id === propertyId,
     )
     expect(rows[0]?.status).toBe('rejected')
@@ -423,7 +423,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .set('Authorization', `Bearer ${token}`)
       .set('X-Wingcaster-Env', 'live')
     expect(liveRes.status).toBe(200)
-    const liveItem = liveRes.body.items.find(
+    const liveItem = liveRes.body.rows.find(
       (r) => r.listing?.id === propertyId || r.listing_id === propertyId,
     )
     expect(liveItem).toBeTruthy()
@@ -435,7 +435,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .set('Authorization', `Bearer ${token}`)
       .set('X-Wingcaster-Env', 'test')
     expect(testRes.status).toBe(200)
-    const testItem = testRes.body.items.find(
+    const testItem = testRes.body.rows.find(
       (r) => r.listing?.id === propertyId || r.listing_id === propertyId,
     )
     expect(testItem).toBeTruthy()
@@ -685,7 +685,7 @@ finPostgresSuite('WF-03 cross-loop portal moderation (Wave 2 Agent 6)', { seed: 
       .query({ status: 'expired', limit: 20 })
       .set('Authorization', `Bearer ${token}`)
     expect(tracker.status).toBe(200)
-    const expiredRows = tracker.body.items.filter(
+    const expiredRows = tracker.body.rows.filter(
       (r) => r.listing?.id === propertyId || r.listing_id === propertyId,
     )
     expect(expiredRows.some((r) => r.status === 'expired')).toBe(true)
