@@ -15,6 +15,10 @@
  */
 
 import '@testing-library/jest-dom/vitest'
+
+// Match GitHub Actions (Linux UTC). Prefer vitest.config.ts test.env so TZ
+// is applied before modules load; keep this as a belt-and-suspenders guard.
+process.env.TZ = 'UTC'
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 

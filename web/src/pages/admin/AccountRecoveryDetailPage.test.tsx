@@ -13,6 +13,7 @@ import {
   AccountRecoveryDetailPage,
   buildCastVotePath,
 } from './AccountRecoveryDetailPage'
+import { baseCase } from '@/theme/wf04-fixtures'
 
 const {
   castVoteMock,
@@ -86,73 +87,6 @@ vi.mock('@/components/nav/EnvBadge', () => ({
   EnvBadge: ({ env }: { env: string }) => <span data-testid="env-badge">{env}</span>,
 }))
 
-function baseCase(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'acr_b7f3a2',
-    created_at: '2026-09-07T11:04:11Z',
-    sla_hours_remaining: 22.97,
-    sla_hours_total: 24,
-    status: 'pending_review',
-    reason: 'I lost access after a phishing email.',
-    reason_category: 'compromised_account',
-    provided: {
-      preferred_channel: 'whatsapp',
-      contact_masked: '+961 7X XXX XX41',
-      contact_full: '+961 71 456 7841',
-      request_ip_masked: '185.104.XXX.XXX',
-      request_ip_full: '185.104.212.44',
-      request_user_agent_masked: 'iPhone · Safari 17',
-      request_user_agent_full: 'Mozilla/5.0 (iPhone)',
-    },
-    on_file: {
-      email_masked: 's***@********.com',
-      email_full: 'sara.mansouri@elitedubai.com',
-      phone_masked: '+961 7X XXX XX41',
-      phone_full: '+961 71 456 7841',
-      username_masked: 'sa****ri',
-      username_full: 'sara_mansouri',
-      agency: { id: 'agy_1', name: 'Elite Real Estate Dubai', tenant_url: '/admin/tenants/agy_1' },
-      plan_tier: 'enterprise',
-      role: 'agency_owner',
-      tenure_days: 1240,
-      last_successful_login_at: '2026-08-14T09:12:00Z',
-    },
-    mismatches: [],
-    evidence: {
-      file_count: 1,
-      files: [
-        {
-          id: 'ev_1',
-          filename: 'id_front.jpg',
-          uploaded_at: '2026-09-07T11:04:22Z',
-          size_bytes: 218430,
-          content_type: 'image/jpeg',
-        },
-      ],
-    },
-    timeline: [
-      {
-        at: '2026-09-07T11:10:00Z',
-        channel: 'system',
-        status: 'info',
-        message: 'Case escalated to PA review.',
-      },
-    ],
-    account_value_tier: 'standard',
-    requires_two_person: false,
-    first_vote: null,
-    current_reviewer: {
-      id: 'pa_current',
-      is_first_reviewer_candidate: true,
-      is_second_reviewer_candidate: false,
-    },
-    decision: null,
-    escalation_case_id: null,
-    is_own: false,
-    env: 'live',
-    ...overrides,
-  }
-}
 
 function wrap(caseId = 'acr_b7f3a2'): ReturnType<typeof render> {
   return render(

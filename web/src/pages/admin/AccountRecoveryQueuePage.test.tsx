@@ -10,6 +10,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sampleCase } from '@/theme/wf04-fixtures'
 
 const listMock = vi.hoisted(() => vi.fn())
 const revealMock = vi.hoisted(() => vi.fn())
@@ -74,51 +75,6 @@ const PAGE_SRC = path.resolve(
   'AccountRecoveryQueuePage.tsx',
 )
 
-function sampleCase(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'acr_1',
-    created_at: new Date(Date.now() - 3_600_000).toISOString(),
-    sla_hours_remaining: 22.5,
-    sla_hours_total: 24,
-    status: 'pending_review',
-    reason: 'Lost phone; SMS OTP no longer reaching me on this number.',
-    reason_category: 'lost_phone',
-    preferred_channel: 'email',
-    contact: 'o***@********.ae',
-    requested_ip: '185.104.XXX.XXX',
-    agent: {
-      id: 'usr_1',
-      display_name_masked: 'Omar K*****',
-      display_name_full: 'Omar Khoury',
-      avatar_url: null,
-      email_masked: 'o***@********.ae',
-      email_full: 'omar.khoury@example.ae',
-      phone_masked: '+971 5X XXX XX12',
-      phone_full: '+971 55 123 4512',
-      username_masked: 'om****23',
-      username_full: 'omar_kh23',
-      role: 'agent',
-      agency: {
-        id: 'agy_bluedoor_lb',
-        name: 'Blue Door LB',
-        tenant_url: '/admin/tenants/agy_bluedoor_lb',
-      },
-      plan_tier: 'broker',
-    },
-    evidence: {
-      file_count: 2,
-      files: [
-        { filename: 'id_front.jpg', uploaded_at: '2026-09-07T12:04:20Z' },
-        { filename: 'id_back.jpg', uploaded_at: '2026-09-07T12:04:35Z' },
-      ],
-    },
-    account_value_tier: 'standard',
-    requires_two_person: false,
-    is_own: false,
-    env: 'live',
-    ...overrides,
-  }
-}
 
 function mockList(cases = [sampleCase()]) {
   listMock.mockResolvedValue({
