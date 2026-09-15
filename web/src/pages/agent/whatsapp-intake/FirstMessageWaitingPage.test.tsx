@@ -10,6 +10,15 @@ vi.mock('@/hooks/useOnboardingState', async () => {
   return { useOnboardingState: () => mockUseOnboardingState() }
 })
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: async () => ({ ok: true }),
+    dir: 'ltr',
+    isArabic: false,
+  }),
+}))
+
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {
