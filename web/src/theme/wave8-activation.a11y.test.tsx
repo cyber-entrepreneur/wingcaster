@@ -709,10 +709,13 @@ describe('Wave 8 a11y — Pro AR copy via useLocale', () => {
     document.documentElement.dir = 'rtl'
     renderProDashboard()
     await waitFor(() => expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument())
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
-      LOGIN_COPY['greeting.goodDay'].ar.split('{name}')[0].trim().replace(/،\s*$/, ''),
-    )
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/يوم سعيد/)
+    const heading = screen.getByRole('heading', { level: 1 }).textContent ?? ''
+    const arGreetings = [
+      LOGIN_COPY['greeting.morning'].ar,
+      LOGIN_COPY['greeting.afternoon'].ar,
+      LOGIN_COPY['greeting.evening'].ar,
+    ]
+    expect(arGreetings.some((g) => heading.includes(g))).toBe(true)
   })
 })
 

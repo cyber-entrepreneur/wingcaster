@@ -366,8 +366,10 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
     )
     await waitFor(() => expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument())
     expect(screen.getByTestId('pro-dashboard')).toHaveAttribute('data-density', 'compact')
-    // AR copy via useLocale + LOGIN_COPY
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/يوم سعيد/)
+    // AR copy via useLocale + LOGIN_COPY (time-of-day greeting)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(
+      /صباح الخير|مساء الخير/,
+    )
     expectSnap(container, 'dark')
   })
 
