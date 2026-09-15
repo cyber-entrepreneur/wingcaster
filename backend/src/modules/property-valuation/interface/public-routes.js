@@ -185,6 +185,7 @@ export function registerPublicRoutes(app, services) {
         supporting_document_url,
         supporting_document_ids,
         segment_id,
+        segment_label,
         recommendation_price_point,
         recommendation_price_point_minor,
         country_code,
@@ -249,7 +250,9 @@ export function registerPublicRoutes(app, services) {
       if (recommendationPoint != null && (!Number.isFinite(recommendationPoint) || recommendationPoint < 0)) {
         return res.status(400).json({ error: 'recommendation_price_point must be a non-negative number' })
       }
-
+      if (country_code != null && country_code !== '' && !/^[A-Za-z]{2}$/.test(String(country_code).trim())) {
+        return res.status(400).json({ error: 'country_code must be a 2-letter ISO country code' })
+      }
       const createdAt = new Date().toISOString()
       const report = await dal.insert('agent_price_reports', {
         id: crypto.randomUUID(),
@@ -269,7 +272,8 @@ export function registerPublicRoutes(app, services) {
         supporting_document_url: supporting_document_url || null,
         supporting_document_ids: docIds,
         reporter_confidence: confidence,
-        segment_id: segment_id || null,
+        segment_id: segment_id ? String(segment_id).trim() : null,
+        segment_label: segment_label ? String(segment_label).trim() : null,
         country_code: country_code ? String(country_code).trim().toUpperCase().slice(0, 2) : null,
         recommendation_price_point: recommendationPoint,
         status: 'pending_review',

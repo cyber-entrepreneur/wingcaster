@@ -443,6 +443,7 @@ describe('Public Route Registration', () => {
         reporter_confidence: 'hard_evidence',
         supporting_document_ids: [],
         segment_id: 'seg_dxb_marina',
+        segment_label: 'Dubai Marina',
         country_code: 'ae',
         recommendation_price_point: 415000,
       },
@@ -461,14 +462,67 @@ describe('Public Route Registration', () => {
       status: 'pending_review',
       reporter_confidence: 'hard_evidence',
       segment_id: 'seg_dxb_marina',
+      segment_label: 'Dubai Marina',
       country_code: 'AE',
       recommendation_price_point: 415000,
+      env: 'live',
     })
     expect(report.expires_at).toBeTruthy()
     expect(dbInsert).toHaveBeenCalledWith(
       'audit_log',
       expect.objectContaining({ type: 'price_report_submit' }),
     )
+  })
+
+  it('agent price report route persists segment recommendation and country fields', async () => {
+    const { app, routes } = fakeExpress()
+    const inserted = []
+    const services = {
+      dal: {
+        insert: vi.fn().mockImplementation((collection, item) => {
+          inserted.push(item)
+          return Promise.resolve(item)
+        }),
+      },
+      logger,
+    }
+    registerPublicRoutes(app, services)
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        sold_price: 420000,
+        currency: 'USD',
+        segment_id: 'seg_dxb_marina',
+        country_code: 'ae',
+        recommendation_price_point: 415000,
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(201)
+    expect(inserted[0]).toMatchObject({
+      segment_id: 'seg_dxb_marina',
+      country_code: 'AE',
+      recommendation_price_point: 415000,
+      env: 'live',
+    })
+  })
+
+  it('agent price report route rejects negative recommendation_price_point', async () => {
+    const { app, routes } = fakeExpress()
+    registerPublicRoutes(app, { dal: { insert: vi.fn() }, logger })
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: { sold_price: 100000, currency: 'USD', recommendation_price_point: -1 },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'recommendation_price_point must be a non-negative number',
+    })
   })
 
   it('agent price report route rejects invalid sold price', async () => {
