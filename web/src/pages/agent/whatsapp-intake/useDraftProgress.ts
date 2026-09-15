@@ -245,44 +245,47 @@ export function useDraftProgress(sessionId: string | undefined): UseDraftProgres
         return
       }
       setTransport('sse')
-      const url = draftProgressSseUrl(id)
-      const es = new EventSource(url)
-      esRef.current = es
+      void (async () => {
+        const url = await draftProgressSseUrl(id)
+        if (stopped.current || sessionRef.current !== id) return
+        const es = new EventSource(url)
+        esRef.current = es
 
-      const handle = (raw: MessageEvent) => {
-        let parsed: ProgressEvent = {}
-        try {
-          parsed = JSON.parse(raw.data) as ProgressEvent
-        } catch {
-          return
-        }
-        if (!parsed.type && raw.type && raw.type !== 'message') {
-          parsed.type = raw.type
-        }
-        applySseEvent(parsed)
-      }
-
-      const named = ['field_start', 'field_complete', 'field_stream', 'draft_ready', 'error']
-      for (const name of named) {
-        es.addEventListener(name, handle as EventListener)
-      }
-      es.onmessage = handle
-      es.onerror = () => {
-        es.close()
-        esRef.current = null
-        void (async () => {
-          const sid = sessionRef.current
-          if (!sid || stopped.current) return
-          const probe = await getDraftState(sid)
-          if (stopped.current) return
-          if (probe.ok && probe.data) {
-            applySnapshot(probe.data)
-            if (!probe.data.draft_ready) startPolling(interval)
+        const handle = (raw: MessageEvent) => {
+          let parsed: ProgressEvent = {}
+          try {
+            parsed = JSON.parse(raw.data) as ProgressEvent
+          } catch {
             return
           }
-          startFallback(interval)
-        })()
-      }
+          if (!parsed.type && raw.type && raw.type !== 'message') {
+            parsed.type = raw.type
+          }
+          applySseEvent(parsed)
+        }
+
+        const named = ['field_start', 'field_complete', 'field_stream', 'draft_ready', 'error']
+        for (const name of named) {
+          es.addEventListener(name, handle as EventListener)
+        }
+        es.onmessage = handle
+        es.onerror = () => {
+          es.close()
+          esRef.current = null
+          void (async () => {
+            const sid = sessionRef.current
+            if (!sid || stopped.current) return
+            const probe = await getDraftState(sid)
+            if (stopped.current) return
+            if (probe.ok && probe.data) {
+              applySnapshot(probe.data)
+              if (!probe.data.draft_ready) startPolling(interval)
+              return
+            }
+            startFallback(interval)
+          })()
+        }
+      })()
     },
     [applySseEvent, applySnapshot, startFallback, startPolling],
   )
