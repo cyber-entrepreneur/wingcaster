@@ -98,7 +98,7 @@ export function stampLcTokens(el: HTMLElement, mode: 'light' | 'dark' | LcColorM
   }
 }
 
-/** Email / E.164-ish bleed sweep — mirrors Wave 5 #131 posture. */
+/** Email / E.164-ish bleed sweep — mirrors Wave 5 visual PII posture. */
 export const PII_BLEED_RE =
   /(?:[a-z0-9._%+-]+@[^\s"'<>]+\.[a-z]{2,})|(?:\+\d{2,3}\s?\d[\d\s-]{6,})/gi
 
