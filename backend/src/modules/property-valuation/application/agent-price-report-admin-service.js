@@ -508,7 +508,7 @@ export function createAgentPriceReportAdminService({
       requested_by: viewerId,
       approval_request_id: approvalRequestId,
     }
-    const dedupeKey = `${topic}:${reportId}:${approvalRequestId || 'none'}`
+    const dedupeKey = `wf06:price_incorporate:${approvalRequestId || reportId}:approve`
     const id = randomUUID()
     const finEnv = toFinEnvironment(env)
     const base = {

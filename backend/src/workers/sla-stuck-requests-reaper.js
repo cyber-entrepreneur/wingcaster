@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SLA stuck-requests reaper (Wave 5 Agent 6 / WF-05 + WF-06).
  *
  * REQUESTED fin.approval_requests for COMPARABLE_REMOVE / PRICE_REPORT_INCORPORATE

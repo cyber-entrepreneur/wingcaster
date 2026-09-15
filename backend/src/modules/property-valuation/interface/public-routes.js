@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { authMiddleware } from '../../../auth.js'
 import { assertOwnsProperty, NotFoundError } from '../../../lib/authz.js'
 import { reportExpiresAt } from '../../../workers/report-expiry-worker.js'
@@ -13,8 +14,54 @@ import {
   writeSubmitAudit,
   normalizeReporterConfidence,
   normalizeSupportingDocumentIds,
+  REPORTER_CONFIDENCE_VALUES,
 } from '../application/submit-guards.js'
 import { registerPricingEvidenceRoutes } from './evidence-routes.js'
+
+/** WF-06 agent price-report submit body — structural schema (replaces ad-hoc checks). */
+export const agentPriceReportSubmitBodySchema = z.object({
+  property_id: z.string().min(1).max(120).optional().nullable(),
+  external_property_title: z.string().min(1).max(240).optional().nullable(),
+  external_property_location: z.string().min(1).max(240).optional().nullable(),
+  property_type: z.string().min(1).max(80).optional().nullable(),
+  bedrooms: z.coerce.number().int().nonnegative().optional().nullable(),
+  bathrooms: z.coerce.number().nonnegative().optional().nullable(),
+  area_sqm: z.coerce.number().nonnegative().optional().nullable(),
+  sold_price: z.coerce.number().positive(),
+  currency: z.string().regex(/^[A-Za-z]{3,10}$/).optional().default('USD'),
+  sold_date: z.string().min(1).max(40).optional().nullable(),
+  notes: z.string().min(5).max(4000),
+  supporting_document_url: z.string().max(2000).optional().nullable(),
+  supporting_document_ids: z.array(z.string().min(1)).max(10).optional(),
+  // Segment keys are opaque (e.g. seg_ae_…) — not UUIDs in this codebase.
+  segment_id: z.string().min(1).max(120),
+  segment_label: z.string().min(1).max(120),
+  recommendation_price_point: z.coerce.number().nonnegative().optional().nullable(),
+  recommendation_price_point_minor: z.coerce.number().int().nonnegative().optional().nullable(),
+  country_code: z.string().regex(/^[A-Za-z]{2}$/),
+  reporter_confidence: z.enum(REPORTER_CONFIDENCE_VALUES).optional().nullable(),
+}).superRefine((body, ctx) => {
+  const hasPoint = body.recommendation_price_point != null && body.recommendation_price_point !== ''
+  const hasMinor = body.recommendation_price_point_minor != null && body.recommendation_price_point_minor !== ''
+  if (!hasPoint && !hasMinor) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['recommendation_price_point'],
+      message: 'recommendation_price_point or recommendation_price_point_minor is required',
+    })
+  }
+})
+
+function invalidBody(result) {
+  return {
+    code: 'INVALID_BODY',
+    error: 'INVALID_BODY',
+    errors: result.error.issues.map((i) => ({
+      path: i.path.join('.') || '(root)',
+      message: i.message,
+    })),
+  }
+}
 
 export function registerPublicRoutes(app, services) {
   const { analysisService, comparableService, trendService, configService, dal, logger } = services
@@ -170,6 +217,11 @@ export function registerPublicRoutes(app, services) {
       const rate = await enforceDailySubmitRateLimit(req, dal)
       if (!rate.ok) return res.status(rate.status).json(rate.body)
 
+      const parsed = agentPriceReportSubmitBodySchema.safeParse(req.body || {})
+      if (!parsed.success) {
+        return res.status(400).json(invalidBody(parsed))
+      }
+
       const {
         property_id,
         external_property_title,
@@ -190,27 +242,35 @@ export function registerPublicRoutes(app, services) {
         recommendation_price_point_minor,
         country_code,
         reporter_confidence,
-      } = req.body
-      if (!sold_price || Number(sold_price) <= 0) {
-        return res.status(400).json({ error: 'sold_price is required' })
-      }
+      } = parsed.data
+
       if (sold_date && Number.isNaN(new Date(sold_date).getTime())) {
-        return res.status(400).json({ error: 'sold_date must be a valid date' })
+        return res.status(400).json({
+          code: 'INVALID_BODY',
+          error: 'INVALID_BODY',
+          errors: [{ path: 'sold_date', message: 'sold_date must be a valid date' }],
+        })
       }
       const normalizedCurrency = String(currency || 'USD').trim().toUpperCase()
-      if (!/^[A-Z]{3,10}$/.test(normalizedCurrency)) {
-        return res.status(400).json({ error: 'currency must be a valid currency code' })
-      }
 
       const confidence = normalizeReporterConfidence(reporter_confidence)
-      if (confidence === undefined) {
+      if (reporter_confidence != null && reporter_confidence !== '' && confidence === undefined) {
         return res.status(400).json({
-          error: 'reporter_confidence must be self_witnessed, hearsay, or hard_evidence',
+          code: 'INVALID_BODY',
+          error: 'INVALID_BODY',
+          errors: [{
+            path: 'reporter_confidence',
+            message: 'reporter_confidence must be self_witnessed, hearsay, or hard_evidence',
+          }],
         })
       }
       const docIds = normalizeSupportingDocumentIds(supporting_document_ids)
       if (docIds === null) {
-        return res.status(400).json({ error: 'supporting_document_ids must be an array of strings' })
+        return res.status(400).json({
+          code: 'INVALID_BODY',
+          error: 'INVALID_BODY',
+          errors: [{ path: 'supporting_document_ids', message: 'must be an array of strings' }],
+        })
       }
       try {
         await assertOwnedEvidenceIds(req.user.id, docIds)
@@ -247,12 +307,6 @@ export function registerPublicRoutes(app, services) {
       } else if (recommendation_price_point_minor != null && recommendation_price_point_minor !== '') {
         recommendationPoint = Number(recommendation_price_point_minor) / 100
       }
-      if (recommendationPoint != null && (!Number.isFinite(recommendationPoint) || recommendationPoint < 0)) {
-        return res.status(400).json({ error: 'recommendation_price_point must be a non-negative number' })
-      }
-      if (country_code != null && country_code !== '' && !/^[A-Za-z]{2}$/.test(String(country_code).trim())) {
-        return res.status(400).json({ error: 'country_code must be a 2-letter ISO country code' })
-      }
       const createdAt = new Date().toISOString()
       const report = await dal.insert('agent_price_reports', {
         id: crypto.randomUUID(),
@@ -272,9 +326,9 @@ export function registerPublicRoutes(app, services) {
         supporting_document_url: supporting_document_url || null,
         supporting_document_ids: docIds,
         reporter_confidence: confidence,
-        segment_id: segment_id ? String(segment_id).trim() : null,
-        segment_label: segment_label ? String(segment_label).trim() : null,
-        country_code: country_code ? String(country_code).trim().toUpperCase().slice(0, 2) : null,
+        segment_id: String(segment_id).trim(),
+        segment_label: String(segment_label).trim(),
+        country_code: String(country_code).trim().toUpperCase().slice(0, 2),
         recommendation_price_point: recommendationPoint,
         status: 'pending_review',
         env: 'live',
