@@ -22,7 +22,17 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'backend/src/**/*.{test,spec}.js'],
     hookTimeout: 60000,
     testTimeout: 120000,
+    // Forks + single worker: each file is a fresh Node process so jsdom /
+    // snapshot DOM from prior files cannot accumulate into a CI OOM. Threads
+    // isolate only resets modules; heap still grows across 20+ theme files.
+    pool: 'forks',
+    maxWorkers: 1,
     fileParallelism: false,
+    poolOptions: {
+      forks: {
+        execArgv: ['--max-old-space-size=6144'],
+      },
+    },
     setupFiles: ['./vitest.setup.ts'],
     // Coverage config is defined but off by default. Enable with
     // `npm test -- --coverage`. Thresholds will be tightened as the

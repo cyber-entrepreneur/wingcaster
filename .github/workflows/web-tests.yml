@@ -51,15 +51,22 @@ jobs:
       # Split suites: one vitest process across 130+ files accumulates DOM
       # snapshots until V8 OOMs even at 8GB, and ubuntu-latest only has ~7GB
       # RAM. Fresh processes + 6GB heap keep each phase under the runner ceiling.
+      # Theme is split again (visual vs a11y/unit) — a single theme phase still
+      # GC-thrashed past 35+ minutes on ubuntu-latest after the app/theme split.
       - name: Tests — app (non-theme)
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: npx vitest run --exclude 'src/theme/**'
 
-      - name: Tests — theme visual + a11y
+      - name: Tests — theme visual
         env:
           NODE_OPTIONS: --max-old-space-size=6144
-        run: npx vitest run src/theme
+        run: npx vitest run 'src/theme/**/*.visual.test.tsx'
+
+      - name: Tests — theme a11y + unit
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npx vitest run src/theme --exclude 'src/theme/**/*.visual.test.tsx'
 
       - name: Production build
         env:
