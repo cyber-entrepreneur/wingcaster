@@ -221,6 +221,7 @@ import { registerAgencyApplicationRoutes } from './lib/agencies/applications-rou
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
+import { registerAgencyAiCapsRoutes } from './lib/agencies/ai-caps-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -769,6 +770,7 @@ registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
+registerAgencyAiCapsRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 

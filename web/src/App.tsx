@@ -49,6 +49,7 @@ import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/Admin
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
 import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
+import { AgencyAiUsagePage } from '@/pages/agency/AgencyAiUsagePage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
@@ -142,6 +143,7 @@ function AppRoutes() {
       <Route path="/account-recovery" element={<AccountRecoveryPage />} />
       <Route path="/account-recovery/complete" element={<AccountRecoveryCompletePage />} />
       <Route path="/agency" element={<AgencyManagementPage />} />
+      <Route path="/agency/ai-usage" element={<AgencyAiUsagePage />} />
       <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
       <Route
         path="/agency/members/applications/:applicationId"

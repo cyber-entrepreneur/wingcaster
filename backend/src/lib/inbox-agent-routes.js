@@ -173,9 +173,19 @@ export function registerInboxAgentRoutes(app, deps) {
         const result = await generateAiSuggestions({
           conversationId: req.params.id,
           userId: req.user.id,
+          activeTenantId: req.user.active_tenant_id || null,
         })
         return res.json(result)
       } catch (err) {
+        if (err?.status === 429 && (err.code === 'AI_DAILY_CAP' || err.code === 'AI_MONTHLY_CAP')) {
+          return res.status(429).json({
+            error: err.message || 'AI suggestion cap reached',
+            code: err.code,
+            cap: err.cap,
+            used: err.used,
+            resets_at: err.resets_at,
+          })
+        }
         if (err?.status === 404 || err?.status === 403) {
           return res.status(err.status).json({ error: err.message || 'Not found' })
         }

@@ -154,9 +154,10 @@ export function InboxPage() {
   const [composeAttachments, setComposeAttachments] = useState<ComposeAttachment[]>([])
   const [templates, setTemplates] = useState<ComposeTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
-  const [aiEnabled, setAiEnabled] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiUsageRefreshToken, setAiUsageRefreshToken] = useState(0)
+  const [aiCapError, setAiCapError] = useState<{ resets_at?: string; code?: string } | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const replayingOutbox = useRef(false)
 
@@ -237,10 +238,10 @@ export function InboxPage() {
 
   const loadAiSuggestions = async (id: string) => {
     setAiLoading(true)
+    setAiCapError(null)
     try {
       const res = await api.getAiSuggestions(id)
       if (res?.degraded) {
-        setAiEnabled(false)
         setAiSuggestions([])
         return
       }
@@ -249,14 +250,22 @@ export function InboxPage() {
         .map((item) => (typeof item === 'string' ? item : item?.body))
         .filter((body): body is string => Boolean(body && String(body).trim()))
       if (bodies.length === 0) {
-        setAiEnabled(false)
         setAiSuggestions([])
         return
       }
-      setAiEnabled(true)
       setAiSuggestions(bodies)
-    } catch {
-      setAiEnabled(false)
+      setAiUsageRefreshToken((n) => n + 1)
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code
+      if (code === 'AI_DAILY_CAP' || code === 'AI_MONTHLY_CAP') {
+        setAiSuggestions([])
+        setAiCapError({
+          code,
+          resets_at: (err as { resets_at?: string }).resets_at,
+        })
+        setAiUsageRefreshToken((n) => n + 1)
+        return
+      }
       setAiSuggestions([])
     } finally {
       setAiLoading(false)
@@ -943,12 +952,14 @@ export function InboxPage() {
                 )}
               </div>
 
-              {aiLoading || aiEnabled ? (
+              {activeConversation ? (
                 <AISuggestedReplyRow
                   suggestions={aiSuggestions}
                   loading={aiLoading}
-                  disabled={activeConversation!.status === 'closed'}
+                  disabled={activeConversation.status === 'closed'}
                   onInsert={(text) => setDraft(text)}
+                  usageRefreshToken={aiUsageRefreshToken}
+                  capError={aiCapError}
                 />
               ) : null}
 

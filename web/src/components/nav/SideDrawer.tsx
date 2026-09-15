@@ -28,6 +28,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  Sparkles,
   Target,
   Truck,
   Users,
@@ -183,6 +184,7 @@ const AGENCY_NAV: DrawerNavGroup[] = [
     items: [
       { id: 'subscription', label: 'Subscription', href: '/agency/subscription', icon: CreditCard },
       { id: 'credits', label: 'Credits', href: '/agency/credits', icon: Coins },
+      { id: 'ai-usage', label: 'AI usage', href: '/agency/ai-usage', icon: Sparkles },
       { id: 'invoices', label: 'Invoices', href: '/agency/invoices', icon: FileText },
     ],
   },
