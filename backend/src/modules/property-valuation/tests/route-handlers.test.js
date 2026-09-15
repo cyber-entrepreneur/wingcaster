@@ -493,7 +493,9 @@ describe('Public Route Registration', () => {
       body: {
         sold_price: 420000,
         currency: 'USD',
+        notes: 'Verified sale with segment fields.',
         segment_id: 'seg_dxb_marina',
+        segment_label: 'Dubai Marina',
         country_code: 'ae',
         recommendation_price_point: 415000,
       },
@@ -509,20 +511,68 @@ describe('Public Route Registration', () => {
     })
   })
 
+  it('returns INVALID_BODY 400 when segment_id is missing', async () => {
+    const { app, routes } = fakeExpress()
+    const services = {
+      dal: {
+        insert: vi.fn().mockImplementation((_c, item) => Promise.resolve(item)),
+      },
+      logger,
+    }
+    registerPublicRoutes(app, services)
+    const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
+    const req = {
+      user: { id: 'agent-1' },
+      body: {
+        sold_price: 420000,
+        currency: 'USD',
+        notes: 'Missing segment on purpose.',
+        segment_label: 'Dubai Marina',
+        country_code: 'AE',
+        recommendation_price_point: 415000,
+      },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringMatching(/segment_id/) }),
+        ]),
+      }),
+    )
+  })
+
+
   it('agent price report route rejects negative recommendation_price_point', async () => {
     const { app, routes } = fakeExpress()
     registerPublicRoutes(app, { dal: { insert: vi.fn() }, logger })
     const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
     const req = {
       user: { id: 'agent-1' },
-      body: { sold_price: 100000, currency: 'USD', recommendation_price_point: -1 },
+      body: {
+        sold_price: 100000,
+        currency: 'USD',
+        notes: 'Negative recommendation should fail.',
+        segment_id: 'seg_x',
+        segment_label: 'X',
+        country_code: 'AE',
+        recommendation_price_point: -1,
+      },
     }
     const res = mockRes()
     await route.handlers[route.handlers.length - 1](req, res, () => {})
     expect(res.status).toHaveBeenCalledWith(400)
-    expect(res.json).toHaveBeenCalledWith({
-      error: 'recommendation_price_point must be a non-negative number',
-    })
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: 'recommendation_price_point' }),
+        ]),
+      }),
+    )
   })
 
   it('agent price report route rejects invalid sold price', async () => {
@@ -535,7 +585,14 @@ describe('Public Route Registration', () => {
     await route.handlers[route.handlers.length - 1](req, res, () => {})
 
     expect(res.status).toHaveBeenCalledWith(400)
-    expect(res.json).toHaveBeenCalledWith({ error: 'sold_price is required' })
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_BODY',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ path: 'sold_price' }),
+        ]),
+      }),
+    )
   })
 
   it('agent price report returns 403 FEATURE_NOT_ENABLED when entitlement is off', async () => {

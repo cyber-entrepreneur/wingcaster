@@ -486,7 +486,9 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
         bedrooms: 2,
         sold_price: 1_850_000,
         currency: 'AED',
+        notes: 'High-delta Marina sale needing second approver.',
         segment_id: segmentId,
+        segment_label: 'Dubai Marina · high delta',
         recommendation_price_point: 1850000,
         country_code: 'AE',
       })
@@ -568,6 +570,23 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
     const reportAfter = await findOne('agent_price_reports', (r) => r.id === reportId)
     expect(reportAfter.status).toBe('incorporated')
 
+    // One-snapshot invariant: APPROVED ⇔ incorporated ⇔ second_approval_approved audit
+    const invariant = await pool().query(
+      `SELECT
+         ar.status AS approval_status,
+         pr.status AS report_status,
+         COALESCE(pr.data->'audit_trail', '[]'::jsonb) AS audit_trail
+       FROM fin.approval_requests ar
+       JOIN market_pricing.agent_price_reports pr ON pr.id = $2
+      WHERE ar.id = $1`,
+      [approvalId, reportId],
+    )
+    expect(invariant.rows[0].approval_status).toBe('APPROVED')
+    expect(invariant.rows[0].report_status).toBe('incorporated')
+    const auditTrail = invariant.rows[0].audit_trail
+    const trail = typeof auditTrail === 'string' ? JSON.parse(auditTrail) : auditTrail
+    expect(trail.some((e) => e.action === 'second_approval_approved')).toBe(true)
+
     const outbox = await pool().query(
       `SELECT topic FROM fin.outbox_events
         WHERE dedupe_key = $1
@@ -584,6 +603,86 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
       .send({ decision: 'approve' })
     expect(again.status).toBe(410)
     expect(again.body.code).toBe('TOKEN_CONSUMED')
+  })
+
+
+  it('WF-06 approve chaos: commitIncorporate throw rolls back vote (no partial state)', async () => {
+    const reporter = await agentAccount('WF06 Chaos Reporter')
+    const pa = await agentAccount('WF06 Chaos PA', { platformAdmin: true })
+    const segmentId = `seg_ae_chaos_${reporter.userId.slice(0, 8)}`
+    await pool().query(
+      `INSERT INTO market_pricing.pricing_benchmarks
+         (id, segment_id, country_code, currency, price_point, computed_at, env, created_at, updated_at, data)
+       VALUES ($1, $2, 'AE', 'AED', 1000000, CURRENT_TIMESTAMP, 'live',
+               CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'::jsonb)`,
+      [randomUUID(), segmentId],
+    )
+
+    const submit = await request(app)
+      .post('/api/pricing/agent-price-reports')
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        external_property_title: 'Chaos path',
+        external_property_location: 'Dubai Marina',
+        property_type: 'apartment',
+        bedrooms: 2,
+        sold_price: 1850000,
+        currency: 'AED',
+        notes: 'Chaos injection path for atomicity proof.',
+        segment_id: segmentId,
+        segment_label: 'Dubai Marina · chaos',
+        recommendation_price_point: 1850000,
+        country_code: 'AE',
+      })
+    expect(submit.status, JSON.stringify(submit.body)).toBe(201)
+    const reportId = submit.body.id
+
+    const review = await request(app)
+      .post(`/api/admin/pricing/agent-price-reports/${reportId}/review`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ status: 'verified', incorporate: true, notes: 'Needs second eyes' })
+    expect(review.status).toBe(200)
+    const approvalId = review.body.approval_request_id || review.body.request_id
+    expect(approvalId).toBeTruthy()
+
+    // Inject failure flag used by commitIncorporate (rolls back outer approve txn).
+    await pool().query(
+      `UPDATE market_pricing.agent_price_reports
+          SET data = COALESCE(data, '{}'::jsonb) || '{"__force_incorporate_throw": true}'::jsonb
+        WHERE id = $1`,
+      [reportId],
+    )
+
+    const pa2 = await agentAccount('WF06 Chaos PA2', { platformAdmin: true })
+    const vote = await request(app)
+      .post(`/api/admin/valuation/approval-requests/${approvalId}/vote`)
+      .set('Authorization', `Bearer ${pa2.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ decision: 'approve', notes: 'should roll back' })
+    expect(vote.status).toBeGreaterThanOrEqual(500)
+
+    const snap = await pool().query(
+      `SELECT
+         (SELECT status FROM fin.approval_requests WHERE id = $1) AS approval_status,
+         (SELECT status FROM market_pricing.agent_price_reports WHERE id = $2) AS report_status,
+         (SELECT COUNT(*)::int FROM fin.approval_actions
+           WHERE request_id = $1 AND decision = 'APPROVED'
+             AND actor_id::text = $3) AS second_vote_actions,
+         (SELECT COUNT(*)::int FROM fin.outbox_events
+           WHERE topic = 'valuation.price_report_incorporated'
+             AND payload->>'approval_request_id' = $1) AS outbox_rows,
+         (SELECT COALESCE(data->'audit_trail', '[]'::jsonb)
+            FROM market_pricing.agent_price_reports WHERE id = $2) AS audit_trail`,
+      [approvalId, reportId, pa2.userId],
+    )
+    const row = snap.rows[0]
+    expect(row.approval_status).toBe('REQUESTED')
+    expect(row.report_status).toBe('pending_second_approval')
+    expect(row.second_vote_actions).toBe(0)
+    expect(row.outbox_rows).toBe(0)
+    const trail = typeof row.audit_trail === 'string' ? JSON.parse(row.audit_trail) : row.audit_trail
+    expect(Array.isArray(trail) ? trail.some((e) => e.action === 'second_approval_approved') : false).toBe(false)
   })
 
   it('WF-05 reject-as-invalid -> rejected outcome', async () => {
@@ -775,6 +874,9 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
         sold_price: 900000,
         currency: 'AED',
         notes: 'Agent claims closed sale.',
+        segment_id: 'seg_ae_jlt_1br',
+        segment_label: 'JLT · 1BR',
+        recommendation_price_point: 900000,
         country_code: 'AE',
       })
     expect(submit.status).toBe(201)
@@ -809,6 +911,10 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
         bedrooms: 2,
         sold_price: 1400000,
         currency: 'AED',
+        notes: 'Need more sale evidence from agent.',
+        segment_id: 'seg_ae_bbay_2br',
+        segment_label: 'Business Bay · 2BR',
+        recommendation_price_point: 1400000,
         country_code: 'AE',
       })
     expect(submit.status).toBe(201)
@@ -839,6 +945,9 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
         currency: 'AED',
         country_code: 'AE',
         notes: 'Will be rejected for outcome panel.',
+        segment_id: 'seg_ae_outcome_1br',
+        segment_label: 'Outcome · 1BR',
+        recommendation_price_point: 1100000,
       })
     expect(submit.status).toBe(201)
     const reportId = submit.body.id
@@ -905,7 +1014,9 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
         bedrooms: 2,
         sold_price: 1850000,
         currency: 'AED',
+        notes: 'High-delta report left pending for SLA reaper coverage.',
         segment_id: segmentId,
+        segment_label: 'Marina · SLA stuck',
         recommendation_price_point: 1850000,
         country_code: 'AE',
       })

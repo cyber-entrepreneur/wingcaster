@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   resolveSlaHours,
   SLA_DEAD_LETTER_STATUS,
