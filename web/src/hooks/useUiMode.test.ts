@@ -23,14 +23,31 @@ describe('resolveUiModeFromAgent', () => {
     expect(resolveUiModeFromAgent({})).toBe('guided')
   })
 
-  it('prefers tenant_membership.data.ui_mode over user data', () => {
+  it('prefers tenant_memberships[0].ui_mode over user data', () => {
     expect(
       resolveUiModeFromAgent({
         ui_mode: 'guided',
         data: { ui_mode: 'guided' },
-        tenant_membership: { data: { ui_mode: 'pro' } },
+        tenant_memberships: [{ ui_mode: 'pro' }],
       }),
     ).toBe('pro')
+  })
+
+  it('reads tenant_memberships[0].data.ui_mode (JSONB brief path)', () => {
+    expect(
+      resolveUiModeFromAgent({
+        tenant_memberships: [{ data: { ui_mode: 'pro' } }],
+      }),
+    ).toBe('pro')
+  })
+
+  it('ignores singular tenant_membership (plural shape wins)', () => {
+    expect(
+      resolveUiModeFromAgent({
+        tenant_membership: { data: { ui_mode: 'pro' } },
+        ui_mode: 'guided',
+      }),
+    ).toBe('guided')
   })
 
   it('falls back to agent.data then top-level ui_mode', () => {
@@ -57,9 +74,9 @@ describe('useUiMode', () => {
     expect(result.current.shouldRenderPro).toBe(false)
   })
 
-  it('renders Pro when ui_mode=pro and viewport is Pro-capable', () => {
+  it('renders Pro when tenant_memberships[0].ui_mode=pro and viewport is Pro-capable', () => {
     mockUseAuth.mockReturnValue({
-      agent: { id: 'a1', tenant_membership: { data: { ui_mode: 'pro' } } },
+      agent: { id: 'a1', tenant_memberships: [{ ui_mode: 'pro' }] },
       loading: false,
     } as unknown as ReturnType<typeof useAuth>)
     mockUseIsProCapable.mockReturnValue(true)

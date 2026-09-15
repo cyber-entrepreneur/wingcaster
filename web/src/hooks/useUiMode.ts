@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth, type AuthAgent, type TenantMembership } from '@/context/AuthContext'
 import { useIsProCapable } from '@/hooks/useIsProCapable'
 
 export type UiMode = 'guided' | 'pro'
@@ -20,29 +20,47 @@ function asUiMode(value: unknown): UiMode | null {
 }
 
 /**
- * Resolve effective `ui_mode` from `/auth/me`-shaped payloads.
- * Prefer per-tenant membership override, then user/agent data, then top-level field.
- * Defaults to Guided when Agent 1's PATCH/GET wiring is not yet present.
+ * Canonical membership read (Wave-8 DSH mount): `agent.tenant_memberships[0].ui_mode`
+ * (plural). Also accepts nested `data.ui_mode` (JSONB column per AGT-DSH-002 brief).
+ * Singular `tenant_membership` is intentionally ignored — that shape loses.
  */
-export function resolveUiModeFromAgent(agent: Record<string, unknown> | null | undefined): UiMode {
+function uiModeFromTenantMemberships(memberships: TenantMembership[] | undefined): UiMode | null {
+  if (!Array.isArray(memberships) || memberships.length === 0) return null
+  const first = memberships[0]
+  if (!first || typeof first !== 'object') return null
+
+  const direct = asUiMode(first.ui_mode)
+  if (direct) return direct
+
+  const nested = first.data
+  if (nested && typeof nested === 'object') {
+    return asUiMode(nested.ui_mode)
+  }
+  return null
+}
+
+/**
+ * Resolve effective `ui_mode` from `/auth/me`-shaped payloads.
+ * Prefer per-tenant membership override (`tenant_memberships[0]`), then user/agent
+ * data, then top-level field. Defaults to Guided when Agent 1's PATCH/GET wiring
+ * is not yet present.
+ */
+export function resolveUiModeFromAgent(
+  agent: AuthAgent | Record<string, unknown> | null | undefined,
+): UiMode {
   if (!agent) return 'guided'
 
-  const membership = agent.tenant_membership
-  if (membership && typeof membership === 'object') {
-    const membershipData = (membership as { data?: unknown }).data
-    if (membershipData && typeof membershipData === 'object') {
-      const fromMembership = asUiMode((membershipData as { ui_mode?: unknown }).ui_mode)
-      if (fromMembership) return fromMembership
-    }
-  }
+  const memberships = (agent as AuthAgent).tenant_memberships
+  const fromMemberships = uiModeFromTenantMemberships(memberships)
+  if (fromMemberships) return fromMemberships
 
-  const data = agent.data
+  const data = (agent as { data?: unknown }).data
   if (data && typeof data === 'object') {
     const fromData = asUiMode((data as { ui_mode?: unknown }).ui_mode)
     if (fromData) return fromData
   }
 
-  const direct = asUiMode(agent.ui_mode)
+  const direct = asUiMode((agent as { ui_mode?: unknown }).ui_mode)
   if (direct) return direct
 
   return 'guided'
@@ -57,10 +75,7 @@ export function useUiMode(): UseUiModeResult {
   const { agent, loading } = useAuth()
   const isProCapable = useIsProCapable()
 
-  const uiMode = useMemo(
-    () => resolveUiModeFromAgent(agent as Record<string, unknown> | null),
-    [agent],
-  )
+  const uiMode = useMemo(() => resolveUiModeFromAgent(agent), [agent])
 
   const shouldRenderPro = uiMode === 'pro' && isProCapable
   const effectiveMode: UiMode = shouldRenderPro ? 'pro' : 'guided'

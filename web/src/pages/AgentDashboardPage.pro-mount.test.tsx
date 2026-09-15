@@ -16,8 +16,22 @@ vi.mock('@/hooks/useUiMode', () => ({
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
-    agent: { id: 'agent-1', name: 'Sara Khalil', ui_mode: 'pro' },
+    agent: {
+      id: 'agent-1',
+      name: 'Sara Khalil',
+      ui_mode: 'pro',
+      tenant_memberships: [{ ui_mode: 'pro' }],
+    },
     loading: false,
+  }),
+}))
+
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: async () => ({ ok: true as const }),
+    dir: 'ltr' as const,
+    isArabic: false,
   }),
 }))
 

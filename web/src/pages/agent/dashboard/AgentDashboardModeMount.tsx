@@ -1,7 +1,9 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useLocale } from '@/hooks/useLocale'
 import { useUiMode } from '@/hooks/useUiMode'
+import { t } from '@/pages/agent/dashboard/copy'
 
 /** Stable path for Agent 1 (`feat/wave-8-pro`) — lazy so Guided stays the default chunk. */
 const ProDashboard = lazy(() =>
@@ -24,12 +26,20 @@ export function AgentDashboardModeMount({
   agentName,
   guided,
 }: AgentDashboardModeMountProps) {
+  const { isArabic } = useLocale()
+  const copyLocale = isArabic ? 'ar' : 'en'
+
   if (shouldRenderPro) {
     return (
       <Suspense
         fallback={
-          <div className="flex min-h-screen items-center justify-center" data-dashboard-mode="pro-loading">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div
+            className="flex min-h-screen items-center justify-center"
+            data-dashboard-mode="pro-loading"
+            role="status"
+            aria-label={t('common.loading', copyLocale)}
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
           </div>
         }
       >
