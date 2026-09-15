@@ -4,7 +4,6 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { StepHero, WhatsAppHandshakePanel } from '@/components/onboarding/whatsapp'
 import { Button } from '@/components/ui/button'
 import { ChannelMark } from '@/components/ui/channel-mark'
-import { Numeric } from '@/components/ui/numeric'
 import { useToast } from '@/components/ui/toast'
 import {
   Dialog,
@@ -13,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useLocale } from '@/hooks/useLocale'
 import { useOnboardingState } from '@/hooks/useOnboardingState'
 import { completedViaCaption, markWhatsAppIntakeProgress } from './useOnboardingState'
 import { getCurrentActivationCode, postActivationCode, type ActivationCodePayload } from './intakeApi'
@@ -24,11 +24,15 @@ import { buildWaMeLink } from './waMeLink'
 import { WaMeQrCode } from './WaMeQrCode'
 import { StickyCtaBar, WhatsAppTourShell } from './WhatsAppTourShell'
 import type { WhatsAppConnectLocationState } from './WhatsAppConnectPage'
+import { TOUR_STEPS } from './tour'
+import { waLocale, waT, type WaLocale } from './copy'
 
 export function ActivationCodePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
+  const { isArabic } = useLocale()
+  const locale = waLocale(isArabic)
   const onboarding = useOnboardingState()
   const online = useOnlineStatus()
   const routeState = (location.state || {}) as WhatsAppConnectLocationState
@@ -64,20 +68,20 @@ export function ActivationCodePage() {
       setLoading(false)
       if (result.ok && result.data) setPayload(result.data)
       else {
-        addToast({ title: "Couldn't load an activation code. Try again.", variant: 'error' })
+        addToast({ title: waT('code.toast.loadError', locale), variant: 'error' })
       }
     })
     return () => {
       cancelled = true
     }
-  }, [payload, addToast])
+  }, [payload, addToast, locale])
 
   const expired = payload ? isExpired(payload.expires_at, now) : false
 
   useEffect(() => {
     if (!expired || !payload) return
     addToast({
-      title: "Your code expired. Tap 'I didn't get it' to get a fresh one.",
+      title: waT('code.toast.expired', locale),
       variant: 'default',
     })
     // Intentionally once per expiry — reset when a new code arrives.
@@ -106,12 +110,12 @@ export function ActivationCodePage() {
     const result = await postActivationCode()
     setRegenerating(false)
     if (!result.ok || !result.data) {
-      addToast({ title: "Couldn't get a new code. Try again in a moment.", variant: 'error' })
+      addToast({ title: waT('connect.toast.error', locale), variant: 'error' })
       return
     }
     setPayload(result.data)
     addToast({
-      title: `New code ready — send ${result.data.display_code} to activate.`,
+      title: waT('code.dialog.send', locale, { code: result.data.display_code }),
       variant: 'success',
     })
   }
@@ -130,12 +134,17 @@ export function ActivationCodePage() {
 
   if (capReached) {
     return (
-      <WhatsAppTourShell step={3} title="Activation code" offline={!online}>
+      <WhatsAppTourShell
+        step={TOUR_STEPS.code}
+        title={waT('code.title', locale)}
+        offline={!online}
+        offlineMessage={waT('shell.offline.code', locale)}
+      >
         <div className="mx-auto max-w-lg px-[var(--lc-space-md)] py-[var(--lc-space-xl)] text-center">
           <StepHero
             glyph="whatsapp-mark"
-            title="It's been 24 hours"
-            body="Your previous code is no longer valid. Get a fresh one to keep going."
+            title={waT('code.cap.title', locale)}
+            body={waT('code.cap.body', locale)}
           />
           <Button
             type="button"
@@ -143,7 +152,7 @@ export function ActivationCodePage() {
             className="mt-[var(--lc-space-lg)]"
             onClick={() => void onRegenerate()}
           >
-            Get a new code
+            {waT('code.cap.cta', locale)}
           </Button>
         </div>
       </WhatsAppTourShell>
@@ -152,17 +161,17 @@ export function ActivationCodePage() {
 
   return (
     <WhatsAppTourShell
-      step={3}
-      title="Activation code"
+      step={TOUR_STEPS.code}
+      title={waT('code.title', locale)}
       offline={!online}
-      offlineMessage="You're offline — connect to keep watching for WhatsApp."
+      offlineMessage={waT('shell.offline.code', locale)}
     >
       <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-[var(--lc-space-md)] px-[var(--lc-space-md)] py-[var(--lc-space-md)] md:flex-row md:gap-[var(--lc-space-xl)]">
         <div className="min-w-0 flex-1 md:w-[55%]">
           <StepHero
             glyph="whatsapp-mark"
-            title="Send this code to activate"
-            body="Copy the code below, open WhatsApp, and send it to the WingCaster number. We'll take it from there."
+            title={waT('code.hero.title', locale)}
+            body={waT('code.hero.body', locale)}
           />
           {already ? (
             <p className="mt-[var(--lc-space-sm)] text-center text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
@@ -175,7 +184,7 @@ export function ActivationCodePage() {
               role="status"
               className="mt-[var(--lc-space-sm)] rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)] text-sm text-[var(--lc-text-secondary)]"
             >
-              Checking your WhatsApp… reconnect to keep watching.
+              {waT('code.pollError', locale)}
             </p>
           ) : null}
 
@@ -199,7 +208,7 @@ export function ActivationCodePage() {
             </div>
           )}
 
-          <HowThisWorks />
+          <HowThisWorks locale={locale} />
         </div>
 
         <aside className="hidden md:flex md:w-[45%] md:flex-col md:items-center md:justify-start md:pt-[var(--lc-space-xl)]">
@@ -211,7 +220,7 @@ export function ActivationCodePage() {
         {passive ? (
           <p className="flex items-center justify-center gap-2 py-[var(--lc-space-sm)] text-sm text-[var(--lc-text-secondary)]">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            Waiting for your message on WhatsApp…
+            {waT('code.waiting', locale)}
           </p>
         ) : (
           <div className="flex flex-col gap-[var(--lc-space-xs)] md:flex-row-reverse md:items-center md:justify-start">
@@ -221,7 +230,7 @@ export function ActivationCodePage() {
               className="w-full text-[var(--lc-text-muted)] md:w-auto"
               onClick={() => setPassive(true)}
             >
-              I'll send it manually
+              {waT('code.cta.manual', locale)}
             </Button>
             <Button
               type="button"
@@ -234,7 +243,7 @@ export function ActivationCodePage() {
               <span aria-hidden>
                 <ChannelMark channel="whatsapp" className="me-2 h-5 w-5" />
               </span>
-              Open WhatsApp with code pre-filled
+              {waT('code.cta.open', locale)}
             </Button>
           </div>
         )}
@@ -243,14 +252,12 @@ export function ActivationCodePage() {
       <Dialog open={desktopHint} onOpenChange={setDesktopHint}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Open WhatsApp on your phone</DialogTitle>
-            <DialogDescription>
-              The code is copied. Or scan the QR.
-            </DialogDescription>
+            <DialogTitle>{waT('code.dialog.title', locale)}</DialogTitle>
+            <DialogDescription>{waT('code.dialog.body', locale)}</DialogDescription>
           </DialogHeader>
           {payload ? (
             <p className="text-sm text-[var(--lc-text-secondary)]">
-              Send <Numeric>{payload.display_code}</Numeric> from your phone.
+              {waT('code.dialog.send', locale, { code: payload.display_code })}
             </p>
           ) : null}
         </DialogContent>
@@ -259,17 +266,17 @@ export function ActivationCodePage() {
   )
 }
 
-function HowThisWorks() {
+function HowThisWorks({ locale }: { locale: WaLocale }) {
   return (
     <details className="mt-[var(--lc-space-lg)] rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]">
       <summary className="flex min-h-[var(--lc-tap-target-min)] cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--lc-text-primary)]">
-        How this works
+        {waT('code.how.title', locale)}
         <ChevronDown className="h-4 w-4 text-[var(--lc-text-muted)]" aria-hidden />
       </summary>
       <ul className="mt-[var(--lc-space-sm)] list-disc space-y-1 ps-5 pb-[var(--lc-space-sm)] text-sm text-[var(--lc-text-secondary)]">
-        <li>WingCaster uses one shared WhatsApp number to keep intake fast and free.</li>
-        <li>Your listings, leads, and conversations stay tied to your account.</li>
-        <li>You can disconnect anytime from Settings → Channels.</li>
+        <li>{waT('code.how.1', locale)}</li>
+        <li>{waT('code.how.2', locale)}</li>
+        <li>{waT('code.how.3', locale)}</li>
       </ul>
     </details>
   )

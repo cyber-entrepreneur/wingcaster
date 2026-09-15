@@ -11,6 +11,15 @@ vi.mock('@/hooks/useOnboardingState', async () => {
   return { useOnboardingState: () => mockUseOnboardingState() }
 })
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: async () => ({ ok: true }),
+    dir: 'ltr',
+    isArabic: false,
+  }),
+}))
+
 vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn(async () => 'data:image/png;base64,qr') },
 }))
