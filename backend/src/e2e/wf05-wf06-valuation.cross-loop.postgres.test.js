@@ -24,11 +24,43 @@ import { finPostgresSuite } from '../fin/testing/suite.js'
 import { createAgentAccount, updatePlatformRole } from '../identity.js'
 import { signElevatedToken, signToken, ELEVATION_HEADER } from '../auth.js'
 import { findOne } from '../db.js'
+import { syntheticTenantId } from '../lib/credits/wallets.js'
 import { PRICE_REPORTS_SUBMIT_FEATURE_CODE } from '../lib/packages/registry.js'
+import { PRO_VERSION_ID } from '../lib/packages/test-support.js'
 import { runSlaStuckRequestsReaper } from '../workers/sla-stuck-requests-reaper.js'
 import { runReportExpiryTick, reportExpiresAt } from '../workers/report-expiry-worker.js'
 
-async function agentAccount(label = 'Agent', { platformAdmin = false } = {}) {
+/**
+ * createAgentAccount provisions Free tier. AGT-APR-004/005 gate on
+ * package_feature_flags valuation.price_reports.submit (Pro / Pro Elite only
+ * — migration 338). Point the reporter's open subscription at Pro.
+ */
+async function grantPriceReportsSubmit(pool, userId) {
+  const tenantId = syntheticTenantId('personal', userId)
+  const updated = await pool.query(
+    `UPDATE public.tenant_subscriptions
+        SET package_version_id = $2,
+            updated_at = NOW(),
+            data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('package_code', 'pro-agent')
+      WHERE tenant_id = $1
+        AND status = ANY($3::text[])
+      RETURNING id`,
+    [
+      tenantId,
+      PRO_VERSION_ID,
+      ['PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END'],
+    ],
+  )
+  if (!updated.rowCount) {
+    throw new Error(`grantPriceReportsSubmit: no open subscription for tenant ${tenantId}`)
+  }
+}
+
+async function agentAccount(label = 'Agent', {
+  platformAdmin = false,
+  priceReportsSubmit = false,
+  pool: dbPool = null,
+} = {}) {
   const userId = randomUUID()
   const now = new Date().toISOString()
   const email = `${label.toLowerCase().replace(/\s+/g, '-')}-${userId.slice(0, 8)}@x.test`
@@ -48,6 +80,10 @@ async function agentAccount(label = 'Agent', { platformAdmin = false } = {}) {
   if (platformAdmin) {
     await updatePlatformRole(userId, 'platform_admin')
     tokenVersion = 1
+  }
+  if (priceReportsSubmit) {
+    if (!dbPool) throw new Error('agentAccount: pool required when priceReportsSubmit=true')
+    await grantPriceReportsSubmit(dbPool, userId)
   }
   const token = signToken({
     id: userId,
@@ -127,7 +163,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   }, 180_000)
 
   it('WF-05 full loop: submit → queue → confirm-remove → agent outcome ImpactPanel fields', async () => {
-    const reporter = await agentAccount('WF05 Reporter')
+    const reporter = await agentAccount('WF05 Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: '2BR Marina · AED 2.4M' })
 
@@ -213,7 +249,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 high market-impact confirm-remove → REMOVE_PROPOSED (two-person)', async () => {
-    const reporter = await agentAccount('WF05 High Reporter')
+    const reporter = await agentAccount('WF05 High Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 High PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'High impact villa' })
     await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
@@ -363,7 +399,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 full loop: Pro submit → queue → incorporate=true → benchmark + WeightingPanel fields', async () => {
-    const reporter = await agentAccount('WF06 Pro Reporter')
+    const reporter = await agentAccount('WF06 Pro Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 PA', { platformAdmin: true })
 
     // Feature seed present (BE-BLOCKER-27) — frontend gates on this code.
@@ -465,7 +501,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 high-delta incorporate creates approval request without benchmark write', async () => {
-    const reporter = await agentAccount('WF06 High Reporter')
+    const reporter = await agentAccount('WF06 High Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 High PA', { platformAdmin: true })
     const segmentId = `seg_ae_wf06hi_${reporter.userId.slice(0, 8)}`
 
@@ -607,7 +643,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
 
 
   it('WF-06 approve chaos: commitIncorporate throw rolls back vote (no partial state)', async () => {
-    const reporter = await agentAccount('WF06 Chaos Reporter')
+    const reporter = await agentAccount('WF06 Chaos Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 Chaos PA', { platformAdmin: true })
     const segmentId = `seg_ae_chaos_${reporter.userId.slice(0, 8)}`
     await pool().query(
@@ -686,7 +722,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 reject-as-invalid -> rejected outcome', async () => {
-    const reporter = await agentAccount('WF05 Reject Reporter')
+    const reporter = await agentAccount('WF05 Reject Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 Reject PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'Reject path comp' })
 
@@ -719,7 +755,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 request-info -> awaiting_info (needs-revision)', async () => {
-    const reporter = await agentAccount('WF05 Info Reporter')
+    const reporter = await agentAccount('WF05 Info Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 Info PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'Needs info comp' })
 
@@ -753,7 +789,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 withdrawn -> proposal recalled to pending', async () => {
-    const reporter = await agentAccount('WF05 Withdraw Reporter')
+    const reporter = await agentAccount('WF05 Withdraw Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 Withdraw PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'Withdraw path villa' })
     await seedHighImpactEvidence(pool(), { agentId: reporter.userId, comparableId })
@@ -798,7 +834,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 expired/SLA auto-close via report-expiry worker', async () => {
-    const reporter = await agentAccount('WF05 Expiry Reporter')
+    const reporter = await agentAccount('WF05 Expiry Reporter', { priceReportsSubmit: true, pool: pool() })
     const comparableId = await seedExternalComparable(pool(), { title: 'Expiry path comp' })
     const submit = await request(app)
       .post('/api/pricing/report-comparable')
@@ -831,7 +867,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-05 signal-only confirm-quarantine -> confirmed_quarantined', async () => {
-    const reporter = await agentAccount('WF05 Signal Reporter')
+    const reporter = await agentAccount('WF05 Signal Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF05 Signal PA', { platformAdmin: true })
     const comparableId = await seedExternalComparable(pool(), { title: 'Signal-only quarantine' })
 
@@ -861,7 +897,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 PA reject -> rejected; agent outcome sees rejection', async () => {
-    const reporter = await agentAccount('WF06 Reject Reporter')
+    const reporter = await agentAccount('WF06 Reject Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 Reject PA', { platformAdmin: true })
     const submit = await request(app)
       .post('/api/pricing/agent-price-reports')
@@ -900,7 +936,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 request-info loop -> request_info then agent resubmit state', async () => {
-    const reporter = await agentAccount('WF06 Info Reporter')
+    const reporter = await agentAccount('WF06 Info Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 Info PA', { platformAdmin: true })
     const submit = await request(app)
       .post('/api/pricing/agent-price-reports')
@@ -934,7 +970,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('WF-06 agent-sees-rejection outcome fields after PA reject', async () => {
-    const reporter = await agentAccount('WF06 Outcome Reporter')
+    const reporter = await agentAccount('WF06 Outcome Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('WF06 Outcome PA', { platformAdmin: true })
     const submit = await request(app)
       .post('/api/pricing/agent-price-reports')
@@ -969,7 +1005,7 @@ finPostgresSuite('WF-05/06 cross-loop valuation review (Wave 5 Agent 6)', { seed
   })
 
   it('SLA stuck reaper -> dead_letter + sla_reaped audit for WF-05 and WF-06', async () => {
-    const reporter = await agentAccount('SLA Reaper Reporter')
+    const reporter = await agentAccount('SLA Reaper Reporter', { priceReportsSubmit: true, pool: pool() })
     const pa = await agentAccount('SLA Reaper PA', { platformAdmin: true })
 
     // WF-05 high-impact ? REQUESTED approval, then age it past SLA

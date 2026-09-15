@@ -3,16 +3,23 @@ import { parseCsv, normalizeExternalComparable, registerAdminRoutes } from '../i
 import { registerPublicRoutes } from '../interface/public-routes.js'
 import { registerRoleRoutes } from '../interface/role-routes.js'
 import { listUserAgencyMemberships, listAgencyMemberships } from '../../../tenant-authorization.js'
-import { insert as dbInsert } from '../../../db.js'
+import { insert as dbInsert, query as dbQuery } from '../../../db.js'
 
 vi.mock('../../../tenant-authorization.js', () => ({
   listUserAgencyMemberships: vi.fn().mockResolvedValue([]),
   listAgencyMemberships: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('../../../lib/credits/feature-check.js', () => ({
-  checkEntitlement: vi.fn().mockResolvedValue({ enabled: true, registered: true }),
-}))
+function mockPriceReportsSubmitEntitledQuery(sql) {
+  const text = String(sql)
+  if (text.includes('tenant_subscriptions')) {
+    return [{ package_version_id: 'pro-version' }]
+  }
+  if (text.includes('package_feature_flags')) {
+    return [{ enabled: true }]
+  }
+  return []
+}
 
 vi.mock('../../../lib/credits/tenant-context.js', () => ({
   resolveRequestCreditTenant: vi.fn().mockReturnValue({
@@ -30,8 +37,14 @@ vi.mock('../../../db.js', async (importOriginal) => {
     insert: vi.fn(async (_collection, item) => item),
     findAll: vi.fn(async () => []),
     findOne: vi.fn(async () => null),
-    query: vi.fn(async () => []),
+    // Default: Pro-tier package flag for valuation.price_reports.submit
+    // (migration 338). Submit happy-paths need this; 403 tests override.
+    query: vi.fn(async (sql) => mockPriceReportsSubmitEntitledQuery(sql)),
   }
+})
+
+beforeEach(() => {
+  vi.mocked(dbQuery).mockImplementation(async (sql) => mockPriceReportsSubmitEntitledQuery(sql))
 })
 
 // Ownership checks in public-routes hit the real authz layer (which reads
@@ -596,8 +609,17 @@ describe('Public Route Registration', () => {
   })
 
   it('agent price report returns 403 FEATURE_NOT_ENABLED when entitlement is off', async () => {
-    const { checkEntitlement } = await import('../../../lib/credits/feature-check.js')
-    vi.mocked(checkEntitlement).mockResolvedValueOnce({ enabled: false, registered: true })
+    const { query } = await import('../../../db.js')
+    vi.mocked(query).mockImplementation(async (sql) => {
+      const text = String(sql)
+      if (text.includes('tenant_subscriptions')) {
+        return [{ package_version_id: 'free-version' }]
+      }
+      if (text.includes('package_feature_flags')) {
+        return [] // Free tier — flag absent = disabled (migration 338)
+      }
+      return []
+    })
     const { app, routes } = fakeExpress()
     registerPublicRoutes(app, { dal: mockDal(), logger })
     const route = routes.find((r) => r.path === '/api/pricing/agent-price-reports')
