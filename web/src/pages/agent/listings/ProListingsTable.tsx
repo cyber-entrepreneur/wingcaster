@@ -995,22 +995,17 @@ export function ProListingsTable({
       />
 
       {/* Column customization drawer */}
-      {columnDrawerOpen ? (
-        <div className="fixed inset-0 z-40" data-testid="column-customization-drawer">
-          <button
-            type="button"
-            className="absolute inset-0 bg-[color-mix(in_srgb,var(--lc-surface-inverse)_40%,transparent)]"
-            aria-label="Close column drawer"
-            onClick={() => setColumnDrawerOpen(false)}
-          />
-          <aside className="absolute end-0 top-0 flex h-full w-[320px] flex-col bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-lg)]">
-            <header className="flex items-center justify-between border-b border-[var(--lc-border)] px-4 py-3">
-              <h2 style={{ font: 'var(--lc-type-heading-3)' }}>Customize columns</h2>
-              <Button type="button" variant="ghost" onClick={() => setColumnDrawerOpen(false)}>
-                Close
-              </Button>
-            </header>
-            <ul className="flex-1 space-y-1 overflow-auto p-3">
+      <Dialog open={columnDrawerOpen} onOpenChange={setColumnDrawerOpen}>
+        <DialogContent
+          data-testid="column-customization-drawer"
+          className="inset-y-0 end-0 left-auto right-0 top-0 flex h-full max-h-none w-[320px] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-y-0 border-e-0 p-0 shadow-[var(--lc-elevation-lg)]"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0 border-b border-[var(--lc-border)] px-4 py-3 pr-12 text-left">
+            <DialogTitle style={{ font: 'var(--lc-type-heading-3)' }}>Customize columns</DialogTitle>
+          </DialogHeader>
+          <ul className="flex-1 space-y-1 overflow-auto p-3">
+
               {draftColumns.map((col, idx) => (
                 <li
                   key={col}
@@ -1091,9 +1086,8 @@ export function ProListingsTable({
                 Save layout
               </Button>
             </div>
-          </aside>
-        </div>
-      ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* Save view dialog */}
       <Dialog open={saveViewOpen} onOpenChange={setSaveViewOpen}>

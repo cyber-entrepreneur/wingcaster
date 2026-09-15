@@ -66,9 +66,30 @@ export function useDashboardLayout(tenantId?: string | null): UseDashboardLayout
   const [loading, setLoading] = useState(true)
   const knownUpdatedAt = useRef<string | null>(null)
   const retryCount = useRef(0)
+  const persistTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      for (const timer of persistTimersRef.current) clearTimeout(timer)
+      persistTimersRef.current = []
+    }
+  }, [])
+
+  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
+    const timer = window.setTimeout(() => {
+      persistTimersRef.current = persistTimersRef.current.filter((t) => t !== timer)
+      if (!mountedRef.current) return
+      fn()
+    }, ms)
+    persistTimersRef.current.push(timer)
+  }, [])
 
   const persist = useCallback(
     async (nextLayout: LayoutItem[], nextDensity: DashboardDensity) => {
+      if (!mountedRef.current) return
       setSaveState('saving')
       try {
         const res = await api.patchDashboardLayout({
@@ -76,18 +97,20 @@ export function useDashboardLayout(tenantId?: string | null): UseDashboardLayout
           layout: nextLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })),
           density: nextDensity,
         })
+        if (!mountedRef.current) return
         knownUpdatedAt.current = res.updated_at
         retryCount.current = 0
         setSaveState('saved')
-        window.setTimeout(() => setSaveState('idle'), 1000)
+        scheduleTimeout(() => setSaveState('idle'), 1000)
       } catch {
+        if (!mountedRef.current) return
         retryCount.current += 1
         if (retryCount.current <= 3) {
           addToast({
             title: "Layout couldn't save. Retrying…",
             variant: 'error',
           })
-          window.setTimeout(() => {
+          scheduleTimeout(() => {
             void persist(nextLayout, nextDensity)
           }, 500 * retryCount.current)
         } else {
@@ -100,7 +123,7 @@ export function useDashboardLayout(tenantId?: string | null): UseDashboardLayout
         }
       }
     },
-    [addToast, tenantId],
+    [addToast, scheduleTimeout, tenantId],
   )
 
   const debouncedPersist = useRef(
