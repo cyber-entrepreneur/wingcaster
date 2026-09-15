@@ -48,8 +48,8 @@ jobs:
         run: npx tsc --noEmit
 
   # ubuntu-latest ~7GB. A single forks worker still OOMs by ~12 DOM-heavy
-  # files at a 4GB heap (and 6–8GB heaps get OS-killed). Shard across 32
-  # parallel runners (~4–5 files each) with maxWorkers=1 + pinned worker heap.
+  # files at a 5GB heap (and 6–8GB heaps get OS-killed). Shard across 32
+  # parallel runners (~4–5 files each) with maxWorkers=1 + pinned ~5GB worker heap.
   test:
     name: Tests (${{ matrix.shard }}/32)
     runs-on: ubuntu-latest
@@ -69,9 +69,9 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci --ignore-scripts
-      - name: Vitest shard ${{ matrix.shard }}/24
+      - name: Vitest shard ${{ matrix.shard }}/32
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=5120
         run: npx vitest run --shard=${{ matrix.shard }}/32
 
   build:

@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Wave 8 activation polish — accessibility contract
- * (CURSOR_SCREEN_WAVE_8_ACTIVATION_POLISH.md Phase B item 7 + non-negotiable #7).
- *
- * Extra scrutiny: Pro dense tables + keyboard nav (≥768), Guided fallback <768
- * with ui_mode=pro. Surfaces/consent/inbox/dialogs live in
- * wave8-activation-surfaces.a11y.test.tsx (split to avoid CI OOM).
- *
- * Chromatic / Storybook are not configured — see scratchpad/wave8-chromatic-gap.md.
+ * Wave 8 activation polish — dialog / inbox-page a11y.
+ * Split from wave8-activation-surfaces.a11y.test.tsx for CI heap headroom.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -254,6 +248,7 @@ import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { InboxPage } from '@/pages/InboxPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
+import { LOGIN_COPY } from '@/pages/agent/dashboard/copy'
 // Guided listings fallback ListingsPage covered in wave8-listings-fallback.a11y.test.tsx
 
 function setViewport(minWidth: number) {
@@ -431,96 +426,50 @@ afterEach(() => {
   purgePortals()
 })
 
-describe('Wave 8 a11y — discovery status', () => {
-  it('reports all Phase A Wave 8 modules present after e2e merge', () => {
-    const status = phaseAStatus()
-    expect(status.readyCount).toBe(10)
-    expect(status.proDashboard).toBe(true)
-    expect(status.proListingsTable).toBe(true)
-    expect(status.consentLanding).toBe(true)
-    expect(status.channelSourceBadges).toBe(true)
-    expect(status.relationshipsEditor).toBe(true)
-  })
-})
+describe('Wave 8 a11y — dialog focus traps (Tab + Shift+Tab)', () => {
+  async function assertFocusTrap(user: ReturnType<typeof userEvent.setup>) {
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => {
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    })
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  }
 
-describe('Wave 8 a11y — theme floors', () => {
-  it('broadcast theme still ships 44px tap floor + two-tone focus', () => {
-    expect(THEME_CSS).toContain('--lc-tap-target-min: 44px')
-    expect(THEME_CSS).toMatch(/--lc-focus-ring/)
-  })
-})
-
-describe('Wave 8 a11y — Pro dashboard (≥768)', () => {
-  it('exposes heading, density radiogroup, and quick actions with tap floor', async () => {
-    const { container } = renderProDashboard()
-    expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    const density = screen.getByRole('radiogroup', { name: /Dashboard density/i })
-    expect(within(density).getAllByRole('radio')).toHaveLength(3)
-    const newListing = screen.getByRole('button', { name: /New listing/i })
-    assertTapFloor(newListing, 'New listing')
-    await expectNoAxeViolations(container)
-  })
-
-  it('opens keyboard shortcuts dialog on ? and restores focus path', async () => {
+  it('ProDashboard keyboard shortcuts dialog traps focus', async () => {
     const user = userEvent.setup()
     renderProDashboard()
+    await waitFor(() => expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument())
     fireEvent.keyDown(window, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Keyboard shortcuts/i })).toBeInTheDocument()
-    })
-    expect(screen.getByText(/Go to Inbox/i)).toBeInTheDocument()
+    await assertFocusTrap(user)
     await user.keyboard('{Escape}')
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: /Keyboard shortcuts/i })).toBeNull()
+      expect(screen.queryByRole('dialog')).toBeNull()
     })
   })
 
-  it('density radios are keyboard-operable', async () => {
+  it('Relationships create dialog traps focus', async () => {
     const user = userEvent.setup()
-    renderProDashboard()
-    const compact = screen.getByRole('radio', { name: /compact/i })
-    await user.click(compact)
-    expect(compact).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('pro-dashboard')).toHaveAttribute('data-density', 'compact')
-  })
-})
-
-describe('Wave 8 a11y — Pro listings table (≥768)', () => {
-  it('uses table semantics with sortable column headers', () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    expect(region).toBeInTheDocument()
-    expect(within(region).getByRole('table')).toBeInTheDocument()
-    const priceHeader = screen.getByRole('columnheader', { name: /Price/i })
-    expect(priceHeader).toHaveAttribute('aria-sort')
-    expect(screen.getByRole('checkbox', { name: /Select all on page/i })).toBeInTheDocument()
-  })
-
-  it('supports j/k row focus and space selection', async () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    region.focus()
-    expect(document.activeElement).toBe(region)
-    fireEvent.keyDown(region, { key: 'ArrowDown' })
-    fireEvent.keyDown(region, { key: ' ' })
+    renderRelationships()
     await waitFor(() => {
-      expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
     })
-    expect(screen.getByRole('region', { name: /Bulk actions/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Add relationship/i }))
+    await assertFocusTrap(user)
   })
 
-  it('passes jest-axe in dense Pro table state', async () => {
-    const { container } = renderProTable()
-    await expectNoAxeViolations(container)
-  })
-
-  it('New listing + row action targets meet tap floor', () => {
+  it('ProListingsTable customize-columns dialog traps focus', async () => {
+    const user = userEvent.setup()
     renderProTable()
-    assertTapFloor(screen.getByRole('button', { name: /New listing/i }), 'New listing')
-    assertTapFloor(
-      screen.getByRole('button', { name: /Actions for Marina Gate/i }),
-      'Row actions',
-    )
+    await user.click(screen.getByRole('button', { name: /Customize columns/i }))
+    await assertFocusTrap(user)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })

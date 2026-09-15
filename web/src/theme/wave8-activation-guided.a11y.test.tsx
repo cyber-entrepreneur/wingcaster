@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Wave 8 activation polish — accessibility contract
- * (CURSOR_SCREEN_WAVE_8_ACTIVATION_POLISH.md Phase B item 7 + non-negotiable #7).
- *
- * Extra scrutiny: Pro dense tables + keyboard nav (≥768), Guided fallback <768
- * with ui_mode=pro. Surfaces/consent/inbox/dialogs live in
- * wave8-activation-surfaces.a11y.test.tsx (split to avoid CI OOM).
- *
- * Chromatic / Storybook are not configured — see scratchpad/wave8-chromatic-gap.md.
+ * Wave 8 Guided fallback a11y (<768 + ui_mode=pro). Isolated so the forks
+ * worker does not share heap with Pro dashboard axe cases.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -431,96 +425,76 @@ afterEach(() => {
   purgePortals()
 })
 
-describe('Wave 8 a11y — discovery status', () => {
-  it('reports all Phase A Wave 8 modules present after e2e merge', () => {
-    const status = phaseAStatus()
-    expect(status.readyCount).toBe(10)
-    expect(status.proDashboard).toBe(true)
-    expect(status.proListingsTable).toBe(true)
-    expect(status.consentLanding).toBe(true)
-    expect(status.channelSourceBadges).toBe(true)
-    expect(status.relationshipsEditor).toBe(true)
-  })
-})
+describe('Wave 8 a11y — Guided fallback <768 with ui_mode=pro', () => {
+  it('AgentDashboardProGate keeps Guided shell (D-S-06) and passes axe', async () => {
+    setViewport(375)
+    uiModeState.mode = 'pro'
+    uiModeState.effectiveMode = 'guided'
+    uiModeState.shouldRenderPro = false
+    uiModeState.isProCapable = false
 
-describe('Wave 8 a11y — theme floors', () => {
-  it('broadcast theme still ships 44px tap floor + two-tone focus', () => {
-    expect(THEME_CSS).toContain('--lc-tap-target-min: 44px')
-    expect(THEME_CSS).toMatch(/--lc-focus-ring/)
-  })
-})
-
-describe('Wave 8 a11y — Pro dashboard (≥768)', () => {
-  it('exposes heading, density radiogroup, and quick actions with tap floor', async () => {
-    const { container } = renderProDashboard()
-    expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    const density = screen.getByRole('radiogroup', { name: /Dashboard density/i })
-    expect(within(density).getAllByRole('radio')).toHaveLength(3)
-    const newListing = screen.getByRole('button', { name: /New listing/i })
-    assertTapFloor(newListing, 'New listing')
-    await expectNoAxeViolations(container)
-  })
-
-  it('opens keyboard shortcuts dialog on ? and restores focus path', async () => {
-    const user = userEvent.setup()
-    renderProDashboard()
-    fireEvent.keyDown(window, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Keyboard shortcuts/i })).toBeInTheDocument()
-    })
-    expect(screen.getByText(/Go to Inbox/i)).toBeInTheDocument()
-    await user.keyboard('{Escape}')
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: /Keyboard shortcuts/i })).toBeNull()
-    })
-  })
-
-  it('density radios are keyboard-operable', async () => {
-    const user = userEvent.setup()
-    renderProDashboard()
-    const compact = screen.getByRole('radio', { name: /compact/i })
-    await user.click(compact)
-    expect(compact).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('pro-dashboard')).toHaveAttribute('data-density', 'compact')
-  })
-})
-
-describe('Wave 8 a11y — Pro listings table (≥768)', () => {
-  it('uses table semantics with sortable column headers', () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    expect(region).toBeInTheDocument()
-    expect(within(region).getByRole('table')).toBeInTheDocument()
-    const priceHeader = screen.getByRole('columnheader', { name: /Price/i })
-    expect(priceHeader).toHaveAttribute('aria-sort')
-    expect(screen.getByRole('checkbox', { name: /Select all on page/i })).toBeInTheDocument()
-  })
-
-  it('supports j/k row focus and space selection', async () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    region.focus()
-    expect(document.activeElement).toBe(region)
-    fireEvent.keyDown(region, { key: 'ArrowDown' })
-    fireEvent.keyDown(region, { key: ' ' })
-    await waitFor(() => {
-      expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument()
-    })
-    expect(screen.getByRole('region', { name: /Bulk actions/i })).toBeInTheDocument()
-  })
-
-  it('passes jest-axe in dense Pro table state', async () => {
-    const { container } = renderProTable()
-    await expectNoAxeViolations(container)
-  })
-
-  it('New listing + row action targets meet tap floor', () => {
-    renderProTable()
-    assertTapFloor(screen.getByRole('button', { name: /New listing/i }), 'New listing')
-    assertTapFloor(
-      screen.getByRole('button', { name: /Actions for Marina Gate/i }),
-      'Row actions',
+    const { container } = render(
+      wrapProviders(
+        <MemoryRouter>
+          <main>
+            <AgentDashboardProGate
+              guided={<div data-testid="guided-dashboard">Guided dashboard</div>}
+            />
+          </main>
+        </MemoryRouter>,
+      ),
     )
+
+    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
+    expect(screen.queryByTestId('pro-dashboard')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+
+  it('AgentDashboardModeMount Guided condition renders and passes axe', async () => {
+    setViewport(375)
+    uiModeState.mode = 'pro'
+    uiModeState.effectiveMode = 'guided'
+    uiModeState.shouldRenderPro = false
+    uiModeState.isProCapable = false
+
+    const { container } = render(
+      wrapProviders(
+        <MemoryRouter>
+          <main>
+            <AgentDashboardModeMount
+              shouldRenderPro={false}
+              guided={<div data-testid="guided-dashboard">Guided</div>}
+            />
+          </main>
+        </MemoryRouter>,
+      ),
+    )
+    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
+    expect(screen.queryByTestId('pro-dashboard')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+
+  it('real Guided AgentDashboardPage under Pro gate passes axe', async () => {
+    setViewport(375)
+    uiModeState.mode = 'pro'
+    uiModeState.effectiveMode = 'guided'
+    uiModeState.shouldRenderPro = false
+    uiModeState.isProCapable = false
+
+    const { container } = render(
+      wrapProviders(
+        <MemoryRouter initialEntries={['/dashboard']}>
+          <Routes>
+            <Route path="/dashboard" element={<AgentDashboardPage />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
+    )
+    await waitFor(() => {
+      expect(screen.queryByTestId('pro-dashboard')).toBeNull()
+    })
+    // Guided shell mounts (not Pro)
+    expect(container.querySelector('[data-dashboard-mode="pro"]')).toBeNull()
+    await expectNoAxeViolations(container)
   })
 })

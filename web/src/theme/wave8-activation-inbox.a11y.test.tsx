@@ -1,13 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Wave 8 activation polish — accessibility contract
- * (CURSOR_SCREEN_WAVE_8_ACTIVATION_POLISH.md Phase B item 7 + non-negotiable #7).
- *
- * Extra scrutiny: Pro dense tables + keyboard nav (≥768), Guided fallback <768
- * with ui_mode=pro. Surfaces/consent/inbox/dialogs live in
- * wave8-activation-surfaces.a11y.test.tsx (split to avoid CI OOM).
- *
- * Chromatic / Storybook are not configured — see scratchpad/wave8-chromatic-gap.md.
+ * Wave 8 InboxPage + PIIMask a11y. Isolated from dialog focus-trap suite.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -254,6 +247,7 @@ import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { InboxPage } from '@/pages/InboxPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
+import { LOGIN_COPY } from '@/pages/agent/dashboard/copy'
 // Guided listings fallback ListingsPage covered in wave8-listings-fallback.a11y.test.tsx
 
 function setViewport(minWidth: number) {
@@ -431,96 +425,35 @@ afterEach(() => {
   purgePortals()
 })
 
-describe('Wave 8 a11y — discovery status', () => {
-  it('reports all Phase A Wave 8 modules present after e2e merge', () => {
-    const status = phaseAStatus()
-    expect(status.readyCount).toBe(10)
-    expect(status.proDashboard).toBe(true)
-    expect(status.proListingsTable).toBe(true)
-    expect(status.consentLanding).toBe(true)
-    expect(status.channelSourceBadges).toBe(true)
-    expect(status.relationshipsEditor).toBe(true)
-  })
-})
-
-describe('Wave 8 a11y — theme floors', () => {
-  it('broadcast theme still ships 44px tap floor + two-tone focus', () => {
-    expect(THEME_CSS).toContain('--lc-tap-target-min: 44px')
-    expect(THEME_CSS).toMatch(/--lc-focus-ring/)
-  })
-})
-
-describe('Wave 8 a11y — Pro dashboard (≥768)', () => {
-  it('exposes heading, density radiogroup, and quick actions with tap floor', async () => {
-    const { container } = renderProDashboard()
-    expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    const density = screen.getByRole('radiogroup', { name: /Dashboard density/i })
-    expect(within(density).getAllByRole('radio')).toHaveLength(3)
-    const newListing = screen.getByRole('button', { name: /New listing/i })
-    assertTapFloor(newListing, 'New listing')
-    await expectNoAxeViolations(container)
-  })
-
-  it('opens keyboard shortcuts dialog on ? and restores focus path', async () => {
-    const user = userEvent.setup()
-    renderProDashboard()
-    fireEvent.keyDown(window, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Keyboard shortcuts/i })).toBeInTheDocument()
-    })
-    expect(screen.getByText(/Go to Inbox/i)).toBeInTheDocument()
-    await user.keyboard('{Escape}')
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: /Keyboard shortcuts/i })).toBeNull()
-    })
-  })
-
-  it('density radios are keyboard-operable', async () => {
-    const user = userEvent.setup()
-    renderProDashboard()
-    const compact = screen.getByRole('radio', { name: /compact/i })
-    await user.click(compact)
-    expect(compact).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('pro-dashboard')).toHaveAttribute('data-density', 'compact')
-  })
-})
-
-describe('Wave 8 a11y — Pro listings table (≥768)', () => {
-  it('uses table semantics with sortable column headers', () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    expect(region).toBeInTheDocument()
-    expect(within(region).getByRole('table')).toBeInTheDocument()
-    const priceHeader = screen.getByRole('columnheader', { name: /Price/i })
-    expect(priceHeader).toHaveAttribute('aria-sort')
-    expect(screen.getByRole('checkbox', { name: /Select all on page/i })).toBeInTheDocument()
-  })
-
-  it('supports j/k row focus and space selection', async () => {
-    renderProTable()
-    const region = screen.getByRole('region', { name: /Listings table/i })
-    region.focus()
-    expect(document.activeElement).toBe(region)
-    fireEvent.keyDown(region, { key: 'ArrowDown' })
-    fireEvent.keyDown(region, { key: ' ' })
-    await waitFor(() => {
-      expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument()
-    })
-    expect(screen.getByRole('region', { name: /Bulk actions/i })).toBeInTheDocument()
-  })
-
-  it('passes jest-axe in dense Pro table state', async () => {
-    const { container } = renderProTable()
-    await expectNoAxeViolations(container)
-  })
-
-  it('New listing + row action targets meet tap floor', () => {
-    renderProTable()
-    assertTapFloor(screen.getByRole('button', { name: /New listing/i }), 'New listing')
-    assertTapFloor(
-      screen.getByRole('button', { name: /Actions for Marina Gate/i }),
-      'Row actions',
+describe('Wave 8 a11y — full InboxPage axe', () => {
+  it('InboxPage list view passes axe', async () => {
+    const { container } = render(
+      wrapProviders(
+        <MemoryRouter initialEntries={['/inbox']}>
+          <Routes>
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/inbox/:id" element={<InboxPage />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
     )
+    await waitFor(() => {
+      expect(apiMocks.getConversations).toHaveBeenCalled()
+    })
+    expect(screen.queryByText('Omar Hassan')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+})
+
+describe('Wave 8 a11y — PIIMask on relationships editor', () => {
+  it('masks contact name/email by default', async () => {
+    const { container } = renderRelationships()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Omar Hassan')).toBeNull()
+    expect(screen.queryByText('omar@example.com')).toBeNull()
+    expect(container.querySelector('[data-pii-revealed="false"]')).toBeTruthy()
+    await expectNoAxeViolations(container)
   })
 })
