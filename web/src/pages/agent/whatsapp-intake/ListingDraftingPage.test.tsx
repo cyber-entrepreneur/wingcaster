@@ -11,6 +11,15 @@ vi.mock('@/hooks/useOnboardingState', async () => {
   return { useOnboardingState: () => mockUseOnboardingState() }
 })
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: async () => ({ ok: true }),
+    dir: 'ltr',
+    isArabic: false,
+  }),
+}))
+
 vi.mock('./useDraftProgress', async () => {
   const actual = await vi.importActual<typeof import('./useDraftProgress')>('./useDraftProgress')
   return {
@@ -23,6 +32,16 @@ import { useDraftProgress } from './useDraftProgress'
 import type { DraftField } from '@/components/onboarding/whatsapp'
 
 const useDraftProgressMock = vi.mocked(useDraftProgress)
+const fetchMock = vi.fn()
+
+function jsonResponse(body: unknown, status = 200) {
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
+}
 
 const idle: DraftField[] = [
   { key: 'address', label: 'Address', state: 'idle' },
@@ -73,6 +92,7 @@ function renderDrafting() {
         <Routes>
           <Route path="/onboarding/whatsapp/drafting/:sessionId" element={<ListingDraftingPage />} />
           <Route path="/listings/:listingId" element={<div>LISTING_DETAIL</div>} />
+          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
         </Routes>
       </MemoryRouter>
     </ToastProvider>,
@@ -81,6 +101,9 @@ function renderDrafting() {
 
 beforeEach(() => {
   useDraftProgressMock.mockReturnValue(baseProgress())
+  fetchMock.mockReset()
+  vi.stubGlobal('fetch', fetchMock)
+  fetchMock.mockImplementation(() => jsonResponse({ success: true }))
 })
 
 describe('ListingDraftingPage', () => {
@@ -156,5 +179,23 @@ describe('ListingDraftingPage', () => {
     const ctas = await screen.findAllByRole('button', { name: /Review & publish/i })
     await user.click(ctas[ctas.length - 1])
     await waitFor(() => expect(screen.getByText('LISTING_DETAIL')).toBeInTheDocument())
+  })
+
+  it('stays on the page with an error toast when discardDraft fails', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/discard')) {
+        return jsonResponse({ error: 'Failed' }, 500)
+      }
+      return jsonResponse({})
+    })
+    renderDrafting()
+    await user.click(screen.getAllByRole('button', { name: /^Cancel this draft$/i })[0])
+    const confirm = await screen.findByRole('button', { name: /^Cancel draft$/i })
+    await user.click(confirm)
+    await waitFor(() =>
+      expect(screen.getByText(/Couldn't cancel the draft/i)).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
   })
 })
