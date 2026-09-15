@@ -95,6 +95,7 @@ function maskEmail(email) {
 export function normalizeReportStatus(raw) {
   const s = String(raw || 'pending').trim().toLowerCase()
   if (LEGACY_STATUS_TO_WF05[s]) return LEGACY_STATUS_TO_WF05[s]
+  if (s === 'remove_proposed' || s === 'remove-proposed') return 'pending_second_approval'
   return s
 }
 
@@ -365,11 +366,12 @@ export function createComparableReportReadService({
         }
       }
       return {
+        id: f.id || f.evidence_id || f.filename || f.name || null,
         filename: f.filename || f.name || f.id || 'evidence',
         uploaded_at: asIso(f.uploaded_at || f.created_at || report.created_at),
         size_bytes: f.size_bytes ?? f.size ?? null,
         content_type: f.content_type || f.mime_type || null,
-        url: f.url || null,
+        url: f.url || f.signed_url || null,
       }
     })
 
@@ -377,10 +379,12 @@ export function createComparableReportReadService({
     if (!normalized.length && fileIds.length) {
       for (const id of fileIds) {
         normalized.push({
+          id: String(id),
           filename: String(id),
           uploaded_at: asIso(report.created_at),
           size_bytes: null,
           content_type: null,
+          url: null,
         })
       }
     }
@@ -538,6 +542,26 @@ export function createComparableReportReadService({
       _decision_reason: data.decision_reason || null,
       _decision_notes: report.notes || data.decision_notes || null,
       _legacy_status: report.status,
+      approval_request_id: report.approval_request_id || data.approval_request_id || null,
+      decided_at: asIso(report.reviewed_at || data.decided_at),
+      decided_by: report.reviewed_by || data.decided_by || null,
+      decision_reason: data.decision_reason || report.decision_reason_code || null,
+      decision_notes: report.notes || data.decision_notes || null,
+      proposal: (status === 'pending_second_approval' || report.status === 'remove_proposed')
+        ? {
+            proposed_by: report.reviewed_by
+              ? {
+                  id: report.reviewed_by,
+                  display_name: report.reviewed_by,
+                  initials: String(report.reviewed_by).slice(0, 2).toUpperCase(),
+                }
+              : null,
+            proposed_at: asIso(report.reviewed_at),
+            approval_request_id: report.approval_request_id || data.approval_request_id || null,
+            notes: report.decision_notes || report.notes || data.decision?.notes || null,
+            weighting: data.decision?.extra?.market_impact || data.market_impact || null,
+          }
+        : null,
     }
 
     if (!includeDetail) return base
@@ -546,13 +570,20 @@ export function createComparableReportReadService({
     const related = (allReports || [])
       .filter((r) => r.id !== report.id && r.comparable_id === report.comparable_id)
       .slice(0, 10)
-      .map((r) => ({
-        id: r.id,
-        reporter: r.reporter_id,
-        reason_category: normalizeReasonCategory(r.reason, r.data || {}),
-        status: normalizeReportStatus(r.status),
-        decided_at: asIso(r.reviewed_at || r.data?.decided_at),
-      }))
+      .map((r) => {
+        const rData = r.data || {}
+        const reporterName = rData.reporter_display_name
+          || rData.reporter?.display_name
+          || (r.reporter_id ? String(r.reporter_id).slice(0, 8) : 'Reporter')
+        return {
+          id: r.id,
+          reporter: reporterName,
+          reason_category: normalizeReasonCategory(r.reason, rData),
+          status: normalizeReportStatus(r.status),
+          decided_at: asIso(r.reviewed_at || rData.decided_at),
+          decision: rData.decision?.action || rData.decision_label || normalizeReportStatus(r.status),
+        }
+      })
 
     return {
       ...base,
@@ -637,6 +668,9 @@ export function createComparableReportReadService({
           counts.high_impact_awaiting_two_person += 1
         }
       }
+      if (row.status === 'pending_second_approval') {
+        counts.high_impact_awaiting_two_person += 1
+      }
       const decidedAt = row._decided_at ? new Date(row._decided_at).getTime() : null
       const createdAt = new Date(row.created_at).getTime()
       const inWeek = (decidedAt != null ? decidedAt : createdAt) >= weekStart
@@ -706,7 +740,7 @@ export function createComparableReportReadService({
     }
   }
 
-  async function getReport(reportId, { viewerId, req } = {}) {
+  async function getReport(reportId, { viewerId, req, queueContext = null } = {}) {
     const env = resolveSessionEnv(req || { get: () => null, user: { id: viewerId } })
     const report = await dal.findOne(Collections.COMPARABLE_REPORTS, (r) => r.id === reportId)
     if (!report) return null
@@ -719,7 +753,42 @@ export function createComparableReportReadService({
       allReports,
       includeDetail: true,
     })
-    return stripInternal(hydrated)
+    const detail = stripInternal(hydrated)
+
+    const ctx = String(queueContext || req?.query?.queue_context || '').trim().toLowerCase()
+    if (ctx === 'pending') {
+      const impactCache = new Map()
+      const pending = []
+      for (const row of allReports || []) {
+        if (reportEnv(row) !== env) continue
+        const h = await hydrateReport(row, {
+          viewerId,
+          env,
+          allReports,
+          impactCache,
+        })
+        // Brief queue-position is "of total pending" — status === pending only.
+        if (String(normalizeReportStatus(h.status) || h.status) !== 'pending') continue
+        pending.push(h)
+      }
+      const sortSpec = parseSort('market_impact:desc,sla_remaining:asc,submitted_at:asc')
+      pending.sort((a, b) => compareBySort(a, b, sortSpec))
+      const idx = pending.findIndex((r) => String(r.id) === String(reportId))
+      const queue_total = pending.length
+      const queue_position = idx >= 0 ? idx + 1 : null
+      const prev_id = idx > 0 ? pending[idx - 1].id : null
+      const next_id = idx >= 0 && idx < pending.length - 1 ? pending[idx + 1].id : null
+      return {
+        ...detail,
+        queue_position,
+        queue_total,
+        prev_id,
+        next_id,
+        queue_context: 'pending',
+      }
+    }
+
+    return detail
   }
 
   async function getReporterHistory(reportId, { limit = 10, viewerId, req } = {}) {

@@ -17,7 +17,7 @@ import {
   verifyToken,
 } from '../../../auth.js'
 import { transaction } from '../../../db.js'
-import { insertAudit } from '../../../fin/ledger/write.js'
+import { insertAudit, insertOutbox } from '../../../fin/ledger/write.js'
 import { requestFingerprint } from '../../../fin/idempotency/fingerprint.js'
 import { listUserAgencyMemberships } from '../../../tenant-authorization.js'
 import { toFinEnvironment, normalizeClientEnv, WINGCASTER_ENV_HEADER } from '../../../lib/session-env.js'
@@ -45,7 +45,10 @@ export const DECISION_ERROR = Object.freeze({
   STEP_UP_REQUIRED: 'STEP_UP_REQUIRED',
   ENV_REQUIRED: 'ENV_REQUIRED',
   RECALC_COMMITTED: 'RECALC_COMMITTED',
-  UNDO_WINDOW_EXPIRED: 'UNDO_WINDOW_EXPIRED',
+  UNDO_WINDOW_EXPIRED: 'UNDO_EXPIRED',
+  UNDO_EXPIRED: 'UNDO_EXPIRED',
+  TOKEN_CONSUMED: 'TOKEN_CONSUMED',
+  SAME_REVIEWER: 'SAME_REVIEWER',
   NO_DECISION: 'NO_DECISION',
 })
 
@@ -54,6 +57,13 @@ export const REPORT_ERROR = DECISION_ERROR
 
 /** 5s queue-family undo grace (PA-MOD-001 / BE-CMR-09). */
 export const UNDO_GRACE_MS = 5_000
+
+export function issueUndoToken(nowIso = new Date().toISOString()) {
+  const undo_token_id = randomUUID()
+  const undo_expires_at = new Date(Date.parse(nowIso) + UNDO_GRACE_MS).toISOString()
+  return { undo_token_id, undo_expires_at }
+}
+
 
 /** Statuses that still accept PA decisions (single + bulk). */
 export const OPEN_DECISION_STATUSES = new Set(['pending'])
@@ -144,7 +154,8 @@ export function decisionError(code, message, httpStatus) {
       : code === DECISION_ERROR.OWN_CASE ? 403
         : code === DECISION_ERROR.INVALID_INPUT || code === DECISION_ERROR.ENV_REQUIRED ? 400
           : code === DECISION_ERROR.STEP_UP_REQUIRED ? 401
-            : 409)
+            : code === DECISION_ERROR.TOKEN_CONSUMED ? 410
+              : 409)
   return new DecisionError(code, message || code, { httpStatus: status })
 }
 
@@ -264,6 +275,9 @@ export function createComparableReportDecisionService({
   listMemberships = listUserAgencyMemberships,
   runTransaction = transaction,
   writeAuditFn = insertAudit,
+  insertOutboxFn = insertOutbox,
+  /** Test seam: throw after txn commit, before outbox dispatch. */
+  afterCommitBeforeDispatch = null,
   now = () => Date.now(),
 } = {}) {
   const nowIsoLocal = () => new Date(now()).toISOString()
@@ -460,28 +474,209 @@ export function createComparableReportDecisionService({
     afterState,
     reasonCode,
     approvalRequestId = null,
+    client = null,
+    strict = false,
   }) {
+    const payload = {
+      environment: toFinEnvironment(environment),
+      actorType: 'USER',
+      actorId: asUuidOrNull(actorId),
+      actorEmail: actorEmail || 'pa@wingcaster',
+      action,
+      targetType: 'comparable_reports',
+      targetId: asUuidOrNull(reportId),
+      beforeState,
+      afterState,
+      reasonCode: reasonCode || action,
+      approvalRequestId: asUuidOrNull(approvalRequestId),
+      now: nowIsoLocal(),
+    }
     try {
-      await runTransaction(async (client) => {
-        await writeAuditFn(client, {
-          environment: toFinEnvironment(environment),
-          actorType: 'USER',
-          actorId: asUuidOrNull(actorId),
-          actorEmail: actorEmail || 'pa@wingcaster',
-          action,
-          targetType: 'comparable_reports',
-          targetId: asUuidOrNull(reportId),
-          beforeState,
-          afterState,
-          reasonCode: reasonCode || action,
-          approvalRequestId: asUuidOrNull(approvalRequestId),
-          now: nowIsoLocal(),
+      if (client) {
+        await writeAuditFn(client, payload)
+      } else {
+        await runTransaction(async (txClient) => {
+          await writeAuditFn(txClient, payload)
         })
-      })
+      }
     } catch (err) {
+      if (strict) throw err
       // Unit / memory harnesses may lack fin schema — decisions must still commit.
       logger?.warn?.({ err: err.message, reportId, action }, 'PA-AUD-001 audit write skipped')
     }
+  }
+
+  /**
+   * PA-AUD / #127-style audit_log row for every undo attempt (success + failure).
+   * Failure of this insert surfaces 5xx with an alert-level log — never swallowed.
+   */
+  async function writeUndoAttemptAudit({
+    report,
+    actorId = null,
+    outcome,
+    previousDecision = null,
+    undoTokenId = null,
+    undoExpiresAt = null,
+    requestIp = null,
+    userAgent = null,
+    client = null,
+  }) {
+    const row = {
+      id: randomUUID(),
+      agent_id: actorId || null,
+      tenant_id: report?.agency_id || report?.data?.tenant_id || null,
+      type: 'comparable_report_undo_attempt',
+      action: 'comparable_report_undo_attempt',
+      entity_type: 'comparable_report',
+      entity_id: report.id,
+      ip: requestIp || null,
+      user_agent: userAgent || null,
+      metadata: {
+        previous_decision: previousDecision,
+        undo_token_id: undoTokenId,
+        outcome,
+        request_ip: requestIp || null,
+        user_agent: userAgent || null,
+        undo_expires_at: undoExpiresAt,
+        actor_user_id: actorId,
+      },
+      created_at: nowIsoLocal(),
+      data: {},
+    }
+    try {
+      if (client?.query && !dal?.insert) {
+        await client.query(
+          `INSERT INTO public.audit_log (
+             id, agent_id, tenant_id, type, action, entity_type, entity_id,
+             ip, user_agent, metadata, created_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)`,
+          [
+            row.id,
+            row.agent_id,
+            row.tenant_id,
+            row.type,
+            row.action,
+            row.entity_type,
+            row.entity_id,
+            row.ip,
+            row.user_agent,
+            JSON.stringify(row.metadata),
+            row.created_at,
+          ],
+        )
+      } else if (dal?.insert) {
+        await dal.insert('audit_log', row)
+      } else if (client?.query) {
+        await client.query(
+          `INSERT INTO public.audit_log (
+             id, agent_id, tenant_id, type, action, entity_type, entity_id,
+             ip, user_agent, metadata, created_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)`,
+          [
+            row.id,
+            row.agent_id,
+            row.tenant_id,
+            row.type,
+            row.action,
+            row.entity_type,
+            row.entity_id,
+            row.ip,
+            row.user_agent,
+            JSON.stringify(row.metadata),
+            row.created_at,
+          ],
+        )
+      } else {
+        throw new Error('No audit_log writer available')
+      }
+      return row
+    } catch (err) {
+      logger?.error?.(
+        { alert: true, err: err.message, reportId: report?.id, outcome },
+        'comparable_report_undo_attempt audit insert failed',
+      )
+      throw new DecisionError(
+        'AUDIT_WRITE_FAILED',
+        'Undo audit write failed',
+        { httpStatus: 500, extra: { code: 'AUDIT_WRITE_FAILED' } },
+      )
+    }
+  }
+
+  const COMPARABLE_REMOVED_OUTBOX_TOPIC = 'valuation.comparable_removed'
+
+  async function writeComparableRemovedOutbox(client, {
+    environment,
+    reportId,
+    comparableId,
+    propertyIds,
+    requestedBy,
+    approvalRequestId,
+  }) {
+    const now = nowIsoLocal()
+    const payload = {
+      report_id: reportId,
+      comparable_id: comparableId,
+      property_ids: propertyIds || [],
+      requested_by: requestedBy,
+      approval_request_id: approvalRequestId,
+    }
+    const dedupeKey = `${COMPARABLE_REMOVED_OUTBOX_TOPIC}:${reportId}:${approvalRequestId || 'none'}`
+    const base = {
+      id: randomUUID(),
+      topic: COMPARABLE_REMOVED_OUTBOX_TOPIC,
+      dedupe_key: dedupeKey,
+      payload,
+      status: 'PENDING',
+      dispatched_at: null,
+      published_at: null,
+    }
+    const inserted = await insertOutboxFn(client, {
+      environment: toFinEnvironment(environment),
+      topic: COMPARABLE_REMOVED_OUTBOX_TOPIC,
+      dedupeKey,
+      payload,
+      now,
+      // Test seams may honour an explicit id
+      id: base.id,
+    })
+    if (inserted && typeof inserted === 'object') {
+      // Keep the same object reference so post-commit dispatch can mark it PUBLISHED
+      // (unit tests assert on the outbox store entry identity).
+      inserted.id = inserted.id || base.id
+      inserted.topic = inserted.topic || base.topic
+      inserted.dedupe_key = inserted.dedupe_key || base.dedupe_key
+      inserted.payload = inserted.payload || base.payload
+      inserted.status = inserted.status || 'PENDING'
+      if (inserted.dispatched_at === undefined) inserted.dispatched_at = null
+      if (inserted.published_at === undefined) inserted.published_at = null
+      return inserted
+    }
+    return base
+  }
+
+  async function dispatchComparableRemovedOutbox({
+    propertyIds,
+    requestedBy,
+    outboxRow = null,
+    client = null,
+  } = {}) {
+    const jobs = await enqueueRecalcForProperties(propertyIds, requestedBy)
+    const dispatchedAt = nowIsoLocal()
+    if (outboxRow && typeof outboxRow === 'object') {
+      outboxRow.dispatched_at = dispatchedAt
+      outboxRow.published_at = dispatchedAt
+      outboxRow.status = 'PUBLISHED'
+    }
+    if (client?.query && outboxRow?.id) {
+      await client.query(
+        `UPDATE fin.outbox_events
+            SET status = 'PUBLISHED', published_at = $2::timestamptz, updated_at = $2::timestamptz
+          WHERE id = $1 AND status = 'PENDING'`,
+        [outboxRow.id, dispatchedAt],
+      ).catch(() => null)
+    }
+    return jobs
   }
 
   async function createRemoveApprovalRequest({
@@ -563,6 +758,13 @@ export function createComparableReportDecisionService({
     const report = await loadReport(reportId)
     assertPending(report)
     await assertNotOwn(report, req.user?.id)
+    if (notes == null || String(notes).trim().length < 5) {
+      throw new DecisionError(
+        DECISION_ERROR.INVALID_INPUT,
+        'notes are required (min 5 characters)',
+        { httpStatus: 400 },
+      )
+    }
 
     const marketImpact = await marketImpactService.scoreComparable({
       comparableId: report.comparable_id,
@@ -636,6 +838,8 @@ export function createComparableReportDecisionService({
       }
     }
 
+    const decidedAt = nowIsoLocal()
+    const undo = issueUndoToken(decidedAt)
     const tombstone = await tombstoneComparable(report)
     const jobs = await enqueueRecalcForProperties(
       marketImpact.affected_property_ids,
@@ -646,13 +850,16 @@ export function createComparableReportDecisionService({
       decision_notes: notes ?? null,
       notes: notes !== undefined ? notes : report.notes,
       reviewed_by: req.user.id,
-      reviewed_at: nowIsoLocal(),
+      reviewed_at: decidedAt,
       data: {
+        undo_token_id: undo.undo_token_id,
+        undo_expires_at: undo.undo_expires_at,
+        undo_consumed: false,
         decision: buildDecisionSnapshot(report, {
           action: 'confirm_remove',
           notes: notes ?? null,
           actorId: req.user.id,
-          decidedAt: nowIsoLocal(),
+          decidedAt,
           recalc_job_id: jobs[0]?.id || null,
           extra: {
             env,
@@ -660,6 +867,8 @@ export function createComparableReportDecisionService({
             tombstone,
             recalculation_job_ids: jobs.map((j) => j.id),
             decision_label: 'CONFIRM_REMOVE',
+            undo_token_id: undo.undo_token_id,
+            undo_expires_at: undo.undo_expires_at,
           },
         }),
       },
@@ -692,6 +901,9 @@ export function createComparableReportDecisionService({
         },
         tombstone,
         recalculation_jobs: jobs.map((j) => ({ id: j.id, status: j.status })),
+        valuations_affected: marketImpact.valuations_affected,
+        undo_token_id: undo.undo_token_id,
+        undo_expires_at: undo.undo_expires_at,
         report: updated,
       },
     }
@@ -988,27 +1200,114 @@ export function createComparableReportDecisionService({
     return job.status !== 'queued'
   }
 
-  async function undoDecision(reportId, { actorId: _actorId } = {}) {
+  async function undoDecision(reportId, {
+    actorId = null,
+    undoTokenId = null,
+    requestIp = null,
+    userAgent = null,
+  } = {}) {
     const report = await loadReport(reportId)
     const decision = report.data?.decision
-    if (!decision?.decided_at) throw decisionError(REPORT_ERROR.NO_DECISION, 'No reversible decision on this report')
-    if (await isRecalcCommitted(decision)) throw decisionError(REPORT_ERROR.RECALC_COMMITTED, 'Cannot undo — recalculation has committed')
-    const decidedMs = Date.parse(decision.decided_at)
-    if (!Number.isFinite(decidedMs) || now() - decidedMs > UNDO_GRACE_MS) {
-      throw decisionError(REPORT_ERROR.UNDO_WINDOW_EXPIRED, 'Undo grace window has expired')
+    const storedToken = report.data?.undo_token_id || decision?.undo_token_id || null
+    const expiresAt = report.data?.undo_expires_at || decision?.undo_expires_at || null
+
+    const auditBase = {
+      report,
+      actorId,
+      previousDecision: decision || null,
+      undoTokenId: undoTokenId || storedToken,
+      undoExpiresAt: expiresAt,
+      requestIp,
+      userAgent,
     }
+
+    async function rejectWithAudit(outcome, err) {
+      await writeUndoAttemptAudit({ ...auditBase, outcome })
+      throw err
+    }
+
+    if (!decision?.decided_at) {
+      await rejectWithAudit(
+        'token_consumed',
+        decisionError(REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed or no decision to undo', 410),
+      )
+    }
+    if (await isRecalcCommitted(decision)) {
+      await rejectWithAudit(
+        'token_consumed',
+        decisionError(REPORT_ERROR.RECALC_COMMITTED, 'Cannot undo — recalculation has committed', 409),
+      )
+    }
+    if (report.reporter_id && actorId && String(report.reporter_id) === String(actorId)) {
+      await rejectWithAudit(
+        'own_case',
+        decisionError(REPORT_ERROR.OWN_CASE, 'Cannot undo a comparable report you filed', 403),
+      )
+    }
+    if (!storedToken) {
+      // Legacy path: decided_at + grace window (bulk / pre-token decisions)
+      const decidedMs = Date.parse(decision.decided_at)
+      if (!Number.isFinite(decidedMs) || now() - decidedMs > UNDO_GRACE_MS) {
+        await rejectWithAudit(
+          'expired',
+          decisionError(REPORT_ERROR.UNDO_EXPIRED, 'Undo grace window expired', 410),
+        )
+      }
+    } else {
+      if (report.data?.undo_consumed) {
+        await rejectWithAudit(
+          'token_consumed',
+          decisionError(REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed', 409),
+        )
+      }
+      if (!undoTokenId || String(undoTokenId) !== String(storedToken)) {
+        await rejectWithAudit(
+          'token_consumed',
+          decisionError(REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed or invalid', 409),
+        )
+      }
+      const expMs = Date.parse(expiresAt || '')
+      if (!Number.isFinite(expMs) || now() > expMs) {
+        await rejectWithAudit(
+          'expired',
+          decisionError(REPORT_ERROR.UNDO_EXPIRED, 'Undo grace window expired', 410),
+        )
+      }
+      if (actorId && decision.decided_by && String(decision.decided_by) !== String(actorId)) {
+        await rejectWithAudit(
+          'wrong_reviewer',
+          decisionError(REPORT_ERROR.SAME_REVIEWER, 'Only the deciding reviewer can undo within the grace window', 409),
+        )
+      }
+    }
+
     const previousData = { ...(decision.previous_data || {}) }
     delete previousData.decision
-    const restored = await patchReport(reportId, {
-      status: decision.previous_status || WF05_DECISION_STATUS.PENDING,
-      notes: decision.previous_notes ?? null,
-      decision_notes: decision.previous_notes ?? null,
-      decision_reason_code: null,
-      requested_evidence: null,
-      reviewed_by: decision.previous_reviewed_by ?? null,
-      reviewed_at: decision.previous_reviewed_at ?? null,
-      data: previousData,
+    delete previousData.undo_token_id
+    delete previousData.undo_expires_at
+    delete previousData.undo_consumed
+
+    const restored = await runTransaction(async (client) => {
+      await writeUndoAttemptAudit({ ...auditBase, outcome: 'reverted', client })
+      const updated = await patchReport(reportId, {
+        status: decision.previous_status || WF05_DECISION_STATUS.PENDING,
+        notes: decision.previous_notes ?? null,
+        decision_notes: decision.previous_notes ?? null,
+        decision_reason_code: null,
+        requested_evidence: null,
+        reviewed_by: decision.previous_reviewed_by ?? null,
+        reviewed_at: decision.previous_reviewed_at ?? null,
+        approval_request_id: null,
+        data: {
+          ...previousData,
+          undo_consumed: true,
+          undo_token_id: storedToken,
+          undo_expires_at: expiresAt,
+        },
+      })
+      return updated
     })
+
     if (decision.recalc_job_id && recalculationJobService?.cancel) {
       try { await recalculationJobService.cancel(decision.recalc_job_id) } catch (err) {
         logger?.warn?.({ err: err.message, jobId: decision.recalc_job_id }, 'undo cancel failed')
@@ -1017,7 +1316,7 @@ export function createComparableReportDecisionService({
     return summarizeReport(restored)
   }
 
-  async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}) {
+async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}) {
     const report = await loadReport(reportId)
     const safePage = Math.max(1, Number(page) || 1)
     const safeSize = Math.min(100, Math.max(1, Number(pageSize) || 25))
@@ -1085,6 +1384,305 @@ export function createComparableReportDecisionService({
     }
   }
 
+
+  async function finalizeApprovedRemoval({
+    report,
+    approvalRequestId,
+    actorId,
+    actorEmail,
+    notes,
+    env,
+    enqueueRecalc = true,
+    client = null,
+    strictAudit = false,
+  }) {
+    const marketImpact = await marketImpactService.scoreComparable({
+      comparableId: report.comparable_id,
+      comparableType: report.comparable_type,
+    })
+    const tombstone = await tombstoneComparable(report)
+    const jobs = enqueueRecalc
+      ? await enqueueRecalcForProperties(marketImpact.affected_property_ids, actorId)
+      : []
+    const decidedAt = nowIsoLocal()
+    const updated = await patchReport(report.id, {
+      status: WF05_DECISION_STATUS.CONFIRMED_REMOVED,
+      decision_notes: notes ?? report.decision_notes ?? null,
+      notes: notes !== undefined && notes !== null ? notes : report.notes,
+      reviewed_by: report.reviewed_by || actorId,
+      reviewed_at: report.reviewed_at || decidedAt,
+      approval_request_id: approvalRequestId,
+      data: {
+        decision: buildDecisionSnapshot(report, {
+          action: 'confirm_remove',
+          notes: notes ?? null,
+          actorId,
+          decidedAt,
+          recalc_job_id: jobs[0]?.id || null,
+          extra: {
+            env,
+            market_impact: marketImpact,
+            tombstone,
+            recalculation_job_ids: jobs.map((j) => j.id),
+            recalculation_deferred: !enqueueRecalc,
+            decision_label: 'CONFIRM_REMOVE',
+            second_approver_id: actorId,
+            second_approved_at: decidedAt,
+            approval_request_id: approvalRequestId,
+          },
+        }),
+      },
+    })
+    await writeDecisionAudit({
+      environment: env,
+      actorId,
+      actorEmail,
+      action: 'COMPARABLE_REPORT_CONFIRMED_REMOVED',
+      reportId: report.id,
+      beforeState: { status: report.status },
+      afterState: {
+        status: updated.status,
+        tombstone,
+        recalculation_job_ids: jobs.map((j) => j.id),
+        recalculation_deferred: !enqueueRecalc,
+        approval_request_id: approvalRequestId,
+      },
+      reasonCode: 'CONFIRM_REMOVE',
+      approvalRequestId,
+      client,
+      strict: strictAudit,
+    })
+    return {
+      report: updated,
+      tombstone,
+      jobs,
+      marketImpact,
+    }
+  }
+
+  async function castSecondApprovalVote({
+    approvalRequestId,
+    decision,
+    notes = null,
+    viewerId,
+    viewerEmail = null,
+    env: envInput = 'live',
+  } = {}) {
+    const env = normalizeClientEnv(envInput)
+    const normalized = String(decision || '').trim().toLowerCase()
+    if (normalized !== 'approve' && normalized !== 'decline') {
+      throw decisionError(DECISION_ERROR.INVALID_INPUT, "decision must be 'approve' or 'decline'", 400)
+    }
+    if (!approvalRequestId) {
+      throw decisionError(DECISION_ERROR.NOT_FOUND, 'Approval request not found', 404)
+    }
+    const report = await dal.findOne(
+      Collections.COMPARABLE_REPORTS,
+      (row) => String(row.approval_request_id || row.data?.approval_request_id || '') === String(approvalRequestId),
+    )
+    if (!report) {
+      throw decisionError(DECISION_ERROR.NOT_FOUND, 'Approval request not found', 404)
+    }
+    if (report.reporter_id && viewerId && String(report.reporter_id) === String(viewerId)) {
+      throw decisionError(DECISION_ERROR.OWN_CASE, 'Cannot vote on your own comparable report', 403)
+    }
+    if (report.status !== WF05_DECISION_STATUS.REMOVE_PROPOSED) {
+      throw decisionError(DECISION_ERROR.TOKEN_CONSUMED, 'Approval request already resolved', 410)
+    }
+    if (report.reviewed_by && viewerId && String(report.reviewed_by) === String(viewerId)) {
+      throw decisionError(DECISION_ERROR.SAME_REVIEWER, 'Same reviewer cannot cast the second vote', 409)
+    }
+
+    const now = nowIsoLocal()
+    const actionDecision = normalized === 'approve' ? 'APPROVED' : 'REJECTED'
+    const actionId = randomUUID()
+    const actorUuid = asUuidOrNull(viewerId) || viewerId
+
+    if (normalized === 'decline') {
+      const updated = await runTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
+           VALUES ($1, $2, $3, $4, $5::timestamptz)
+           ON CONFLICT DO NOTHING`,
+          [actionId, approvalRequestId, actorUuid, actionDecision, now],
+        ).catch(() => null)
+        await client.query(
+          `UPDATE fin.approval_requests SET status = 'REJECTED', updated_at = $2::timestamptz WHERE id = $1`,
+          [approvalRequestId, now],
+        ).catch(() => null)
+        const patched = await patchReport(report.id, {
+          status: WF05_DECISION_STATUS.PENDING,
+          approval_request_id: null,
+          reviewed_by: null,
+          reviewed_at: null,
+          decision_notes: null,
+          data: {
+            ...(report.data || {}),
+            decision: null,
+            second_vote: {
+              decision: 'decline',
+              actor_id: viewerId,
+              at: now,
+              notes: notes || null,
+            },
+          },
+        })
+        await writeDecisionAudit({
+          environment: env,
+          actorId: viewerId,
+          actorEmail: viewerEmail,
+          action: 'COMPARABLE_REPORT_REMOVE_DECLINED',
+          reportId: report.id,
+          beforeState: { status: report.status },
+          afterState: { status: patched.status },
+          reasonCode: 'REMOVE_DECLINED',
+          approvalRequestId,
+          client,
+          strict: true,
+        })
+        return patched
+      })
+      return {
+        decision: 'decline',
+        status: updated.status,
+        report: updated,
+        approval_request_id: approvalRequestId,
+      }
+    }
+
+    // Option A: vote + status + finalize (tombstone/report/audit) + outbox in one txn.
+    // Recalc enqueue runs after commit via outbox dispatch (retryable).
+    let outboxRow = null
+    const finalized = await runTransaction(async (client) => {
+      await client.query(
+        `INSERT INTO fin.approval_actions (id, request_id, actor_id, decision, created_at)
+         VALUES ($1, $2, $3, $4, $5::timestamptz)
+         ON CONFLICT DO NOTHING`,
+        [actionId, approvalRequestId, actorUuid, actionDecision, now],
+      ).catch(() => null)
+      await client.query(
+        `UPDATE fin.approval_requests
+            SET status = 'APPROVED', updated_at = $2::timestamptz, decided_at = $2::timestamptz
+          WHERE id = $1`,
+        [approvalRequestId, now],
+      ).catch(() => null)
+
+      const result = await finalizeApprovedRemoval({
+        report,
+        approvalRequestId,
+        actorId: viewerId,
+        actorEmail: viewerEmail,
+        notes,
+        env,
+        enqueueRecalc: false,
+        client,
+        strictAudit: true,
+      })
+
+      outboxRow = await writeComparableRemovedOutbox(client, {
+        environment: env,
+        reportId: report.id,
+        comparableId: report.comparable_id,
+        propertyIds: result.marketImpact.affected_property_ids,
+        requestedBy: viewerId,
+        approvalRequestId,
+      })
+      return result
+    })
+
+    if (typeof afterCommitBeforeDispatch === 'function') {
+      await afterCommitBeforeDispatch({
+        outboxRow,
+        report: finalized.report,
+        marketImpact: finalized.marketImpact,
+      })
+    }
+
+    const jobs = await dispatchComparableRemovedOutbox({
+      propertyIds: finalized.marketImpact.affected_property_ids,
+      requestedBy: viewerId,
+      outboxRow,
+    })
+
+    return {
+      decision: 'approve',
+      status: WF05_DECISION_STATUS.CONFIRMED_REMOVED,
+      report: finalized.report,
+      tombstone: finalized.tombstone,
+      recalculation_jobs: jobs.map((j) => ({ id: j.id, status: j.status })),
+      valuations_affected: finalized.marketImpact.valuations_affected,
+      approval_request_id: approvalRequestId,
+      outbox: outboxRow
+        ? {
+            topic: outboxRow.topic || COMPARABLE_REMOVED_OUTBOX_TOPIC,
+            status: outboxRow.status,
+            dispatched_at: outboxRow.dispatched_at ?? null,
+            published_at: outboxRow.published_at ?? null,
+          }
+        : null,
+    }
+  }
+
+  async function recallProposal({ reportId, actorId, actorEmail = null, reason, env: envInput = 'live' } = {}) {
+    const env = normalizeClientEnv(envInput)
+    const trimmed = String(reason || '').trim()
+    if (trimmed.length < 5) {
+      throw decisionError(DECISION_ERROR.INVALID_INPUT, 'reason must be at least 5 characters', 400)
+    }
+    const report = await loadReport(reportId)
+    if (report.status !== WF05_DECISION_STATUS.REMOVE_PROPOSED) {
+      throw decisionError(DECISION_ERROR.ALREADY_DECIDED, 'No pending removal proposal to recall', 409)
+    }
+    if (!report.reviewed_by || String(report.reviewed_by) !== String(actorId)) {
+      throw decisionError(DECISION_ERROR.SAME_REVIEWER, 'Only the proposing PA can recall this proposal', 403)
+    }
+    const approvalRequestId = report.approval_request_id || report.data?.approval_request_id || null
+    const now = nowIsoLocal()
+    if (approvalRequestId) {
+      await runTransaction(async (client) => {
+        await client.query(
+          `UPDATE fin.approval_requests
+              SET status = 'WITHDRAWN',
+                  updated_at = $2::timestamptz,
+                  withdrawn_at = $2::timestamptz,
+                  withdrawn_by = $3,
+                  withdrawal_reason = $4
+            WHERE id = $1 AND status = 'REQUESTED'`,
+          [approvalRequestId, now, asUuidOrNull(actorId), trimmed],
+        ).catch(() => null)
+      })
+    }
+    const updated = await patchReport(reportId, {
+      status: WF05_DECISION_STATUS.PENDING,
+      approval_request_id: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      decision_notes: null,
+      data: {
+        ...(report.data || {}),
+        decision: null,
+        recall: {
+          by: actorId,
+          at: now,
+          reason: trimmed,
+          approval_request_id: approvalRequestId,
+        },
+      },
+    })
+    await writeDecisionAudit({
+      environment: env,
+      actorId,
+      actorEmail,
+      action: 'COMPARABLE_REPORT_REMOVE_RECALLED',
+      reportId,
+      beforeState: { status: report.status, approval_request_id: approvalRequestId },
+      afterState: { status: updated.status },
+      reasonCode: 'REMOVE_RECALLED',
+      approvalRequestId,
+    })
+    return { success: true, status: updated.status, report: updated }
+  }
+
   return {
     detectIsOwn,
     isOwnCase: detectIsOwn,
@@ -1097,12 +1695,17 @@ export function createComparableReportDecisionService({
     bulkRejectAsInvalid,
     bulkRequestInfo,
     undoDecision,
+    castSecondApprovalVote,
+    recallProposal,
+    finalizeApprovedRemoval,
     listAffectedValuations,
     isRecalcCommitted,
     buildDecisionSnapshot,
     summarizeReport,
     tombstoneComparable,
     enqueueRecalcForProperties,
+    dispatchComparableRemovedOutbox,
+    writeUndoAttemptAudit,
   }
 }
 

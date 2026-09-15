@@ -111,6 +111,7 @@ export function registerAdminRoutes(app, services) {
       code: err.code || undefined,
     })
   }
+  const sendDecisionError = sendServiceError
 
   const marketImpactService = injectedImpactService
     || (dal ? createMarketImpactService({ dal, logger }) : null)
@@ -621,6 +622,7 @@ export function registerAdminRoutes(app, services) {
       const report = await comparableReportReadService.getReport(req.params.reportId, {
         viewerId: req.user?.id,
         req,
+        queueContext: req.query?.queue_context || null,
       })
       if (!report) return res.status(404).json({ error: 'Report not found' })
       stampEnv(req, res, report.env)
@@ -687,21 +689,70 @@ export function registerAdminRoutes(app, services) {
     try {
       const restored = await decisionService.undoDecision(req.params.reportId, {
         actorId: req.user.id,
+        undoTokenId: req.body?.undo_token_id || req.body?.undoTokenId || null,
+        requestIp: req.ip || req.headers?.['x-forwarded-for'] || null,
+        userAgent: req.get?.('user-agent') || req.headers?.['user-agent'] || null,
       })
       res.json({ success: true, report: restored })
     } catch (err) {
-      if (err?.code === REPORT_ERROR.NOT_FOUND) {
-        return res.status(404).json({ error: err.message, code: err.code })
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.post('/api/admin/pricing/reports/:reportId/recall-proposal', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      if (!decisionService?.recallProposal) {
+        return res.status(501).json({ error: 'Recall proposal unavailable', code: 'NOT_IMPLEMENTED' })
       }
-      if (
-        err?.code === REPORT_ERROR.RECALC_COMMITTED ||
-        err?.code === REPORT_ERROR.UNDO_WINDOW_EXPIRED ||
-        err?.code === REPORT_ERROR.NO_DECISION ||
-        err?.code === REPORT_ERROR.OWN_CASE
-      ) {
-        return res.status(409).json({ error: err.message, code: err.code })
+      const result = await decisionService.recallProposal({
+        reportId: req.params.reportId,
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        reason: req.body?.reason || req.body?.notes,
+        env: resolveSessionEnv(req),
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
+    }
+  })
+
+  app.get('/api/admin/pricing/reports/:reportId/evidence/:evidenceId/url', admin, async (req, res, next) => {
+    try {
+      const detail = comparableReportReadService
+        ? await comparableReportReadService.getReport(req.params.reportId, {
+            viewerId: req.user?.id,
+            req,
+          })
+        : null
+      if (!detail) return res.status(404).json({ error: 'Report not found', code: 'NOT_FOUND' })
+      const files = detail.evidence?.files || []
+      const evidence = files.find((e) => String(e.id || e.filename) === String(req.params.evidenceId))
+      const url = evidence?.url || null
+      if (!url) return res.status(404).json({ error: 'Evidence not found', code: 'NOT_FOUND' })
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+      res.json({ url, expires_at: expiresAt })
+    } catch (err) { next(err) }
+  })
+
+  app.post('/api/admin/valuation/approval-requests/:id/vote', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      if (!decisionService?.castSecondApprovalVote) {
+        return res.status(501).json({ error: 'Second-vote unavailable', code: 'NOT_IMPLEMENTED' })
       }
-      next(err)
+      const result = await decisionService.castSecondApprovalVote({
+        approvalRequestId: req.params.id,
+        decision: req.body?.decision,
+        notes: req.body?.notes,
+        viewerId: req.user.id,
+        viewerEmail: req.user.email,
+        env: resolveSessionEnv(req),
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendDecisionError(res, err) } catch (e) { next(e) }
     }
   })
 

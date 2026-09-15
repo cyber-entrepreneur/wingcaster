@@ -2005,6 +2005,91 @@ export const api = {
   reviewAdminPricingReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // WF-05 PA-PVA-008/008b — comparable-report queue + decisions (BE-28)
+  listAdminComparableReports: (params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports${qs}`)
+  },
+  getAdminComparableReport: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}${qs}`)
+  },
+  getAdminComparableReportReporterHistory: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/reporter-history${qs}`)
+  },
+  getAdminComparableReportAuditTrail: (reportId: string) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/audit-trail`),
+  getAdminComparableReportAffectedValuations: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}/affected-valuations${qs}`)
+  },
+  confirmAdminComparableReportRemove: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-remove`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  confirmAdminComparableReportQuarantine: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/confirm-quarantine`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  rejectAdminComparableReportAsInvalid: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/reject-as-invalid`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  requestAdminComparableReportInfo: (reportId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/request-info`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  undoAdminComparableReportDecision: (
+    reportId: string,
+    data?: { undo_token_id?: string },
+  ) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/undo-decision`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+  recallAdminComparableReportProposal: (
+    reportId: string,
+    data: { reason: string },
+  ) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/recall-proposal`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getAdminComparableReportEvidenceUrl: (reportId: string, evidenceId: string) =>
+    fetchJson(
+      `/admin/pricing/reports/${encodeURIComponent(reportId)}/evidence/${encodeURIComponent(evidenceId)}/url`,
+    ),
+  castSecondApprovalVote: (data: {
+    approval_request_id: string
+    decision: 'approve' | 'decline'
+    notes?: string
+  }) =>
+    fetchJson(
+      `/admin/valuation/approval-requests/${encodeURIComponent(data.approval_request_id)}/vote`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          decision: data.decision,
+          notes: data.notes,
+        }),
+      },
+    ),
+  bulkRejectAdminComparableReportsAsInvalid: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-reject-as-invalid', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  bulkRequestAdminComparableReportsInfo: (data: Record<string, unknown>) =>
+    fetchJson('/admin/pricing/reports/bulk-request-info', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
