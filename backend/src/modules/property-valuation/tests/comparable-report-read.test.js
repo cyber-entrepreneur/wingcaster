@@ -451,6 +451,21 @@ describe('comparable-report list/detail/is_own', () => {
     expect(detail.evidence.file_count).toBe(1)
   })
 
+  it('getReport with queue_context=pending returns position and neighbors', async () => {
+    const detail = await service.getReport('cmr-2', {
+      viewerId: 'pa-viewer',
+      req: { user: { id: 'pa-viewer', env: 'live' }, get: () => 'live', query: { queue_context: 'pending' } },
+      queueContext: 'pending',
+    })
+    expect(detail.queue_context).toBe('pending')
+    expect(detail.queue_total).toBeGreaterThanOrEqual(1)
+    expect(detail.queue_position).toBeGreaterThanOrEqual(1)
+    expect(detail.queue_position).toBeLessThanOrEqual(detail.queue_total)
+    // Neighbors are null at edges; otherwise string ids
+    if (detail.queue_position === 1) expect(detail.prev_id).toBeNull()
+    if (detail.queue_position === detail.queue_total) expect(detail.next_id).toBeNull()
+  })
+
   it('returns reporter history and audit trail', async () => {
     const history = await service.getReporterHistory('cmr-2', {
       limit: 10,

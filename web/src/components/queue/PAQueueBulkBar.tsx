@@ -30,6 +30,12 @@ export interface PAQueueBulkBarProps {
   acrossCount?: number
   /** High-risk rows in selection — surfaces step-up notice when > 0. */
   highRiskCount?: number
+  /** WF-05: high-severity rows in selection (separate from impact). */
+  highSeverityCount?: number
+  /** WF-05: high-impact rows in selection (separate from severity). */
+  highImpactCount?: number
+  highSeverityLabel?: string
+  highImpactLabel?: string
   onClearSelection?: () => void
   onApprove?: () => void
   onReject?: () => void
@@ -68,6 +74,10 @@ export function PAQueueBulkBar({
   selectedCount,
   acrossCount,
   highRiskCount = 0,
+  highSeverityCount,
+  highImpactCount,
+  highSeverityLabel = 'High-severity',
+  highImpactLabel = 'High-impact',
   onClearSelection,
   onApprove,
   onReject,
@@ -116,7 +126,19 @@ export function PAQueueBulkBar({
         {typeof acrossCount === 'number' ? (
           <span className="text-[var(--lc-text-muted)]">
             <Numeric>{selectedCount}</Numeric> across <Numeric>{acrossCount}</Numeric>
-            {highRiskCount > 0 ? (
+            {typeof highSeverityCount === 'number' && highSeverityCount > 0 ? (
+              <>
+                {' '}
+                · <Numeric>{highSeverityCount}</Numeric> {highSeverityLabel}
+              </>
+            ) : null}
+            {typeof highImpactCount === 'number' && highImpactCount > 0 ? (
+              <>
+                {' '}
+                · <Numeric>{highImpactCount}</Numeric> {highImpactLabel}
+              </>
+            ) : null}
+            {typeof highSeverityCount !== 'number' && typeof highImpactCount !== 'number' && highRiskCount > 0 ? (
               <>
                 {' '}
                 · <Numeric>{highRiskCount}</Numeric> High-risk
@@ -124,7 +146,7 @@ export function PAQueueBulkBar({
             ) : null}
           </span>
         ) : null}
-        {highRiskCount > 0 ? (
+        {(highRiskCount > 0 || (highSeverityCount ?? 0) > 0 || (highImpactCount ?? 0) > 0) ? (
           <span className="text-sm text-[var(--lc-status-warning-fg)]">{stepUpNotice}</span>
         ) : null}
       </div>

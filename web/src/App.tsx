@@ -20,6 +20,12 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import {
+  BadComparableReportPage,
+  PriceReportPage,
+  ComparableReportOutcomePage,
+  PriceReportOutcomePage,
+} from '@/pages/agent/reports'
 import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
@@ -56,12 +62,6 @@ import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
-import {
-  BadComparableReportPage,
-  ComparableReportOutcomePage,
-  PriceReportOutcomePage,
-  PriceReportPage,
-} from '@/pages/agent/reports'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
@@ -69,8 +69,6 @@ import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePa
 import {
   BadComparableQueuePage,
   BadComparableDetailPage,
-  PriceReportQueuePage,
-  PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
@@ -147,10 +145,10 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
-      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005). */}
+      {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005).
+          Static /new routes MUST precede :reportId outcome routes. */}
       <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
       <Route path="/comparables/:comparableId/report" element={<BadComparableReportPage />} />
-      <Route path="/agent/comparable-reports/new" element={<BadComparableReportPage />} />
       <Route path="/reports/prices/new" element={<PriceReportPage />} />
       <Route path="/agent/pricing/reports/new" element={<PriceReportPage />} />
       {/* AGT-REC-002 comparable-report outcome + matrix-legacy alias */}
@@ -222,7 +220,7 @@ function AppRoutes() {
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
-      {/* PA-ACR-002 — account recovery detail (cast-vote only; BE-BLOCKER-22) */}
+      {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
       <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
       <Route
@@ -232,11 +230,6 @@ function AppRoutes() {
       <Route
         path="/admin/valuation/comparable-reports/:reportId"
         element={<BadComparableDetailPage />}
-      />
-      <Route path="/admin/valuation/price-reports" element={<PriceReportQueuePage />} />
-      <Route
-        path="/admin/valuation/price-reports/:reportId"
-        element={<PriceReportDetailPage />}
       />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />

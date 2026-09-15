@@ -1872,6 +1872,50 @@ export const api = {
     fetchJson(`/pricing/trends/${areaId}?property_type=${encodeURIComponent(propertyType)}`),
   reportComparable: (data: Record<string, unknown>) =>
     fetchJson('/pricing/report-comparable', { method: 'POST', body: JSON.stringify(data) }),
+  uploadPricingEvidence: async (
+    file: File,
+  ): Promise<{
+    id: string
+    url: string
+    sha256: string
+    content_type: string
+    size_bytes: number
+    scan_status?: string
+    filename?: string
+  }> => {
+    const form = new FormData()
+    form.append('file', file)
+    const token = getToken()
+    const uploadHeaders: Record<string, string> = {
+      'X-Wingcaster-Env': readWingcasterEnvHeader(),
+    }
+    if (token) uploadHeaders.Authorization = `Bearer ${token}`
+    const elevated = getElevatedToken()
+    if (elevated) uploadHeaders['X-Elevated-Token'] = elevated
+    const res = await fetch(`${API_BASE}/pricing/evidence-uploads`, {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: form,
+    })
+    const bodyText = await res.text()
+    const parsed = (() => {
+      try {
+        return bodyText ? JSON.parse(bodyText) : null
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok) {
+      const error = new Error(parsed?.error || `Upload failed (${res.status})`) as Error &
+        Record<string, unknown>
+      Object.assign(error, parsed || {}, { status: res.status })
+      throw error
+    }
+    if (!parsed) throw new Error('Evidence upload returned non-JSON')
+    return parsed
+  },
+  deletePricingEvidence: (id: string) =>
+    fetchJson(`/pricing/evidence-uploads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getMyComparableReports: () => fetchJson('/pricing/my-comparable-reports'),
   getMyAgentPriceReports: (): Promise<AgentPriceReport[]> => fetchJson('/pricing/my-agent-price-reports'),
   /** AGT-REC-002 — preferred user-scoped by-id (falls back in hooks when absent). */
@@ -1966,8 +2010,10 @@ export const api = {
     const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
     return fetchJson(`/admin/pricing/reports${qs}`)
   },
-  getAdminComparableReport: (reportId: string) =>
-    fetchJson(`/admin/pricing/reports/${reportId}`),
+  getAdminComparableReport: (reportId: string, params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
+    return fetchJson(`/admin/pricing/reports/${reportId}${qs}`)
+  },
   getAdminComparableReportReporterHistory: (reportId: string, params?: Record<string, string>) => {
     const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
     return fetchJson(`/admin/pricing/reports/${reportId}/reporter-history${qs}`)
@@ -1998,11 +2044,41 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  undoAdminComparableReportDecision: (reportId: string) =>
+  undoAdminComparableReportDecision: (
+    reportId: string,
+    data?: { undo_token_id?: string },
+  ) =>
     fetchJson(`/admin/pricing/reports/${reportId}/undo-decision`, {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify(data || {}),
     }),
+  recallAdminComparableReportProposal: (
+    reportId: string,
+    data: { reason: string },
+  ) =>
+    fetchJson(`/admin/pricing/reports/${reportId}/recall-proposal`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getAdminComparableReportEvidenceUrl: (reportId: string, evidenceId: string) =>
+    fetchJson(
+      `/admin/pricing/reports/${encodeURIComponent(reportId)}/evidence/${encodeURIComponent(evidenceId)}/url`,
+    ),
+  castSecondApprovalVote: (data: {
+    approval_request_id: string
+    decision: 'approve' | 'decline'
+    notes?: string
+  }) =>
+    fetchJson(
+      `/admin/valuation/approval-requests/${encodeURIComponent(data.approval_request_id)}/vote`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          decision: data.decision,
+          notes: data.notes,
+        }),
+      },
+    ),
   bulkRejectAdminComparableReportsAsInvalid: (data: Record<string, unknown>) =>
     fetchJson('/admin/pricing/reports/bulk-reject-as-invalid', {
       method: 'POST',
@@ -2014,19 +2090,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getAdminAgentPriceReports: (params?: Record<string, string | number | undefined>) => {
-    const cleaned: Record<string, string> = {}
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        if (v === undefined || v === null || v === '') continue
-        cleaned[k] = String(v)
-      }
-    }
-    const qs = Object.keys(cleaned).length ? `?${new URLSearchParams(cleaned)}` : ''
-    return fetchJson(`/admin/pricing/agent-price-reports${qs}`)
-  },
-  getAdminAgentPriceReport: (id: string) =>
-    fetchJson(`/admin/pricing/agent-price-reports/${id}`),
+  getAdminAgentPriceReports: () => fetchJson('/admin/pricing/agent-price-reports'),
   reviewAdminAgentPriceReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/agent-price-reports/${id}/review`, {
       method: 'POST',

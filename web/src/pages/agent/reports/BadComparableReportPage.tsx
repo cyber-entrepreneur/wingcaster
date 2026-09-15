@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
   Ban,
@@ -12,7 +12,12 @@ import {
 } from 'lucide-react'
 import { api } from '@/api/client'
 import { ContextEchoCard, EvidenceUploader } from '@/components/forms'
-import { StatusHero } from '@/components/recipient'
+import {
+  OutcomeTimeline,
+  PrimaryCtaPerState,
+  ResolverMessage,
+  StatusHero,
+} from '@/components/recipient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -79,6 +84,7 @@ export function BadComparableReportPage() {
   const echo = useMemo(() => parseEcho(searchParams), [searchParams])
 
   const [phase, setPhase] = useState<Phase>('form')
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null)
   const [comparableId, setComparableId] = useState(initialId)
   const [comparableType, setComparableType] = useState<ComparableType>(
     COMPARABLE_TYPES.includes(initialType) ? initialType : 'external',
@@ -91,7 +97,16 @@ export function BadComparableReportPage() {
   const [submitting, setSubmitting] = useState(false)
   const [fieldError, setFieldError] = useState<string | null>(null)
 
-  const evidence = useEvidenceFiles(BAD_COMPARABLE_EVIDENCE_MAX)
+  const evidence = useEvidenceFiles({
+    maxFiles: BAD_COMPARABLE_EVIDENCE_MAX,
+    maxBytes: EVIDENCE_MAX_BYTES,
+    locale,
+    tooLargeCopy: {
+      en: badComparableT('fileTooLarge', 'en'),
+      ar: badComparableT('fileTooLarge', 'ar'),
+    },
+    onTooLarge: (message) => addToast({ title: message, variant: 'error' }),
+  })
 
   const notesLen = notes.trim().length
   const canSubmit =
@@ -123,27 +138,33 @@ export function BadComparableReportPage() {
     setSubmitting(true)
     setFieldError(null)
     try {
-      const evidenceNote =
-        evidence.files.length > 0
-          ? `\n\nEvidence: ${evidence.files.map((f) => f.name).join(', ')}`
-          : ''
-      const confidenceNote = `\n\nConfidence: ${confidence}`
       await api.reportComparable({
         comparable_id: comparableId.trim(),
         comparable_type: comparableType,
         reason,
-        notes: `${notes.trim()}${confidenceNote}${evidenceNote}`,
+        notes: notes.trim(),
+        reporter_confidence: confidence,
+        supporting_document_ids: evidence.completeIds,
       })
+      setSubmittedAt(new Date().toISOString())
       setPhase('success')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('networkError')
-      addToast({ title: t('networkError'), description: message, variant: 'error' })
+      const e = err as { message?: string; error?: string; code?: string; status?: number }
+      const message = e.message || e.error || t('networkError')
+      if (e.code === 'DUPLICATE_REPORT' || e.error === 'DUPLICATE_REPORT') {
+        addToast({ title: t('networkError'), description: message, variant: 'error' })
+      } else if (e.code === 'FEATURE_NOT_ENABLED' || e.error === 'FEATURE_NOT_ENABLED' || e.status === 403) {
+        addToast({ title: t('networkError'), description: message, variant: 'error' })
+      } else {
+        addToast({ title: t('networkError'), description: message, variant: 'error' })
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
   if (phase === 'success') {
+    const submitted = submittedAt || new Date().toISOString()
     return (
       <div
         className="min-h-screen bg-[var(--lc-bg-page)] px-4 py-8 sm:px-6"
@@ -152,20 +173,48 @@ export function BadComparableReportPage() {
       >
         <div className="mx-auto max-w-[680px] space-y-[var(--lc-space-lg)]">
           <StatusHero state="pending" label={t('successLabel')} emphasis="default" />
+          <OutcomeTimeline
+            events={[
+              {
+                key: 'submitted',
+                label: t('timelineSubmitted'),
+                timestamp: submitted,
+                state: 'complete',
+              },
+              {
+                key: 'pa_review',
+                label: t('timelinePaReview'),
+                state: 'current',
+              },
+            ]}
+          />
+          <ResolverMessage
+            resolver={{ display_name: 'Platform Admin', role_label: 'PA' }}
+            decided_at={submitted}
+            message={null}
+            empty_state_copy={t('resolverWaiting')}
+          />
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-muted)]">
             {t('successSla')}
           </p>
           <p className="text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
             {t('successBody')}
           </p>
-          <div className="flex flex-wrap gap-[var(--lc-space-sm)]">
-            <Button asChild>
-              <Link to="/agent/pricing">{t('successPrimary')}</Link>
-            </Button>
-            <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
-              {t('successSecondary')}
-            </Button>
-          </div>
+          <PrimaryCtaPerState
+            layout="inline"
+            primary={{
+              key: 'view_reports',
+              label: t('successPrimary'),
+              variant: 'default',
+              href: '/agent/pricing',
+            }}
+            secondary={{
+              key: 'close',
+              label: t('successSecondary'),
+              variant: 'ghost',
+              onClick: () => navigate(-1),
+            }}
+          />
         </div>
       </div>
     )
@@ -331,7 +380,12 @@ export function BadComparableReportPage() {
             max_bytes_per_file={EVIDENCE_MAX_BYTES}
             accepted_types={BAD_COMPARABLE_ACCEPTED_TYPES}
             onAdd={evidence.onAdd}
-            onRemove={evidence.onRemove}
+            onRemove={(id) => {
+              void evidence.onRemove(id)
+            }}
+            onRetry={(id) => {
+              void evidence.retry(id)
+            }}
             label={t('evidenceLabel')}
             helper_text={t('evidenceHelper')}
             disabled={submitting}
@@ -382,7 +436,7 @@ export function BadComparableReportPage() {
           ) : null}
 
           <div className="sticky bottom-0 flex flex-col-reverse gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] bg-[var(--lc-surface-raised)] py-[var(--lc-space-md)] shadow-[var(--lc-elevation-sm)] sm:flex-row sm:items-center sm:justify-end">
-            <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+            <Button type="button" variant="ghost" className="min-h-tap" onClick={() => navigate(-1)}>
               {t('cancel')}
             </Button>
             <Button
@@ -390,7 +444,7 @@ export function BadComparableReportPage() {
               size="lg"
               disabled={!canSubmit}
               aria-describedby={disabledReason ? 'bcr-submit-hint' : undefined}
-              className="sm:max-w-[240px] sm:flex-none"
+              className="min-h-tap sm:max-w-[240px] sm:flex-none"
             >
               {submitting ? (
                 <>
@@ -403,7 +457,7 @@ export function BadComparableReportPage() {
             </Button>
             {disabledReason ? (
               <span id="bcr-submit-hint" className="sr-only">
-                Submit disabled: {disabledReason}
+                {t('submitDisabledAria')}: {disabledReason}
               </span>
             ) : null}
           </div>
