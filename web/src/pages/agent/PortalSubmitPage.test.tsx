@@ -45,17 +45,6 @@ const REGISTRY = {
       deprecated_at: null,
       sla_hours: 6,
     },
-    {
-      code: 'aqarmap',
-      display_name: 'Aqarmap',
-      description: 'EG portal from registry',
-      logo_url: null,
-      country_codes: ['EG'],
-      primary_language: 'ar',
-      is_active: false,
-      deprecated_at: null,
-      sla_hours: null,
-    },
   ],
 }
 
@@ -94,9 +83,9 @@ describe('PortalSubmitPage', () => {
     })
 
     expect(screen.getByTestId('portal-option-wasalt')).toBeTruthy()
-    expect(screen.getByTestId('portal-option-aqarmap')).toBeTruthy()
     expect(screen.getByText('Wasalt')).toBeTruthy()
-    expect(screen.getByText('Aqarmap')).toBeTruthy()
+    // Inactive stubs are filtered server-side (activeOnly) — not in picker payload.
+    expect(screen.queryByTestId('portal-option-aqarmap')).toBeNull()
 
     // Must not embed a static legacy portal array as the only options.
     expect(screen.queryByText('Bayut')).toBeNull()

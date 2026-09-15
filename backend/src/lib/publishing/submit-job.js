@@ -8,6 +8,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { query, transaction } from '../../db.js'
+import logger from '../logger.js'
 import { listPortalRegistry, getPortalByCode } from '../portals/store.js'
 import { getPublishingJob } from './jobs.js'
 
@@ -35,10 +36,11 @@ export function serializePortalForPicker(row) {
 
 /**
  * List portals available for agent submit (dynamic registry, no hardcode).
- * Includes inactive stubs so Phase-1 pickers are not empty; excludes deprecated.
+ * Active-only: stubs must not appear in the picker or be enqueueable.
+ * Excludes deprecated rows.
  */
 export async function listPortalsForSubmit() {
-  const rows = await listPortalRegistry({ activeOnly: false })
+  const rows = await listPortalRegistry({ activeOnly: true })
   return rows
     .filter((row) => !row.deprecated_at)
     .map(serializePortalForPicker)
@@ -83,6 +85,70 @@ export function normalizePortalSelections(portals) {
 }
 
 /**
+ * Resolve a recent in-flight job for the same listing (double-tap guard).
+ * Pending ≡ completed_at IS NULL (publishing_jobs has no status column).
+ *
+ * @param {{ propertyId: string, agentId: string }} opts
+ * @returns {Promise<string|null>}
+ */
+async function findRecentPendingJobId({ propertyId, agentId }) {
+  const rows = await query(
+    `SELECT id
+       FROM public.publishing_jobs
+      WHERE property_id = $1
+        AND agent_id = $2
+        AND completed_at IS NULL
+        AND created_at > NOW() - INTERVAL '30 seconds'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [propertyId, agentId],
+  )
+  return rows[0]?.id || null
+}
+
+/**
+ * Write audit_log for a user-initiated portal submit (inside the create txn).
+ *
+ * @param {{
+ *   jobId: string,
+ *   agentId: string,
+ *   agencyId: string|null,
+ *   propertyId: string,
+ *   portalCodes: string[],
+ * }} opts
+ */
+async function writeSubmitCreatedAudit({
+  jobId,
+  agentId,
+  agencyId,
+  propertyId,
+  portalCodes,
+}) {
+  const tenantId = agencyId || `personal:${agentId}`
+  await query(
+    `INSERT INTO public.audit_log (
+       id, agent_id, agency_id, tenant_id, type, action, entity_type, entity_id,
+       metadata, created_at
+     ) VALUES (
+       $1, $2, $3, $4, 'publishing_job', 'submit_created', 'publishing_job', $5,
+       $6::jsonb, CURRENT_TIMESTAMP
+     )`,
+    [
+      randomUUID(),
+      agentId,
+      agencyId,
+      tenantId,
+      jobId,
+      JSON.stringify({
+        portal_codes: portalCodes,
+        property_id: propertyId,
+        actor_user_id: agentId,
+      }),
+    ],
+  )
+}
+
+/**
  * Create a publishing job + destinations for a listing.
  *
  * @param {object} opts
@@ -91,7 +157,7 @@ export function normalizePortalSelections(portals) {
  * @param {string|null} [opts.agencyId]
  * @param {unknown} opts.portals
  * @param {string} [opts.message]
- * @returns {Promise<{ jobId: string, job: object, destinations: object[] }>}
+ * @returns {Promise<{ jobId: string, job: object, destinations: object[], deduped?: boolean }>}
  */
 export async function submitPortalPublishingJob({
   propertyId,
@@ -121,9 +187,27 @@ export async function submitPortalPublishingJob({
       err.code = 'PORTAL_NOT_FOUND'
       throw err
     }
+    if (!row.is_active) {
+      const err = new Error(`Portal is inactive: ${sel.code}`)
+      err.status = 400
+      err.code = 'PORTAL_INACTIVE'
+      throw err
+    }
     const countries = Array.isArray(row.country_codes) ? row.country_codes : []
+    if (countries.length === 0) {
+      logger.warn(
+        { portal_code: row.code },
+        'portal_registry country_codes empty — PA must configure coverage before submit',
+      )
+      const err = new Error(
+        `Portal ${row.code} has no country coverage configured`,
+      )
+      err.status = 400
+      err.code = 'PORTAL_COVERAGE_UNDEFINED'
+      throw err
+    }
     let countryCode = sel.country_code
-    if (countryCode && countries.length && !countries.includes(countryCode)) {
+    if (countryCode && !countries.includes(countryCode)) {
       const err = new Error(
         `Portal ${row.code} does not cover country ${countryCode}`,
       )
@@ -137,11 +221,20 @@ export async function submitPortalPublishingJob({
     resolved.push({ row, country_code: countryCode || null })
   }
 
-  const jobId = randomUUID()
+  const portalCodes = resolved.map((r) => r.row.code)
+  let jobId = randomUUID()
   const destinationIds = []
+  let deduped = false
 
   await transaction(async () => {
     // Ambient query() participates in this transaction (see postgres-adapter).
+    const existingJobId = await findRecentPendingJobId({ propertyId, agentId })
+    if (existingJobId) {
+      jobId = existingJobId
+      deduped = true
+      return
+    }
+
     await query(
       `INSERT INTO public.publishing_jobs
          (id, property_id, agent_id, agency_id, submitted_at, data)
@@ -154,7 +247,7 @@ export async function submitPortalPublishingJob({
         JSON.stringify({
           source: 'agt_pub_005',
           message: message || '',
-          portal_codes: resolved.map((r) => r.row.code),
+          portal_codes: portalCodes,
         }),
       ],
     )
@@ -189,6 +282,14 @@ export async function submitPortalPublishingJob({
         ],
       )
     }
+
+    await writeSubmitCreatedAudit({
+      jobId,
+      agentId,
+      agencyId,
+      propertyId,
+      portalCodes,
+    })
   })
 
   // Prefer aggregated payload when readable; fall back to ids on empty JOIN.
@@ -197,6 +298,15 @@ export async function submitPortalPublishingJob({
     payload = await getPublishingJob({ jobId, agentId, agencyId })
   } catch {
     payload = null
+  }
+
+  if (deduped) {
+    return {
+      jobId,
+      job: payload?.job || { id: jobId, listing_id: propertyId },
+      destinations: payload?.destinations || [],
+      deduped: true,
+    }
   }
 
   return {

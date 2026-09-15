@@ -25,6 +25,11 @@ const bulkRequestInfoMock = vi.hoisted(() => vi.fn())
 const undoApproveMock = vi.hoisted(() => vi.fn())
 const undoRejectMock = vi.hoisted(() => vi.fn())
 const retryMock = vi.hoisted(() => vi.fn())
+const addToastMock = vi.hoisted(() => vi.fn())
+const requireElevationMock = vi.hoisted(() => vi.fn(async () => true))
+const runElevatedMock = vi.hoisted(() =>
+  vi.fn(async (action: () => Promise<unknown>) => action()),
+)
 
 vi.mock('@/api/portalModeration', async () => {
   const actual = await vi.importActual<typeof import('@/api/portalModeration')>(
@@ -43,7 +48,6 @@ vi.mock('@/api/portalModeration', async () => {
     undoApprovePortalSubmission: undoApproveMock,
     undoRejectPortalSubmission: undoRejectMock,
     retryPublishPortalSubmission: retryMock,
-    portalModerationCsvPath: () => '/api/admin/moderation/portals.csv',
   }
 })
 
@@ -77,22 +81,27 @@ vi.mock('@/hooks/useLocale', () => ({
 
 vi.mock('@/context/StepUpContext', () => ({
   useStepUp: () => ({
-    requireElevation: vi.fn(async () => true),
-    runElevated: vi.fn(async (action: () => Promise<unknown>) => action()),
+    requireElevation: requireElevationMock,
+    runElevated: runElevatedMock,
   }),
 }))
 
 vi.mock('@/components/ui/toast', () => ({
-  useToast: () => ({ addToast: vi.fn(), removeToast: vi.fn(), toasts: [] }),
+  useToast: () => ({ addToast: addToastMock, removeToast: vi.fn(), toasts: [] }),
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 import { PortalModerationQueuePage } from './PortalModerationQueuePage'
 import * as Queue from '@/components/queue'
+import { portalModerationCsvPath } from '@/api/portalModeration'
 
 const PAGE_SRC = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   'PortalModerationQueuePage.tsx',
+)
+const API_SRC = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../api/portalModeration.ts',
 )
 
 function sampleSubmission(overrides: Record<string, unknown> = {}) {
@@ -129,25 +138,8 @@ function sampleSubmission(overrides: Record<string, unknown> = {}) {
     status: 'pending',
     decision: null,
     is_own: false,
-    is_already_decided: false,
     step_up_required: false,
     env: 'live',
-    agent_context: {
-      wingcaster_tenure_month: '2024-01',
-      portfolio_size: 10,
-      prior_decision_summary_30d: { approved: 1, rejected: 0, request_info: 0 },
-    },
-    listing_preview: {
-      hero_image_url: null,
-      gallery: [],
-      price: { amount_minor: 100000, currency: 'AED', basis: 'sale' },
-      specs: { beds: 2, baths: 2, area_m2: 100 },
-      amenities: [],
-      description: 'Fixture',
-      agent_contact: { phone_masked: '+971 *', email_masked: 'a***@***.com' },
-    },
-    portal_payload_preview: {},
-    notification_previews: { approve: '', reject: '', request_info: '' },
     ...overrides,
   }
 }
@@ -360,6 +352,161 @@ describe('PA-MOD-001 PortalModerationQueuePage', () => {
     } finally {
       document.documentElement.classList.remove('dark')
     }
+  })
+
+  it('single-row approve happy path calls API and schedules undo', async () => {
+    const user = userEvent.setup()
+    approveMock.mockResolvedValue({ ok: true })
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    await user.click(screen.getByRole('button', { name: /^Approve$/i }))
+    await waitFor(() => expect(approveMock).toHaveBeenCalledWith('psub_1'))
+    expect(await screen.findByText(/Decision pending — Undo within 5s/i)).toBeTruthy()
+  })
+
+  it('undo grace: click undo within window reverts approve', async () => {
+    const user = userEvent.setup()
+    approveMock.mockResolvedValue({ ok: true })
+    undoApproveMock.mockResolvedValue({ ok: true })
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    await user.click(screen.getByRole('button', { name: /^Approve$/i }))
+    await screen.findByText(/Decision pending — Undo within 5s/i)
+    await user.click(screen.getByRole('button', { name: /^Undo$/i }))
+    await waitFor(() => expect(undoApproveMock).toHaveBeenCalledWith('psub_1'))
+  })
+
+  it('own-row is_own=true disables inline approve/reject actions', async () => {
+    mockList([sampleSubmission({ id: 'psub_own', is_own: true })])
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    expect(screen.getByText(/Own row/i)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Approve$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Reject$/i })).toBeNull()
+  })
+
+  it('step-up triggers for high-risk single approve', async () => {
+    const user = userEvent.setup()
+    requireElevationMock.mockResolvedValue(true)
+    approveMock.mockResolvedValue({ ok: true })
+    mockList([
+      sampleSubmission({
+        id: 'psub_high',
+        tenure_risk: { tier: 'high', score: 0.9, signals: ['new_agency'] },
+        step_up_required: true,
+      }),
+    ])
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    await user.click(screen.getByRole('button', { name: /^Approve$/i }))
+    await waitFor(() => expect(requireElevationMock).toHaveBeenCalled())
+    await waitFor(() => expect(approveMock).toHaveBeenCalledWith('psub_high'))
+  })
+
+  it('step-up triggers for bulk approve when selection > 5', async () => {
+    const user = userEvent.setup()
+    requireElevationMock.mockResolvedValue(true)
+    bulkApproveMock.mockResolvedValue({ succeeded: [], failed: [] })
+    mockList(
+      Array.from({ length: 6 }, (_, i) =>
+        sampleSubmission({
+          id: `psub_${i}`,
+          agent: { id: `usr_${i}`, display_name: `Agent ${i}`, avatar_url: null },
+        }),
+      ),
+    )
+    renderPage()
+    await screen.findByText('Agent 0')
+    const checkboxes = screen.getAllByRole('checkbox')
+    // select-all then confirm dialog
+    await user.click(checkboxes[0])
+    const bulkBar = await screen.findByRole('status')
+    await user.click(within(bulkBar).getByRole('button', { name: /Approve/i }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /Approve/i }))
+    await waitFor(() => expect(requireElevationMock).toHaveBeenCalled())
+    await waitFor(() => expect(bulkApproveMock).toHaveBeenCalled())
+  })
+
+  it('short-circuits bulk approve when entire selection is own-rows', async () => {
+    const user = userEvent.setup()
+    mockList([
+      sampleSubmission({ id: 'psub_own_a', is_own: true }),
+      sampleSubmission({
+        id: 'psub_own_b',
+        is_own: true,
+        agent: { id: 'usr_2', display_name: 'Own Agent B', avatar_url: null },
+      }),
+    ])
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    const checkboxes = screen.getAllByRole('checkbox')
+    await user.click(checkboxes[0]) // select all
+    const bulkBar = await screen.findByRole('status')
+    await user.click(within(bulkBar).getByRole('button', { name: /Approve/i }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(addToastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'No rows to approve — all selected are your own',
+        variant: 'warning',
+      }),
+    )
+  })
+
+  it('retry publish on portal_error rows', async () => {
+    const user = userEvent.setup()
+    retryMock.mockResolvedValue({ ok: true })
+    mockList([sampleSubmission({ id: 'psub_err', status: 'portal_error' })])
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    await user.click(screen.getByRole('button', { name: /Retry publish/i }))
+    await waitFor(() => expect(retryMock).toHaveBeenCalledWith('psub_err'))
+  })
+
+  it('CSV export builds portals.csv path with active filters', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    renderPage('/admin/moderation/portals?status=pending&portal=bayut&within=24h')
+    await screen.findByText('Sara Al Mansouri')
+    await user.click(screen.getByRole('button', { name: /Export CSV/i }))
+    expect(openSpy).toHaveBeenCalled()
+    const calledPath = String(openSpy.mock.calls[0]?.[0] ?? '')
+    expect(calledPath).toContain('/admin/moderation/portals.csv')
+    expect(calledPath).toContain('status=pending')
+    expect(calledPath).toMatch(/portal=bayut/)
+    expect(portalModerationCsvPath({ status: 'pending', portal: 'bayut', within: '24h' })).toContain(
+      'portals.csv',
+    )
+    openSpy.mockRestore()
+  })
+
+  it('subtitle includes breach-in fragment and avg SLA', async () => {
+    mockList([
+      sampleSubmission({
+        sla_hours_remaining: 1.5,
+        sla_hours_total: 4,
+      }),
+    ])
+    renderPage()
+    await screen.findByText('Sara Al Mansouri')
+    const header = screen.getByRole('heading', { name: /Portal moderation queue/i }).parentElement
+    expect(header?.textContent).toMatch(/at-risk \(breach in/i)
+    expect(header?.textContent).toMatch(/avg/i)
+  })
+
+  it('row action buttons declare 44px tap targets', () => {
+    const src = readFileSync(PAGE_SRC, 'utf8')
+    expect(src).toMatch(/min-h-tap min-w-tap/)
+  })
+})
+
+describe('PA-MOD-001 portalModeration env header', () => {
+  it('readEnvHeader is single-sourced via getWingcasterEnv / WINGCASTER_ENV_HEADER', () => {
+    const src = readFileSync(API_SRC, 'utf8')
+    expect(src).toContain("from '@/hooks/useEnv'")
+    expect(src).toContain('getWingcasterEnv')
+    expect(src).toContain('WINGCASTER_ENV_HEADER')
+    expect(src).not.toMatch(/sessionStorage\.getItem\(['"]wingcaster\.env['"]\)/)
   })
 })
 

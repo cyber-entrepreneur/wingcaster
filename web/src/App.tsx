@@ -13,6 +13,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
 import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
 import { PublishOutcomePage } from '@/pages/agent/PublishOutcomePage'
+import { PortalTrackerPage } from '@/pages/agent/PortalTrackerPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
 import { AgentProfilePage } from '@/pages/AgentProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -54,14 +55,11 @@ import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
-import { PublishReceiptPage } from '@/pages/agent/PublishReceiptPage'
-import { PortalTrackerPage } from '@/pages/agent/PortalTrackerPage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
-import { PortalModerationDetailPage } from '@/pages/admin/PortalModerationDetailPage'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
@@ -131,6 +129,9 @@ function AppRoutes() {
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
       {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
       <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
+      {/* AGT-PUB-006 ledger + receipt deep-link */}
+      <Route path="/publishing/receipts/:id" element={<PublishOutcomePage />} />
+      <Route path="/publishing/tracker" element={<PortalTrackerPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
@@ -197,10 +198,6 @@ function AppRoutes() {
       {/* PA-ACR-002 — account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
       <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
-      <Route
-        path="/admin/moderation/portals/:submissionId"
-        element={<PortalModerationDetailPage />}
-      />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
@@ -226,8 +223,6 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
-      <Route path="/publish/receipts/:jobId" element={<PublishReceiptPage />} />
-      <Route path="/publish/tracker" element={<PortalTrackerPage />} />
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
