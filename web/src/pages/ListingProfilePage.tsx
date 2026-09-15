@@ -4,12 +4,14 @@ import {
   ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
   Globe2, Loader2, Mail, MapPin, Maximize, Megaphone, MessageCircle, MoreHorizontal,
   Phone, Share2, Sparkles, Trash2, Video, X, PlusCircle,
+  type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { formatPrice } from '@/lib/format'
+import { apiErrorMessage } from '@/lib/http-status'
 import {
   LISTING_STATUS_META, LISTING_STATUSES, normalizeStatus, type ListingStatus,
 } from '@/lib/listingStatus'
@@ -27,7 +29,14 @@ import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
 import { ListingFormModal } from '@/components/ListingFormModal'
 import type { Property } from '@/types'
-import type { PricingAnalysis, PricingTrendSnapshot } from '@/types/marketPricing'
+import type {
+  PricingAnalysis,
+  PricingComparableSummary,
+  PricingTrendSnapshot,
+} from '@/types/marketPricing'
+
+/** Property fields used on this page that are not always present on the shared Property type. */
+type ListingProperty = Property & { area_id?: string; area_profile_id?: string }
 
 interface Viewing {
   id: string
@@ -38,6 +47,21 @@ interface Viewing {
   contact_name?: string
   contact_phone?: string
   contact_email?: string
+  property_id?: string
+  listing_id?: string
+}
+
+/** Area summary shape from listing/area API JSON. */
+interface AreaSummary {
+  id: string
+  slug: string
+  name: string
+}
+
+/** fetch/JSON boundary — getArea returns untyped fetchJson payload. */
+interface AreaDetailResponse {
+  area: AreaSummary
+  scores: Array<{ score: number | null }>
 }
 
 type TabKey = 'overview' | 'portals' | 'comms' | 'email' | 'viewings' | 'area'
@@ -48,7 +72,7 @@ export function ListingProfilePage() {
   const { agent } = useAuth()
   const { addToast } = useToast()
 
-  const [property, setProperty] = useState<Property | null>(null)
+  const [property, setProperty] = useState<ListingProperty | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeImage, setActiveImage] = useState(0)
   const [tab, setTab] = useState<TabKey>('overview')
@@ -61,7 +85,7 @@ export function ListingProfilePage() {
   // Market pricing (existing engine — surfaced in Overview tab)
   const [pricingAnalysis, setPricingAnalysis] = useState<PricingAnalysis | null>(null)
   const [pricingTrends, setPricingTrends] = useState<PricingTrendSnapshot[]>([])
-  const [pricingComparables, setPricingComparables] = useState<any[]>([])
+  const [pricingComparables, setPricingComparables] = useState<PricingComparableSummary[]>([])
   const [showComparables, setShowComparables] = useState(false)
 
   // Viewings tab
@@ -80,8 +104,8 @@ export function ListingProfilePage() {
       const p = await api.getProperty(id)
       setProperty(p)
       setActiveImage(0)
-    } catch (err: any) {
-      addToast({ title: 'Could not load listing', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not load listing', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -93,12 +117,18 @@ export function ListingProfilePage() {
     if (!id || !property) return
     api.getPricingAnalysis(id).then(setPricingAnalysis).catch(() => setPricingAnalysis(null))
     api.getPricingComparables(id)
-      .then((rows: any) => setPricingComparables(Array.isArray(rows) ? rows : []))
+      .then((rows: unknown) => {
+        setPricingComparables(
+          Array.isArray(rows) ? (rows as PricingComparableSummary[]) : [],
+        )
+      })
       .catch(() => setPricingComparables([]))
-    const areaId = (property as any).area_id ?? (property as any).area_profile_id
+    const areaId = property.area_id ?? property.area_profile_id
     if (areaId && property.property_type) {
       api.getPricingTrends(String(areaId), String(property.property_type))
-        .then((rows: any) => setPricingTrends(Array.isArray(rows) ? rows : []))
+        .then((rows: unknown) => {
+          setPricingTrends(Array.isArray(rows) ? (rows as PricingTrendSnapshot[]) : [])
+        })
         .catch(() => setPricingTrends([]))
     } else {
       setPricingTrends([])
@@ -107,9 +137,9 @@ export function ListingProfilePage() {
 
   useEffect(() => {
     if (!id || tab !== 'viewings') return
-    api.getViewings().then((rows: any) => {
-      const list: Viewing[] = Array.isArray(rows) ? rows : []
-      setViewings(list.filter((v: any) => v.property_id === id || v.listing_id === id))
+    api.getViewings().then((rows: unknown) => {
+      const list: Viewing[] = Array.isArray(rows) ? (rows as Viewing[]) : []
+      setViewings(list.filter((v) => v.property_id === id || v.listing_id === id))
     }).catch(() => setViewings([]))
   }, [id, tab])
 
@@ -132,8 +162,8 @@ export function ListingProfilePage() {
       if (next === 'archived' && status !== 'archived') {
         setClosureModalOpen(true)
       }
-    } catch (err: any) {
-      addToast({ title: 'Could not update status', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not update status', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setStatusBusy(false)
     }
@@ -148,8 +178,8 @@ export function ListingProfilePage() {
       await api.deleteProperty(property.id)
       addToast({ title: 'Listing deleted', variant: 'success' })
       navigate('/listings')
-    } catch (err: any) {
-      addToast({ title: 'Could not delete', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not delete', description: apiErrorMessage(err), variant: 'error' })
       setDeleteBusy(false)
     }
   }
@@ -480,9 +510,9 @@ export function ListingProfilePage() {
           onClose={() => setScheduleOpen(null)}
           onSaved={() => {
             setScheduleOpen(null)
-            api.getViewings().then((rows: any) => {
-              const list: Viewing[] = Array.isArray(rows) ? rows : []
-              setViewings(list.filter((v: any) => v.property_id === property.id || v.listing_id === property.id))
+            api.getViewings().then((rows: unknown) => {
+              const list: Viewing[] = Array.isArray(rows) ? (rows as Viewing[]) : []
+              setViewings(list.filter((v) => v.property_id === property.id || v.listing_id === property.id))
             })
           }}
         />
@@ -515,7 +545,7 @@ export function ListingProfilePage() {
 
 /* -------------------------------- Sub-components -------------------------------- */
 
-function Fact({ icon: Icon, label }: { icon: any; label: string }) {
+function Fact({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
       <Icon className="h-4 w-4" />
@@ -603,7 +633,7 @@ function MetaGrid({ property }: { property: Property }) {
 
 function StubTab({
   icon: Icon, title, phase, body,
-}: { icon: any; title: string; phase: string; body: string }) {
+}: { icon: LucideIcon; title: string; phase: string; body: string }) {
   return (
     <Card className="border-dashed">
       <CardContent className="flex items-start gap-4 py-8">
@@ -692,8 +722,8 @@ function ScheduleModal({
       }
       addToast({ title: kind === 'viewing' ? 'Viewing scheduled' : 'Call scheduled', variant: 'success' })
       onSaved()
-    } catch (err: any) {
-      addToast({ title: 'Could not schedule', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not schedule', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setBusy(false)
     }
@@ -782,7 +812,7 @@ interface AgentConnection {
   account_name?: string
   status: string
   health?: string
-  settings?: Record<string, any>
+  settings?: Record<string, unknown>
 }
 
 function PublishSocialTab({ property }: { property: Property }) {
@@ -807,7 +837,7 @@ function PublishSocialTab({ property }: { property: Property }) {
     Promise.all([
       api.getPlatforms().catch(() => []),
       api.getMyConnections().catch(() => []),
-    ]).then(([plats, conns]: any[]) => {
+    ]).then(([plats, conns]: [PlatformInfo[], AgentConnection[]]) => {
       if (cancelled) return
       setPlatforms(Array.isArray(plats) ? plats : [])
       setConnections(Array.isArray(conns) ? conns : [])
@@ -855,8 +885,8 @@ function PublishSocialTab({ property }: { property: Property }) {
       } else {
         addToast({ title: `${okCount} of ${r.results.length} channels published`, variant: 'warning' })
       }
-    } catch (err: any) {
-      addToast({ title: 'Publish failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Publish failed', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setPublishing(false)
     }
@@ -1049,8 +1079,8 @@ function AiDescribeModal({
       setResult(r)
       setDraftTitle(r.property.title || property.title || '')
       setDraftDescription(r.property.description || '')
-    } catch (err: any) {
-      addToast({ title: 'AI draft failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'AI draft failed', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setBusy(false)
     }
@@ -1068,8 +1098,8 @@ function AiDescribeModal({
       })
       addToast({ title: 'Applied to listing', variant: 'success' })
       onApplied({ ...property, ...updated, title: draftTitle.trim() || property.title, description: draftDescription.trim() || property.description })
-    } catch (err: any) {
-      addToast({ title: 'Could not apply', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not apply', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setApplying(false)
     }
@@ -1201,8 +1231,8 @@ function InsightsSection({ listingId }: { listingId: string }) {
     try {
       const rows = await api.getDistributions(listingId)
       setDists(rows.filter((d) => d.status === 'published' && d.external_id))
-    } catch (err: any) {
-      addToast({ title: 'Could not load distributions', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not load distributions', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -1217,8 +1247,8 @@ function InsightsSection({ listingId }: { listingId: string }) {
       await api.refreshDistributionInsights(id)
       addToast({ title: 'Insights refreshed', variant: 'success' })
       load()
-    } catch (err: any) {
-      addToast({ title: 'Insights refresh failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Insights refresh failed', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setRefreshingId(null)
     }
@@ -1359,7 +1389,7 @@ const SENTIMENT_DOT: Record<string, string> = {
 
 function PropertyScorePanel({ listingId }: { listingId: string }) {
   const [loading, setLoading] = useState(true)
-  const [area, setArea] = useState<{ id: string; slug: string; name: string } | null>(null)
+  const [area, setArea] = useState<AreaSummary | null>(null)
   const [livability, setLivability] = useState<number | null>(null)
   const [scoreCount, setScoreCount] = useState(0)
 
@@ -1368,11 +1398,13 @@ function PropertyScorePanel({ listingId }: { listingId: string }) {
     setLoading(true)
     ;(async () => {
       try {
-        const r = await api.getListingArea(listingId) as { area: any }
+        // getListingArea is already typed; keep AreaSummary for the local panel state.
+        const r = await api.getListingArea(listingId)
         if (cancelled) return
         if (!r.area) { setArea(null); setLoading(false); return }
         setArea(r.area)
-        const full = await api.getArea(r.area.slug) as { area: any; scores: Array<{ score: number | null }> }
+        // fetch/JSON boundary cast — getArea is untyped fetchJson.
+        const full = await api.getArea(r.area.slug) as AreaDetailResponse
         if (cancelled) return
         setScoreCount(full.scores.length)
         const nums = full.scores.map((s) => s.score).filter((v): v is number => v != null && Number.isFinite(v))
@@ -1470,8 +1502,8 @@ function CommentsSection({ listingId }: { listingId: string }) {
       setPublishedPosts(r.published_posts)
       setSummary(r.summary || {})
       setCategoryMeta(r.category_meta || {})
-    } catch (err: any) {
-      addToast({ title: 'Could not load comments', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not load comments', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -1488,8 +1520,8 @@ function CommentsSection({ listingId }: { listingId: string }) {
       setReplyText('')
       setReplyOpenFor(null)
       load()
-    } catch (err: any) {
-      addToast({ title: 'Reply failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Reply failed', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setReplyBusy(false)
     }
@@ -1501,8 +1533,8 @@ function CommentsSection({ listingId }: { listingId: string }) {
       await api.sendConversationMessage(conversationId, text.trim())
       addToast({ title: 'Suggested reply sent', variant: 'success' })
       load()
-    } catch (err: any) {
-      addToast({ title: 'Reply failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Reply failed', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -1512,8 +1544,8 @@ function CommentsSection({ listingId }: { listingId: string }) {
       addToast({ title: 'Reclassified', variant: 'success' })
       setReclassifyOpenFor(null)
       load()
-    } catch (err: any) {
-      addToast({ title: 'Reclassify failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Reclassify failed', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 

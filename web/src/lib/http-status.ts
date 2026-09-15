@@ -8,3 +8,13 @@ export function httpStatus(err: unknown): number | undefined {
 export function isNotFound(err: unknown): boolean {
   return httpStatus(err) === 404
 }
+
+/** Safe message extraction for toast/error UI from `unknown` catch values. */
+export function apiErrorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  if (err instanceof Error && err.message) return err.message
+  if (typeof err === 'object' && err && 'message' in err) {
+    const message = (err as { message: unknown }).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
+}
