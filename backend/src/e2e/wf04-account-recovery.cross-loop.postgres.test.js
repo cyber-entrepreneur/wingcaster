@@ -326,7 +326,7 @@ finPostgresSuite('WF-04 cross-loop account recovery (Wave 3 Agent 4)', { seed: f
     expect(limited.body.retry_after_seconds).toBe(3600)
   })
 
-  // TODO(WF-04 / backend coordination): SLA-lapse cron that auto-transitions stuck
+  // TODO(WF-04 / #164): SLA-lapse cron that auto-transitions stuck
   // pending_review cases to status='expired' is NOT on this branch.
   // Expected home (when implemented): backend/src/workers/account-recovery-sla-lapse.js
   // (or similar) — mirror agency-application-expiry.js / report-expiry-worker.js.
