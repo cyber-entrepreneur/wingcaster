@@ -132,8 +132,9 @@ describe('WhatsAppIntakeTourPage (AGT-ONB-002)', () => {
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
     renderPage()
-    expect(await screen.findByText(/Code expired/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Get a new code/i })).toBeInTheDocument()
+    // Badge + sr-only both include "Code expired" — assert the recovery UI, not a unique string.
+    expect(await screen.findByRole('button', { name: /Get a new code/i })).toBeInTheDocument()
+    expect(document.querySelector('[data-activation-status="expired"]')).not.toBeNull()
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
