@@ -66,7 +66,7 @@ export function useDashboardLayout(tenantId?: string | null): UseDashboardLayout
   const [loading, setLoading] = useState(true)
   const knownUpdatedAt = useRef<string | null>(null)
   const retryCount = useRef(0)
-  const persistTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const persistTimersRef = useRef<number[]>([])
   const mountedRef = useRef(true)
 
   useEffect(() => {
