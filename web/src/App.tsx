@@ -67,8 +67,6 @@ import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
-import { PriceReportQueuePage } from '@/pages/admin/valuation/PriceReportQueuePage'
-import { PriceReportDetailPage } from '@/pages/admin/valuation/PriceReportDetailPage'
 import {
   BadComparableQueuePage,
   BadComparableDetailPage,
