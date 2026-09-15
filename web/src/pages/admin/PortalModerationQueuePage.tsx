@@ -44,6 +44,14 @@ import {
 import { EnvBadge } from '@/components/nav/EnvBadge'
 import { Button } from '@/components/ui/button'
 import { ChannelMark } from '@/components/ui/channel-mark'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Numeric } from '@/components/ui/numeric'
 import { useToast } from '@/components/ui/toast'
 import { useStepUp } from '@/context/StepUpContext'
@@ -295,8 +303,22 @@ export function PortalModerationQueuePage() {
   const [reasonDialog, setReasonDialog] = useState<ReasonDialogState>(null)
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null)
   const [searchDraft, setSearchDraft] = useState(filters.search)
+  const [envSwitchConfirmOpen, setEnvSwitchConfirmOpen] = useState(false)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchGen = useRef(0)
+  const reconcileSelectionRef = useRef(false)
+  const prevEnvRef = useRef(env)
+  const pendingEnvRefetchRef = useRef(false)
+  const dirtyActionRef = useRef({
+    reasonOpen: false,
+    selectedCount: 0,
+    bulkApproveOpen: false,
+  })
+  dirtyActionRef.current = {
+    reasonOpen: reasonDialog !== null,
+    selectedCount: selectedIds.length,
+    bulkApproveOpen,
+  }
 
   const patchParams = useCallback(
     (patch: Record<string, string | null | undefined>, opts?: { resetPage?: boolean }) => {
@@ -352,6 +374,23 @@ export function PortalModerationQueuePage() {
         if (prev && nextRows.some((r) => r.id === prev)) return prev
         return nextRows[0]?.id ?? null
       })
+      if (reconcileSelectionRef.current) {
+        reconcileSelectionRef.current = false
+        setSelectedIds((prev) => {
+          if (prev.length === 0) return prev
+          const visible = new Set(nextRows.map((r) => r.id))
+          const kept = prev.filter((id) => visible.has(id))
+          if (kept.length < prev.length) {
+            queueMicrotask(() =>
+              addToast({
+                title: 'Selection cleared — filter changed',
+                variant: 'default',
+              }),
+            )
+          }
+          return kept
+        })
+      }
     } catch (err) {
       if (gen !== fetchGen.current) return
       const status = (err as { status?: number })?.status
@@ -368,6 +407,7 @@ export function PortalModerationQueuePage() {
       if (gen === fetchGen.current) setLoading(false)
     }
   }, [
+    addToast,
     countryFilter,
     filters.riskTier,
     filters.search,
@@ -379,6 +419,15 @@ export function PortalModerationQueuePage() {
   ])
 
   useEffect(() => {
+    if (prevEnvRef.current !== env) {
+      prevEnvRef.current = env
+      const dirty = dirtyActionRef.current
+      if (dirty.reasonOpen || dirty.selectedCount > 0 || dirty.bulkApproveOpen) {
+        pendingEnvRefetchRef.current = true
+        setEnvSwitchConfirmOpen(true)
+        return
+      }
+    }
     void loadQueue()
   }, [loadQueue, env])
 
@@ -395,8 +444,8 @@ export function PortalModerationQueuePage() {
   useEffect(() => {
     const handle = window.setTimeout(() => {
       if (searchDraft === filters.search) return
+      reconcileSelectionRef.current = true
       patchParams({ q: searchDraft.trim() || null })
-      setSelectedIds([])
     }, SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(handle)
   }, [filters.search, patchParams, searchDraft])
@@ -440,6 +489,59 @@ export function PortalModerationQueuePage() {
     [selectedRows],
   )
   const ownInSelection = useMemo(() => selectedRows.filter((r) => r.is_own || r.isOwn).length, [selectedRows])
+  const actionableSelectedRows = useMemo(
+    () => selectedRows.filter((r) => !(r.is_own || r.isOwn)),
+    [selectedRows],
+  )
+
+  const nearestBreachLabel = useMemo(() => {
+    if (counts.pending_at_risk <= 0) return null
+    const pending = rows.filter(
+      (r) => r.status === 'pending' && Number.isFinite(r.sla_hours_remaining),
+    )
+    if (pending.length === 0) return null
+    const atRisk = pending.filter((r) => r.sla_hours_remaining < 2)
+    const pool = atRisk.length > 0 ? atRisk : pending
+    const nearest = Math.min(...pool.map((r) => r.sla_hours_remaining))
+    if (nearest < 0) return 'now'
+    const rounded = Math.round(nearest * 10) / 10
+    return `${rounded}h`
+  }, [counts.pending_at_risk, rows])
+
+  const avgSlaLabel = useMemo(() => {
+    const pending = rows.filter(
+      (r) => r.status === 'pending' && Number.isFinite(r.sla_hours_remaining),
+    )
+    if (pending.length === 0) return null
+    const avg =
+      pending.reduce((sum, r) => sum + r.sla_hours_remaining, 0) / pending.length
+    const rounded = Math.round(avg * 10) / 10
+    return `${rounded}h`
+  }, [rows])
+
+  const toastAllOwnSelected = (action: 'approve' | 'reject' | 'request_info') => {
+    const title =
+      action === 'approve'
+        ? 'No rows to approve — all selected are your own'
+        : action === 'reject'
+          ? 'No rows to reject — all selected are your own'
+          : 'No rows to request info — all selected are your own'
+    addToast({ title, variant: 'warning' })
+  }
+
+  const confirmEnvSwitchDiscard = () => {
+    setEnvSwitchConfirmOpen(false)
+    pendingEnvRefetchRef.current = false
+    setSelectedIds([])
+    setReasonDialog(null)
+    setBulkApproveOpen(false)
+    void loadQueue()
+  }
+
+  const cancelEnvSwitchDiscard = () => {
+    setEnvSwitchConfirmOpen(false)
+    pendingEnvRefetchRef.current = false
+  }
 
   const detailHref = useCallback(
     (id: string) => {
@@ -596,14 +698,17 @@ export function PortalModerationQueuePage() {
     }
 
     // Bulk — commits immediately, no undo
-    const actionable = selectedRows.filter((r) => !(r.is_own || r.isOwn))
+    const actionable = actionableSelectedRows
+    if (actionable.length === 0) {
+      toastAllOwnSelected(reasonDialog.mode)
+      return
+    }
     if (ownInSelection > 0) {
       addToast({
         variant: 'warning',
         title: `${ownInSelection} rows will be skipped — you are agent-of-record for them.`,
       })
     }
-    if (actionable.length === 0) return
     const ok = await ensureStepUp(
       needsStepUpForBulk(actionable.length, highRiskCount),
       `Confirm your identity to ${reasonDialog.mode} ${actionable.length} submissions.`,
@@ -635,14 +740,17 @@ export function PortalModerationQueuePage() {
   }
 
   const commitBulkApprove = async () => {
-    const actionable = selectedRows.filter((r) => !(r.is_own || r.isOwn))
+    const actionable = actionableSelectedRows
+    if (actionable.length === 0) {
+      toastAllOwnSelected('approve')
+      return
+    }
     if (ownInSelection > 0) {
       addToast({
         variant: 'warning',
         title: `${ownInSelection} rows will be skipped — you are agent-of-record for them.`,
       })
     }
-    if (actionable.length === 0) return
     const ok = await ensureStepUp(
       needsStepUpForBulk(actionable.length, highRiskCount),
       `Confirm your identity to approve ${actionable.length} submissions.`,
@@ -1009,7 +1117,7 @@ export function PortalModerationQueuePage() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="border-[var(--lc-action-primary)] text-[var(--lc-action-primary)]"
+                    className="min-h-tap min-w-tap border-[var(--lc-action-primary)] text-[var(--lc-action-primary)]"
                     onClick={() => void runSingleApprove(row)}
                   >
                     Approve
@@ -1018,6 +1126,7 @@ export function PortalModerationQueuePage() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    className="min-h-tap min-w-tap"
                     onClick={() =>
                       setReasonDialog({ mode: 'reject', scope: 'single', rowId: row.id })
                     }
@@ -1028,6 +1137,7 @@ export function PortalModerationQueuePage() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    className="min-h-tap min-w-tap"
                     onClick={() =>
                       setReasonDialog({ mode: 'request_info', scope: 'single', rowId: row.id })
                     }
@@ -1046,6 +1156,7 @@ export function PortalModerationQueuePage() {
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="min-h-tap min-w-tap"
                   onClick={() => {
                     void runElevated(
                       () => retryPublishPortalSubmission(row.id),
@@ -1061,7 +1172,13 @@ export function PortalModerationQueuePage() {
                   Retry publish
                 </Button>
               ) : null}
-              <Button type="button" size="sm" variant="outline" onClick={() => openDetail(row)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-tap min-w-tap"
+                onClick={() => openDetail(row)}
+              >
                 Open
               </Button>
             </div>
@@ -1169,9 +1286,9 @@ export function PortalModerationQueuePage() {
             style={{ font: 'var(--lc-type-body-sm)' }}
           >
             <Numeric>{counts.pending}</Numeric> pending ·{' '}
-            <Numeric>{counts.pending_at_risk}</Numeric> at-risk ·{' '}
-            <Numeric>{counts.approved_this_week}</Numeric> approved ·{' '}
-            <Numeric>{counts.rejected_this_week}</Numeric> rejected this week
+            <Numeric>{counts.pending_at_risk}</Numeric> at-risk (breach in{' '}
+            <Numeric>{nearestBreachLabel ?? '—'}</Numeric>) · avg{' '}
+            <Numeric>{avgSlaLabel ?? '—'}</Numeric>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1238,13 +1355,13 @@ export function PortalModerationQueuePage() {
         disabled={loading}
         onChange={(next) => {
           setSearchDraft(next.search)
+          reconcileSelectionRef.current = true
           patchParams({
             status: next.status,
             within: next.submittedWithin,
             risk: next.riskTier === 'any' ? null : next.riskTier,
             q: next.search.trim() || null,
           })
-          setSelectedIds([])
         }}
         customFilters={
           <>
@@ -1258,8 +1375,8 @@ export function PortalModerationQueuePage() {
                 value={portalFilter}
                 disabled={loading}
                 onChange={(e) => {
+                  reconcileSelectionRef.current = true
                   patchParams({ portal: e.target.value || null })
-                  setSelectedIds([])
                 }}
               >
                 <option value="">Any portal</option>
@@ -1280,8 +1397,8 @@ export function PortalModerationQueuePage() {
                 value={countryFilter}
                 disabled={loading}
                 onChange={(e) => {
+                  reconcileSelectionRef.current = true
                   patchParams({ country: e.target.value || null })
-                  setSelectedIds([])
                 }}
               >
                 <option value="">Any country</option>
@@ -1303,9 +1420,27 @@ export function PortalModerationQueuePage() {
           acrossCount={acrossPortals}
           highRiskCount={highRiskCount}
           onClearSelection={() => setSelectedIds([])}
-          onApprove={() => setBulkApproveOpen(true)}
-          onReject={() => setReasonDialog({ mode: 'reject', scope: 'bulk' })}
-          onRequestInfo={() => setReasonDialog({ mode: 'request_info', scope: 'bulk' })}
+          onApprove={() => {
+            if (actionableSelectedRows.length === 0) {
+              toastAllOwnSelected('approve')
+              return
+            }
+            setBulkApproveOpen(true)
+          }}
+          onReject={() => {
+            if (actionableSelectedRows.length === 0) {
+              toastAllOwnSelected('reject')
+              return
+            }
+            setReasonDialog({ mode: 'reject', scope: 'bulk' })
+          }}
+          onRequestInfo={() => {
+            if (actionableSelectedRows.length === 0) {
+              toastAllOwnSelected('request_info')
+              return
+            }
+            setReasonDialog({ mode: 'request_info', scope: 'bulk' })
+          }}
         />
       </div>
 
@@ -1427,6 +1562,30 @@ export function PortalModerationQueuePage() {
       />
 
       <PAQueueKeyboardShortcutsPanel open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      <Dialog
+        open={envSwitchConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) cancelEnvSwitchDiscard()
+        }}
+      >
+        <DialogContent data-testid="pa-mod-env-switch-confirm">
+          <DialogHeader>
+            <DialogTitle>Switch environment?</DialogTitle>
+            <DialogDescription>
+              Switching env will discard your current action / selection. Continue?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={cancelEnvSwitchDiscard}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmEnvSwitchDiscard}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

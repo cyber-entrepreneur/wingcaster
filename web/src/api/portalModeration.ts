@@ -6,6 +6,7 @@
  * Backend surface `[BE-BLOCKER-02b]` may still be landing; callers must handle 404.
  */
 import { API_BASE, getElevatedToken } from '@/api/client'
+import { getWingcasterEnv, WINGCASTER_ENV_HEADER } from '@/hooks/useEnv'
 
 export type PortalModerationStatus =
   | 'pending'
@@ -144,16 +145,6 @@ export const REQUEST_INFO_REASON_OPTIONS = [
   { value: 'other', label: 'Other' },
 ] as const
 
-function readEnvHeader(): 'live' | 'test' {
-  try {
-    const raw = sessionStorage.getItem('wingcaster.env') ?? localStorage.getItem('wingcaster.env')
-    if (raw === 'test' || raw === 'TEST') return 'test'
-  } catch {
-    /* private mode */
-  }
-  return 'live'
-}
-
 function readAuthToken(): string | null {
   try {
     return localStorage.getItem('fi_token') || localStorage.getItem('sa_token')
@@ -168,7 +159,8 @@ function buildHeaders(): Record<string, string> {
   if (token) h.Authorization = `Bearer ${token}`
   const elevated = getElevatedToken()
   if (elevated) h['X-Elevated-Token'] = elevated
-  h['X-Wingcaster-Env'] = readEnvHeader()
+  // Single-sourced from useEnv store / WINGCASTER_ENV_HEADER (PA-NAV-001).
+  h[WINGCASTER_ENV_HEADER] = getWingcasterEnv()
   return h
 }
 
