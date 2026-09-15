@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { api, clearAuthToken, clearElevatedToken, setAuthToken } from '@/api/client'
 import type { LoginOutcome } from '@/types/twoFactor'
 
-interface Agent {
+export interface Agent {
   id: string
   name: string
   email: string
@@ -18,6 +18,13 @@ interface Agent {
   bio?: string
   role?: string
   platform_role?: 'platform_admin' | null
+  slug?: string
+  ui_mode?: string
+  uiMode?: string
+  onboarding_status?: string
+  onboarding_stage?: string
+  onboarding_steps?: Record<string, boolean>
+  preferred_locale?: string
   [key: string]: unknown
 }
 
@@ -100,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completeTwoFactor = async (challengeId: string, code: string) => {
     const res = await api.twoFactorChallenge(challengeId, code)
-    await adoptSession({ token: res.token })
+    await adoptSession(res)
   }
 
   const register = async (data: Record<string, unknown>) => {
