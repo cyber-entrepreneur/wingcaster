@@ -8,6 +8,8 @@ import {
 import { cn } from '@/lib/utils'
 import { Numeric } from '@/components/ui/numeric'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/hooks/useLocale'
+import { t, type DashboardCopyKey } from '@/pages/agent/dashboard/copy'
 
 export type DashboardDensity = 'compact' | 'comfortable' | 'spacious'
 
@@ -94,6 +96,8 @@ export function WidgetCard({
   onRemove,
   dragHandleClassName,
 }: WidgetCardProps) {
+  const { isArabic } = useLocale()
+  const copyLocale = isArabic ? 'ar' : 'en'
   const spanClass =
     span === 12
       ? 'md:col-span-12'
@@ -127,8 +131,8 @@ export function WidgetCard({
             'inline-flex h-tap w-tap cursor-grab items-center justify-center rounded-md text-[var(--lc-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--lc-text-brand)] active:cursor-grabbing',
             dragHandleClassName,
           )}
-          aria-label={`Drag ${title}`}
-          title="Drag to rearrange"
+          aria-label={t('aria.drag', copyLocale, { title })}
+          title={t('aria.dragTitle', copyLocale)}
         >
           <GripVertical className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -136,7 +140,7 @@ export function WidgetCard({
           <button
             type="button"
             className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
-            aria-label={`Fullscreen ${title}`}
+            aria-label={t('aria.fullscreen', copyLocale, { title })}
             onClick={onFullscreen}
           >
             <Maximize2 className="h-4 w-4" aria-hidden="true" />
@@ -146,10 +150,10 @@ export function WidgetCard({
           <button
             type="button"
             className="inline-flex h-tap w-tap items-center justify-center rounded-md text-[var(--lc-text-muted)] hover:text-[var(--lc-status-unpublished-fg)]"
-            aria-label={`Remove ${title}`}
+            aria-label={t('aria.remove', copyLocale, { title })}
             onClick={onRemove}
           >
-            <span className="sr-only">Remove</span>
+            <span className="sr-only">{t('aria.removeSr', copyLocale)}</span>
             ×
           </button>
         ) : null}
@@ -166,16 +170,22 @@ export interface QuickActionsBarProps {
   saveState?: 'idle' | 'saving' | 'saved'
 }
 
-const QUICK_ACTIONS = [
-  { id: 'listing', label: 'New listing' },
-  { id: 'contact', label: 'Contact' },
-  { id: 'task', label: 'Task' },
-  { id: 'publish', label: 'Publish' },
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'search', label: 'Search' },
-] as const
+const QUICK_ACTIONS: ReadonlyArray<{ id: string; labelKey: DashboardCopyKey }> = [
+  { id: 'listing', labelKey: 'action.newListing' },
+  { id: 'contact', labelKey: 'action.contact' },
+  { id: 'task', labelKey: 'action.task' },
+  { id: 'publish', labelKey: 'action.publish' },
+  { id: 'inbox', labelKey: 'action.inbox' },
+  { id: 'search', labelKey: 'action.search' },
+]
 
 const DENSITIES: DashboardDensity[] = ['compact', 'comfortable', 'spacious']
+
+const DENSITY_KEYS: Record<DashboardDensity, DashboardCopyKey> = {
+  compact: 'density.compact',
+  comfortable: 'density.comfortable',
+  spacious: 'density.spacious',
+}
 
 export function QuickActionsBar({
   density,
@@ -183,6 +193,9 @@ export function QuickActionsBar({
   onAction,
   saveState = 'idle',
 }: QuickActionsBarProps) {
+  const { isArabic } = useLocale()
+  const copyLocale = isArabic ? 'ar' : 'en'
+
   return (
     <div
       className="sticky top-14 z-20 flex flex-wrap items-center gap-[var(--lc-space-xs)] border-b border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]"
@@ -196,19 +209,19 @@ export function QuickActionsBar({
           size="default"
           onClick={() => onAction?.(action.id)}
         >
-          {action.label}
+          {t(action.labelKey, copyLocale)}
         </Button>
       ))}
 
       <div className="ms-auto flex flex-wrap items-center gap-[var(--lc-space-xs)]">
         {saveState !== 'idle' ? (
           <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            {saveState === 'saving' ? 'Saving…' : 'Saved'}
+            {saveState === 'saving' ? t('save.saving', copyLocale) : t('save.saved', copyLocale)}
           </span>
         ) : null}
         <div
           role="radiogroup"
-          aria-label="Dashboard density"
+          aria-label={t('density.aria', copyLocale)}
           className="flex items-center gap-1 rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] p-0.5"
         >
           {DENSITIES.map((d) => {
@@ -228,13 +241,13 @@ export function QuickActionsBar({
                 )}
                 style={{ font: 'var(--lc-type-caption)' }}
               >
-                {d}
+                {t(DENSITY_KEYS[d], copyLocale)}
               </button>
             )
           })}
         </div>
         <Button type="button" variant="outline" onClick={() => onAction?.('add-widget')}>
-          Add widget +
+          {t('action.addWidgetPlus', copyLocale)}
         </Button>
       </div>
     </div>
