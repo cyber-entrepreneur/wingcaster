@@ -19,14 +19,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useLocale } from '@/hooks/useLocale'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import { discardDraft } from './intakeApi'
 import { useOnboardingState } from '@/hooks/useOnboardingState'
 import { markWhatsAppIntakeProgress } from './useOnboardingState'
 import { useDraftProgress } from './useDraftProgress'
 import { useOnlineStatus } from './useOnlineStatus'
 import { buildWaMeLink } from './waMeLink'
-import { buildCompletionPath } from './tour'
+import { buildCompletionPath, TOUR_STEPS } from './tour'
 import { StickyCtaBar, WhatsAppTourShell } from './WhatsAppTourShell'
+import { waLocale, waT, type WaLocale } from './copy'
 
 export interface DraftingLocationState {
   draft_session_id?: string
@@ -42,6 +45,8 @@ export function ListingDraftingPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
+  const { isArabic } = useLocale()
+  const locale = waLocale(isArabic)
   const onboarding = useOnboardingState()
   const online = useOnlineStatus()
   const routeState = (location.state || {}) as DraftingLocationState
@@ -55,7 +60,7 @@ export function ListingDraftingPage() {
   const fadeTimer = useRef<number | null>(null)
   const liveRef = useRef<HTMLDivElement>(null)
 
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = usePrefersReducedMotion()
 
   useEffect(() => {
     if (!progress.isReady || phase === 'ready') return
@@ -102,7 +107,7 @@ export function ListingDraftingPage() {
     const listingId = progress.draftId || listing.id || sessionId
     await markWhatsAppIntakeProgress(onboarding, { kind: 'draft_ready', listingId })
     addToast({
-      title: 'Your listing is saved as a draft. Publish anytime.',
+      title: waT('draft.toast.saved', locale),
       variant: 'success',
     })
     navigate('/agent/whatsapp-listings')
@@ -110,7 +115,7 @@ export function ListingDraftingPage() {
 
   const onEditLater = () => {
     addToast({
-      title: "We'll keep drafting — find it in your Drafts tab.",
+      title: waT('draft.toast.editLater', locale),
       variant: 'default',
     })
     navigate('/agent/whatsapp-listings')
@@ -119,29 +124,41 @@ export function ListingDraftingPage() {
   const onCancelConfirm = async () => {
     setCancelling(true)
     if (progress.draftId) {
-      await discardDraft(progress.draftId)
+      const result = await discardDraft(progress.draftId)
+      if (!result.ok) {
+        addToast({ title: waT('draft.toast.cancelError', locale), variant: 'error' })
+        setCancelling(false)
+        return
+      }
     }
-    addToast({ title: 'Draft cancelled.', variant: 'default' })
+    addToast({ title: waT('draft.toast.cancelled', locale), variant: 'default' })
     navigate('/dashboard')
   }
 
+  const tourStep = phase === 'ready' ? TOUR_STEPS.ready : TOUR_STEPS.drafting
+
   if (progress.error && !progress.isReady) {
     return (
-      <WhatsAppTourShell step={5} title="Drafting your listing" offline={!online}>
+      <WhatsAppTourShell
+        step={TOUR_STEPS.drafting}
+        title={waT('draft.title', locale)}
+        offline={!online}
+        offlineMessage={waT('shell.offline.drafting', locale)}
+      >
         <div className="mx-auto max-w-lg px-[var(--lc-space-md)] py-[var(--lc-space-xl)] text-center">
           <AlertOctagon className="mx-auto h-10 w-10 text-[var(--lc-text-brand)]" aria-hidden />
           <h1 className="mt-[var(--lc-space-md)] text-[length:var(--lc-type-heading-1)] text-[var(--lc-text-primary)]">
-            We couldn't finish your draft
+            {waT('draft.error.title', locale)}
           </h1>
           <p className="mt-[var(--lc-space-sm)] text-[length:var(--lc-type-body-lg)] text-[var(--lc-text-secondary)]">
-            {progress.error}. Send another WhatsApp message to try again.
+            {waT('draft.error.body', locale, { error: progress.error })}
           </p>
           <div className="mt-[var(--lc-space-lg)] flex flex-col gap-2">
             <Button type="button" size="lg" onClick={() => navigate('/onboarding/whatsapp/waiting')}>
-              Back to WhatsApp
+              {waT('draft.error.back', locale)}
             </Button>
             <Button type="button" variant="ghost" onClick={() => navigate('/dashboard')}>
-              Contact support
+              {waT('draft.error.support', locale)}
             </Button>
           </div>
         </div>
@@ -154,10 +171,10 @@ export function ListingDraftingPage() {
 
   return (
     <WhatsAppTourShell
-      step={5}
-      title={drafting ? 'Drafting your listing' : 'Your listing is ready'}
+      step={tourStep}
+      title={drafting ? waT('draft.title', locale) : waT('draft.ready.titleBar', locale)}
       offline={!online}
-      offlineMessage="You're offline — drafting continues on our side."
+      offlineMessage={waT('shell.offline.drafting', locale)}
     >
       <div
         className="transition-opacity duration-[var(--lc-duration-slow)] ease-[var(--lc-easing-emphasis)] motion-reduce:transition-none"
@@ -170,6 +187,9 @@ export function ListingDraftingPage() {
             routeState={routeState}
             waLink={waLink}
             online={online}
+            locale={locale}
+            onCancel={() => setCancelOpen(true)}
+            onEditLater={onEditLater}
           />
         ) : (
           <ReadyBody
@@ -177,6 +197,7 @@ export function ListingDraftingPage() {
             onReview={() => void onReview()}
             publishing={publishing}
             liveRef={liveRef}
+            locale={locale}
           />
         )}
       </div>
@@ -186,10 +207,10 @@ export function ListingDraftingPage() {
           <div className="flex flex-col gap-[var(--lc-space-xs)]">
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
               <Button type="button" variant="ghost" className="text-[var(--lc-text-muted)]" onClick={() => setCancelOpen(true)}>
-                Cancel this draft
+                {waT('draft.cta.cancel', locale)}
               </Button>
               <Button type="button" variant="ghost" className="text-[var(--lc-text-muted)]" onClick={onEditLater}>
-                Edit later
+                {waT('draft.cta.editLater', locale)}
               </Button>
             </div>
             <Button
@@ -201,14 +222,14 @@ export function ListingDraftingPage() {
               onClick={() => void onReview()}
             >
               {progress.isReady ? (
-                'Review & publish →'
+                waT('draft.cta.review', locale)
               ) : (
                 <>
-                  Drafting… (
+                  {waT('draft.cta.drafting', locale)} (
                   <Numeric>
                     {progress.completedCount}/{progress.totalCount}
                   </Numeric>{' '}
-                  fields)
+                  {waT('draft.cta.fields', locale)})
                 </>
               )}
             </Button>
@@ -225,10 +246,10 @@ export function ListingDraftingPage() {
               {saving ? (
                 <>
                   <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
-                  Saving to Drafts…
+                  {waT('draft.cta.saving', locale)}
                 </>
               ) : (
-                "Save for later — I'll review in Drafts"
+                waT('draft.cta.saveLater', locale)
               )}
             </Button>
             <Button
@@ -242,11 +263,11 @@ export function ListingDraftingPage() {
               {publishing ? (
                 <>
                   <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
-                  Opening review…
+                  {waT('draft.cta.opening', locale)}
                 </>
               ) : (
                 <>
-                  Review & publish →
+                  {waT('draft.cta.review', locale)}
                   <ArrowRight className="ms-2 h-4 w-4" aria-hidden />
                 </>
               )}
@@ -258,24 +279,21 @@ export function ListingDraftingPage() {
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel this draft?</DialogTitle>
-            <DialogDescription>
-              We'll delete what's been drafted so far. You can send a new WhatsApp message anytime to start
-              over.
-            </DialogDescription>
+            <DialogTitle>{waT('draft.cancel.title', locale)}</DialogTitle>
+            <DialogDescription>{waT('draft.cancel.body', locale)}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => setCancelOpen(false)}>
-              Keep drafting
+              {waT('draft.cancel.keep', locale)}
             </Button>
             <Button type="button" variant="ghost" disabled={cancelling} onClick={() => void onCancelConfirm()}>
               {cancelling ? (
                 <>
                   <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
-                  Cancelling…
+                  {waT('draft.cancel.busy', locale)}
                 </>
               ) : (
-                'Cancel draft'
+                waT('draft.cancel.confirm', locale)
               )}
             </Button>
           </div>
@@ -291,12 +309,18 @@ function DraftingBody({
   routeState,
   waLink,
   online,
+  locale,
+  onCancel,
+  onEditLater,
 }: {
   progress: ReturnType<typeof useDraftProgress>
   fallback: boolean
   routeState: DraftingLocationState
   waLink: string
   online: boolean
+  locale: WaLocale
+  onCancel: () => void
+  onEditLater: () => void
 }) {
   const received = routeState.received_at || new Date().toISOString()
   return (
@@ -304,13 +328,13 @@ function DraftingBody({
       <div className="md:col-span-1">
         <StepHero
           glyph={Sparkles}
-          title="Turning your message into a listing"
-          body="You'll see each field fill in as I read your photos, voice, and pin. You can review and edit everything on the next screen."
+          title={waT('draft.hero.title', locale)}
+          body={waT('draft.hero.body', locale)}
         />
       </div>
       <InboundMessageSummary
         received_at={received}
-        relativeTimeLabel={relativeTime(received)}
+        relativeTimeLabel={relativeTime(received, locale)}
         attachments={routeState.attachments ?? []}
         wa_me_link={waLink}
         className="md:col-span-1"
@@ -321,25 +345,25 @@ function DraftingBody({
           <div className="flex flex-col items-center gap-[var(--lc-space-md)] py-[var(--lc-space-3xl)] text-center">
             <Loader2 className="h-8 w-8 animate-spin text-[var(--lc-text-brand)]" aria-hidden />
             <p className="text-[length:var(--lc-type-body-lg)] text-[var(--lc-text-secondary)]">
-              Drafting your listing… this usually takes 15-30s.
+              {waT('draft.fallback', locale)}
             </p>
           </div>
         ) : (
           <LiveDraftCanvas
             fields={progress.fields}
             connection={progress.connection}
-            onCancel={() => undefined}
-            onEditLater={() => undefined}
+            onCancel={onCancel}
+            onEditLater={onEditLater}
           />
         )}
         {progress.isConnecting && !fallback ? (
           <p className="mt-[var(--lc-space-sm)] text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-            Connecting…
+            {waT('draft.connecting', locale)}
           </p>
         ) : null}
         {!online ? (
           <p className="mt-[var(--lc-space-sm)] text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-            Draft continues server-side.
+            {waT('draft.serverSide', locale)}
           </p>
         ) : null}
       </div>
@@ -352,11 +376,13 @@ function ReadyBody({
   onReview,
   publishing,
   liveRef,
+  locale,
 }: {
   listing: ListingPreviewListing
   onReview: () => void
   publishing: boolean
   liveRef: RefObject<HTMLDivElement>
+  locale: WaLocale
 }) {
   const hasBeds = listing.bedrooms != null
   const hasBaths = listing.bathrooms != null
@@ -368,14 +394,14 @@ function ReadyBody({
         aria-live="polite"
         className="sr-only"
       >
-        Your listing is ready. Review and publish, or save for later.
+        {waT('ready.live', locale)}
       </div>
 
       <StepHero
         glyph={CheckCircle2}
         emphasis="success"
-        title="Your listing is ready"
-        body="Review the details, tweak anything you want, then publish to Bazaar and your connected portals."
+        title={waT('ready.hero.title', locale)}
+        body={waT('ready.hero.body', locale)}
       />
 
       <div className="mt-[var(--lc-space-lg)] grid gap-[var(--lc-space-lg)] md:grid-cols-[55%_1fr]">
@@ -384,14 +410,14 @@ function ReadyBody({
         <aside className="md:sticky md:top-[var(--lc-space-3xl)]">
           <section className="rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-lg)]">
             <p className="mb-[var(--lc-space-md)] text-[length:var(--lc-type-overline)] uppercase tracking-wide text-[var(--lc-text-muted)]">
-              What we caught
+              {waT('ready.caught.title', locale)}
             </p>
             <ul className="flex flex-col gap-[var(--lc-space-sm)] text-sm text-[var(--lc-text-primary)]">
-              <CaughtLine>Address extracted from your voice note + location pin</CaughtLine>
-              {listing.price != null ? <CaughtLine>Price extracted from your voice note</CaughtLine> : null}
-              {listing.photos.length ? <CaughtLine>Photos organized by room type</CaughtLine> : null}
+              <CaughtLine>{waT('ready.caught.address', locale)}</CaughtLine>
+              {listing.price != null ? <CaughtLine>{waT('ready.caught.price', locale)}</CaughtLine> : null}
+              {listing.photos.length ? <CaughtLine>{waT('ready.caught.photos', locale)}</CaughtLine> : null}
               {hasBeds || hasBaths ? (
-                <CaughtLine>Bedrooms + bathrooms extracted from your voice note</CaughtLine>
+                <CaughtLine>{waT('ready.caught.beds', locale)}</CaughtLine>
               ) : null}
             </ul>
           </section>
@@ -434,28 +460,16 @@ function listingFromFields(fields: DraftField[], id: string): ListingPreviewList
   }
 }
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, locale: WaLocale): string {
   const ms = Date.now() - Date.parse(iso)
-  if (!Number.isFinite(ms) || ms < 15_000) return 'just now'
+  if (!Number.isFinite(ms) || ms < 15_000) return waT('ready.relative.justNow', locale)
   const mins = Math.round(ms / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins === 1) return '1 min ago'
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 1) return waT('ready.relative.justNow', locale)
+  if (mins === 1) return waT('ready.relative.min', locale)
+  if (mins < 60) return waT('ready.relative.mins', locale, { n: mins })
   const hours = Math.round(mins / 60)
-  return hours === 1 ? '1 hour ago' : `${hours} hours ago`
+  return hours === 1
+    ? waT('ready.relative.hour', locale)
+    : waT('ready.relative.hours', locale, { n: hours })
 }
 
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = () => setReduced(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return reduced
-}

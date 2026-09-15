@@ -11,6 +11,15 @@ vi.mock('@/hooks/useOnboardingState', async () => {
   return { useOnboardingState: () => mockUseOnboardingState() }
 })
 
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: async () => ({ ok: true }),
+    dir: 'ltr',
+    isArabic: false,
+  }),
+}))
+
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {
@@ -83,7 +92,7 @@ describe('WhatsAppConnectPage', () => {
     expect(String(activationCalls[0][1]?.method || 'GET').toUpperCase()).not.toBe('DELETE')
   })
 
-  it('still navigates on 429', async () => {
+  it('still navigates on 429 when a display_code is present', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation((url: string) => {
       if (String(url).includes('activation-code')) {
@@ -102,6 +111,25 @@ describe('WhatsAppConnectPage', () => {
     renderConnect()
     await user.click(screen.getAllByRole('button', { name: /Set up WhatsApp intake/i })[0])
     await waitFor(() => expect(screen.getByText('CODE_PAGE')).toBeInTheDocument())
+  })
+
+  it('does not navigate with an empty code on 429 without display_code', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('activation-code')) {
+        return jsonResponse({ error: 'RATE_LIMITED' }, 429)
+      }
+      return jsonResponse({})
+    })
+    renderConnect()
+    await user.click(screen.getAllByRole('button', { name: /Set up WhatsApp intake/i })[0])
+    await waitFor(() =>
+      expect(
+        screen.getByText(/You're requesting codes too quickly/i),
+      ).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('CODE_PAGE')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Set up WhatsApp intake/i })[0]).not.toBeDisabled()
   })
 
   it('defers to dashboard without a destructive CTA', async () => {

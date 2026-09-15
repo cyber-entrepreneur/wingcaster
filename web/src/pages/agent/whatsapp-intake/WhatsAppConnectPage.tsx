@@ -7,11 +7,14 @@ import { ChannelMark } from '@/components/ui/channel-mark'
 import { useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useLocale } from '@/hooks/useLocale'
 import { useOnboardingState } from '@/hooks/useOnboardingState'
 import { issueActivationCode, type ActivationCodePayload } from './intakeApi'
 import { completedViaCaption, markWhatsAppIntakeProgress } from './useOnboardingState'
 import { useOnlineStatus } from './useOnlineStatus'
 import { StickyCtaBar, WhatsAppTourShell } from './WhatsAppTourShell'
+import { TOUR_STEPS } from './tour'
+import { waLocale, waT } from './copy'
 
 export interface WhatsAppConnectLocationState {
   displayCode?: string
@@ -24,12 +27,14 @@ export function WhatsAppConnectPage() {
   const location = useLocation()
   const [params] = useSearchParams()
   const { addToast } = useToast()
+  const { isArabic } = useLocale()
+  const locale = waLocale(isArabic)
   const onboarding = useOnboardingState()
   const online = useOnlineStatus()
   const [busy, setBusy] = useState(false)
 
   const resume = params.get('resume') === '1'
-  const title = resume ? 'Resume WhatsApp setup' : 'Set up WhatsApp intake'
+  const title = resume ? waT('connect.title.resume', locale) : waT('connect.title', locale)
   const already = completedViaCaption(onboarding, 'whatsapp')
 
   const benefits = useMemo(
@@ -37,21 +42,21 @@ export function WhatsAppConnectPage() {
       [
         {
           icon: Zap,
-          label: 'Drafts in under 60 seconds',
-          sub: 'From voice note to filled fields — no forms while you work.',
+          label: waT('connect.benefit.speed.label', locale),
+          sub: waT('connect.benefit.speed.sub', locale),
         },
         {
           icon: Mic,
-          label: 'Voice, photos, and pin work together',
-          sub: 'Send everything as you normally would on WhatsApp.',
+          label: waT('connect.benefit.media.label', locale),
+          sub: waT('connect.benefit.media.sub', locale),
         },
         {
           icon: Car,
-          label: 'Built for the road',
-          sub: 'Reply on WhatsApp the same way you already do — WingCaster reads it.',
+          label: waT('connect.benefit.road.label', locale),
+          sub: waT('connect.benefit.road.sub', locale),
         },
       ] as const,
-    [],
+    [locale],
   )
 
   const goCode = (payload: ActivationCodePayload) => {
@@ -70,7 +75,7 @@ export function WhatsAppConnectPage() {
     const result = await issueActivationCode()
     if (result.status === 429) {
       addToast({
-        title: "You just requested a code — check WhatsApp or tap 'I didn't get it' on the next screen.",
+        title: waT('connect.toast.rateLimited', locale),
         variant: 'default',
       })
       const retry = result.data?.display_code
@@ -81,16 +86,16 @@ export function WhatsAppConnectPage() {
         goCode(retry.data)
         return
       }
-      goCode({
-        display_code: '',
-        shared_number_e164: '',
-        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      addToast({
+        title: waT('connect.toast.rateLimited.empty', locale),
+        variant: 'error',
       })
+      setBusy(false)
       return
     }
     if (!result.ok || !result.data?.display_code) {
       addToast({
-        title: "Couldn't reach WingCaster. Try again in a moment.",
+        title: waT('connect.toast.error', locale),
         variant: 'error',
       })
       setBusy(false)
@@ -106,7 +111,12 @@ export function WhatsAppConnectPage() {
   }
 
   return (
-    <WhatsAppTourShell step={2} title={title} offline={!online}>
+    <WhatsAppTourShell
+      step={TOUR_STEPS.connect}
+      title={title}
+      offline={!online}
+      offlineMessage={waT('shell.offline.connect', locale)}
+    >
       <div
         className="mx-auto flex w-full max-w-[1080px] flex-col gap-[var(--lc-space-md)] px-[var(--lc-space-md)] py-[var(--lc-space-md)] md:min-h-[640px] md:flex-row md:gap-[var(--lc-space-xl)] md:px-[var(--lc-space-xl)]"
         aria-busy={busy || undefined}
@@ -114,8 +124,8 @@ export function WhatsAppConnectPage() {
         <div className="flex min-w-0 flex-1 flex-col md:w-[60%]">
           <StepHero
             glyph="whatsapp-mark"
-            title="Draft listings by chatting to WingCaster on WhatsApp"
-            body="Send photos, a voice note, and a location pin. We'll turn them into a listing you can review and publish."
+            title={waT('connect.hero.title', locale)}
+            body={waT('connect.hero.body', locale)}
           />
 
           {already ? (
@@ -127,7 +137,7 @@ export function WhatsAppConnectPage() {
           <BenefitList items={[benefits[0], benefits[1], benefits[2]]} className="mt-[var(--lc-space-md)]" />
 
           <p className="mt-[var(--lc-space-lg)] text-center text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-            You'll share the same WingCaster number as other agents. Your listings stay yours.
+            {waT('connect.trust', locale)}
           </p>
 
           <div className="hidden md:mt-[var(--lc-space-xl)] md:flex md:items-center md:justify-between md:gap-[var(--lc-space-md)]">
@@ -137,7 +147,7 @@ export function WhatsAppConnectPage() {
               className="text-[var(--lc-text-muted)]"
               onClick={onDefer}
             >
-              Not now, remind me later
+              {waT('connect.cta.defer', locale)}
             </Button>
             <Button
               type="button"
@@ -150,14 +160,14 @@ export function WhatsAppConnectPage() {
               {busy ? (
                 <>
                   <Loader2 className="me-2 h-5 w-5 animate-spin" aria-hidden />
-                  Setting up…
+                  {waT('connect.cta.busy', locale)}
                 </>
               ) : (
                 <>
                   <span aria-hidden>
                     <ChannelMark channel="whatsapp" className="me-2 h-5 w-5" />
                   </span>
-                  Set up WhatsApp intake
+                  {waT('connect.cta.primary', locale)}
                 </>
               )}
             </Button>
@@ -165,7 +175,7 @@ export function WhatsAppConnectPage() {
         </div>
 
         <aside className="hidden md:block md:w-[40%]">
-          <IllustrationPanel />
+          <IllustrationPanel locale={locale} />
         </aside>
       </div>
 
@@ -177,7 +187,7 @@ export function WhatsAppConnectPage() {
             className="w-full text-[var(--lc-text-muted)]"
             onClick={onDefer}
           >
-            Not now, remind me later
+            {waT('connect.cta.defer', locale)}
           </Button>
           <Button
             type="button"
@@ -190,14 +200,14 @@ export function WhatsAppConnectPage() {
             {busy ? (
               <>
                 <Loader2 className="me-2 h-5 w-5 animate-spin" aria-hidden />
-                Setting up…
+                {waT('connect.cta.busy', locale)}
               </>
             ) : (
               <>
                 <span aria-hidden>
                   <ChannelMark channel="whatsapp" className="me-2 h-5 w-5" />
                 </span>
-                Set up WhatsApp intake
+                {waT('connect.cta.primary', locale)}
               </>
             )}
           </Button>
@@ -207,32 +217,32 @@ export function WhatsAppConnectPage() {
   )
 }
 
-function IllustrationPanel() {
+function IllustrationPanel({ locale }: { locale: ReturnType<typeof waLocale> }) {
   return (
     <Card className="rounded-[var(--lc-radius-lg)] border-0 bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)] shadow-[var(--lc-elevation-sm)]">
       <ol className="flex flex-col gap-[var(--lc-space-md)]">
         <li className="rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-md)]">
           <p className="mb-2 text-[length:var(--lc-type-overline)] uppercase tracking-wide text-[var(--lc-text-muted)]">
-            You send
+            {waT('connect.illus.send', locale)}
           </p>
           <div className="flex items-center gap-2 text-[var(--lc-text-secondary)]">
             <Mic className="h-4 w-4" aria-hidden />
             <Image className="h-4 w-4" aria-hidden />
             <MapPin className="h-4 w-4" aria-hidden />
-            <span className="text-sm">Voice + photos + pin</span>
+            <span className="text-sm">{waT('connect.illus.sendDetail', locale)}</span>
           </div>
         </li>
         <li className="rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-md)]">
           <p className={cn('flex items-center gap-2 text-sm text-[var(--lc-text-secondary)]')}>
             <Loader2 className="h-4 w-4" aria-hidden />
-            WingCaster is drafting…
+            {waT('connect.illus.drafting', locale)}
           </p>
         </li>
         <li className="rounded-[var(--lc-radius-md)] bg-[var(--lc-surface-sunken)] p-[var(--lc-space-md)]">
           <p className="text-[length:var(--lc-type-heading-3)] text-[var(--lc-text-primary)]">Marina Walk listing</p>
           <p className="text-sm text-[var(--lc-text-muted)]">Bed 3 · Bath 2 · AED 2,450,000</p>
           <span className="mt-2 inline-flex rounded-[var(--lc-radius-pill)] bg-[var(--lc-status-published-bg)] px-2 py-0.5 text-[length:var(--lc-type-caption)] text-[var(--lc-status-published-fg)]">
-            Ready to publish
+            {waT('connect.illus.ready', locale)}
           </span>
         </li>
       </ol>
