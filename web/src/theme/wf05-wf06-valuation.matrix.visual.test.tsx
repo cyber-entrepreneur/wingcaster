@@ -2,7 +2,13 @@
 /**
  * Wave 5 WF-05/WF-06 — dark+RTL x mobile+desktop matrix (Chromatic stand-ins).
  * Covers PVA-009/009b, REC-003, APR-004/005 = 8 variants each.
+ *
+ * serialize() must capture <html> attributes (data-lc-mode/dir/lang/data-viewport)
+ * — container.innerHTML alone is theatrical (byte-identical across modes).
  */
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -55,6 +61,25 @@ vi.mock('@/context/AuthContext', () => ({
 }))
 vi.mock('@/context/EnvContext', () => ({ useEnv: () => ({ env: 'live', setEnv: vi.fn() }) }))
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
+/**
+ * Keep English copy (stable heading queries) but mirror <html dir> into isArabic/dir
+ * so submit pages set dir="rtl" without useLocale overwriting documentElement.
+ */
+vi.mock('@/hooks/useLocale', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useLocale')>()
+  return {
+    ...actual,
+    useLocale: () => {
+      const dir = (document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr') as 'rtl' | 'ltr'
+      return {
+        locale: 'en' as const,
+        setLocale: vi.fn(async () => ({ ok: true as const })),
+        dir,
+        isArabic: dir === 'rtl',
+      }
+    },
+  }
+})
 
 const priceHook = vi.hoisted(() => ({
   report: null as ReturnType<typeof samplePriceOutcomeIncorporated> | null,
@@ -73,6 +98,23 @@ import { PriceReportOutcomePage } from '@/pages/agent/reports/PriceReportOutcome
 import { PriceReportQueuePage } from '@/pages/admin/valuation/PriceReportQueuePage'
 import { PriceReportDetailPage } from '@/pages/admin/valuation/PriceReportDetailPage'
 
+const THEME_CSS = readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/design-tokens/broadcast-theme.css'),
+  'utf8',
+)
+
+/** Broadcast --lc-bg-page tokens (mode-flipping). Parsed from design system + known hex. */
+const LIGHT_BG_PAGE_FROM_CSS = THEME_CSS.match(/:root \{[\s\S]*?--lc-bg-page:\s*(#[0-9A-Fa-f]{3,8})/)?.[1]
+const DARK_BG_PAGE_FROM_CSS = THEME_CSS.match(
+  /\[data-lc-mode="dark"\] \{[\s\S]*?--lc-bg-page:\s*(#[0-9A-Fa-f]{3,8})/,
+)?.[1]
+const LIGHT_BG_PAGE_ALLOWED = Array.from(
+  new Set([LIGHT_BG_PAGE_FROM_CSS, '#FAF8F7', '#faf8f7'].filter(Boolean) as string[]),
+)
+const DARK_BG_PAGE_ALLOWED = Array.from(
+  new Set([DARK_BG_PAGE_FROM_CSS, '#0C1533', '#0c1533'].filter(Boolean) as string[]),
+)
+
 type Mode = 'light' | 'dark'
 type Dir = 'ltr' | 'rtl'
 
@@ -87,23 +129,47 @@ const VARIANTS: Array<[Mode, Dir, MatchMediaViewport]> = [
   ['dark', 'rtl', 'mobile'],
 ]
 
+/** Last applyTheme() variant — re-checked in snap() so useLocale cannot silently reset dir. */
+let appliedVariant: { mode: Mode; dir: Dir; viewport: MatchMediaViewport } | null = null
+
+/** Fail loud if mode/dir/viewport signals were not actually applied. */
+function assertThemeSignalsApplied(mode: Mode, dir: Dir, viewport: MatchMediaViewport) {
+  expect(document.documentElement.getAttribute('data-lc-mode')).toBe(mode)
+  expect(document.documentElement.getAttribute('dir') ?? document.documentElement.dir).toBe(dir)
+  expect(document.documentElement.getAttribute('lang') ?? document.documentElement.lang).toBe(
+    dir === 'rtl' ? 'ar' : 'en',
+  )
+  expect(window.innerWidth).toBe(viewport === 'mobile' ? 375 : 1280)
+  expect(document.documentElement.getAttribute('data-viewport')).toBe(viewport)
+
+  const bgPage = getComputedStyle(document.documentElement).getPropertyValue('--lc-bg-page').trim()
+  expect(bgPage).not.toBe('')
+  const allowed = mode === 'dark' ? DARK_BG_PAGE_ALLOWED : LIGHT_BG_PAGE_ALLOWED
+  expect(allowed.map((v) => v.toLowerCase())).toContain(bgPage.toLowerCase())
+}
+
 function applyTheme(mode: Mode, dir: Dir, viewport: MatchMediaViewport) {
   applyLcMode(mode)
   document.documentElement.dir = dir
   document.documentElement.lang = dir === 'rtl' ? 'ar' : 'en'
   installMatchMediaFixture(viewport)
+  assertThemeSignalsApplied(mode, dir, viewport)
+  appliedVariant = { mode, dir, viewport }
 }
 
-function serialize(root: HTMLElement): string {
-  const mode = document.documentElement.getAttribute('data-lc-mode') || 'light'
-  const dir = document.documentElement.dir || 'ltr'
-  const lang = document.documentElement.lang || 'en'
-  const vp = document.documentElement.getAttribute('data-viewport') || 'desktop'
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} viewport=${vp} -->\n${root.innerHTML}`
+/** Option A: capture <html> so data-lc-mode/dir/lang/data-viewport enter the snapshot. */
+function serialize(): string {
+  const html = document.documentElement
+  const marker = `<!-- mode=${html.getAttribute('data-lc-mode')} dir=${html.getAttribute('dir') ?? html.dir} lang=${html.getAttribute('lang') ?? html.lang} viewport=${window.innerWidth}px -->`
+  return marker + '\n' + html.outerHTML
 }
 
 async function snap(label: string, root: HTMLElement) {
-  const html = serialize(root)
+  // Re-assert after render: catches useLocale (or anything else) resetting html signals.
+  if (appliedVariant) {
+    assertThemeSignalsApplied(appliedVariant.mode, appliedVariant.dir, appliedVariant.viewport)
+  }
+  const html = serialize()
   assertNoVisiblePlaintextPii(root, label)
   assertNoPlaintextPiiInHtml(html, label)
   expect(html).toMatchSnapshot()
@@ -111,6 +177,15 @@ async function snap(label: string, root: HTMLElement) {
 
 beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  if (!document.getElementById('broadcast-theme-css')) {
+    const style = document.createElement('style')
+    style.id = 'broadcast-theme-css'
+    style.textContent = THEME_CSS
+    document.head.appendChild(style)
+  }
+  expect(LIGHT_BG_PAGE_ALLOWED.length).toBeGreaterThan(0)
+  expect(DARK_BG_PAGE_ALLOWED.length).toBeGreaterThan(0)
+  expect(LIGHT_BG_PAGE_ALLOWED[0]!.toLowerCase()).not.toBe(DARK_BG_PAGE_ALLOWED[0]!.toLowerCase())
 })
 
 beforeEach(() => {
