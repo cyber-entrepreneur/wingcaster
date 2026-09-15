@@ -71,7 +71,10 @@ describe('InboxRow dual-read display', () => {
         onSelect={() => undefined}
       />,
     )
-    expect(screen.getByText('Sara Al-Mansoori')).toBeInTheDocument()
+    // Contact name is masked via <PIIMask> — never assert plaintext in the DOM.
+    expect(screen.queryByText('Sara Al-Mansoori')).toBeNull()
+    expect(screen.getByText('S***** A***')).toBeInTheDocument()
+    expect(document.querySelector('[data-pii-kind="name"][data-pii-revealed="false"]')).toBeTruthy()
     expect(screen.getByText(/Is the 2BR still available/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/WhatsApp from Bayut/i)).toBeInTheDocument()
   })

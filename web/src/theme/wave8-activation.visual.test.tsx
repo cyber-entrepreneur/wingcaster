@@ -321,6 +321,17 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
     expect(lightSnap).not.toEqual(darkSnap)
     expect(lightSnap).toContain('data-lc-tokens')
     expect(darkSnap).toContain('data-lc-tokens')
+    // Real resolved palette — empty `{}` stamps must not pass as theatrical.
+    const parseTokens = (snap: string) => {
+      const m = /<!-- lc-tokens=(\{.*?\}) -->/.exec(snap)
+      expect(m?.[1]).toBeTruthy()
+      return JSON.parse(m![1]!) as Record<string, string>
+    }
+    const lightTokens = parseTokens(lightSnap)
+    const darkTokens = parseTokens(darkSnap)
+    expect(lightTokens['--lc-bg-page']).toBeTruthy()
+    expect(darkTokens['--lc-bg-page']).toBeTruthy()
+    expect(lightTokens['--lc-bg-page']).not.toEqual(darkTokens['--lc-bg-page'])
   })
 
   it('01 ProDashboard-comfortable-light-ltr-desktop', async () => {

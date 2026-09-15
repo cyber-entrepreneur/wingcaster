@@ -96,6 +96,23 @@ const modernConv = {
   priority_reason: 'hot lead',
 }
 
+/** Local PIIMask name stub: "Sara Al-Mansoori" → "S***** A***". */
+function maskedName(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((p, i) => (i === 0 ? `${p[0] ?? ''}*****` : p.length <= 1 ? '*' : `${p[0] ?? ''}***`))
+    .join(' ')
+}
+
+function assertNameMasked(plaintext: string) {
+  expect(screen.queryByText(plaintext)).toBeNull()
+  expect(screen.getByText(maskedName(plaintext))).toBeInTheDocument()
+  const masks = document.querySelectorAll('[data-pii-kind="name"][data-pii-revealed="false"]')
+  expect(masks.length).toBeGreaterThan(0)
+}
+
 function renderInbox(path = '/inbox') {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -160,17 +177,17 @@ describe('InboxPage AGT-INB-001/002', () => {
   it('lists conversations with dual-read channel+source for legacy and modern rows', async () => {
     renderInbox()
     await waitFor(() => {
-      expect(screen.getByText('Sara Al-Mansoori')).toBeInTheDocument()
+      assertNameMasked('Sara Al-Mansoori')
     })
-    expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+    assertNameMasked('Ahmed Khoury')
     // Unread sub-line numerals
     expect(screen.getAllByText(/unread/i).length).toBeGreaterThan(0)
   })
 
   it('opens conversation detail with dual badges and compose bar', async () => {
     renderInbox()
-    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
-    fireEvent.click(screen.getByRole('button', { name: /Sara Al-Mansoori/i }))
+    await waitFor(() => screen.getByText(maskedName('Sara Al-Mansoori')))
+    fireEvent.click(screen.getByRole('button', { name: /WhatsApp from Bayut.*unread · priority/i }))
     await waitFor(() => {
       expect(screen.getByText('Is the 2BR still available?')).toBeInTheDocument()
     })
@@ -179,12 +196,14 @@ describe('InboxPage AGT-INB-001/002', () => {
     expect(screen.getByLabelText('Attach a photo, document, or voice note')).toBeInTheDocument()
     expect(screen.getByLabelText('Insert template')).toBeInTheDocument()
     expect(screen.getAllByText(/From Bayut/i).length).toBeGreaterThan(0)
+    // Detail header also keeps contact name masked.
+    assertNameMasked('Sara Al-Mansoori')
   })
 
   it('dual-reads legacy source_channel in detail header', async () => {
     renderInbox('/inbox/conv_legacy')
     await waitFor(() => {
-      expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+      assertNameMasked('Ahmed Khoury')
     })
     await waitFor(() => {
       expect(screen.getAllByLabelText(/Email from Bayut/i).length).toBeGreaterThan(0)
@@ -197,17 +216,18 @@ describe('InboxPage AGT-INB-001/002', () => {
       legacyConv,
     ])
     renderInbox()
-    await waitFor(() => screen.getByText('Ahmed Khoury'))
+    await waitFor(() => screen.getByText(maskedName('Ahmed Khoury')))
     fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
     await waitFor(() => {
+      expect(screen.queryByText(maskedName('Sara Al-Mansoori'))).not.toBeInTheDocument()
       expect(screen.queryByText('Sara Al-Mansoori')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('Ahmed Khoury')).toBeInTheDocument()
+    assertNameMasked('Ahmed Khoury')
   })
 
   it('exposes MENA portal sources on the source filter', async () => {
     renderInbox()
-    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    await waitFor(() => screen.getByText(maskedName('Sara Al-Mansoori')))
     const sourceFilter = screen.getByLabelText('Filter by source') as HTMLSelectElement
     expect([...sourceFilter.options].map((o) => o.value)).toEqual(
       expect.arrayContaining(['aqar', 'wasalt', 'aqarmap', '3akarat']),
@@ -216,7 +236,7 @@ describe('InboxPage AGT-INB-001/002', () => {
 
   it('toggles merged-vs-separate preference', async () => {
     renderInbox()
-    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    await waitFor(() => screen.getByText(maskedName('Sara Al-Mansoori')))
     fireEvent.click(screen.getByRole('button', { name: /Merge conversations across channels per contact/i }))
     await waitFor(() => {
       expect(apiMocks.patchAgentPreferences).toHaveBeenCalledWith({ inbox_merge_mode: 'merged' })
@@ -225,7 +245,7 @@ describe('InboxPage AGT-INB-001/002', () => {
 
   it('enters selection mode from the row checkbox and runs bulk mark read', async () => {
     renderInbox()
-    await waitFor(() => screen.getByText('Sara Al-Mansoori'))
+    await waitFor(() => screen.getByText(maskedName('Sara Al-Mansoori')))
     fireEvent.click(screen.getAllByRole('checkbox', { name: 'Select conversation' })[0])
     await waitFor(() => screen.getByRole('toolbar', { name: /Selection mode/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Mark read' }))

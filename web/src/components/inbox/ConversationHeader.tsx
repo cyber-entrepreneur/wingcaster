@@ -105,7 +105,12 @@ export function ConversationHeader({
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[length:var(--lc-type-heading-3)] font-semibold text-[var(--lc-text-primary)]">
-            {contactName}
+            <PIIMask
+              kind="name"
+              value={contactName}
+              auditContext={{ caseId: piiCaseId, field: 'contact_name' }}
+              onReveal={onRevealPii}
+            />
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
             <Badge
