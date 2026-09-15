@@ -44,6 +44,8 @@ export type ScheduledDeletionPayload = {
   completed_at?: string | null
 }
 
+// i18n scaffold (not wired yet): web/src/i18n/en|ar/scheduled-deletion.json
+// mirrors this COPY table; AR uses [TRANSLATION-PENDING] placeholders only.
 const COPY = {
   heroPending: 'Your account is scheduled for deletion',
   heroPendingSub: 'You can still cancel below.',
@@ -156,6 +158,25 @@ async function postCancelScheduledDeletion(token: string): Promise<
   return { ok: true, body: json as ScheduledDeletionPayload & { success?: boolean } }
 }
 
+
+/** Brief-allowed single cancel beacon (no marketing pixels / retention hooks). */
+export function trackDeletionCancelled(detail?: {
+  deletion_request_id?: string
+}): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.dispatchEvent(
+      new CustomEvent('wingcaster:analytics', {
+        detail: { event: 'deletion_cancelled', ...detail },
+      }),
+    )
+  } catch {
+    // Analytics must never affect cancel UX.
+  }
+}
+
+const DEFAULT_CANCEL_RETRY_AFTER_SEC = 30
+
 function useOnline(): boolean {
   const [online, setOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -266,6 +287,7 @@ export function ScheduledDeletionConfirmationPage() {
   const [cancelling, setCancelling] = useState(false)
   const [impactOpen, setImpactOpen] = useState(false)
   const [finalDay, setFinalDay] = useState(false)
+  const [cancelRetryAfterSec, setCancelRetryAfterSec] = useState(0)
 
   const token = pathToken.trim()
 
@@ -296,14 +318,19 @@ export function ScheduledDeletionConfirmationPage() {
     void load()
   }, [load])
 
-  // Desktop: impact expanded by default.
+  // Impact expands only on active/expiring (VALID_PENDING). ALREADY_CANCELLED stays collapsed.
   useEffect(() => {
+    if (ui === 'ALREADY_CANCELLED') {
+      setImpactOpen(false)
+      return
+    }
+    if (ui !== 'VALID_PENDING') return
     const mq = window.matchMedia('(min-width: 768px)')
     const apply = () => setImpactOpen(mq.matches)
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
-  }, [])
+  }, [ui])
 
   // Re-fetch when tab becomes visible after >60s away.
   useEffect(() => {
@@ -321,16 +348,26 @@ export function ScheduledDeletionConfirmationPage() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [load])
 
+  useEffect(() => {
+    if (cancelRetryAfterSec <= 0) return
+    const id = window.setInterval(() => {
+      setCancelRetryAfterSec((s) => (s <= 1 ? 0 : s - 1))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [cancelRetryAfterSec])
+
   const onCancel = async () => {
-    if (!token || cancelling || !online) return
+    if (!token || cancelling || !online || cancelRetryAfterSec > 0) return
     setCancelling(true)
     try {
       const result = await postCancelScheduledDeletion(token)
       if (!result.ok) {
         if (result.status === 429) {
+          const wait = result.retryAfter ?? DEFAULT_CANCEL_RETRY_AFTER_SEC
+          setCancelRetryAfterSec(wait)
           addToast({
             variant: 'warning',
-            title: COPY.rateLimited(result.retryAfter ?? 60),
+            title: COPY.rateLimited(wait),
           })
         } else if (result.code === 'already_completed' || result.status === 409) {
           await load()
@@ -342,6 +379,9 @@ export function ScheduledDeletionConfirmationPage() {
       }
       setPayload(result.body)
       setUi('ALREADY_CANCELLED')
+      trackDeletionCancelled({
+        deletion_request_id: result.body.deletion_request_id,
+      })
       addToast({ variant: 'success', title: COPY.cancelToast })
     } catch {
       addToast({ variant: 'error', title: COPY.cancelFailed })
@@ -425,13 +465,14 @@ export function ScheduledDeletionConfirmationPage() {
             )}
             data-deletion-state={ui}
           >
-            <StatusHero state={hero.state} label={hero.label} glyph={hero.glyph} />
-            <p
-              className="bg-[var(--lc-surface-sunken)] px-[var(--lc-space-md)] pb-[var(--lc-space-md)] text-[var(--lc-text-muted)] -mt-1"
-              style={{ font: 'var(--lc-type-body-sm)' }}
-            >
-              <span className="mx-auto block max-w-[1200px] ps-12 md:ps-14">{hero.sub}</span>
-            </p>
+            <StatusHero state={hero.state} label={hero.label} glyph={hero.glyph}>
+              <p
+                className="mt-[var(--lc-space-xs)] bg-[var(--lc-surface-sunken)] px-0 pb-0 text-[var(--lc-text-muted)]"
+                style={{ font: 'var(--lc-type-body-sm)' }}
+              >
+                <span className="mx-auto block max-w-[1200px] ps-12 md:ps-14">{hero.sub}</span>
+              </p>
+            </StatusHero>
           </div>
         ) : null}
 
@@ -469,10 +510,16 @@ export function ScheduledDeletionConfirmationPage() {
                 variant="default"
                 size="lg"
                 className="w-full md:w-auto md:max-w-[320px]"
-                disabled={cancelling || !online}
-                aria-disabled={cancelling || !online}
+                disabled={cancelling || !online || cancelRetryAfterSec > 0}
+                aria-disabled={cancelling || !online || cancelRetryAfterSec > 0}
                 aria-label={`Cancel deletion of account for ${payload.email_masked}`}
-                title={!online ? COPY.offline : undefined}
+                title={
+                  !online
+                    ? COPY.offline
+                    : cancelRetryAfterSec > 0
+                      ? COPY.rateLimited(cancelRetryAfterSec)
+                      : undefined
+                }
                 onClick={() => {
                   void onCancel()
                 }}

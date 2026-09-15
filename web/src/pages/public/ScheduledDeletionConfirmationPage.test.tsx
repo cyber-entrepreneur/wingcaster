@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import {
   ScheduledDeletionConfirmationPage,
+  trackDeletionCancelled,
   type ScheduledDeletionPayload,
 } from './ScheduledDeletionConfirmationPage'
 
@@ -63,6 +64,7 @@ describe('ScheduledDeletionConfirmationPage', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -239,6 +241,240 @@ describe('ScheduledDeletionConfirmationPage', () => {
       `/auth/scheduled-deletion/${encodeURIComponent(TOKEN)}/cancel`,
     )
     expect((cancelCall?.[1] as RequestInit).credentials).toBe('omit')
+  })
+
+  it('fires deletion_cancelled analytics on successful cancel', async () => {
+    const user = userEvent.setup()
+    const analytics = vi.fn()
+    window.addEventListener('wingcaster:analytics', analytics as EventListener)
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => pendingPayload(),
+        headers: new Headers(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () =>
+          pendingPayload({
+            status: 'cancelled',
+            cancelled: true,
+            cancel_available: false,
+          }),
+        headers: new Headers(),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      get: () => true,
+    })
+
+    renderPage()
+    await screen.findByText('Your account is scheduled for deletion')
+    await user.click(screen.getByRole('button', { name: /Cancel deletion of account/i }))
+    await waitFor(() => {
+      expect(screen.getByText('This deletion has already been cancelled')).toBeInTheDocument()
+    })
+
+    expect(analytics).toHaveBeenCalled()
+    const evt = analytics.mock.calls[0]?.[0] as CustomEvent
+    expect(evt.detail).toMatchObject({
+      event: 'deletion_cancelled',
+      deletion_request_id: 'DEL-01H8XZ4NQR2E9K',
+    })
+    window.removeEventListener('wingcaster:analytics', analytics as EventListener)
+  })
+
+  it('disables cancel for Retry-After window on 429', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => pendingPayload(),
+        headers: new Headers(),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: 'rate_limited', code: 'rate_limited' }),
+        headers: new Headers({ 'Retry-After': '2' }),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      get: () => true,
+    })
+
+    renderPage()
+    await screen.findByText('Your account is scheduled for deletion')
+    const cancel = screen.getByRole('button', { name: /Cancel deletion of account/i })
+    await user.click(cancel)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Too many attempts — try again in 2s/i)).toBeInTheDocument()
+    })
+    expect(cancel).toBeDisabled()
+
+    // Advance the retry countdown without userEvent (real timers + act).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 2100))
+    })
+    await waitFor(() => {
+      expect(cancel).not.toBeDisabled()
+    })
+  })
+
+  it('applies default 30s retry-after when 429 omits Retry-After header', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => pendingPayload(),
+        headers: new Headers(),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: 'rate_limited' }),
+        headers: new Headers(),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      get: () => true,
+    })
+
+    renderPage()
+    await screen.findByText('Your account is scheduled for deletion')
+    await user.click(screen.getByRole('button', { name: /Cancel deletion of account/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Too many attempts — try again in 30s/i)).toBeInTheDocument()
+    })
+    const cancel = screen.getByRole('button', { name: /Cancel deletion of account/i })
+    expect(cancel).toBeDisabled()
+
+    await act(async () => {
+      vi.advanceTimersByTime(29_000)
+    })
+    expect(cancel).toBeDisabled()
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+    })
+    await waitFor(() => {
+      expect(cancel).not.toBeDisabled()
+    })
+  })
+
+  it('refetches at T-0 and flips UI to ALREADY_DELETED', async () => {
+    // Past deletion_at so DeletionCountdown fires onReachZero on first tick.
+    const deletionAt = new Date(Date.now() - 1000).toISOString()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => pendingPayload({ scheduled_for: deletionAt, days_remaining: 0 }),
+        headers: new Headers(),
+      })
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () =>
+          pendingPayload({
+            status: 'completed',
+            cancelled: false,
+            cancel_available: false,
+            scheduled_for: deletionAt,
+          }),
+        headers: new Headers(),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await screen.findByText('Your account is scheduled for deletion')
+
+    await waitFor(() => {
+      expect(screen.getByText('This account has been deleted')).toBeInTheDocument()
+    })
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+  })
+
+  it('keeps impact list collapsed on ALREADY_CANCELLED even on desktop', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches: true, // desktop
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () =>
+          pendingPayload({
+            status: 'cancelled',
+            cancelled: true,
+            cancel_available: false,
+          }),
+        headers: new Headers(),
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('This deletion has already been cancelled')
+    const toggle = screen.getByRole('button', {
+      name: /What happens when the account is deleted/i,
+    })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('keeps hero.sub inside StatusHero labelled section', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => pendingPayload(),
+        headers: new Headers(),
+      }),
+    )
+    const { container } = renderPage()
+    await screen.findByText('Your account is scheduled for deletion')
+    const section = container.querySelector('section[aria-labelledby="status-hero-label"]')
+    expect(section).toBeTruthy()
+    expect(section?.textContent).toContain('You can still cancel below.')
+  })
+
+  it('trackDeletionCancelled emits wingcaster:analytics CustomEvent', () => {
+    const spy = vi.fn()
+    window.addEventListener('wingcaster:analytics', spy as EventListener)
+    trackDeletionCancelled({ deletion_request_id: 'DEL-TEST' })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect((spy.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+      event: 'deletion_cancelled',
+      deletion_request_id: 'DEL-TEST',
+    })
+    window.removeEventListener('wingcaster:analytics', spy as EventListener)
   })
 
   it('toggles impact list', async () => {
