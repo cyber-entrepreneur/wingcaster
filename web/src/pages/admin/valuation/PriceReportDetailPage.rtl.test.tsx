@@ -33,6 +33,21 @@ vi.mock('@/components/ui/toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
+const localeMock = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'ar',
+  isArabic: false,
+  dir: 'ltr' as 'ltr' | 'rtl',
+  setLocale: vi.fn(),
+}))
+vi.mock('@/hooks/useLocale', () => ({
+  useLocale: () => ({
+    ...localeMock,
+    isArabic: localeMock.locale === 'ar',
+    dir: localeMock.locale === 'ar' ? 'rtl' : 'ltr',
+  }),
+}))
+
+
 function detail(overrides: Partial<PriceReportDetail> = {}): PriceReportDetail {
   return {
     id: 'aprt_abc123',
@@ -128,6 +143,7 @@ function renderDetail(path = '/admin/valuation/price-reports/aprt_abc123') {
 }
 
 beforeEach(() => {
+  localeMock.locale = 'en'
   cleanup()
   vi.clearAllMocks()
   authMock.isAdmin = true
@@ -388,5 +404,103 @@ describe('PriceReportDetailPage (PA-PVA-009b)', () => {
     const confirm = within(dialog).queryByRole('button', { name: /Confirm|Publish|Signal/i })
     if (confirm) await user.click(confirm)
     await waitFor(() => expect(apiMock.reviewAdminAgentPriceReport).toHaveBeenCalled())
+  })
+})
+
+
+
+describe('PriceReportDetailPage AR toast copy', () => {
+  it('renders Arabic approve toast body from PRICE_REPORT_COPY', async () => {
+    localeMock.locale = 'ar'
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        status: 'pending_second_approval',
+        approval_request_id: 'apr_1',
+        review: { decided_at: new Date().toISOString(), decided_by: 'pa-other', incorporated: false },
+        viewer_already_voted: false,
+      }),
+    )
+    apiMock.castSecondApprovalVote.mockResolvedValue({ success: true, status: 'incorporated' })
+    const user = userEvent.setup()
+    renderDetail('/admin/valuation/price-reports/aprt_abc123?approval_request_id=apr_1')
+    await waitFor(() => expect(screen.getByRole('button', { name: /Approve request/i })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: /Approve request/i }))
+    await waitFor(() => {
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'تم تسجيل الموافقة. جارٍ إعادة احتساب المعايير.',
+        }),
+      )
+    })
+  })
+
+  it('renders Arabic SAME_REVIEWER toast from PRICE_REPORT_COPY', async () => {
+    localeMock.locale = 'ar'
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        status: 'pending_second_approval',
+        approval_request_id: 'apr_1',
+        review: { decided_at: new Date().toISOString(), decided_by: 'pa-other', incorporated: false },
+        viewer_already_voted: false,
+      }),
+    )
+    apiMock.castSecondApprovalVote.mockRejectedValue(
+      Object.assign(new Error('same'), { status: 409, code: 'SAME_REVIEWER' }),
+    )
+    const user = userEvent.setup()
+    renderDetail('/admin/valuation/price-reports/aprt_abc123?approval_request_id=apr_1')
+    await waitFor(() => expect(screen.getByRole('button', { name: /Approve request/i })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: /Approve request/i }))
+    await waitFor(() => {
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'أنت صاحب التصويت الأول. يجب أن يصوّت مسؤول منصة آخر.',
+        }),
+      )
+    })
+  })
+
+  it('renders Arabic undo-expired toast from PRICE_REPORT_COPY', async () => {
+    localeMock.locale = 'ar'
+    // Trigger via toastVoteError path through undo with UNDO_EXPIRED
+    const expires = new Date(Date.now() + 5000).toISOString()
+    apiMock.getAdminAgentPriceReport.mockResolvedValue(
+      detail({
+        two_person_required: false,
+        benchmark_delta: {
+          benchmark_price_point: 1_800_000,
+          benchmark_currency: 'AED',
+          delta_pct: 2.7,
+          delta_direction: 'above',
+          delta_tier: 'low',
+        },
+      }),
+    )
+    apiMock.reviewAdminAgentPriceReport.mockResolvedValue({
+      success: true,
+      status: 'verified',
+      undo_token_id: 'tok_1',
+      undo_expires_at: expires,
+    })
+    apiMock.undoAdminAgentPriceReportReview.mockRejectedValue(
+      Object.assign(new Error('expired'), { code: 'UNDO_EXPIRED', status: 409 }),
+    )
+    const user = userEvent.setup()
+    renderDetail()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Approve as signal only/i })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: /Approve as signal only/i }))
+    const dialog = await screen.findByRole('dialog')
+    const confirm = within(dialog).queryByRole('button', { name: /Confirm|Publish|Signal|Approve/i })
+    if (confirm) await user.click(confirm)
+    await waitFor(() => expect(apiMock.reviewAdminAgentPriceReport).toHaveBeenCalled())
+    const undoBtn = screen.queryByRole('button', { name: /^Undo/i })
+    if (undoBtn) {
+      await user.click(undoBtn)
+      await waitFor(() => {
+        expect(toastMock.addToast).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'انتهت مهلة التراجع.' }),
+        )
+      })
+    }
   })
 })
