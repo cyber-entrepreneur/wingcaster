@@ -2,12 +2,14 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 import { ProgressRing } from '@/components/onboarding/ProgressRing'
 import { SparkleBurst } from '@/components/onboarding/SparkleBurst'
+import { tUi, type OnboardingUiLocale } from '@/components/onboarding/copy'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
   OnboardingChecklistFlags,
   OnboardingState,
 } from '@/components/onboarding/useOnboardingState'
+import { useLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
 
 export interface OnboardingChecklistItem {
@@ -86,10 +88,12 @@ export function OnboardingChecklistCard({
   onDismissForever,
   onStepTap,
   items = DEFAULT_ITEMS,
-  title = 'Finish setting up',
+  title,
   defaultExpanded = true,
   className,
 }: OnboardingChecklistCardProps) {
+  const { isArabic } = useLocale()
+  const locale: OnboardingUiLocale = isArabic ? 'ar' : 'en'
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [showCompleted, setShowCompleted] = useState(false)
 
@@ -105,9 +109,10 @@ export function OnboardingChecklistCard({
   const complete = items.filter((item) => state.checklist[item.key])
   const visible = showCompleted ? [...incomplete, ...complete] : incomplete
 
+  const resolvedTitle = title ?? tUi('card.title', locale)
   const sub = allDone
-    ? "You're all set. Nice work."
-    : `You're ${pct}% there — ${remaining} steps left.`
+    ? tUi('card.sub.done', locale)
+    : tUi('card.sub.partial', locale, { pct, remaining })
 
   return (
     <section
@@ -133,7 +138,7 @@ export function OnboardingChecklistCard({
             className="text-[var(--lc-text-heading)]"
             style={{ font: 'var(--lc-type-heading-3)' }}
           >
-            {title}
+            {resolvedTitle}
           </h2>
           <p
             className="text-[var(--lc-text-secondary)]"
@@ -147,7 +152,7 @@ export function OnboardingChecklistCard({
           variant="ghost"
           size="icon"
           aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse checklist' : 'Expand checklist'}
+          aria-label={expanded ? tUi('card.collapse', locale) : tUi('card.expand', locale)}
           onClick={() => setExpanded((value) => !value)}
         >
           {expanded ? (
@@ -168,7 +173,20 @@ export function OnboardingChecklistCard({
                 className="h-auto p-0"
                 onClick={() => setShowCompleted(true)}
               >
-                Show completed ({complete.length})
+                {tUi('card.showCompleted', locale, { n: complete.length })}
+              </Button>
+            </li>
+          ) : null}
+
+          {showCompleted && complete.length > 0 ? (
+            <li>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0"
+                onClick={() => setShowCompleted(false)}
+              >
+                {tUi('card.hideCompleted', locale)}
               </Button>
             </li>
           ) : null}
@@ -214,7 +232,7 @@ export function OnboardingChecklistCard({
                       {item.label}
                       {item.optional ? (
                         <Badge variant="outline" className="text-[var(--lc-text-muted)]">
-                          Optional
+                          {tUi('card.optional', locale)}
                         </Badge>
                       ) : null}
                     </span>
@@ -235,7 +253,7 @@ export function OnboardingChecklistCard({
       {onDismissForever && !allDone ? (
         <div className="mt-[var(--lc-space-md)]">
           <Button type="button" variant="link" className="h-auto p-0" onClick={onDismissForever}>
-            Dismiss this checklist
+            {tUi('card.dismiss', locale)}
           </Button>
         </div>
       ) : null}
