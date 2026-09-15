@@ -35,6 +35,14 @@ export function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
 }
 
+/**
+ * Mint a JWT with an explicit TTL (seconds or zeit/ms string).
+ * Used for short-lived scoped tokens (e.g. WLB SSE EventSource auth).
+ */
+export function signScopedToken(payload, expiresIn) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn })
+}
+
 export function verifyToken(token) {
   try {
     return jwt.verify(token, JWT_SECRET)

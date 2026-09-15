@@ -9,21 +9,39 @@ import { createProgressBus } from '../infrastructure/progress-bus.js'
 import { registerProgressRoutes } from '../interface/progress-routes.js'
 import { Collections } from '../infrastructure/db.js'
 import { SessionState, DraftStatus } from '../domain/types.js'
+import {
+  mintWlbSseToken,
+  resetWlbSseTokenLedger,
+} from '../application/wlb-sse-token.js'
+import { signToken } from '../../../auth.js'
 
-vi.mock('../../../auth.js', () => ({
-  authMiddleware: (req, res, next) => {
-    const header = req.headers.authorization || ''
-    if (!header.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
-    const token = header.slice(7)
-    if (token === 'bad') {
-      return res.status(401).json({ error: 'Invalid token' })
-    }
-    req.user = { id: 'agent-1', role: 'agent' }
-    next()
-  },
-}))
+vi.mock('../../../auth.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    authMiddleware: (req, res, next) => {
+      const header = req.headers.authorization || ''
+      if (!header.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
+      const token = header.slice(7)
+      if (token === 'bad') {
+        return res.status(401).json({ error: 'Invalid token' })
+      }
+      // Allow real JWTs through for mint/redeem coverage; 'good' is the legacy stub.
+      if (token !== 'good') {
+        const decoded = actual.verifyToken(token)
+        if (!decoded?.id) {
+          return res.status(401).json({ error: 'Invalid token' })
+        }
+        req.user = { id: decoded.id, role: 'agent' }
+        return next()
+      }
+      req.user = { id: 'agent-1', role: 'agent' }
+      next()
+    },
+  }
+})
 
 const sessions = new Map()
 const drafts = new Map()
@@ -69,6 +87,7 @@ function seedSession(overrides = {}) {
 
 function createApp({ mode = 'sse', bus } = {}) {
   const app = express()
+  app.use(express.json())
   registerProgressRoutes(app, {
     config: {
       draftProgressMode: mode,
@@ -87,6 +106,7 @@ describe('draft progress HTTP routes', () => {
     sessions.clear()
     drafts.clear()
     bus = createProgressBus()
+    resetWlbSseTokenLedger()
   })
 
   afterEach(() => {
@@ -184,7 +204,7 @@ describe('draft progress HTTP routes', () => {
     expect(body).toContain('"field":"address"')
   })
 
-  it('SSE accepts ?token= query auth for EventSource', async () => {
+  it('SSE accepts short-lived WLB SSE ?token= for EventSource (not session JWT)', async () => {
     seedSession({
       state: SessionState.AWAITING_APPROVAL,
       draft_id: 'draft-1',
@@ -192,9 +212,10 @@ describe('draft progress HTTP routes', () => {
     })
     drafts.set('draft-1', { id: 'draft-1', status: DraftStatus.AWAITING_APPROVAL })
 
+    const { sse_token } = mintWlbSseToken({ userId: 'agent-1', sessionId: 'sess-1' })
     const app = createApp({ mode: 'sse', bus })
     const res = await request(app)
-      .get('/api/whatsapp-listings/drafts/sess-1/progress?token=good')
+      .get(`/api/whatsapp-listings/drafts/sess-1/progress?token=${encodeURIComponent(sse_token)}`)
       .buffer(true)
       .parse((response, callback) => {
         const chunks = []
@@ -203,6 +224,64 @@ describe('draft progress HTTP routes', () => {
       })
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toMatch(/text\/event-stream/)
+  })
+
+  it('rejects full session JWT in SSE query string', async () => {
+    seedSession({ state: SessionState.COLLECTING })
+    const sessionJwt = signToken({
+      id: 'agent-1',
+      verified_at: new Date().toISOString(),
+      token_version: 0,
+    })
+    const app = createApp({ mode: 'sse', bus })
+    const res = await request(app).get(
+      `/api/whatsapp-listings/drafts/sess-1/progress?token=${encodeURIComponent(sessionJwt)}`,
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('POST /api/onboarding/wlb/session mints a single-use SSE token', async () => {
+    seedSession({
+      state: SessionState.AWAITING_APPROVAL,
+      draft_id: 'draft-1',
+      extracted_property: {
+        address: 'X',
+        bedrooms: 1,
+        bathrooms: 1,
+        price: 1,
+        price_unit: 'USD',
+        area: 10,
+        area_unit: 'sqft',
+        description: 'd',
+      },
+    })
+    drafts.set('draft-1', { id: 'draft-1', status: DraftStatus.AWAITING_APPROVAL })
+
+    const app = createApp({ mode: 'sse', bus })
+    const mint = await request(app)
+      .post('/api/onboarding/wlb/session')
+      .set('Authorization', 'Bearer good')
+      .send({ session_id: 'sess-1' })
+    expect(mint.status).toBe(200)
+    expect(mint.body.sse_token).toBeTruthy()
+    expect(mint.body.expires_in).toBe(60)
+
+    const res = await request(app)
+      .get(
+        `/api/whatsapp-listings/drafts/sess-1/progress?token=${encodeURIComponent(mint.body.sse_token)}`,
+      )
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks = []
+        response.on('data', (c) => chunks.push(c))
+        response.on('end', () => callback(null, Buffer.concat(chunks).toString('utf8')))
+      })
+    expect(res.status).toBe(200)
+
+    const reuse = await request(app).get(
+      `/api/whatsapp-listings/drafts/sess-1/progress?token=${encodeURIComponent(mint.body.sse_token)}`,
+    )
+    expect(reuse.status).toBe(401)
   })
 
   it('polling state returns field snapshot + draft_ready', async () => {
