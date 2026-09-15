@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import {
   EMPTY_CHECKLIST,
   createDefaultOnboardingState,
+  normalizeActivationPayload,
   resolveCompletedVia,
   resolveIsStepComplete,
   useOnboardingState,
@@ -140,6 +141,37 @@ async function loadedHook() {
   await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
   return hook
 }
+
+describe('normalizeActivationPayload', () => {
+  it('falls rogue ActivationStepState strings back to not_started', () => {
+    const normalized = normalizeActivationPayload({
+      user_id: 'usr_sara',
+      tenant_id: 'personal:usr_sara',
+      signup_path: 'solo',
+      country_code: 'AE',
+      completed_count: 0,
+      total_count: 1,
+      steps: [
+        {
+          id: 'whatsapp',
+          order: 1,
+          state: 'totally_invalid_server_value',
+          completed_at: null,
+          completed_via: null,
+        },
+        {
+          id: 'working_hours',
+          order: 2,
+          state: 'in_progress',
+          completed_at: null,
+          completed_via: null,
+        },
+      ],
+    })
+    expect(normalized?.steps.find((s) => s.id === 'whatsapp')?.state).toBe('not_started')
+    expect(normalized?.steps.find((s) => s.id === 'working_hours')?.state).toBe('in_progress')
+  })
+})
 
 describe('resolveIsStepComplete / resolveCompletedVia', () => {
   it('activation whatsapp complete wins even when onboarding checklist has not caught up', () => {
@@ -322,6 +354,27 @@ describe('useOnboardingState', () => {
     expect(result.current.activation).toBeNull()
     expect(result.current.isStepComplete('whatsapp')).toBe(false)
     expect(result.current.data.step).toBe('welcome_skipped')
+  })
+
+  it('surfaces nested error.message instead of [object Object]', async () => {
+    const { result } = await loadedHook()
+    harness.onboardingPatch = {
+      status: 500,
+      body: { error: { message: 'onboarding store unavailable', code: 'ONB_DOWN' } },
+    }
+
+    let thrown: unknown
+    await act(async () => {
+      try {
+        await result.current.patch({ step: 'welcome_skipped' })
+      } catch (err) {
+        thrown = err
+      }
+    })
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toBe('onboarding store unavailable')
+    expect((thrown as Error).message).not.toContain('[object Object]')
   })
 
   it('completeActivation posts { step_id, completed_via } and updates local activation', async () => {

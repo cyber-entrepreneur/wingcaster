@@ -120,6 +120,14 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 
 const ONBOARDING_PATHS: readonly Exclude<OnboardingPath, null>[] = ['whatsapp', 'manual', 'import']
 
+const ACTIVATION_STEP_STATES: readonly ActivationStepState[] = [
+  'complete',
+  'in_progress',
+  'not_started',
+  'deferred',
+  'locked',
+]
+
 /** Steps that mean the WhatsApp intake tour already produced a draft (or more). */
 const WHATSAPP_INTAKE_DONE_STEPS: readonly OnboardingStep[] = ['draft_review', 'first_published', 'complete']
 
@@ -149,6 +157,10 @@ function isOnboardingStep(value: unknown): value is OnboardingStep {
 
 function isOnboardingPath(value: unknown): value is Exclude<OnboardingPath, null> {
   return typeof value === 'string' && (ONBOARDING_PATHS as readonly string[]).includes(value)
+}
+
+function isActivationStepState(value: unknown): value is ActivationStepState {
+  return typeof value === 'string' && (ACTIVATION_STEP_STATES as readonly string[]).includes(value)
 }
 
 function asBool(value: unknown): boolean {
@@ -186,9 +198,18 @@ async function authFetch(path: string, options?: RequestInit): Promise<ParsedBod
   return { status: res.status, ok: res.ok, json, text }
 }
 
+function errorDetail(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = (err as { message: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  if (typeof err === 'string') return err
+  return String(err)
+}
+
 function errorMessage(json: unknown, status: number): string {
   if (json && typeof json === 'object' && 'error' in json) {
-    return String((json as { error: unknown }).error)
+    return errorDetail((json as { error: unknown }).error)
   }
   return `Request failed (${status})`
 }
@@ -246,7 +267,7 @@ function normalizeActivationStep(raw: unknown, index: number): ActivationStep | 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const o = raw as Record<string, unknown>
   if (typeof o.id !== 'string' || !o.id) return null
-  const state = typeof o.state === 'string' ? (o.state as ActivationStepState) : 'not_started'
+  const state = isActivationStepState(o.state) ? o.state : 'not_started'
   return {
     id: o.id,
     order: typeof o.order === 'number' ? o.order : index + 1,
