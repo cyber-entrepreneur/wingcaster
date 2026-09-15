@@ -34,6 +34,7 @@ import { TwoPersonProgress } from '@/components/security/TwoPersonProgress'
 import { Timeline, type TimelineEntry } from '@/components/security/Timeline'
 import { PAQueueKeyboardShortcutsPanel } from '@/components/queue'
 import { cn } from '@/lib/utils'
+import { usePriceReportCopy } from './priceReportCopy'
 import {
   PriceReportIncorporateDialog,
   PriceReportReasonDialog,
@@ -197,7 +198,9 @@ export function PriceReportDetailPage() {
   const approvalRequestId = searchParams.get('approval_request_id')
   const navigate = useNavigate()
   const { isAdmin, agent } = useAuth()
+  const currentUserId = agent?.id || null
   const { addToast } = useToast()
+  const { t } = usePriceReportCopy()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -211,7 +214,13 @@ export function PriceReportDetailPage() {
   const [busy, setBusy] = useState(false)
   const [incorporateWeight, setIncorporateWeight] = useState(100)
   const [signalWeight, setSignalWeight] = useState(50)
-  const [undoAvailable, setUndoAvailable] = useState(false)
+  const [undoToken, setUndoToken] = useState<{
+    reportId: string
+    undo_token_id: string
+    undo_expires_at: string
+  } | null>(null)
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0)
+  const [secondVoteNotes, setSecondVoteNotes] = useState('')
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   const backHref = returnTo ? decodeURIComponent(returnTo) : '/admin/valuation/price-reports'
@@ -250,17 +259,48 @@ export function PriceReportDetailPage() {
   }, [load])
 
   useEffect(() => {
-    if (!undoAvailable) return
-    const t = window.setTimeout(() => setUndoAvailable(false), 5000)
-    return () => window.clearTimeout(t)
-  }, [undoAvailable])
+    if (!undoToken?.undo_expires_at) {
+      setUndoSecondsLeft(0)
+      return
+    }
+    const tick = () => {
+      const ms = Date.parse(undoToken.undo_expires_at) - Date.now()
+      if (ms <= 0) {
+        setUndoSecondsLeft(0)
+        setUndoToken(null)
+        return
+      }
+      setUndoSecondsLeft(Math.ceil(ms / 1000))
+    }
+    tick()
+    const t = window.setInterval(tick, 250)
+    return () => window.clearInterval(t)
+  }, [undoToken])
+
+  const isInitiatorViewer = Boolean(
+    currentUserId && report?.review?.decided_by && String(report.review.decided_by) === String(currentUserId),
+  )
+
+  const deepLinkAlreadyVoted = Boolean(
+    approvalRequestId &&
+      report?.approval_request_id &&
+      approvalRequestId === report.approval_request_id &&
+      (report.viewer_already_voted || isInitiatorViewer),
+  )
 
   const secondApproverMode = Boolean(
     approvalRequestId &&
       report?.approval_request_id &&
       approvalRequestId === report.approval_request_id &&
       report.status === 'pending_second_approval' &&
-      !report.is_own,
+      !report.is_own &&
+      !deepLinkAlreadyVoted,
+  )
+
+  const showPendingSecondBanner = Boolean(
+    report?.status === 'pending_second_approval' &&
+      !secondApproverMode &&
+      !(approvalRequestId && approvalRequestId === report.approval_request_id),
   )
 
   const auditEntries: TimelineEntry[] = useMemo(() => {
@@ -280,56 +320,125 @@ export function PriceReportDetailPage() {
     }))
   }, [report])
 
+  const toastVoteError = (err: unknown) => {
+    const e = err as { code?: string; status?: number; message?: string }
+    if (e.code === 'SAME_REVIEWER' || (e.status === 409 && e.code === 'SAME_REVIEWER')) {
+      addToast({
+        variant: 'error',
+        title: t('toast.vote.same_reviewer'),
+      })
+      return
+    }
+    if (e.code === 'OWN_CASE' || e.code === 'OWN_REPORT') {
+      addToast({
+        variant: 'error',
+        title: t('toast.vote.own_case'),
+      })
+      return
+    }
+    if (e.code === 'TOKEN_CONSUMED' || e.status === 410) {
+      addToast({
+        variant: 'error',
+        title: t('toast.vote.token_consumed'),
+      })
+      return
+    }
+    if (e.code === 'UNDO_EXPIRED') {
+      addToast({
+        variant: 'error',
+        title: t('toast.undo.expired'),
+      })
+      return
+    }
+    addToast({
+      variant: 'error',
+      title: e.message || (err instanceof Error ? err.message : t('toast.action.failed')),
+    })
+  }
+
   const runReview = async (body: PriceReportReviewBody, toastTitle: string) => {
     if (!report) return
     setBusy(true)
     try {
-      const result = (await api.reviewAdminAgentPriceReport(
-        report.id,
-        body as unknown as Record<string, unknown>,
-      )) as PriceReportReviewResult
+      const result = (await api.reviewAdminAgentPriceReport(report.id, body)) as PriceReportReviewResult
       if (result.pending_second_approval) {
         addToast({
           variant: 'warning',
-          title: 'Incorporation request created. Awaiting second approver.',
+          title: t('toast.second_approval.pending'),
         })
-        setUndoAvailable(false)
+        setUndoToken(null)
       } else {
         addToast({ variant: 'success', title: toastTitle })
-        setUndoAvailable(true)
+        if (result.undo_token_id && result.undo_expires_at) {
+          setUndoToken({
+            reportId: report.id,
+            undo_token_id: result.undo_token_id,
+            undo_expires_at: result.undo_expires_at,
+          })
+        }
       }
       await load()
     } catch (err) {
-      const code = (err as { code?: string })?.code
-      if (code === 'OWN_REPORT') {
-        addToast({
-          variant: 'warning',
-          title: 'You are the submitting agent — you cannot review this report.',
-        })
-      } else {
-        addToast({
-          variant: 'error',
-          title: err instanceof Error ? err.message : 'Review failed',
-        })
-      }
+      toastVoteError(err)
     } finally {
       setBusy(false)
       setDialog(null)
     }
   }
 
-  const handleUndo = async () => {
-    if (!report) return
+  const handleSecondVote = async (decision: 'approve' | 'decline') => {
+    if (!report?.approval_request_id) return
+    setBusy(true)
     try {
-      await api.undoAdminAgentPriceReportReview(report.id)
-      addToast({ variant: 'success', title: 'Review undone.' })
-      setUndoAvailable(false)
+      await api.castSecondApprovalVote({
+        approval_request_id: report.approval_request_id,
+        decision,
+        notes: secondVoteNotes.trim() || undefined,
+      })
+      addToast({
+        variant: 'success',
+        title:
+          decision === 'approve'
+            ? t('toast.approve.success')
+            : t('toast.decline.success'),
+      })
+      setSecondVoteNotes('')
       await load()
     } catch (err) {
-      addToast({
-        variant: 'error',
-        title: err instanceof Error ? err.message : 'Undo failed',
+      toastVoteError(err)
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (!report || !undoToken) return
+    try {
+      await api.undoAdminAgentPriceReportReview(report.id, {
+        undo_token_id: undoToken.undo_token_id,
       })
+      addToast({
+        variant: 'success',
+        title: t('toast.undo.success'),
+      })
+      setUndoToken(null)
+      await load()
+    } catch (err) {
+      toastVoteError(err)
+      setUndoToken(null)
+    }
+  }
+
+  const handleReveal = async (ctx: { caseId?: string; field?: string; kind?: string }) => {
+    if (!report) return
+    try {
+      await api.revealAdminAgentPriceReportPii(report.id, {
+        field: ctx.field || 'agent_display_name',
+        kind: ctx.kind || 'name',
+      })
+    } catch {
+      // best-effort audit
     }
   }
 
@@ -341,7 +450,7 @@ export function PriceReportDetailPage() {
       }
       window.open(res.url, '_blank', 'noopener,noreferrer')
     } catch {
-      addToast({ variant: 'error', title: 'Preview link expired. Refresh page.' })
+      addToast({ variant: 'error', title: t('toast.preview.expired') })
     }
   }
 
@@ -451,6 +560,7 @@ export function PriceReportDetailPage() {
                     kind="name"
                     value={report.agent?.display_name || 'Agent'}
                     auditContext={{ caseId: report.id, field: 'agent_display_name' }}
+                    onReveal={handleReveal}
                   />
                   {' · '}
                   {report.subject?.segment_label}
@@ -534,6 +644,7 @@ export function PriceReportDetailPage() {
                     kind="name"
                     value={report.agent?.display_name || 'Agent'}
                     auditContext={{ caseId: report.id, field: 'agent_display_name' }}
+                    onReveal={handleReveal}
                   />
                   <AgentTierChip tier={report.agent?.tier || 'pro'} />
                   <Numeric as="span" className="text-sm text-[var(--lc-text-muted)]">
@@ -861,6 +972,36 @@ export function PriceReportDetailPage() {
                   </div>
                 ) : null}
 
+                {deepLinkAlreadyVoted ? (
+                  <div
+                    role="status"
+                    className="mb-3 rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] p-3 text-sm text-[var(--lc-status-warning-fg)]"
+                  >
+                    You already cast the first vote on this incorporation request. A different PA
+                    must approve or decline.
+                  </div>
+                ) : null}
+
+                {showPendingSecondBanner ? (
+                  <div
+                    role="status"
+                    className="mb-3 rounded-[var(--lc-radius-md)] bg-[var(--lc-status-warning-bg)] p-3 text-sm text-[var(--lc-status-warning-fg)]"
+                  >
+                    Awaiting second approver
+                    {report.approval_request_id ? (
+                      <>
+                        {" · "}
+                        <Link
+                          to={`/admin/fin/approvals?id=${report.approval_request_id}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          Open approval request
+                        </Link>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {secondApproverMode ? (
                   <div className="space-y-3">
                     <div className="rounded-[var(--lc-radius-md)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-accent-bold)] p-3 text-[var(--lc-accent-bold-text)]">
@@ -869,10 +1010,40 @@ export function PriceReportDetailPage() {
                     <p className="text-sm">
                       Initiator proposed: <strong>Incorporate into benchmark</strong>
                     </p>
-                    <Button type="button" variant="default" className="w-full" disabled={busy}>
+                    <label className="block text-sm">
+                      <span className="text-[var(--lc-text-muted)]">Notes</span>
+                      <textarea
+                        className="mt-1 min-h-tap w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] p-3"
+                        value={secondVoteNotes}
+                        onChange={(e) => setSecondVoteNotes(e.target.value)}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="w-full min-h-tap"
+                      disabled={busy || isInitiatorViewer}
+                      title={
+                        isInitiatorViewer
+                          ? "You cast the first vote — a different PA must decide."
+                          : undefined
+                      }
+                      onClick={() => void handleSecondVote("approve")}
+                    >
                       Approve request
                     </Button>
-                    <Button type="button" variant="outline" className="w-full" disabled={busy}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full min-h-tap"
+                      disabled={busy || isInitiatorViewer}
+                      title={
+                        isInitiatorViewer
+                          ? "You cast the first vote — a different PA must decide."
+                          : undefined
+                      }
+                      onClick={() => void handleSecondVote("decline")}
+                    >
                       Decline request
                     </Button>
                   </div>
@@ -975,9 +1146,12 @@ export function PriceReportDetailPage() {
                   </div>
                 ) : null}
 
-                {undoAvailable ? (
+                {undoToken && undoSecondsLeft > 0 ? (
                   <div className="mt-3 flex items-center justify-between rounded-[var(--lc-radius-md)] border border-[var(--lc-accent-bold-edge)] px-3 py-2 text-sm">
-                    <span>Decision recorded — undo within 5s</span>
+                    <span>
+                      Decision recorded — undo within{" "}
+                      <Numeric as="span">{undoSecondsLeft}</Numeric>s
+                    </span>
                     <Button type="button" variant="link" size="sm" onClick={() => void handleUndo()}>
                       Undo
                     </Button>

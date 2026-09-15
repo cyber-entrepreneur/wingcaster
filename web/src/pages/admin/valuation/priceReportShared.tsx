@@ -46,9 +46,7 @@ export function formatMoney(amount: number | null | undefined, currency = 'AED')
 }
 
 export function formatDeltaPct(pct: number): string {
-  const abs = Math.abs(pct)
-  const rounded = abs >= 10 ? abs.toFixed(1) : abs.toFixed(1)
-  return rounded
+  return Math.abs(pct).toFixed(1)
 }
 
 export function statusLabel(status: PriceReportStatus | string): string {

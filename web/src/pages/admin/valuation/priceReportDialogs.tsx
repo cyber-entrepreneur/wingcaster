@@ -250,7 +250,7 @@ export function PriceReportReasonDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="price-report-notes">
-              {mode === 'reject' ? 'Notes for the agent (optional)' : 'Additional context (optional)'}
+              {mode === 'reject' ? 'Notes for the agent' : 'Additional context'}
             </Label>
             <textarea
               id="price-report-notes"
