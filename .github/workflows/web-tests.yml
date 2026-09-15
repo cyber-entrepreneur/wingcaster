@@ -47,15 +47,15 @@ jobs:
         run: npx tsc --noEmit
 
   # ubuntu-latest ~7GB. Theme *.visual.test.tsx files alone approach the 4GB
-  # worker heap; sharing a process with anything else OOMs. Keep app shards
-  # modest, and give theme 24 shards so each visual file is typically alone.
+  # worker heap; sharing a process with anything else OOMs. Shard app and theme
+  # at 24 each so each visual file is typically alone.
   test-app:
-    name: Tests app (${{ matrix.shard }}/12)
+    name: Tests app (${{ matrix.shard }}/24)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     defaults:
       run:
         working-directory: web
@@ -68,10 +68,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci --ignore-scripts
-      - name: Vitest app shard ${{ matrix.shard }}/12
+      - name: Vitest app shard ${{ matrix.shard }}/24
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run --exclude 'src/theme/**' --shard=${{ matrix.shard }}/12
+        run: npx vitest run --exclude 'src/theme/**' --shard=${{ matrix.shard }}/24
 
   test-theme:
     name: Tests theme (${{ matrix.shard }}/24)
