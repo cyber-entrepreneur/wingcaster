@@ -324,6 +324,23 @@ const TABLE_MAP = {
       'related_entity_type', 'related_entity_id', 'occurred_at',
     ],
   },
+  ai_usage_daily: {
+    schema: 'public',
+    table: 'ai_usage_daily',
+    conflictColumns: ['user_id', 'usage_date'],
+    columns: [
+      'user_id', 'usage_date', 'tenant_id',
+      'suggestions_used', 'input_tokens', 'output_tokens', 'last_call_at',
+    ],
+  },
+  agency_ai_settings: {
+    schema: 'public',
+    table: 'agency_ai_settings',
+    conflictColumns: ['agency_id', 'user_id'],
+    columns: [
+      'agency_id', 'user_id', 'daily_cap', 'monthly_cap', 'set_by', 'set_at',
+    ],
+  },
 
   // Auth / support
   auth_recovery_tokens: { schema: 'public', table: 'auth_recovery_tokens', columns: ['user_id', 'email', 'type', 'token_hash', 'status', 'case_id', 'expires_at', 'attempts', 'ip', 'user_agent'] },
