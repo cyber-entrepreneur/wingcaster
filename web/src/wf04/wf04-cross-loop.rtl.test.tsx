@@ -42,6 +42,24 @@ const SHR_AUT_005D_STATES = [
 
 const TOKEN = 'v1.wf04-cross-loop.sig'
 
+/** BE-ACR-06 reveal-audit field allowlist (mirrors backend REVEAL_FIELDS). */
+const REVEAL_AUDIT_FIELD_ALLOWLIST = [
+  'email',
+  'phone',
+  'username',
+  'ip',
+  'row',
+  'name',
+  'contact',
+  'user_agent',
+] as const
+
+function expectRevealAuditField(field: unknown) {
+  expect(typeof field).toBe('string')
+  expect(REVEAL_AUDIT_FIELD_ALLOWLIST).toContain(field)
+}
+
+
 const {
   castVoteMock,
   getCaseMock,
@@ -52,9 +70,9 @@ const {
 } = vi.hoisted(() => ({
   castVoteMock: vi.fn(),
   getCaseMock: vi.fn(),
-  revealAuditMock: vi.fn<(caseId: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
+  revealAuditMock: vi.fn<(caseId: string, field: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
   listMock: vi.fn(),
-  revealQueueMock: vi.fn<(caseId: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
+  revealQueueMock: vi.fn<(caseId: string, field: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
   addToastMock: vi.fn(),
 }))
 
@@ -465,6 +483,9 @@ describe('WF-04 cross-loop — PII reveal writes reveal-audit', () => {
 
     await waitFor(() => expect(revealQueueMock).toHaveBeenCalled())
     expect(revealQueueMock.mock.calls[0][0]).toBe('acr_wf04')
+    // Queue primary identifier cell uses field 'name' (display name PIIMask).
+    expectRevealAuditField(revealQueueMock.mock.calls[0][1])
+    expect(revealQueueMock.mock.calls[0][1]).toBe('name')
     expect(await screen.findByText('Omar Khoury')).toBeTruthy()
   })
 
@@ -481,6 +502,9 @@ describe('WF-04 cross-loop — PII reveal writes reveal-audit', () => {
 
     await waitFor(() => expect(revealAuditMock).toHaveBeenCalled())
     expect(revealAuditMock.mock.calls[0][0]).toBe('acr_wf04')
+    // Detail "contact value" PIIMask is first in document order (field 'contact').
+    expectRevealAuditField(revealAuditMock.mock.calls[0][1])
+    expect(revealAuditMock.mock.calls[0][1]).toBe('contact')
   })
 })
 

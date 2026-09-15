@@ -57,6 +57,8 @@ describe('WF-04 UI contract — BE-BLOCKER-22 cast-vote only', () => {
     expect(CAST_VOTE_ERROR.OWN_CASE).toBe('OWN_CASE')
     expect(CAST_VOTE_ERROR.VOTE_DISAGREEMENT).toBe('VOTE_DISAGREEMENT')
     expect(CAST_VOTE_ERROR.ALREADY_ESCALATED).toBe('ALREADY_ESCALATED')
+    expect(CAST_VOTE_ERROR.CASE_FINALIZED).toBe('CASE_FINALIZED')
+    expect(CAST_VOTE_ERROR.NOT_PENDING).toBe('NOT_PENDING')
   })
 
   it('decision endpoint constant is cast-vote only', () => {

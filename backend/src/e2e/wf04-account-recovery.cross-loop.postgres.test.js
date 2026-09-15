@@ -19,6 +19,7 @@ import { finPostgresSuite } from '../fin/testing/suite.js'
 import { createAgentAccount, updatePlatformRole } from '../identity.js'
 import { signToken } from '../auth.js'
 import { findOne, insert, query } from '../db.js'
+import { REVEAL_RATE_LIMIT_PER_HOUR } from '../account-recovery/reveal-audit.js'
 import {
   issueScheduledDeletionViewToken,
   registerScheduledDeletionRoutes,
@@ -285,7 +286,59 @@ finPostgresSuite('WF-04 cross-loop account recovery (Wave 3 Agent 4)', { seed: f
     expect(tokens).toHaveLength(0)
   })
 
+  it('reveal-audit: 21st reveal within same hour returns 429 RATE_LIMITED', async () => {
+    const applicant = await agentAccount('WF04 RateLimit Applicant')
+    const pa = await agentAccount('WF04 RateLimit PA', { platformAdmin: true })
+
+    const requestRes = await request(app)
+      .post('/api/auth/recovery/request')
+      .send({
+        email: applicant.email,
+        reason: 'Rate-limit coverage for BE-ACR-06 reveal-audit endpoint.',
+        preferred_channel: 'email',
+        contact: applicant.email,
+      })
+    expect(requestRes.status, JSON.stringify(requestRes.body)).toBe(200)
+    const caseId = requestRes.body._dev_case_id
+    expect(caseId).toBeTruthy()
+
+    // Seed 20 reveals in the current hour so the next call is the 21st → 429.
+    for (let i = 0; i < REVEAL_RATE_LIMIT_PER_HOUR; i += 1) {
+      await insert('account_recovery_reveal_audit', {
+        id: randomUUID(),
+        case_id: caseId,
+        reviewer_id: pa.userId,
+        field: i % 2 === 0 ? 'email' : 'phone',
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    const limited = await request(app)
+      .post(`/api/admin/account-recovery/${caseId}/reveal-audit`)
+      .set('Authorization', `Bearer ${pa.token}`)
+      .set('X-Wingcaster-Env', 'live')
+      .send({ field: 'email' })
+
+    expect(limited.status, JSON.stringify(limited.body)).toBe(429)
+    expect(limited.body.code).toBe('RATE_LIMITED')
+    expect(limited.body.limit).toBe(REVEAL_RATE_LIMIT_PER_HOUR)
+    expect(limited.body.used).toBe(REVEAL_RATE_LIMIT_PER_HOUR)
+    expect(limited.body.retry_after_seconds).toBe(3600)
+  })
+
+  // TODO(WF-04 / backend coordination): SLA-lapse cron that auto-transitions stuck
+  // pending_review cases to status='expired' is NOT on this branch.
+  // Expected home (when implemented): backend/src/workers/account-recovery-sla-lapse.js
+  // (or similar) — mirror agency-application-expiry.js / report-expiry-worker.js.
+  // Deadlock vector: cases past SLA_HOURS_TOTAL (24h in case-serializers.js) remain
+  // pending_review forever with no worker tick, so cast-vote / queue never clear.
+  // When the cron lands, add PG coverage here:
+  //   seed pending_review with created_at = now - 25h → run tick → status === 'expired'.
+  // Pointers today: backend/src/account-recovery/case-serializers.js (SLA_HOURS_TOTAL),
+  // backend/src/workers/{agency-application-expiry,report-expiry-worker}.js (pattern).
+
   it('SHR-AUT-005d: all 5 public scheduled-deletion states via token routes', async () => {
+
     // Use a mini app so we do not depend on server.js route registration order.
     const deletionApp = express()
     deletionApp.use(express.json())
