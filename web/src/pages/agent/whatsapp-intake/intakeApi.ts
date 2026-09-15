@@ -229,10 +229,32 @@ export async function getDraftState(sessionId: string): Promise<IntakeFetchResul
   )
 }
 
-export function draftProgressSseUrl(sessionId: string): string {
-  const token = getIntakeAuthToken()
+export interface WlbSseSessionPayload {
+  sse_token: string
+  expires_in: number
+  session_id: string
+}
+
+/**
+ * Mint a 60s single-use SSE-scoped token for EventSource.
+ * Full session JWTs must never appear in the SSE URL.
+ */
+export async function mintWlbSseSession(
+  sessionId: string,
+): Promise<IntakeFetchResult<WlbSseSessionPayload>> {
+  return intakeFetch<WlbSseSessionPayload>('/onboarding/wlb/session', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+}
+
+/**
+ * Build the EventSource URL with a short-lived SSE token (never the session JWT).
+ */
+export async function draftProgressSseUrl(sessionId: string): Promise<string> {
   const base = `${API_BASE}/whatsapp-listings/drafts/${encodeURIComponent(sessionId)}/progress`
-  if (!token) return base
+  const minted = await mintWlbSseSession(sessionId)
+  if (!minted.ok || !minted.data?.sse_token) return base
   const join = base.includes('?') ? '&' : '?'
-  return `${base}${join}token=${encodeURIComponent(token)}`
+  return `${base}${join}token=${encodeURIComponent(minted.data.sse_token)}`
 }

@@ -91,11 +91,16 @@ describe('useDraftProgress degradation', () => {
       if (u.includes('/progress') && init?.method === 'HEAD') {
         return headResponse(200, { 'X-Draft-Progress-SSE': '1' })
       }
+      if (u.includes('/onboarding/wlb/session')) {
+        return jsonResponse({ sse_token: 'sse-scoped', expires_in: 60, session_id: 'sess-sse' })
+      }
       return jsonResponse({ error: 'unexpected' }, 500)
     })
     render(<Harness sessionId="sess-sse" />)
     await waitFor(() => expect(screen.getByTestId('transport')).toHaveTextContent('sse'))
     expect(MockEventSource.instances.length).toBe(1)
+    expect(MockEventSource.instances[0].url).toContain('token=sse-scoped')
+    expect(MockEventSource.instances[0].url).not.toContain('fi_token')
     expect(screen.getByTestId('completed')).toHaveTextContent('0')
   })
 
@@ -133,6 +138,9 @@ describe('useDraftProgress degradation', () => {
       }
       if (u.includes('/progress') && init?.method === 'HEAD') {
         return headResponse(200, { 'X-Draft-Progress-SSE': '1' })
+      }
+      if (u.includes('/onboarding/wlb/session')) {
+        return jsonResponse({ sse_token: 'sse-scoped', expires_in: 60, session_id: 'sess-degrade' })
       }
       if (u.includes('/state')) {
         return jsonResponse({ error: 'nope' }, 500)
