@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
+import { apiErrorMessage } from '@/lib/http-status'
 import type { PricingRecalculationJob } from '@/types/marketPricing'
 
 interface MatchConfig {
@@ -174,8 +175,8 @@ export function PricingAdminPage() {
       setAgentReports(apr || [])
       setCsvLogs(logs || [])
       setJobs(jobRows || [])
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message || 'Failed to load pricing admin data', variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err, 'Failed to load pricing admin data'), variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -271,8 +272,8 @@ function MatchConfigPanel({ configs, onChange }: { configs: MatchConfig[]; onCha
       resetForm()
       onChange()
       addToast({ title: editingId ? 'Config updated' : 'Config created' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -281,8 +282,8 @@ function MatchConfigPanel({ configs, onChange }: { configs: MatchConfig[]; onCha
       await api.deleteAdminPricingConfig(id)
       onChange()
       addToast({ title: 'Config deleted' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -407,8 +408,8 @@ function SourcesPanel({ sources, onChange }: { sources: PricingSource[]; onChang
       await api.updateAdminPricingSource(sourceRow.source, { enabled: !sourceRow.enabled })
       onChange()
       addToast({ title: `${sourceRow.label} ${sourceRow.enabled ? 'disabled' : 'enabled'}` })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -422,8 +423,8 @@ function SourcesPanel({ sources, onChange }: { sources: PricingSource[]; onChang
       setShowForm(false)
       onChange()
       addToast({ title: 'Source created' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -519,8 +520,8 @@ Modern apartment in Mar Mikhael,320000,USD,apartment,2,2,120,newly_renovated,sem
       setCsvText('')
       onChange()
       addToast({ title: `Imported ${result.imported} rows`, description: `${result.failed} failed` })
-    } catch (err: any) {
-      addToast({ title: 'Import failed', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Import failed', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setImporting(false)
     }
@@ -589,8 +590,8 @@ function CurrencyRatesPanel({ rates, onChange }: { rates: CurrencyRate[]; onChan
       setRate('')
       onChange()
       addToast({ title: 'Rate added' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -599,8 +600,8 @@ function CurrencyRatesPanel({ rates, onChange }: { rates: CurrencyRate[]; onChan
       await api.deleteAdminPricingCurrencyRate(id)
       onChange()
       addToast({ title: 'Rate deleted' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -609,8 +610,8 @@ function CurrencyRatesPanel({ rates, onChange }: { rates: CurrencyRate[]; onChan
       const result = await api.refreshAdminPricingCurrencyRates()
       onChange()
       addToast({ title: 'Rate refreshed', description: `${result.source}: ${result.rate}` })
-    } catch (err: any) {
-      addToast({ title: 'Refresh failed', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Refresh failed', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -686,8 +687,8 @@ function NormalizationRulesPanel({ rules, onChange }: { rules: NormalizationRule
       setShowForm(false)
       onChange()
       addToast({ title: 'Rule created' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -696,8 +697,8 @@ function NormalizationRulesPanel({ rules, onChange }: { rules: NormalizationRule
       await api.deleteAdminPricingNormalizationRule(id)
       onChange()
       addToast({ title: 'Rule deleted' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -787,8 +788,8 @@ function TrendsPanel({ trends, onChange }: { trends: { snapshots: TrendSnapshot[
       await api.runAdminPricingTrends()
       onChange()
       addToast({ title: 'Trend snapshots updated' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -845,8 +846,8 @@ function ReportsPanel({ reports, onChange }: { reports: ComparableReport[]; onCh
       await api.reviewAdminPricingReport(id, { status })
       onChange()
       addToast({ title: 'Report reviewed' })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -888,8 +889,8 @@ function AgentPriceReportsPanel({ reports, onChange }: { reports: AgentPriceRepo
       await api.reviewAdminAgentPriceReport(id, { status })
       onChange()
       addToast({ title: `Report ${status}` })
-    } catch (err: any) {
-      addToast({ title: 'Error', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Error', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -938,8 +939,8 @@ function RecalculationJobsPanel({ jobs, setJobs }: { jobs: PricingRecalculationJ
     try {
       const rows = await api.getAdminPricingRecalculationJobs(statusFilter ? { status: statusFilter } : undefined)
       setJobs(rows || [])
-    } catch (err: any) {
-      addToast({ title: 'Job refresh failed', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Job refresh failed', description: apiErrorMessage(err), variant: 'error' })
     }
   }
 
@@ -963,8 +964,8 @@ function RecalculationJobsPanel({ jobs, setJobs }: { jobs: PricingRecalculationJ
       const job = await api.createAdminPricingRecalculationJob(payload)
       addToast({ title: 'Recalculation job queued', description: `${job.total_items} listing(s) in scope.` })
       await refresh()
-    } catch (err: any) {
-      addToast({ title: 'Could not queue job', description: err.message, variant: 'error' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not queue job', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setSubmitting(false)
     }
@@ -972,12 +973,12 @@ function RecalculationJobsPanel({ jobs, setJobs }: { jobs: PricingRecalculationJ
 
   async function cancel(id: string) {
     try { await api.cancelAdminPricingRecalculationJob(id); await refresh(); addToast({ title: 'Job cancelled' }) }
-    catch (err: any) { addToast({ title: 'Cancellation failed', description: err.message, variant: 'error' }) }
+    catch (err: unknown) { addToast({ title: 'Cancellation failed', description: apiErrorMessage(err), variant: 'error' }) }
   }
 
   async function retry(id: string) {
     try { await api.retryAdminPricingRecalculationJob(id); await refresh(); addToast({ title: 'Failed items requeued' }) }
-    catch (err: any) { addToast({ title: 'Retry failed', description: err.message, variant: 'error' }) }
+    catch (err: unknown) { addToast({ title: 'Retry failed', description: apiErrorMessage(err), variant: 'error' }) }
   }
 
   return (
