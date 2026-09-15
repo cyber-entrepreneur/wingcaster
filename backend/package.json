@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.125.0",
+    "@sentry/node": "7.120.4",
+    "@sentry/profiling-node": "7.120.4",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.10.0",
     "cors": "^2.8.5",
