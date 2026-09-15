@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PA queue-family primitives (`web/src/components/queue/`).
  *
  * Anchor brief: PA-MOD-001 (portal moderation queue).

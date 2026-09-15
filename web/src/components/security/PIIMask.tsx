@@ -61,6 +61,10 @@ export interface PIIMaskProps {
   className?: string
 }
 
+export function maskDisplayName(value: string, kind: PIIMaskKind = "name"): string {
+  return fallbackMask(value, kind)
+}
+
 function fallbackMask(value: string, kind: PIIMaskKind): string {
   const v = value.trim()
   if (!v) return '••••'

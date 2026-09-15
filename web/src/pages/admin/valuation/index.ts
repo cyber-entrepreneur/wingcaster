@@ -4,3 +4,6 @@ export { MarketImpactChip } from './MarketImpactChip'
 export { ReporterPatternDot } from './ReporterPatternDot'
 export { comparableReportsApi } from './api'
 export type * from './types'
+
+export { PriceReportQueuePage } from './PriceReportQueuePage'
+export { PriceReportDetailPage } from './PriceReportDetailPage'
