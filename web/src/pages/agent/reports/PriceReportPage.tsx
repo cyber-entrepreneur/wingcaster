@@ -614,6 +614,9 @@ export function PriceReportPage({ featureFlagsOverride }: PriceReportPageProps =
               onRemove={(id) => {
                 void evidence.onRemove(id)
               }}
+              onRetry={(id) => {
+                void evidence.retry(id)
+              }}
               label={t('evidenceLabel')}
               helper_text={t('evidenceHelper')}
               disabled={submitting || !subjectSelected}

@@ -146,6 +146,12 @@ export function registerPublicRoutes(app, services) {
 
       res.status(201).json(report)
     } catch (err) {
+      if (err?.code === 'SUBMIT_GUARD_LOOKUP_FAILED') {
+        return res.status(503).json({
+          error: 'Submit guards temporarily unavailable',
+          code: 'SUBMIT_GUARD_UNAVAILABLE',
+        })
+      }
       logger.warn({ err: err.message }, 'report comparable failed')
       next(err)
     }
@@ -290,6 +296,12 @@ export function registerPublicRoutes(app, services) {
       res.status(201).json(report)
     } catch (err) {
       logger.warn({ err: err.message }, 'agent price report failed')
+      if (err?.code === 'SUBMIT_GUARD_LOOKUP_FAILED') {
+        return res.status(503).json({
+          error: 'Submit guards temporarily unavailable',
+          code: 'SUBMIT_GUARD_UNAVAILABLE',
+        })
+      }
       next(err)
     }
   })

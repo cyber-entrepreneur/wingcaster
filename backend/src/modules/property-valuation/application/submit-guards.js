@@ -111,8 +111,16 @@ async function safeFindAll(dal, collection, filter) {
   try {
     const rows = await find(collection, filter)
     return Array.isArray(rows) ? rows : []
-  } catch {
-    return []
+  } catch (err) {
+    const message = String(err?.message || err || '')
+    // Memory-DAL test harness may omit collections; treat as empty.
+    if (/unknown collection|not found|ENOENT|no such table/i.test(message)) {
+      return []
+    }
+    const wrapped = new Error('SUBMIT_GUARD_LOOKUP_FAILED')
+    wrapped.code = 'SUBMIT_GUARD_LOOKUP_FAILED'
+    wrapped.cause = err
+    throw wrapped
   }
 }
 
