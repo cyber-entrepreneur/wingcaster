@@ -3,8 +3,9 @@
  * Wave 5 WF-05/WF-06 — dark+RTL x mobile+desktop matrix (Chromatic stand-ins).
  * Covers PVA-009/009b, REC-003, APR-004/005 = 8 variants each.
  *
- * serialize() must capture <html> attributes (data-lc-mode/dir/lang/data-viewport)
- * — container.innerHTML alone is theatrical (byte-identical across modes).
+ * Dark ≠ light: stamp resolved `--lc-*` values as `data-lc-tokens` (Wave 4A
+ * #118 visualSerialize). jsdom class strings stay `var(--lc-*)`; html attrs
+ * alone are theatrical if the token stamp is missing.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -13,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { applyLcMode } from '@/theme/mode'
+import { stampLcTokens, serializeVisualRoot } from '@/theme/visualSerialize'
 import { ToastProvider } from '@/components/ui/toast'
 import {
   assertNoPlaintextPiiInHtml,
@@ -157,11 +159,15 @@ function applyTheme(mode: Mode, dir: Dir, viewport: MatchMediaViewport) {
   appliedVariant = { mode, dir, viewport }
 }
 
-/** Option A: capture <html> so data-lc-mode/dir/lang/data-viewport enter the snapshot. */
-function serialize(): string {
-  const html = document.documentElement
-  const marker = `<!-- mode=${html.getAttribute('data-lc-mode')} dir=${html.getAttribute('dir') ?? html.dir} lang=${html.getAttribute('lang') ?? html.lang} viewport=${window.innerWidth}px -->`
-  return marker + '\n' + html.outerHTML
+function serialize(root: HTMLElement, mode: Mode): string {
+  stampLcTokens(root, mode)
+  root.setAttribute('data-viewport', appliedVariant?.viewport ?? 'desktop')
+  const serialized = serializeVisualRoot(root, { mode })
+  const tokens = JSON.parse(root.getAttribute('data-lc-tokens') || '{}') as Record<string, string>
+  const bg = (tokens['--lc-bg-page'] || '').toLowerCase()
+  const allowed = mode === 'dark' ? DARK_BG_PAGE_ALLOWED : LIGHT_BG_PAGE_ALLOWED
+  expect(allowed.map((v) => v.toLowerCase())).toContain(bg)
+  return serialized
 }
 
 async function snap(label: string, root: HTMLElement) {
@@ -169,7 +175,7 @@ async function snap(label: string, root: HTMLElement) {
   if (appliedVariant) {
     assertThemeSignalsApplied(appliedVariant.mode, appliedVariant.dir, appliedVariant.viewport)
   }
-  const html = serialize()
+  const html = serialize(root, appliedVariant?.mode ?? 'light')
   assertNoVisiblePlaintextPii(root, label)
   assertNoPlaintextPiiInHtml(html, label)
   expect(html).toMatchSnapshot()
@@ -308,5 +314,39 @@ describe.each(VARIANTS)('PVA-009b detail %s %s %s', (mode, dir, viewport) => {
     )
     await screen.findAllByText(/Dubai Marina/i)
     await snap(`PVA-009b ${mode}-${dir}-${viewport}`, view.container)
+  })
+})
+
+describe('theatrical-mode guard — data-lc-tokens dark ≠ light', () => {
+  it('APR-004 dark stamp contains dark page hex, not the light palette', async () => {
+    applyTheme('light', 'ltr', 'desktop')
+    const lightView = render(
+      <MemoryRouter initialEntries={['/reports/comparables/new?comparable_id=cmp_1&title=Apt%202405']}>
+        <Routes>
+          <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: /Report a bad comparable/i })
+    const lightSnap = serialize(lightView.container, 'light')
+    cleanup()
+
+    applyTheme('dark', 'ltr', 'desktop')
+    const darkView = render(
+      <MemoryRouter initialEntries={['/reports/comparables/new?comparable_id=cmp_1&title=Apt%202405']}>
+        <Routes>
+          <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: /Report a bad comparable/i })
+    const darkSnap = serialize(darkView.container, 'dark')
+
+    expect(lightSnap).not.toEqual(darkSnap)
+    expect(lightSnap).toContain('#FAF8F7')
+    expect(darkSnap).toContain('#0C1533')
+    expect(darkSnap).toContain('"--lc-bg-page":"#0C1533"')
+    expect(lightSnap).toContain('"--lc-bg-page":"#FAF8F7"')
+    expect(darkSnap).not.toContain('"--lc-bg-page":"#FAF8F7"')
   })
 })
