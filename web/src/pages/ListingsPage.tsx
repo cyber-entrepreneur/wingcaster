@@ -201,9 +201,37 @@ export function ListingsPage() {
     isProCapable &&
     (effectiveMode === 'pro' || searchParams.get('view') === 'table')
 
+  /** SHR-NAV-008: active tenant governs the list scope (shared by initial load + refresh). */
+  const viewerAgentId = agent?.id
+  const fetchScopedListings = useCallback(async (): Promise<ListingCardProperty[]> => {
+    if (!viewerAgentId) return []
+    const params: Record<string, string> = { include_unsyndicated: '1' }
+    if (!isAgency) {
+      params.agentId = viewerAgentId
+    }
+    const data = await api.getProperties(params)
+    let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
+
+    if (isAgency && agencyId) {
+      rows = rows.filter((r) => {
+        const rowAgency = r.agency_id || null
+        const rowTenant = (r as ListingCardProperty & { tenant_id?: string }).tenant_id
+        return (
+          rowAgency === agencyId ||
+          rowTenant === activeTenant?.id ||
+          r.agent_id === viewerAgentId
+        )
+      })
+    } else {
+      rows = rows.filter((r) => r.agent_id === viewerAgentId)
+    }
+
+    return rows
+  }, [viewerAgentId, isAgency, agencyId, activeTenant?.id])
+
   useEffect(() => {
     if (authLoading) return
-    if (!agent) {
+    if (!viewerAgentId) {
       setLoading(false)
       return
     }
@@ -211,29 +239,8 @@ export function ListingsPage() {
     ;(async () => {
       setLoading(true)
       try {
-        // SHR-NAV-008: active tenant governs the list scope.
-        const params: Record<string, string> = { include_unsyndicated: '1' }
-        if (!isAgency) {
-          params.agentId = agent.id
-        }
-        const data = await api.getProperties(params)
+        const rows = await fetchScopedListings()
         if (cancelled) return
-        let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
-
-        if (isAgency && agencyId) {
-          rows = rows.filter((r) => {
-            const rowAgency = r.agency_id || null
-            const rowTenant = (r as ListingCardProperty & { tenant_id?: string }).tenant_id
-            return (
-              rowAgency === agencyId ||
-              rowTenant === activeTenant?.id ||
-              r.agent_id === agent.id
-            )
-          })
-        } else {
-          rows = rows.filter((r) => r.agent_id === agent.id)
-        }
-
         setTenantListings(rows)
       } catch (err: unknown) {
         if (cancelled) return
@@ -249,34 +256,15 @@ export function ListingsPage() {
     return () => {
       cancelled = true
     }
-  }, [agent, authLoading, activeTenant?.id, isAgency, agencyId, addToast])
+  }, [viewerAgentId, authLoading, fetchScopedListings, addToast])
 
   async function loadListings() {
     setLoading(true)
     try {
-      const params: Record<string, string> = { include_unsyndicated: '1' }
-      if (!isAgency) {
-        params.agentId = agent!.id
-      }
-      const [data, inquiries] = await Promise.all([
-        api.getProperties(params),
+      const [rows, inquiries] = await Promise.all([
+        fetchScopedListings(),
         api.getInquiries({ limit: '200' }).catch(() => ({ items: [] })),
       ])
-      let rows: ListingCardProperty[] = Array.isArray(data) ? data : []
-
-      if (isAgency && agencyId) {
-        rows = rows.filter((r) => {
-          const rowAgency = r.agency_id || null
-          const rowTenant = (r as ListingCardProperty & { tenant_id?: string }).tenant_id
-          return (
-            rowAgency === agencyId ||
-            rowTenant === activeTenant?.id ||
-            r.agent_id === agent!.id
-          )
-        })
-      } else {
-        rows = rows.filter((r) => r.agent_id === agent!.id)
-      }
 
       const inquiryItems = Array.isArray((inquiries as { items?: unknown[] })?.items)
         ? (inquiries as { items: Array<{ property_id?: string }> }).items

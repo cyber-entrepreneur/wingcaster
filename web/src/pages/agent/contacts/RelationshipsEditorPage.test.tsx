@@ -23,14 +23,17 @@ vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ addToast, toasts: [], removeToast: vi.fn() }),
 }))
 
+const authState = vi.hoisted(() => ({
+  agent: { id: 'usr_1', name: 'Agent' },
+  isAdmin: false,
+  loading: false,
+  login: vi.fn(),
+  logout: vi.fn(),
+}))
 vi.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({
-    agent: { id: 'usr_1', name: 'Agent' },
-    isAdmin: false,
-    loading: false,
-    login: vi.fn(),
-    logout: vi.fn(),
-  }),
+  // Stable agent identity: a fresh {} each render retriggers load useEffect([agent])
+  // and can leave CI stuck on the Loading spinner past waitFor's default 1s.
+  useAuth: () => authState,
 }))
 
 vi.mock('@/api/client', () => ({
@@ -189,10 +192,13 @@ describe('RelationshipsEditorPage', () => {
     apiMocks.getContactRelationshipsOther.mockResolvedValue({ relationships: [], disabled: false })
     apiMocks.createContactRelationship.mockResolvedValue(mineRel())
     renderPage()
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /\+ Add first relationship/i })).toBeInTheDocument()
-    })
-    await user.click(screen.getByRole('button', { name: /\+ Add first relationship/i }))
+    // Product copy is "+ Add first relationship"; do not require the + glyph.
+    const addFirst = await screen.findByRole(
+      'button',
+      { name: /Add first relationship/i },
+      { timeout: 3000 },
+    )
+    await user.click(addFirst)
     await user.click(screen.getByRole('radio', { name: /Representation/i }))
     await user.click(screen.getByRole('button', { name: /Continue/i }))
     await user.click(screen.getByRole('radio', { name: /^Buyer$/i }))

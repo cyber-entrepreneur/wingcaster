@@ -73,8 +73,13 @@ vi.mock('@/context/StepUpContext', () => ({
   }),
 }))
 
+const toastMock = vi.hoisted(() => ({
+  addToast: vi.fn(),
+  toasts: [] as unknown[],
+  removeToast: vi.fn(),
+}))
 vi.mock('@/components/ui/toast', () => ({
-  useToast: () => ({ addToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
+  useToast: () => toastMock,
 }))
 
 vi.mock('@/components/nav/EnvBadge', () => ({
@@ -164,9 +169,21 @@ describe('PA-ACR-002 AccountRecoveryDetailPage', () => {
     cleanup()
     authMock.isAdmin = true
     authMock.agent = { id: 'pa_current', platform_role: 'platform_admin' }
-    castVoteMock.mockClear()
+    castVoteMock.mockReset()
+    castVoteMock.mockResolvedValue({
+      success: true,
+      status: 'approved',
+      requires_two_person: false,
+    })
     getCaseMock.mockReset()
     revealAuditMock.mockClear()
+    requestInfoMock.mockClear()
+    cancelInfoMock.mockClear()
+    undoApproveMock.mockReset()
+    undoApproveMock.mockResolvedValue({ success: true })
+    withdrawVoteMock.mockClear()
+    fetchEvidenceBlobMock.mockClear()
+    toastMock.addToast.mockClear()
     getCaseMock.mockResolvedValue(baseCase())
   })
 
@@ -321,6 +338,148 @@ describe('PA-ACR-002 AccountRecoveryDetailPage', () => {
     wrap()
     await screen.findByTestId('env-badge')
     expect(screen.getByTestId('env-badge').textContent).toMatch(/live/i)
+  })
+
+  it('SAME_REVIEWER 409 shows same-PA toast', async () => {
+    const user = userEvent.setup()
+    const err = Object.assign(new Error('Same reviewer'), {
+      status: 409,
+      code: 'SAME_REVIEWER',
+    })
+    castVoteMock.mockRejectedValueOnce(err)
+    wrap()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Approve · Issue recovery link/i }))
+    await user.click(await screen.findByRole('button', { name: /^Issue recovery link$/i }))
+    await waitFor(() =>
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'error',
+          title: 'You cast the first vote. A different PA must cast the second.',
+        }),
+      ),
+    )
+  })
+
+  it('VOTE_DISAGREEMENT escalation shows mismatch toast', async () => {
+    const user = userEvent.setup()
+    const err = Object.assign(new Error('Votes disagree'), {
+      status: 409,
+      code: 'VOTE_DISAGREEMENT',
+      escalation_case_id: 'esc_99',
+    })
+    castVoteMock.mockRejectedValueOnce(err)
+    wrap()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Approve · Issue recovery link/i }))
+    await user.click(await screen.findByRole('button', { name: /^Issue recovery link$/i }))
+    await waitFor(() =>
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'error',
+          title: 'Votes do not match — case escalated to PA-APR-005 for resolution.',
+        }),
+      ),
+    )
+  })
+
+  it('undo happy path: approve then undo revokes recovery link', async () => {
+    const user = userEvent.setup()
+    getCaseMock
+      .mockResolvedValueOnce(baseCase())
+      .mockResolvedValue(baseCase({ status: 'approved', decision: { outcome: 'approved', at: '2026-09-07T12:30:00Z', by: 'pa_current', notes: '' } }))
+    wrap()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Approve · Issue recovery link/i }))
+    await user.click(await screen.findByRole('button', { name: /^Issue recovery link$/i }))
+    const undo = await screen.findByRole('button', { name: /Undo/i })
+    await user.click(undo)
+    await waitFor(() => expect(undoApproveMock).toHaveBeenCalledWith('acr_b7f3a2'))
+    expect(toastMock.addToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'success',
+        title: 'Reverted. Recovery link revoked.',
+      }),
+    )
+  })
+
+  it('undo blocked when TOKEN_CONSUMED', async () => {
+    const user = userEvent.setup()
+    getCaseMock
+      .mockResolvedValueOnce(baseCase())
+      .mockResolvedValue(baseCase({ status: 'approved', decision: { outcome: 'approved', at: '2026-09-07T12:30:00Z', by: 'pa_current', notes: '' } }))
+    undoApproveMock.mockRejectedValueOnce(
+      Object.assign(new Error('Token used'), { status: 409, code: 'TOKEN_CONSUMED' }),
+    )
+    wrap()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Approve · Issue recovery link/i }))
+    await user.click(await screen.findByRole('button', { name: /^Issue recovery link$/i }))
+    const undo = await screen.findByRole('button', { name: /Undo/i })
+    await user.click(undo)
+    await waitFor(() =>
+      expect(toastMock.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'error',
+          title: "Can't undo — recovery link has already been used.",
+        }),
+      ),
+    )
+  })
+
+  it('request-info flow posts requested evidence and toasts', async () => {
+    const user = userEvent.setup()
+    wrap()
+    await screen.findByRole('heading', { name: /Recovery case/i })
+    await user.click(screen.getByRole('button', { name: /Request more info/i }))
+    await screen.findByRole('heading', { name: /Request more info from applicant/i })
+    await user.click(screen.getByRole('button', { name: /^Send request$/i }))
+    await waitFor(() => expect(requestInfoMock).toHaveBeenCalled())
+    expect(requestInfoMock).toHaveBeenCalledWith(
+      'acr_b7f3a2',
+      expect.objectContaining({
+        reason_code: 'missing_government_id',
+        requested_evidence: expect.arrayContaining(['id_front', 'id_back']),
+      }),
+    )
+    expect(toastMock.addToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'success',
+        title: expect.stringMatching(/Info requested/i),
+      }),
+    )
+  })
+
+  it('withdraw flow posts withdraw-vote and toasts', async () => {
+    const user = userEvent.setup()
+    getCaseMock.mockResolvedValue(
+      baseCase({
+        account_value_tier: 'high_value',
+        requires_two_person: true,
+        first_vote: {
+          reviewer_id: 'pa_current',
+          vote: 'approve',
+          at: '2026-09-07T12:00:00Z',
+          notes: '',
+        },
+        current_reviewer: {
+          id: 'pa_current',
+          is_first_reviewer_candidate: false,
+          is_second_reviewer_candidate: false,
+        },
+      }),
+    )
+    wrap()
+    await screen.findByRole('button', { name: /Withdraw my vote/i })
+    await user.click(screen.getByRole('button', { name: /Withdraw my vote/i }))
+    await user.click(await screen.findByRole('button', { name: /^Withdraw vote$/i }))
+    await waitFor(() => expect(withdrawVoteMock).toHaveBeenCalledWith('acr_b7f3a2'))
+    expect(toastMock.addToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'success',
+        title: 'Vote withdrawn. Case back to pending review.',
+      }),
+    )
   })
 })
 

@@ -60,7 +60,7 @@ describe('portal-validators index', () => {
   })
 
   it('unknown portal → fail unknown_portal', () => {
-    const result = validate(completeBaseline(), { portalCode: 'blue_door' })
+    const result = validate(completeBaseline(), { portalCode: 'not_a_real_portal' })
     expect(hasSeverity(result, 'unknown_portal', 'fail')).toBe(true)
     expect(result.checks[0].expected).toContain('bayut')
   })

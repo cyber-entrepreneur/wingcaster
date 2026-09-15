@@ -278,6 +278,15 @@ function isPdf(contentType: string | null | undefined, filename: string): boolea
   return contentType === 'application/pdf' || /\.pdf$/i.test(filename)
 }
 
+/** Mirror PIIMask evidence_filename fallback — used for alt text (no exported helper). */
+function maskEvidenceFilename(filename: string): string {
+  const v = filename.trim()
+  if (!v) return '••••'
+  const dot = v.lastIndexOf('.')
+  if (dot <= 0) return `${v[0] ?? '*'}****`
+  return `${v[0] ?? '*'}****${v.slice(dot)}`
+}
+
 /** Exported for colocated contract tests — never points at legacy approve/reject. */
 export const ACCOUNT_RECOVERY_DECISION_ENDPOINT = 'cast-vote' as const
 
@@ -379,9 +388,35 @@ export function AccountRecoveryDetailPage() {
   const onReveal = useCallback(
     async (ctx: { caseId: string; field: string; kind: PIIMaskKind }) => {
       const field = revealFieldForKind(ctx.kind, ctx.field)
-      await api.revealAccountRecoveryAudit(ctx.caseId, field)
+      try {
+        await api.revealAccountRecoveryAudit(ctx.caseId, field)
+      } catch (err) {
+        const e = err as {
+          status?: number
+          retry_after?: number
+          retryAfter?: number
+          error?: string
+          message?: string
+        }
+        if (e.status === 429) {
+          const retryAfter = Number(e.retry_after ?? e.retryAfter ?? 3600) || 3600
+          addToast({
+            variant: 'error',
+            title: `Reveal cap reached — try again in ${retryAfter}s`,
+          })
+        } else if (e.status === 500) {
+          addToast({ variant: 'error', title: 'Reveal failed — try again' })
+        } else {
+          addToast({
+            variant: 'error',
+            title: e.error || e.message || "Couldn't record audit — reveal denied.",
+          })
+        }
+        // Re-throw so <PIIMask> keeps the field masked.
+        throw err
+      }
     },
-    [],
+    [addToast],
   )
 
   const viewerId = data?.current_reviewer?.id || agent?.id || null
@@ -652,8 +687,14 @@ export function AccountRecoveryDetailPage() {
       const a = document.createElement('a')
       a.href = url
       a.download = file.filename
+      // Append + deferred revoke: Firefox cancels the download if the object URL
+      // is revoked synchronously right after click (before the download starts).
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url)
+        a.remove()
+      }, 0)
     } catch {
       addToast({ variant: 'error', title: 'Download failed.' })
     }
@@ -707,17 +748,21 @@ export function AccountRecoveryDetailPage() {
   const undoSeconds = Math.ceil(undoMsLeft / 1000)
   const showUndo = undoMsLeft > 0 && data?.status === 'approved'
 
+  // Sticky decision panel offset: 4rem top bar; TEST strip adds 1.5rem (h-6).
+  const stickyOffset = env === 'test' ? 'calc(4rem + 1.5rem)' : '4rem'
+
   return (
     <div
       className="mx-auto w-full max-w-[1440px] px-[var(--lc-space-md)] py-[var(--lc-space-lg)]"
       data-screen="PA-ACR-002"
       data-decision-endpoint={ACCOUNT_RECOVERY_DECISION_ENDPOINT}
+      style={{ ['--lc-sticky-offset' as string]: stickyOffset }}
     >
       {/* Back-nav */}
       <div className="sticky top-0 z-10 mb-[var(--lc-space-md)] flex items-center justify-between gap-3 bg-[var(--lc-bg-page)]/95 py-2 backdrop-blur-sm">
         <Button asChild variant="ghost" className="gap-1">
           <Link to={returnTo}>
-            <ChevronLeft className="h-4 w-4" aria-hidden />
+            <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden />
             Back to recovery queue
           </Link>
         </Button>
@@ -769,7 +814,7 @@ export function AccountRecoveryDetailPage() {
                 Recovery case · #<Numeric>{last6}</Numeric>
               </h1>
               <div className="mt-1 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                <Badge status={statusBadgeVariant(data.status)} className="mr-2 align-middle">
+                <Badge status={statusBadgeVariant(data.status)} className="me-2 align-middle">
                   {statusLabel(data.status)}
                 </Badge>
                 Submitted {formatRelative(data.created_at)} · SLA{' '}
@@ -1030,7 +1075,7 @@ export function AccountRecoveryDetailPage() {
                             )}
                             <Badge
                               variant="secondary"
-                              className="absolute bottom-1 left-1 px-1 py-0 text-[10px]"
+                              className="absolute bottom-1 start-1 px-1 py-0 text-[10px]"
                             >
                               {fileExt(file.filename) || '.bin'}
                             </Badge>
@@ -1040,17 +1085,17 @@ export function AccountRecoveryDetailPage() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b border-[var(--lc-border)] text-left text-[var(--lc-text-muted)]">
-                              <th className="py-2 pr-3">Filename</th>
-                              <th className="py-2 pr-3">Size</th>
-                              <th className="py-2 pr-3">Uploaded</th>
+                            <tr className="border-b border-[var(--lc-border)] text-start text-[var(--lc-text-muted)]">
+                              <th className="py-2 pe-3">Filename</th>
+                              <th className="py-2 pe-3">Size</th>
+                              <th className="py-2 pe-3">Uploaded</th>
                               <th className="py-2">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {data.evidence.files.map((file, idx) => (
                               <tr key={file.id || `${file.filename}-${idx}`} className="border-b border-[var(--lc-border)]">
-                                <td className="py-2 pr-3">
+                                <td className="py-2 pe-3">
                                   <PIIMask
                                     value={file.filename}
                                     kind="evidence_filename"
@@ -1058,10 +1103,10 @@ export function AccountRecoveryDetailPage() {
                                     onReveal={onReveal}
                                   />
                                 </td>
-                                <td className="py-2 pr-3">
+                                <td className="py-2 pe-3">
                                   <Numeric>{formatBytes(file.size_bytes)}</Numeric>
                                 </td>
-                                <td className="py-2 pr-3">
+                                <td className="py-2 pe-3">
                                   <Numeric title={file.uploaded_at || undefined}>
                                     {file.uploaded_at ? formatRelative(file.uploaded_at) : '—'}
                                   </Numeric>
@@ -1073,7 +1118,7 @@ export function AccountRecoveryDetailPage() {
                                     className="h-auto px-0"
                                     onClick={() => void downloadEvidence(file)}
                                   >
-                                    <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
+                                    <Download className="me-1 h-3.5 w-3.5" aria-hidden />
                                     Download
                                   </Button>
                                 </td>
@@ -1103,7 +1148,7 @@ export function AccountRecoveryDetailPage() {
             <aside
               role="region"
               aria-labelledby="acr-decision-panel"
-              className="lg:sticky lg:top-16 lg:self-start"
+              className="lg:sticky lg:top-[var(--lc-sticky-offset)] lg:self-start"
             >
               <Card
                 className={cn(
@@ -1156,7 +1201,7 @@ export function AccountRecoveryDetailPage() {
                       style={{ font: 'var(--lc-type-body-sm)' }}
                       data-own-case-block
                     >
-                      <AlertTriangle className="mr-1 inline h-4 w-4" aria-hidden />
+                      <AlertTriangle className="me-1 inline h-4 w-4" aria-hidden />
                       You can&apos;t decide your own recovery case.
                     </p>
                   ) : null}
@@ -1178,7 +1223,7 @@ export function AccountRecoveryDetailPage() {
                         Approved · Recovery link sent to {maskedContact} on {channel} · valid for 30 min
                       </p>
                       <Button type="button" variant="outline" disabled={busy} onClick={() => void submitUndo()}>
-                        <Undo2 className="mr-1 h-4 w-4" aria-hidden />
+                        <Undo2 className="me-1 h-4 w-4" aria-hidden />
                         Undo (<Numeric>{undoSeconds}</Numeric>s)
                       </Button>
                     </div>
@@ -1226,7 +1271,7 @@ export function AccountRecoveryDetailPage() {
                         onClick={() => setDialog('approve')}
                         data-action="cast-vote-approve"
                       >
-                        <Check className="mr-1 h-4 w-4" aria-hidden />
+                        <Check className="me-1 h-4 w-4" aria-hidden />
                         {isSecondApprovePath
                           ? 'Sign off & issue recovery link'
                           : 'Approve · Issue recovery link'}
@@ -1249,7 +1294,7 @@ export function AccountRecoveryDetailPage() {
                         onClick={() => setDialog('reject')}
                         data-action="cast-vote-reject"
                       >
-                        <X className="mr-1 h-4 w-4" aria-hidden />
+                        <X className="me-1 h-4 w-4" aria-hidden />
                         Reject
                       </Button>
                     </div>
@@ -1312,7 +1357,7 @@ export function AccountRecoveryDetailPage() {
               data-confirm-cast-vote="approve"
               onClick={() => void submitCastVote('approve', approveNotes)}
             >
-              {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden /> : null}
+              {busy ? <Loader2 className="me-1 h-4 w-4 animate-spin" aria-hidden /> : null}
               {isSecondApprovePath ? 'Sign off & issue recovery link' : 'Issue recovery link'}
             </Button>
           </div>
@@ -1523,7 +1568,7 @@ export function AccountRecoveryDetailPage() {
           ) : previewUrl && previewFile && isImageContent(previewFile.content_type, previewFile.filename) ? (
             <img
               src={previewUrl}
-              alt={`Applicant-uploaded evidence: ${previewFile.filename}`}
+              alt={`Applicant-uploaded evidence: ${maskEvidenceFilename(previewFile.filename)}`}
               className="mx-auto max-h-[70vh] max-w-full object-contain"
             />
           ) : previewUrl && previewFile && isPdf(previewFile.content_type, previewFile.filename) ? (

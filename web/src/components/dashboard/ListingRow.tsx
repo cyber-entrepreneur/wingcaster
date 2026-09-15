@@ -164,33 +164,33 @@ export function ListingRow({
             <DropdownMenuLabel>Listing actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setPanel('inquiries')}>
-              <MessageSquare className="mr-2 h-4 w-4" /> Inquiries
+              <MessageSquare className="me-2 h-4 w-4" /> Inquiries
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPanel('report')}>
-              <FileBarChart className="mr-2 h-4 w-4" /> Generate Report
+              <FileBarChart className="me-2 h-4 w-4" /> Generate Report
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onPromote}>
-              <Megaphone className="mr-2 h-4 w-4" /> Promote
+              <Megaphone className="me-2 h-4 w-4" /> Promote
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onDistribute}>
-              <Share2 className="mr-2 h-4 w-4" /> Distribute
+              <Share2 className="me-2 h-4 w-4" /> Distribute
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onStatusChange('unpublished')}>
-              <EyeOff className="mr-2 h-4 w-4" /> Unpublish
+              <EyeOff className="me-2 h-4 w-4" /> Unpublish
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPanel('mark')}>
-              <Tag className="mr-2 h-4 w-4" /> Mark sold / hold
+              <Tag className="me-2 h-4 w-4" /> Mark sold / hold
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onEdit}>
-              <Edit className="mr-2 h-4 w-4" /> Edit
+              <Edit className="me-2 h-4 w-4" /> Edit
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPanel('notes')}>
-              <StickyNote className="mr-2 h-4 w-4" /> Add Notes
+              <StickyNote className="me-2 h-4 w-4" /> Add Notes
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
-              <Trash2 className="mr-2 h-4 w-4" /> Delete
+              <Trash2 className="me-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

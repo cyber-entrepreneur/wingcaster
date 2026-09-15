@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Building2, Users, Plus, Settings, Mail, Shield, UserMinus, Loader2, Check, X, Crown, UserCog, User, Eye, DollarSign, AlertTriangle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,9 +12,43 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
+import { apiErrorMessage } from '@/lib/http-status'
 import { usePageTitle } from '@/lib/usePageTitle'
 
-const ROLE_META: Record<string, { label: string; icon: any; color: string; description: string }> = {
+type AgencyMemberUser = {
+  id?: string
+  name?: string
+  email?: string
+  photo?: string
+}
+
+type AgencyMember = {
+  id: string
+  user_id?: string
+  user?: AgencyMemberUser
+  role: string
+  status?: string
+}
+
+type AgencyTiedListing = {
+  id: string
+  title: string
+}
+
+type AgencyWithMembers = {
+  id: string
+  name: string
+  license_number?: string | null
+  description?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  myRole?: string
+  members?: AgencyMember[]
+  listings?: Array<{ id: string }>
+}
+
+const ROLE_META: Record<string, { label: string; icon: LucideIcon; color: string; description: string }> = {
   owner: { label: 'Owner', icon: Crown, color: 'bg-amber-100 text-amber-700 border-amber-200', description: 'Full control over agency' },
   admin: { label: 'Admin', icon: Shield, color: 'bg-red-100 text-red-700 border-red-200', description: 'Manage members and settings' },
   manager: { label: 'Manager', icon: UserCog, color: 'bg-blue-100 text-blue-700 border-blue-200', description: 'Manage listings and team' },
@@ -28,7 +63,7 @@ export function AgencyManagementPage() {
   const { addToast } = useToast()
   usePageTitle('Agency Management')
   const [loading, setLoading] = useState(true)
-  const [agency, setAgency] = useState<any>(null)
+  const [agency, setAgency] = useState<AgencyWithMembers | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
 
   // Create agency form
@@ -44,7 +79,7 @@ export function AgencyManagementPage() {
     memberId: string
     userId: string
     name: string
-    listings: Array<{ id: string; title: string }>
+    listings: AgencyTiedListing[]
     assignments: Record<string, string>
     saving: boolean
     error: string
@@ -54,12 +89,12 @@ export function AgencyManagementPage() {
     setLoading(true)
     api.getMyAgency()
       .then(data => {
-        setAgency(data)
+        setAgency(data as AgencyWithMembers)
         setLoading(false)
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         setLoading(false)
-        addToast({ title: 'Failed to load agency', description: err.message || 'Could not load agency data', variant: 'error' })
+        addToast({ title: 'Failed to load agency', description: apiErrorMessage(err, 'Could not load agency data'), variant: 'error' })
       })
   }, [addToast])
 
@@ -72,12 +107,12 @@ export function AgencyManagementPage() {
     if (!createForm.name.trim()) return
     setCreating(true)
     try {
-      const data = await api.createAgency(createForm)
+      const data = await api.createAgency(createForm) as AgencyWithMembers
       setAgency(data)
       setCreateMode(false)
       addToast({ title: 'Agency created', description: `${data.name} is ready.`, variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create agency', description: e.message || 'Could not create agency', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to create agency', description: apiErrorMessage(e, 'Could not create agency'), variant: 'error' })
     } finally {
       setCreating(false)
     }
@@ -91,8 +126,8 @@ export function AgencyManagementPage() {
       setInviteEmail('')
       loadAgency()
       addToast({ title: 'Invitation sent', description: `Invite sent to ${inviteEmail}.`, variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to invite', description: e.message || 'Could not send invitation', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to invite', description: apiErrorMessage(e, 'Could not send invitation'), variant: 'error' })
     } finally {
       setInviting(false)
     }
@@ -101,10 +136,10 @@ export function AgencyManagementPage() {
   const openDeparture = async (memberId: string, memberUserId?: string, memberName?: string) => {
     if (!memberUserId || !agency) return
     try {
-      const data = await api.getTiedListings(agency.id, memberId)
+      const data = await api.getTiedListings(agency.id, memberId) as { listings?: AgencyTiedListing[] }
       const listings = data.listings || []
       const assignments: Record<string, string> = {}
-      listings.forEach((l: any) => { assignments[l.id] = '' })
+      listings.forEach((l: AgencyTiedListing) => { assignments[l.id] = '' })
       setDeparture({
         memberId,
         userId: memberUserId,
@@ -114,8 +149,8 @@ export function AgencyManagementPage() {
         saving: false,
         error: '',
       })
-    } catch (e: any) {
-      addToast({ title: 'Failed to load tied listings', description: e.message || 'Could not load listings', variant: 'error' })
+    } catch (e: unknown) {
+      addToast({ title: 'Failed to load tied listings', description: apiErrorMessage(e, 'Could not load listings'), variant: 'error' })
     }
   }
 
@@ -139,12 +174,13 @@ export function AgencyManagementPage() {
       await api.endAgencyMembership(agency.id, departure.memberId, { reason: 'departure' })
       setDeparture(null)
       loadAgency()
-    } catch (e: any) {
-      setDeparture((d) => d ? { ...d, saving: false, error: e.message || 'Failed' } : d)
+    } catch (e: unknown) {
+      setDeparture((d) => d ? { ...d, saving: false, error: apiErrorMessage(e, 'Failed') } : d)
     }
   }
 
   const handleUpdateRole = async (memberId: string, newRole: string) => {
+    if (!agency) return
     await api.updateMember(agency.id, memberId, { role: newRole })
     loadAgency()
   }
@@ -205,8 +241,8 @@ export function AgencyManagementPage() {
                 <Label>Site hosting (Decision 4)</Label>
                 <select
                   className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-10"
-                  value={(createForm as any).site_hosting_type || 'none'}
-                  onChange={e => setCreateForm({ ...createForm, site_hosting_type: e.target.value } as any)}
+                  value={createForm.site_hosting_type || 'none'}
+                  onChange={e => setCreateForm({ ...createForm, site_hosting_type: e.target.value })}
                 >
                   <option value="none">Marketplace-only (no public agency site)</option>
                   <option value="external">External website + selective marketplace syndication</option>
@@ -234,7 +270,11 @@ export function AgencyManagementPage() {
     )
   }
 
-  const myRole = agency?.myRole || 'agent'
+  if (!agency) {
+    return null
+  }
+
+  const myRole = agency.myRole || 'agent'
   const canManageMembers = ['owner', 'admin'].includes(myRole)
   const canManageSettings = ['owner', 'admin'].includes(myRole)
 
@@ -326,7 +366,7 @@ export function AgencyManagementPage() {
                 )}
 
                 <div className="space-y-3">
-                  {agency.members?.map((member: any) => {
+                  {agency.members?.map((member: AgencyMember) => {
                     const meta = ROLE_META[member.role] || ROLE_META.readonly
                     const Icon = meta.icon
                     const isMe = member.user_id === agent.id
@@ -334,7 +374,7 @@ export function AgencyManagementPage() {
                       <div key={member.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={member.user?.photo} />
-                          <AvatarFallback>{member.user?.name?.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
+                          <AvatarFallback>{member.user?.name?.split(' ').map((n) => n[0]).join('')}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -443,8 +483,8 @@ export function AgencyManagementPage() {
                     >
                       <option value="">Select agent</option>
                       {(agency.members || [])
-                        .filter((m: any) => m.status !== 'ended' && (m.user_id || m.user?.id) !== departure.userId)
-                        .map((m: any) => (
+                        .filter((m: AgencyMember) => m.status !== 'ended' && (m.user_id || m.user?.id) !== departure.userId)
+                        .map((m: AgencyMember) => (
                           <option key={m.id} value={m.user_id || m.user?.id}>
                             {m.user?.name || m.user_id}
                           </option>
