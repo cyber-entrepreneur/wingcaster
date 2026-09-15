@@ -48,17 +48,33 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # Split suites: one vitest process across 130+ files accumulates DOM
-      # snapshots until V8 OOMs even at 8GB, and ubuntu-latest only has ~7GB
-      # RAM. Fresh processes + 6GB heap keep each phase under the runner ceiling.
-      - name: Tests — app (non-theme)
+      # ubuntu-latest ~7GB RAM. One vitest process across 100+ DOM-heavy files
+      # accumulates until the worker is OOM-killed ("Worker exited unexpectedly")
+      # even with 6–8GB heaps (which exceed runner RAM). Split by directory so
+      # each process resets RSS, and pin forks to 4GB so parent+worker+OS fit.
+      - name: Tests — pages/agent
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npx vitest run --exclude 'src/theme/**'
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run src/pages/agent
+
+      - name: Tests — pages (non-agent)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run src/pages --exclude 'src/pages/agent/**'
+
+      - name: Tests — components
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run src/components
+
+      - name: Tests — unit (hooks/lib/api/…)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run src/hooks src/lib src/api src/app src/wf03 src/wf04
 
       - name: Tests — theme visual + a11y
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npx vitest run src/theme
 
       - name: Production build

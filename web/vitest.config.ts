@@ -23,16 +23,19 @@ export default defineConfig({
     hookTimeout: 60000,
     testTimeout: 120000,
     fileParallelism: false,
-    // Forks + single worker: each file can GC; threads pool was OOMing GHA
-    // mid-suite even with NODE_OPTIONS on the parent (workers ignored it).
+    // Forks + single worker: threads pool ignored parent NODE_OPTIONS and
+    // OOMed GHA. Pin worker heap to 4GB so parent+worker fit ubuntu-latest
+    // (~7GB); CI further splits suites so RSS resets between phases.
     pool: 'forks',
     maxWorkers: 1,
+    minWorkers: 1,
     poolOptions: {
       forks: {
         singleFork: false,
-        execArgv: ['--max-old-space-size=6144'],
+        execArgv: ['--max-old-space-size=4096'],
       },
     },
+
     setupFiles: ['./vitest.setup.ts'],
     // Coverage config is defined but off by default. Enable with
     // `npm test -- --coverage`. Thresholds will be tightened as the
