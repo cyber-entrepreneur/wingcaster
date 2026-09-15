@@ -46,11 +46,35 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-  # ubuntu-latest ~7GB. A single forks worker still OOMs by ~12 DOM-heavy
-  # files at a 4GB heap (and 6–8GB heaps get OS-killed). Shard across 24
-  # parallel runners (~6 files each) with maxWorkers=1 + pinned worker heap.
-  test:
-    name: Tests (${{ matrix.shard }}/24)
+  # ubuntu-latest ~7GB. Theme *.visual.test.tsx files alone approach the 4GB
+  # worker heap; sharing a process with anything else OOMs. Keep app shards
+  # modest, and give theme 24 shards so each visual file is typically alone.
+  test-app:
+    name: Tests app (${{ matrix.shard }}/12)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Vitest app shard ${{ matrix.shard }}/12
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vitest run --exclude 'src/theme/**' --shard=${{ matrix.shard }}/12
+
+  test-theme:
+    name: Tests theme (${{ matrix.shard }}/24)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -68,10 +92,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci --ignore-scripts
-      - name: Vitest shard ${{ matrix.shard }}/24
+      - name: Vitest theme shard ${{ matrix.shard }}/24
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vitest run --shard=${{ matrix.shard }}/24
+        run: npx vitest run src/theme --shard=${{ matrix.shard }}/24
 
   build:
     name: Production build
@@ -97,7 +121,7 @@ jobs:
   # Preserves the historical required check name while the real work is sharded.
   web:
     name: Typecheck, tests, production build
-    needs: [typecheck, test, build]
+    needs: [typecheck, test-app, test-theme, build]
     runs-on: ubuntu-latest
     steps:
       - name: All web CI gates passed
