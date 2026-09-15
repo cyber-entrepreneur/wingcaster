@@ -15,8 +15,18 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
-import { inviteTeamDescription, inviteTeamTitle, STEP_COPY, stepLockHelper } from '../copy'
+import {
+  act,
+  at,
+  inviteTeamDescription,
+  inviteTeamTitle,
+  INVITE_TEAM_COPY,
+  STEP_COPY,
+  stepLockHelper,
+  type ActivationLocale,
+} from '../copy'
 import { completedCaption } from '../format'
 import type { ActivationStep, ActivationStepState, SignupPath } from '../types'
 
@@ -28,13 +38,13 @@ const STATE_GLYPH: Record<ActivationStepState, LucideIcon> = {
   locked: Lock,
 }
 
-const STATE_LABEL: Record<ActivationStepState, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  complete: 'Complete',
-  deferred: 'Skipped',
-  locked: 'Locked',
-}
+const STATE_LABEL_KEY = {
+  not_started: 'state.not_started',
+  in_progress: 'state.in_progress',
+  complete: 'state.complete',
+  deferred: 'state.deferred',
+  locked: 'state.locked',
+} as const
 
 const STEP_ICONS: Record<string, LucideIcon> = {
   whatsapp: MessageCircle,
@@ -105,18 +115,23 @@ export function StepCard({
   onResume,
   disabled = false,
 }: StepCardProps) {
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
   const state = step.state
   const Glyph = STATE_GLYPH[state]
-  const copy = STEP_COPY[step.id] ?? {
-    title: step.id,
-    description: '',
-    cta: 'Start',
-    resumeCta: 'Resume',
-  }
+  const copy = STEP_COPY[step.id]
 
   const isInvite = step.id === 'invite_team'
-  const title = isInvite ? inviteTeamTitle(signupPath) : copy.title
-  const description = isInvite ? inviteTeamDescription(signupPath) : copy.description
+  const title = isInvite
+    ? inviteTeamTitle(signupPath, locale)
+    : copy
+      ? at(copy.title, locale)
+      : step.id
+  const description = isInvite
+    ? inviteTeamDescription(signupPath, locale)
+    : copy
+      ? at(copy.description, locale)
+      : ''
   const StepIcon =
     isInvite && signupPath !== 'agency' ? Lock : STEP_ICONS[step.id] ?? Circle
   const iconClass =
@@ -124,19 +139,19 @@ export function StepCard({
       ? 'text-[var(--lc-status-published-fg)]'
       : 'text-[var(--lc-text-heading)]'
 
-  const lockHelper = stepLockHelper(step, signupPath)
+  const lockHelper = stepLockHelper(step, signupPath, locale)
   const captionId = `step-${step.order}-caption`
   const titleId = `step-${step.order}-title`
 
-  let primaryLabel = copy.cta
+  let primaryLabel = copy ? at(copy.cta, locale) : act('common.open', locale)
   if (isInvite && signupPath !== 'agency') {
-    primaryLabel = 'Learn about agencies'
-  } else if (state === 'in_progress') {
-    primaryLabel = `${copy.resumeCta} →`
+    primaryLabel = at(INVITE_TEAM_COPY.learnCta, locale)
+  } else if (state === 'in_progress' && copy) {
+    primaryLabel = `${at(copy.resumeCta, locale)} →`
   } else if (state === 'complete') {
-    primaryLabel = 'Open'
+    primaryLabel = act('common.open', locale)
   } else if (state === 'deferred') {
-    primaryLabel = 'Skipped — resume'
+    primaryLabel = act('common.skippedResume', locale)
   }
 
   const showPrimary = state !== 'deferred'
@@ -153,7 +168,7 @@ export function StepCard({
         className="text-[var(--lc-text-muted)]"
         style={{ font: 'var(--lc-type-caption)' }}
       >
-        <Numeric>{completedCaption(step.completed_via, step.completed_at)}</Numeric>
+        <Numeric>{completedCaption(step.completed_via, step.completed_at, locale)}</Numeric>
       </p>
     ) : lockHelper ? (
       <p
@@ -194,7 +209,7 @@ export function StepCard({
 
       <div className="mb-[var(--lc-space-xs)] flex items-center gap-[var(--lc-space-xs)]">
         <Glyph className="h-4 w-4 shrink-0 text-[var(--lc-text-muted)]" aria-hidden="true" />
-        <span className="sr-only">{STATE_LABEL[state]}</span>
+        <span className="sr-only">{act(STATE_LABEL_KEY[state], locale)}</span>
       </div>
 
       <h3
@@ -233,7 +248,7 @@ export function StepCard({
             disabled={disabled}
             onClick={onResume}
           >
-            Skipped — resume
+            {act('common.skippedResume', locale)}
           </Button>
         ) : null}
         {showDefer ? (
@@ -244,7 +259,7 @@ export function StepCard({
             disabled={disabled}
             onClick={onDefer}
           >
-            I&apos;ll do this later
+            {act('common.later', locale)}
           </Button>
         ) : null}
       </div>

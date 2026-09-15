@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOnboardingState } from '@/hooks/useOnboardingState'
 import type { ActivationState as HookActivationState } from '@/hooks/useOnboardingState'
-import { fetchActivationState, fetchPortalRegistry } from './api'
+import { completeActivationStep, fetchActivationState, fetchPortalRegistry } from './api'
 import type {
   ActivationState,
   ActivationStep,
@@ -117,14 +117,23 @@ export function useActivationState() {
     async (
       stepId: ActivationStepId | string,
       completedVia: CompletedVia | string = 'dashboard_action',
-      _metadata?: Record<string, unknown>,
+      metadata?: Record<string, unknown>,
     ) => {
-      const next = toLocalState(await onboarding.completeActivation(stepId, completedVia))
+      // Prefer the local API helper so `metadata` (methods_used, etc.) is preserved.
+      let next: ActivationState
+      try {
+        next = metadata
+          ? await completeActivationStep(stepId, completedVia, metadata)
+          : await completeActivationStep(stepId, completedVia)
+      } catch {
+        next = toLocalState(await onboarding.completeActivation(stepId, completedVia))
+      }
       const delta = checklistDeltaFor(stepId)
       if (delta) {
         await onboarding.patch({ checklist_delta: delta })
       }
       apply(next)
+      await onboarding.mutate()
       return next
     },
     [apply, onboarding],

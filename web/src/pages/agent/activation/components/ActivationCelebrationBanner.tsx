@@ -1,6 +1,10 @@
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
+import { act, type ActivationLocale } from '../copy'
 
 export function ActivationCelebrationBanner() {
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
   return (
     <div
       role="status"
@@ -13,9 +17,9 @@ export function ActivationCelebrationBanner() {
       }}
       data-activation-celebration
     >
-      You&apos;re activated.{' '}
+      {act('celebration.title', locale)}{' '}
       <span className="sr-only">
-        All <Numeric>five</Numeric> steps complete.
+        <Numeric>{act('celebration.sr', locale)}</Numeric>
       </span>
     </div>
   )

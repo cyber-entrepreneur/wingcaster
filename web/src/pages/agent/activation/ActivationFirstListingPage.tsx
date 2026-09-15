@@ -11,13 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { ActivationChrome } from './components/ActivationChrome'
+import { act, completedViaPhrase, type ActivationLocale } from './copy'
 import { completedCaption } from './format'
 import { useActivationState } from './useActivationState'
 
 export function ActivationFirstListingPage() {
-  usePageTitle('First listing')
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
+  usePageTitle(act('listing.pageTitle', locale))
   const navigate = useNavigate()
   const { state, isLoading, complete, defer, completedCount, totalCount } = useActivationState()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -38,7 +42,7 @@ export function ActivationFirstListingPage() {
   if (isLoading || !state) {
     return (
       <ActivationChrome
-        breadcrumb={{ step: 2, title: 'Publish your first listing' }}
+        breadcrumb={{ step: 2, title: act('listing.breadcrumb', locale) }}
         completed={0}
         total={0}
         progressSize="sm"
@@ -51,7 +55,7 @@ export function ActivationFirstListingPage() {
 
   return (
     <ActivationChrome
-      breadcrumb={{ step: 2, title: 'Publish your first listing' }}
+      breadcrumb={{ step: 2, title: act('listing.breadcrumb', locale) }}
       completed={completedCount}
       total={totalCount}
       progressSize="sm"
@@ -60,22 +64,21 @@ export function ActivationFirstListingPage() {
       {alreadyComplete ? (
         <>
           <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            You already published your first listing on{' '}
-            <Numeric>{completedCaption(listingStep?.completed_via, listingStep?.completed_at)}</Numeric>
-            {listingStep?.completed_via ? (
-              <>
-                {' '}
-                — via <Numeric>{String(listingStep.completed_via).replace(/_/g, ' ')}</Numeric>
-              </>
-            ) : null}
-            . Nothing to do here.
+            {listingStep?.completed_via
+              ? act('listing.alreadyVia', locale, {
+                  when: completedCaption(listingStep?.completed_via, listingStep?.completed_at, locale),
+                  source: completedViaPhrase(listingStep.completed_via, locale),
+                })
+              : act('listing.already', locale, {
+                  when: completedCaption(listingStep?.completed_via, listingStep?.completed_at, locale),
+                })}
           </p>
           <div className="flex flex-col gap-[var(--lc-space-sm)] sm:flex-row">
             <Button type="button" onClick={() => goBack()}>
-              Return to activation wizard →
+              {act('common.returnWizard', locale)}
             </Button>
             <Button type="button" variant="ghost" asChild>
-              <Link to="/listings">See your listings →</Link>
+              <Link to="/listings">{act('listing.seeListings', locale)}</Link>
             </Button>
           </div>
         </>
@@ -85,27 +88,26 @@ export function ActivationFirstListingPage() {
             className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
             style={{ font: 'var(--lc-type-heading-1)' }}
           >
-            How do you want to create your first listing?
+            {act('listing.h1', locale)}
           </h1>
           <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-lg)' }}>
-            Either path counts. You can always use the other one later.
+            {act('listing.sub', locale)}
           </p>
 
           <div className="grid grid-cols-1 gap-[var(--lc-space-lg)] sm:grid-cols-2">
             <div className="flex flex-col rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)] shadow-[var(--lc-elevation-sm)]">
               <Keyboard className="mb-[var(--lc-space-md)] h-10 w-10 text-[var(--lc-text-heading)]" aria-hidden="true" />
               <h2 className="mb-[var(--lc-space-xs)] text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
-                Type it out
+                {act('listing.typeTitle', locale)}
               </h2>
               <p className="mb-[var(--lc-space-sm)] flex-1 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                Fill in the classic listing form — property type, price, beds, baths, photos. Best if you&apos;re at your
-                desk.
+                {act('listing.typeDesc', locale)}
               </p>
               <p className="mb-[var(--lc-space-md)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-                ~<Numeric>5</Numeric> minutes
+                ~<Numeric>5</Numeric> {locale === 'ar' ? 'دقائق' : 'minutes'}
               </p>
               <Button type="button" onClick={() => navigate('/listings/new?source=activation')}>
-                Open the composer →
+                {act('listing.typeCta', locale)}
               </Button>
             </div>
 
@@ -123,27 +125,28 @@ export function ActivationFirstListingPage() {
                 <Lock className="mb-[var(--lc-space-md)] h-10 w-10 text-[var(--lc-text-muted)]" aria-hidden="true" />
               )}
               <h2 className="mb-[var(--lc-space-xs)] text-[var(--lc-text-heading)]" style={{ font: 'var(--lc-type-heading-3)' }}>
-                Dictate it via WhatsApp
+                {act('listing.voiceTitle', locale)}
               </h2>
               <p className="mb-[var(--lc-space-sm)] flex-1 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-                Send a voice note to your bound WhatsApp — WingCaster transcribes and drafts the listing. Best if
-                you&apos;re on-site or in the car.
+                {act('listing.voiceDesc', locale)}
               </p>
               <p className="mb-[var(--lc-space-md)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-                ~<Numeric>90</Numeric> seconds
+                ~
+                <Numeric>90</Numeric>
+                {locale === 'ar' ? ' ثانية' : ' seconds'}
               </p>
               {whatsappBound ? (
                 <Button
                   type="button"
                   onClick={() => navigate('/whatsapp/onboarding/voice-intake?source=activation')}
                 >
-                  Send a voice note →
+                  {act('listing.voiceCta', locale)}
                 </Button>
               ) : (
                 <p style={{ font: 'var(--lc-type-caption)' }} className="text-[var(--lc-text-muted)]">
-                  Connect WhatsApp first —{' '}
+                  {act('listing.voiceLocked', locale)}{' '}
                   <Link to="/activate/whatsapp" className="text-[var(--lc-text-brand)] hover:underline">
-                    go to Step 1 →
+                    {act('listing.voiceLockedLink', locale)}
                   </Link>
                 </p>
               )}
@@ -157,8 +160,8 @@ export function ActivationFirstListingPage() {
               style={{ font: 'var(--lc-type-caption)' }}
               onClick={() => setConfirmOpen(true)}
             >
-              Already published a listing elsewhere?{' '}
-              <span className="text-[var(--lc-text-brand)]">Mark this step complete →</span>
+              {act('listing.altMark', locale)}{' '}
+              <span className="text-[var(--lc-text-brand)]">{act('listing.altMarkCta', locale)}</span>
             </button>
             <div>
               <Button
@@ -169,7 +172,7 @@ export function ActivationFirstListingPage() {
                   navigate('/activate')
                 }}
               >
-                I&apos;ll do this later
+                {act('common.later', locale)}
               </Button>
             </div>
           </div>
@@ -179,14 +182,12 @@ export function ActivationFirstListingPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark first listing as complete?</DialogTitle>
-            <DialogDescription>
-              You&apos;re telling us your first listing already exists. This will mark Step 2 complete.
-            </DialogDescription>
+            <DialogTitle>{act('listing.confirmTitle', locale)}</DialogTitle>
+            <DialogDescription>{act('listing.confirmBody', locale)}</DialogDescription>
           </DialogHeader>
           <div className="mt-[var(--lc-space-lg)] flex flex-col-reverse gap-[var(--lc-space-sm)] sm:flex-row sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>
-              Cancel
+              {act('common.cancel', locale)}
             </Button>
             <Button
               type="button"
@@ -198,7 +199,7 @@ export function ActivationFirstListingPage() {
                 goBack(done)
               }}
             >
-              Yes, mark complete
+              {act('listing.confirmYes', locale)}
             </Button>
           </div>
         </DialogContent>

@@ -1,5 +1,5 @@
 import type { CompletedVia } from './types'
-import { completedViaPhrase } from './copy'
+import { act, completedViaPhrase, type ActivationLocale } from './copy'
 
 /** Relative timestamp for captions. Numerals are wrapped by the caller in `<Numeric>`. */
 export function formatRelativeTime(iso: string | null | undefined): string {
@@ -22,14 +22,17 @@ export function formatRelativeTime(iso: string | null | undefined): string {
 export function completedCaption(
   via: CompletedVia | string | null | undefined,
   completedAt: string | null | undefined,
+  locale: ActivationLocale = 'en',
 ): string {
   const when = formatRelativeTime(completedAt)
   const autoSources = new Set(['onboarding', 'whatsapp_intake', 'dashboard_action', 'bulk_import'])
   if (via && autoSources.has(via)) {
-    const source = completedViaPhrase(via)
-    return when ? `Completed via ${source} — ${when}` : `Completed via ${source}`
+    const source = completedViaPhrase(via, locale)
+    return when
+      ? act('caption.completedViaWhen', locale, { source, when })
+      : act('caption.completedVia', locale, { source })
   }
-  return when ? `Completed — ${when}` : 'Completed'
+  return when ? act('caption.completedWhen', locale, { when }) : act('caption.completed', locale)
 }
 
 export function maskPhone(e164: string | null | undefined): string {

@@ -6,6 +6,7 @@ import { ChannelMark } from '@/components/ui/channel-mark'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import {
   fetchWhatsAppActivationCode,
@@ -14,6 +15,7 @@ import {
   regenerateWhatsAppActivationCode,
 } from './api'
 import { ActivationChrome } from './components/ActivationChrome'
+import { act, type ActivationLocale } from './copy'
 import { completedCaption, maskPhone } from './format'
 import type { WhatsAppActivationCode } from './types'
 import { useActivationState } from './useActivationState'
@@ -30,7 +32,9 @@ function countdownLabel(expiresAt: string): string {
 }
 
 export function ActivationWhatsAppPage() {
-  usePageTitle('Connect WhatsApp')
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
+  usePageTitle(act('whatsapp.pageTitle', locale))
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { state, isLoading, complete, defer, completedCount, totalCount } = useActivationState()
@@ -50,9 +54,9 @@ export function ActivationWhatsAppPage() {
       setCode(next)
       setPhase(Date.parse(next.expires_at) <= Date.now() ? 'expired' : 'waiting')
     } catch {
-      addToast({ variant: 'error', description: "Couldn't load an activation code. Try again." })
+      addToast({ variant: 'error', description: act('whatsapp.loadError', locale) })
     }
-  }, [addToast])
+  }, [addToast, locale])
 
   useEffect(() => {
     if (alreadyComplete) return
@@ -72,8 +76,7 @@ export function ActivationWhatsAppPage() {
           setPhase('rejected')
           addToast({
             variant: 'error',
-            description:
-              'That WhatsApp number is already bound to another WingCaster account. Use a different number or contact support.',
+            description: act('whatsapp.numberClaimed', locale),
           })
           return
         }
@@ -98,7 +101,7 @@ export function ActivationWhatsAppPage() {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [addToast, alreadyComplete, code])
+  }, [addToast, alreadyComplete, code, locale])
 
   useEffect(() => {
     if (!code) return
@@ -117,7 +120,7 @@ export function ActivationWhatsAppPage() {
   if (isLoading || !state) {
     return (
       <ActivationChrome
-        breadcrumb={{ step: 1, title: 'Connect WhatsApp' }}
+        breadcrumb={{ step: 1, title: act('whatsapp.pageTitle', locale) }}
         completed={0}
         total={0}
         progressSize="sm"
@@ -130,7 +133,7 @@ export function ActivationWhatsAppPage() {
 
   return (
     <ActivationChrome
-      breadcrumb={{ step: 1, title: 'Connect WhatsApp' }}
+      breadcrumb={{ step: 1, title: act('whatsapp.pageTitle', locale) }}
       completed={completedCount}
       total={totalCount}
       progressSize="sm"
@@ -140,24 +143,25 @@ export function ActivationWhatsAppPage() {
         className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
         style={{ font: 'var(--lc-type-heading-1)' }}
       >
-        Connect your business WhatsApp
+        {act('whatsapp.h1', locale)}
       </h1>
       <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-lg)' }}>
-        Text this activation code from the WhatsApp account you want to use. It expires in 10 minutes.
+        {act('whatsapp.sub', locale)}
       </p>
 
       {alreadyComplete ? (
         <div className="mb-[var(--lc-space-lg)] rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]">
           <p className="mb-[var(--lc-space-sm)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            You already connected WhatsApp on <Numeric>{completedCaption(step?.completed_via, step?.completed_at)}</Numeric>.
-            Nothing to do here.
+            {act('whatsapp.already', locale, {
+              when: completedCaption(step?.completed_via, step?.completed_at, locale),
+            })}
           </p>
           <div className="flex items-center gap-[var(--lc-space-sm)]">
             <ChannelMark channel="whatsapp" className="h-8 w-8" />
-            <p style={{ font: 'var(--lc-type-heading-3)' }}>WhatsApp connected</p>
+            <p style={{ font: 'var(--lc-type-heading-3)' }}>{act('whatsapp.connected', locale)}</p>
           </div>
           <Button type="button" className="mt-[var(--lc-space-lg)]" onClick={() => goBack()}>
-            Return to activation wizard →
+            {act('common.returnWizard', locale)}
           </Button>
         </div>
       ) : (
@@ -170,7 +174,7 @@ export function ActivationWhatsAppPage() {
                 expires_at={code.expires_at}
                 status={phase === 'bound' ? 'connected' : phase === 'expired' ? 'expired' : 'pending'}
                 connectedPhoneLabel={masked || undefined}
-                countdownLabel={`Expires in ${countdownLabel(code.expires_at)}`}
+                countdownLabel={act('whatsapp.expiresIn', locale, { time: countdownLabel(code.expires_at) })}
                 copiedTarget={copied}
                 onCopy={async (target) => {
                   const value = target === 'code' ? code.display_code : code.shared_number_e164
@@ -231,7 +235,7 @@ export function ActivationWhatsAppPage() {
                 className="inline-block h-2 w-2 rounded-full bg-[var(--lc-accent-bold)] outline outline-1 outline-[var(--lc-accent-bold-edge)] motion-safe:animate-pulse"
                 aria-hidden="true"
               />
-              {phase === 'waiting' ? 'Waiting for your message…' : 'Message received — verifying…'}
+              {phase === 'waiting' ? act('whatsapp.waiting', locale) : act('whatsapp.verifying', locale)}
             </p>
           ) : null}
 
@@ -240,7 +244,7 @@ export function ActivationWhatsAppPage() {
               <div className="flex items-center gap-[var(--lc-space-sm)]">
                 <ChannelMark channel="whatsapp" className="h-8 w-8" />
                 <p style={{ font: 'var(--lc-type-heading-3)' }}>
-                  WhatsApp connected · <Numeric>{masked}</Numeric>
+                  {act('whatsapp.connectedMasked', locale, { masked })}
                 </p>
               </div>
               <Button
@@ -253,7 +257,7 @@ export function ActivationWhatsAppPage() {
                   void loadCode()
                 }}
               >
-                Use a different number
+                {act('whatsapp.differentNumber', locale)}
               </Button>
             </div>
           ) : null}
@@ -268,7 +272,7 @@ export function ActivationWhatsAppPage() {
                 setPhase('waiting')
               })}
             >
-              Code expired — get a new one
+              {act('whatsapp.expired', locale)}
             </Button>
           ) : null}
 
@@ -282,7 +286,7 @@ export function ActivationWhatsAppPage() {
                 goBack(done)
               }}
             >
-              Mark step complete →
+              {act('common.markComplete', locale)}
             </Button>
             <Button
               type="button"
@@ -292,7 +296,7 @@ export function ActivationWhatsAppPage() {
                 navigate('/activate')
               }}
             >
-              I&apos;ll do this later
+              {act('common.later', locale)}
             </Button>
             <Button
               type="button"
@@ -309,7 +313,7 @@ export function ActivationWhatsAppPage() {
                 navigate('/activate')
               }}
             >
-              Skip — I don&apos;t use WhatsApp for business
+              {act('whatsapp.skipTertiary', locale)}
             </Button>
           </div>
         </>

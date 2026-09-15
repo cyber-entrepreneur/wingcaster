@@ -12,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Numeric } from '@/components/ui/numeric'
+import { useLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
+import { act, type ActivationLocale } from '../copy'
 import { useOnlineStatus } from '../useOnlineStatus'
 import { ActivationProgressBar } from './ActivationProgressBar'
 import { SkipWizardDialog } from './SkipWizardDialog'
@@ -44,6 +46,8 @@ export function ActivationChrome({
 }: ActivationChromeProps) {
   const navigate = useNavigate()
   const online = useOnlineStatus()
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
   const [skipOpen, setSkipOpen] = useState(false)
 
   const skip = (
@@ -53,23 +57,20 @@ export function ActivationChrome({
       className="text-[var(--lc-text-muted)]"
       onClick={() => setSkipOpen(true)}
     >
-      Skip wizard
+      {act('chrome.skip', locale)}
     </Button>
   )
 
   return (
     <div className="min-h-screen bg-[var(--lc-bg-page)] text-[var(--lc-text-primary)]">
-      <OfflineBanner
-        show={!online}
-        message="You're offline. Progress won't save until you reconnect."
-      />
+      <OfflineBanner show={!online} message={act('chrome.offline', locale)} />
       <header className="flex h-14 items-center justify-between border-b border-[var(--lc-border)] px-[var(--lc-space-md)]">
         <Link
           to="/dashboard"
           className="font-[family-name:var(--lc-font-display)] text-[var(--lc-text-heading)]"
           style={{ font: 'var(--lc-type-heading-3)' }}
         >
-          WingCaster
+          {act('chrome.brand', locale)}
         </Link>
         <div className="hidden items-center gap-[var(--lc-space-sm)] md:flex">
           <LanguageSelector />
@@ -79,7 +80,7 @@ export function ActivationChrome({
         <div className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="icon" aria-label="More">
+              <Button type="button" variant="ghost" size="icon" aria-label={act('chrome.more', locale)}>
                 <MoreVertical className="h-5 w-5" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
@@ -90,7 +91,7 @@ export function ActivationChrome({
               <div className="px-2 py-2">
                 <ColorModeToggle />
               </div>
-              <DropdownMenuItem onSelect={() => setSkipOpen(true)}>Skip wizard</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSkipOpen(true)}>{act('chrome.skip', locale)}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -110,9 +111,9 @@ export function ActivationChrome({
             style={{ font: 'var(--lc-type-caption)' }}
           >
             <Link to="/activate" className="text-[var(--lc-text-brand)] hover:underline">
-              Activation wizard
+              {act('chrome.breadcrumb', locale)}
             </Link>
-            {' → Step '}
+            {` ${act('chrome.breadcrumb.step', locale)} `}
             <Numeric>{breadcrumb.step}</Numeric>
             {` · ${breadcrumb.title}`}
           </nav>
@@ -146,6 +147,8 @@ export function ActivationChrome({
 }
 
 export function ActivationFooterHelper({ promoteDashboard = false }: { promoteDashboard?: boolean }) {
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
   return (
     <div className="mt-[var(--lc-space-2xl)] flex flex-col gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] pt-[var(--lc-space-lg)] md:flex-row md:items-center md:justify-between">
       <Link
@@ -154,11 +157,11 @@ export function ActivationFooterHelper({ promoteDashboard = false }: { promoteDa
         style={{ font: 'var(--lc-type-body-sm)' }}
       >
         <HelpCircle className="h-4 w-4" aria-hidden="true" />
-        Not sure where to start?{' '}
-        <span className="text-[var(--lc-text-brand)]">Take the guided path →</span>
+        {act('footer.guided', locale)}{' '}
+        <span className="text-[var(--lc-text-brand)]">{act('footer.guided.cta', locale)}</span>
       </Link>
       <Button asChild variant={promoteDashboard ? 'default' : 'ghost'} className={promoteDashboard ? 'w-full md:w-auto' : ''}>
-        <Link to="/dashboard">Return to dashboard →</Link>
+        <Link to="/dashboard">{act('footer.dashboard', locale)}</Link>
       </Button>
     </div>
   )

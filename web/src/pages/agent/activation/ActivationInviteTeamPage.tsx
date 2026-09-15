@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PIIMask } from '@/components/security'
+import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import {
   fetchAgencyInvitations,
@@ -29,12 +31,23 @@ import {
   sendBulkInvitations,
 } from './api'
 import { ActivationChrome } from './components/ActivationChrome'
+import { act, type ActivationLocale } from './copy'
 import { completedCaption, parseEmails } from './format'
 import type { AgencyInvitation, ShareLinkPayload } from './types'
 import { useActivationState } from './useActivationState'
 
+type InviteMethodTab = 'link' | 'code' | 'email'
+
+const METHOD_USED: Record<InviteMethodTab, string> = {
+  link: 'share_link',
+  code: 'invitation_code',
+  email: 'bulk_email',
+}
+
 export function ActivationInviteTeamPage() {
-  usePageTitle('Invite your team')
+  const { locale: rawLocale } = useLocale()
+  const locale = (rawLocale === 'ar' ? 'ar' : 'en') as ActivationLocale
+  usePageTitle(act('invite.pageTitle', locale))
   const navigate = useNavigate()
   const { agent } = useAuth()
   const { addToast } = useToast()
@@ -49,12 +62,15 @@ export function ActivationInviteTeamPage() {
   const [revokeTarget, setRevokeTarget] = useState<AgencyInvitation | null>(null)
   const [sending, setSending] = useState(false)
   const [guarded, setGuarded] = useState(false)
+  const [activeTab, setActiveTab] = useState<InviteMethodTab>('link')
+  const [methodsUsed, setMethodsUsed] = useState<Set<string>>(() => new Set(['share_link']))
 
   const step = state?.steps.find((s) => s.id === 'invite_team')
   const alreadyComplete = step?.state === 'complete'
-  const agencyName = (agent?.agency_name as string | undefined) || 'your agency'
+  const agencyName = (agent?.agency_name as string | undefined) || (locale === 'ar' ? 'وكالتك' : 'your agency')
   const role = String(agent?.role || '').toLowerCase()
   const isOwner = role === 'owner' || role === 'agency_owner' || role === 'admin'
+  const caseId = String(agent?.id || state?.user_id || 'activation-invite')
 
   useEffect(() => {
     if (!state || guarded) return
@@ -63,13 +79,11 @@ export function ActivationInviteTeamPage() {
       addToast({
         variant: 'warning',
         description:
-          state.signup_path === 'solo'
-            ? "You're on a solo workspace. Register an agency to invite a team."
-            : 'Team invitations are managed by the agency owner. Ask your agency to add you.',
+          state.signup_path === 'solo' ? act('invite.guard.solo', locale) : act('invite.guard.join', locale),
       })
       navigate('/activate', { replace: true })
     }
-  }, [addToast, guarded, isOwner, navigate, state])
+  }, [addToast, guarded, isOwner, locale, navigate, state])
 
   useEffect(() => {
     if (!state || state.signup_path !== 'agency') return
@@ -86,10 +100,15 @@ export function ActivationInviteTeamPage() {
   const sentCount = invites.length
   const canComplete = sentCount > 0 || alreadyComplete
 
+  const markMethod = (tab: InviteMethodTab) => {
+    setActiveTab(tab)
+    setMethodsUsed((prev) => new Set(prev).add(METHOD_USED[tab]))
+  }
+
   if (isLoading || !state || guarded || state.signup_path !== 'agency') {
     return (
       <ActivationChrome
-        breadcrumb={{ step: 5, title: 'Invite your team' }}
+        breadcrumb={{ step: 5, title: act('invite.breadcrumb', locale) }}
         completed={completedCount}
         total={totalCount}
         progressSize="sm"
@@ -102,7 +121,7 @@ export function ActivationInviteTeamPage() {
 
   return (
     <ActivationChrome
-      breadcrumb={{ step: 5, title: 'Invite your team' }}
+      breadcrumb={{ step: 5, title: act('invite.breadcrumb', locale) }}
       completed={completedCount}
       total={totalCount}
       progressSize="sm"
@@ -112,10 +131,10 @@ export function ActivationInviteTeamPage() {
         className="mb-[var(--lc-space-sm)] text-[var(--lc-text-heading)]"
         style={{ font: 'var(--lc-type-heading-1)' }}
       >
-        Invite your team
+        {act('invite.h1', locale)}
       </h1>
       <p className="mb-[var(--lc-space-sm)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-lg)' }}>
-        Bring your agents into <strong>{agencyName}</strong>. Pick the fastest method for how your team works.
+        {act('invite.sub', locale, { agency: agencyName })}
       </p>
       <span
         className="mb-[var(--lc-space-lg)] inline-flex rounded-[var(--lc-radius-pill)] bg-[var(--lc-surface-sunken)] px-[var(--lc-space-sm)] py-1 text-[var(--lc-text-muted)]"
@@ -126,52 +145,55 @@ export function ActivationInviteTeamPage() {
 
       {alreadyComplete ? (
         <p className="mb-[var(--lc-space-lg)] text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-          You already sent invitations on <Numeric>{completedCaption(step?.completed_via, step?.completed_at)}</Numeric>.
-          Nothing to do here.
+          {act('invite.already', locale, {
+            when: completedCaption(step?.completed_via, step?.completed_at, locale),
+          })}
         </p>
       ) : null}
 
-      <Tabs defaultValue="link">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => markMethod(value as InviteMethodTab)}
+      >
         <TabsList className="w-full">
-          <TabsTrigger value="link">Share link</TabsTrigger>
-          <TabsTrigger value="code">Invitation code</TabsTrigger>
-          <TabsTrigger value="email">Bulk email</TabsTrigger>
+          <TabsTrigger value="link">{act('invite.tab.link', locale)}</TabsTrigger>
+          <TabsTrigger value="code">{act('invite.tab.code', locale)}</TabsTrigger>
+          <TabsTrigger value="email">{act('invite.tab.email', locale)}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="link" className="space-y-[var(--lc-space-md)]">
-          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>One link, unlimited agents</h2>
+          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>{act('invite.link.h2', locale)}</h2>
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-            Share this link anywhere — WhatsApp, email, printed onto onboarding paperwork. Every agent who follows it
-            applies to join <strong>{agencyName}</strong>.
+            {act('invite.link.sub', locale, { agency: agencyName })}
           </p>
           <div className="flex gap-[var(--lc-space-sm)]">
-            <Input readOnly value={share?.url || ''} aria-label="Share link" />
+            <Input readOnly value={share?.url || ''} aria-label={act('invite.link.aria', locale)} />
             <Button
               type="button"
               variant="outline"
               onClick={() => share?.url && navigator.clipboard.writeText(share.url)}
             >
-              Copy link
+              {act('invite.link.copy', locale)}
             </Button>
           </div>
           <Button type="button" variant="link" className="text-[var(--lc-text-brand)]" onClick={() => setRotateOpen('link')}>
-            Rotate this link
+            {act('invite.link.rotate', locale)}
           </Button>
           <Button type="button" variant="ghost" onClick={() => setShowQr((v) => !v)}>
-            Show QR code
+            {act('invite.link.qr', locale)}
           </Button>
           {showQr && qrUrl ? (
-            <img src={qrUrl} alt="Invitation QR code" className="h-[200px] w-[200px]" />
+            <img src={qrUrl} alt={act('invite.link.qrAlt', locale)} className="h-[200px] w-[200px]" />
           ) : null}
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            Link is active until you rotate it or disable it in Settings → Team.
+            {act('invite.link.expiry', locale)}
           </p>
         </TabsContent>
 
         <TabsContent value="code" className="space-y-[var(--lc-space-md)]">
-          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>A short code for phone or in-person</h2>
+          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>{act('invite.code.h2', locale)}</h2>
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-            Share this code verbally or over a call. Agents enter it during signup.
+            {act('invite.code.sub', locale)}
           </p>
           <Numeric
             as="p"
@@ -186,40 +208,39 @@ export function ActivationInviteTeamPage() {
               variant="outline"
               onClick={() => share?.code && navigator.clipboard.writeText(share.code)}
             >
-              Copy code
+              {act('invite.code.copy', locale)}
             </Button>
             <Button type="button" variant="link" className="text-[var(--lc-text-brand)]" onClick={() => setRotateOpen('code')}>
-              Rotate code
+              {act('invite.code.rotate', locale)}
             </Button>
           </div>
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            Code is active until you rotate it or disable it in Settings → Team.
+            {act('invite.code.expiry', locale)}
           </p>
         </TabsContent>
 
         <TabsContent value="email" className="space-y-[var(--lc-space-md)]">
-          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>Send email invitations</h2>
+          <h2 style={{ font: 'var(--lc-type-heading-2)' }}>{act('invite.email.h2', locale)}</h2>
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-            Paste up to <Numeric>50</Numeric> email addresses. Each gets a personalized invitation to join{' '}
-            <strong>{agencyName}</strong>.
+            {act('invite.email.sub', locale, { n: 50, agency: agencyName })}
           </p>
           <div className="space-y-1">
-            <Label htmlFor="bulk-emails">Email addresses</Label>
+            <Label htmlFor="bulk-emails">{act('invite.email.label', locale)}</Label>
             <textarea
               id="bulk-emails"
               className="min-h-24 w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] p-[var(--lc-space-sm)] text-[var(--lc-text-primary)]"
-              placeholder="sara@example.com, ali@example.com, layla@example.com"
+              placeholder={act('invite.email.placeholder', locale)}
               value={emails}
               onChange={(e) => setEmails(e.target.value)}
             />
           </div>
           {parsed.invalid.length ? (
             <p role="alert" className="text-[var(--lc-status-unpublished-fg)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-              Invalid: {parsed.invalid.join(', ')}
+              {act('invite.email.invalid', locale, { list: parsed.invalid.join(', ') })}
             </p>
           ) : null}
           <div className="space-y-1">
-            <Label htmlFor="bulk-note">Add a personal note (optional)</Label>
+            <Label htmlFor="bulk-note">{act('invite.email.note', locale)}</Label>
             <textarea
               id="bulk-note"
               maxLength={280}
@@ -236,13 +257,17 @@ export function ActivationInviteTeamPage() {
             disabled={parsed.valid.length === 0 || sending}
             onClick={async () => {
               setSending(true)
+              markMethod('email')
               try {
                 const result = await sendBulkInvitations(parsed.valid, note)
                 addToast({
                   variant: result.failed?.length ? 'warning' : 'success',
                   description: result.failed?.length
-                    ? `${result.sent} sent, ${result.failed.length} couldn't be delivered. See details below.`
-                    : `${result.sent} invitations sent.`,
+                    ? act('invite.email.partial', locale, {
+                        sent: result.sent,
+                        failed: result.failed.length,
+                      })
+                    : act('invite.email.success', locale, { n: result.sent }),
                 })
                 setEmails('')
                 setInvites(await fetchAgencyInvitations())
@@ -252,49 +277,63 @@ export function ActivationInviteTeamPage() {
                   variant: 'error',
                   description:
                     status === 429
-                      ? "You've sent a lot of invitations quickly — please wait a few minutes."
+                      ? act('invite.email.rate', locale)
                       : err instanceof Error
                         ? err.message
-                        : 'Could not send invitations.',
+                        : act('invite.email.sendError', locale),
                 })
               } finally {
                 setSending(false)
               }
             }}
           >
-            Send <Numeric>{parsed.valid.length}</Numeric> invitations →
+            {locale === 'ar' ? (
+              <>
+                أرسل <Numeric>{parsed.valid.length}</Numeric> دعوات ←
+              </>
+            ) : (
+              <>
+                Send <Numeric>{parsed.valid.length}</Numeric> invitations →
+              </>
+            )}
           </Button>
           <p className="inline-flex items-center gap-1 text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Capability-locked methods stay visible when gated.
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> {act('invite.email.capability', locale)}
           </p>
         </TabsContent>
       </Tabs>
 
       <section className="mt-[var(--lc-space-xl)]">
         <h3 className="mb-[var(--lc-space-sm)] flex items-center gap-2" style={{ font: 'var(--lc-type-heading-3)' }}>
-          Pending invitations{' '}
+          {act('invite.pending.h3', locale)}{' '}
           <Badge variant="outline">
             <Numeric>{invites.length}</Numeric>
           </Badge>
         </h3>
         {invites.length === 0 ? (
           <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
-            No pending invitations yet.
+            {act('invite.pending.empty', locale)}
           </p>
         ) : (
           <table className="w-full text-start" style={{ font: 'var(--lc-type-body-sm)' }}>
             <thead>
               <tr className="border-b border-[var(--lc-border)] text-[var(--lc-text-muted)]">
-                <th className="py-2 text-start">Email</th>
-                <th className="py-2 text-start">Sent</th>
-                <th className="py-2 text-start">Status</th>
-                <th className="py-2 text-start">Actions</th>
+                <th className="py-2 text-start">{act('invite.pending.email', locale)}</th>
+                <th className="py-2 text-start">{act('invite.pending.sent', locale)}</th>
+                <th className="py-2 text-start">{act('invite.pending.status', locale)}</th>
+                <th className="py-2 text-start">{act('invite.pending.actions', locale)}</th>
               </tr>
             </thead>
             <tbody>
               {invites.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--lc-border)]">
-                  <td className="py-2">{row.email}</td>
+                  <td className="py-2">
+                    <PIIMask
+                      kind="email"
+                      value={row.email}
+                      auditContext={{ caseId, field: 'invitee_email' }}
+                    />
+                  </td>
                   <td className="py-2">
                     <Numeric>{row.sent_at ? new Date(row.sent_at).toLocaleDateString() : '—'}</Numeric>
                   </td>
@@ -303,12 +342,16 @@ export function ActivationInviteTeamPage() {
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => void resendInvitation(row.id).then(() => addToast({ description: 'Invitation resent.' }))}
+                      onClick={() =>
+                        void resendInvitation(row.id).then(() =>
+                          addToast({ description: act('invite.pending.resent', locale) }),
+                        )
+                      }
                     >
-                      Resend
+                      {act('invite.pending.resend', locale)}
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => setRevokeTarget(row)}>
-                      Revoke
+                      {act('invite.pending.revoke', locale)}
                     </Button>
                   </td>
                 </tr>
@@ -321,7 +364,7 @@ export function ActivationInviteTeamPage() {
       <div className="mt-[var(--lc-space-xl)] flex flex-col gap-[var(--lc-space-sm)]">
         {alreadyComplete ? (
           <Button type="button" onClick={() => navigate('/activate')}>
-            Return to activation wizard →
+            {act('common.returnWizard', locale)}
           </Button>
         ) : (
           <>
@@ -329,18 +372,27 @@ export function ActivationInviteTeamPage() {
               type="button"
               disabled={!canComplete}
               onClick={async () => {
+                const used = Array.from(methodsUsed)
+                if (!used.includes(METHOD_USED[activeTab])) {
+                  used.push(METHOD_USED[activeTab])
+                }
+                const celebrate = totalCount > 0 && completedCount === totalCount - 1
                 await complete('invite_team', 'dashboard_action', {
                   invitations_sent: sentCount,
-                  methods_used: ['share_link'],
+                  methods_used: used,
                 })
-                navigate('/channels?source=activation')
+                navigate(
+                  celebrate
+                    ? '/channels?source=activation&celebrate=1'
+                    : '/channels?source=activation',
+                )
               }}
             >
-              Mark step complete → Connect channels
+              {act('invite.completeCta', locale)}
             </Button>
             {!canComplete ? (
               <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-                Send an invitation first, or defer
+                {act('invite.completeHelper', locale)}
               </p>
             ) : null}
             <Button
@@ -351,7 +403,7 @@ export function ActivationInviteTeamPage() {
                 navigate('/activate')
               }}
             >
-              I&apos;ll do this later
+              {act('common.later', locale)}
             </Button>
             <Button
               type="button"
@@ -368,7 +420,7 @@ export function ActivationInviteTeamPage() {
                 navigate('/activate')
               }}
             >
-              It&apos;s just me for now
+              {act('invite.tertiary', locale)}
             </Button>
           </>
         )}
@@ -377,14 +429,16 @@ export function ActivationInviteTeamPage() {
       <Dialog open={Boolean(rotateOpen)} onOpenChange={(open) => !open && setRotateOpen(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{rotateOpen === 'code' ? 'Rotate the invitation code?' : 'Rotate the share link?'}</DialogTitle>
-            <DialogDescription>
-              The previous link stops working. Agents mid-application can still complete.
-            </DialogDescription>
+            <DialogTitle>
+              {rotateOpen === 'code'
+                ? act('invite.rotateCodeTitle', locale)
+                : act('invite.rotateLinkTitle', locale)}
+            </DialogTitle>
+            <DialogDescription>{act('invite.rotateBody', locale)}</DialogDescription>
           </DialogHeader>
           <div className="mt-[var(--lc-space-lg)] flex justify-end gap-[var(--lc-space-sm)]">
             <Button type="button" variant="ghost" onClick={() => setRotateOpen(null)}>
-              Cancel
+              {act('common.cancel', locale)}
             </Button>
             <Button
               type="button"
@@ -393,10 +447,10 @@ export function ActivationInviteTeamPage() {
                 const next = rotateOpen === 'code' ? await rotateInvitationCode() : await rotateShareLink()
                 if (next) setShare(next)
                 setRotateOpen(null)
-                addToast({ variant: 'success', description: 'Rotated.' })
+                addToast({ variant: 'success', description: act('invite.rotated', locale) })
               }}
             >
-              Rotate
+              {act('invite.rotateConfirm', locale)}
             </Button>
           </div>
         </DialogContent>
@@ -405,14 +459,14 @@ export function ActivationInviteTeamPage() {
       <Dialog open={Boolean(revokeTarget)} onOpenChange={(open) => !open && setRevokeTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Revoke this invitation?</DialogTitle>
+            <DialogTitle>{act('invite.revokeTitle', locale)}</DialogTitle>
             <DialogDescription>
-              {revokeTarget?.email} won&apos;t be able to join with this invitation. You can invite them again later.
+              {act('invite.revokeBody', locale, { email: revokeTarget?.email || '' })}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-[var(--lc-space-lg)] flex justify-end gap-[var(--lc-space-sm)]">
             <Button type="button" variant="ghost" onClick={() => setRevokeTarget(null)}>
-              Cancel
+              {act('common.cancel', locale)}
             </Button>
             <Button
               type="button"
@@ -424,7 +478,7 @@ export function ActivationInviteTeamPage() {
                 setRevokeTarget(null)
               }}
             >
-              Revoke
+              {act('invite.pending.revoke', locale)}
             </Button>
           </div>
         </DialogContent>
