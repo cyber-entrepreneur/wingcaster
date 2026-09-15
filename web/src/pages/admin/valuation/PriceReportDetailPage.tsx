@@ -303,6 +303,18 @@ export function PriceReportDetailPage() {
       !(approvalRequestId && approvalRequestId === report.approval_request_id),
   )
 
+  const handleReveal = async (ctx: { caseId?: string; field?: string; kind?: string }) => {
+    if (!report) return
+    try {
+      await api.revealAdminAgentPriceReportPii(report.id, {
+        field: ctx.field || 'agent_display_name',
+        kind: ctx.kind || 'name',
+      })
+    } catch {
+      // best-effort audit
+    }
+  }
+
   const auditEntries: TimelineEntry[] = useMemo(() => {
     return (report?.audit_trail || []).map((entry, idx) => ({
       id: `${entry.action}-${idx}`,
@@ -315,10 +327,19 @@ export function PriceReportDetailPage() {
             : entry.action === 'submitted'
               ? 'info'
               : 'success',
-      title: entry.actor?.name || 'System',
+      // Role only — actor display names stay behind PIIMask (meta).
+      title: entry.actor?.role || 'System',
       message: `${entry.action.replace(/_/g, ' ')}${entry.reason ? ` · ${entry.reason}` : ''}`,
+      meta: entry.actor?.name ? (
+        <PIIMask
+          kind="name"
+          value={entry.actor.name}
+          auditContext={{ caseId: report?.id || 'price-report', field: 'audit_actor_name' }}
+          onReveal={handleReveal}
+        />
+      ) : null,
     }))
-  }, [report])
+  }, [report, handleReveal])
 
   const toastVoteError = (err: unknown) => {
     const e = err as { code?: string; status?: number; message?: string }
@@ -430,17 +451,6 @@ export function PriceReportDetailPage() {
     }
   }
 
-  const handleReveal = async (ctx: { caseId?: string; field?: string; kind?: string }) => {
-    if (!report) return
-    try {
-      await api.revealAdminAgentPriceReportPii(report.id, {
-        field: ctx.field || 'agent_display_name',
-        kind: ctx.kind || 'name',
-      })
-    } catch {
-      // best-effort audit
-    }
-  }
 
   const openEvidence = async (evidenceId: string) => {
     if (!report) return
