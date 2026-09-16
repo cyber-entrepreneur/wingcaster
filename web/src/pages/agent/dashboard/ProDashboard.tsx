@@ -69,12 +69,46 @@ function localizeStatus(status: string, copyLocale: DashboardLocale): string {
   return status
 }
 
+/** Inbox row shape the Pro widgets actually read (API + legacy aliases). */
+type DashboardConversation = {
+  id: string
+  unread_count: number
+  contact_name: string | null
+  last_message_preview: string
+  source?: string | null
+  channel?: string | null
+  /** Legacy / mock aliases still accepted for widget display. */
+  title?: string
+  last_message?: string
+  snippet?: string
+  platform?: string
+}
+
+function coerceDashboardConversation(value: unknown): DashboardConversation | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const rec = value as { [key: string]: unknown }
+  if (typeof rec.id !== 'string' || !rec.id) return null
+  return {
+    id: rec.id,
+    unread_count: typeof rec.unread_count === 'number' ? rec.unread_count : Number(rec.unread_count || 0),
+    contact_name: typeof rec.contact_name === 'string' ? rec.contact_name : null,
+    last_message_preview:
+      typeof rec.last_message_preview === 'string' ? rec.last_message_preview : '',
+    source: typeof rec.source === 'string' ? rec.source : null,
+    channel: typeof rec.channel === 'string' ? rec.channel : null,
+    title: typeof rec.title === 'string' ? rec.title : undefined,
+    last_message: typeof rec.last_message === 'string' ? rec.last_message : undefined,
+    snippet: typeof rec.snippet === 'string' ? rec.snippet : undefined,
+    platform: typeof rec.platform === 'string' ? rec.platform : undefined,
+  }
+}
+
 type LiveData = {
   stats: { listings: number; totalViews: number; inquiries: number; activeListings: number }
   listings: Array<Record<string, unknown>>
   inquiries: Array<Record<string, unknown>>
   viewings: Array<Record<string, unknown>>
-  conversations: Array<Record<string, unknown>>
+  conversations: DashboardConversation[]
   operations: Record<string, unknown> | null
   analytics: Record<string, unknown> | null
 }
@@ -165,14 +199,11 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         listings: mine as Array<Record<string, unknown>>,
         inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
         viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
-        // getConversations() is InboxConversation[]; LiveData keeps a loose
-        // Record shape for widget mappers. Filter non-objects, then widen —
-        // InboxConversation has no index signature so `c is Record` is illegal.
-        conversations: (
-          Array.isArray(conversations) ? conversations : []
-        )
-          .filter((c): boolean => !!c && typeof c === 'object' && !Array.isArray(c))
-          .map((c) => c as unknown as Record<string, unknown>),
+        // Coerce getConversations() rows into the widget shape — real field
+        // narrowing, no as-unknown-as Record widen (#174).
+        conversations: (Array.isArray(conversations) ? conversations : [])
+          .map(coerceDashboardConversation)
+          .filter((c): c is DashboardConversation => c != null),
         operations: ops as Record<string, unknown> | null,
         analytics: analytics as Record<string, unknown> | null,
       })
@@ -534,11 +565,11 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
                       {String(c.contact_name || c.title || t('inbox.threadFallback', copyLocale))}
                     </div>
                     <div className="truncate text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-caption)' }}>
-                      {String(c.last_message || c.snippet || '')}
+                      {String(c.last_message || c.snippet || c.last_message_preview || '')}
                     </div>
                   </div>
                   <Badge variant="secondary">
-                    {String(c.platform || c.source || t('inbox.badgeFallback', copyLocale))}
+                    {String(c.platform || c.channel || c.source || t('inbox.badgeFallback', copyLocale))}
                   </Badge>
                 </li>
               ))
