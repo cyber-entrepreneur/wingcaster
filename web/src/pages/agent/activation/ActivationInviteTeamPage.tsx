@@ -326,12 +326,23 @@ export function ActivationInviteTeamPage() {
             </thead>
             <tbody>
               {invites.map((row) => (
-                <tr key={row.id} className="border-b border-[var(--lc-border)]">
+                <tr
+                  key={row.id}
+                  className="border-b border-[var(--lc-border)]"
+                  data-testid="pending-invite-row"
+                >
                   <td className="py-2">
                     <PIIMask
                       kind="email"
                       value={row.email}
-                      auditContext={{ caseId, field: 'invitee_email' }}
+auditContext={{ caseId, field: 'invitee_email' }}
+                      onReveal={async (ctx) => {
+                        await recordOnboardingEvent({
+                          event: 'pii_reveal',
+                          step_id: 'invite_team',
+                          metadata: { caseId: ctx.caseId, field: ctx.field, kind: ctx.kind },
+                        })
+                      }}
                     />
                   </td>
                   <td className="py-2">

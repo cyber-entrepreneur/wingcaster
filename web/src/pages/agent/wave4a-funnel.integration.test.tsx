@@ -1233,7 +1233,8 @@ describe.skipIf(!familyReady('onb'))(
       expect(await screen.findByRole('heading', { name: /Welcome to WingCaster/i })).toBeInTheDocument()
 
       await user.click(screen.getByText('WhatsApp voice memo'))
-      await user.click(screen.getByRole('button', { name: /get started/i }))
+      // Nested CTA button removed for axe nested-interactive; second click submits.
+      await user.click(screen.getByText(/get started/i))
 
       await waitFor(() => {
         const loc = screen.getByTestId('funnel-location').textContent || ''

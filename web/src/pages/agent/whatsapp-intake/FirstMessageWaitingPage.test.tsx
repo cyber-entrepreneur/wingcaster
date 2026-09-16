@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/toast'
 import { FirstMessageWaitingPage } from './FirstMessageWaitingPage'
@@ -17,6 +17,35 @@ vi.mock('@/hooks/useLocale', () => ({
     dir: 'ltr',
     isArabic: false,
   }),
+}))
+
+const inboundPoll = vi.hoisted(() => ({
+  inbound: {
+    bound: true,
+    latest_message_at: null as string | null,
+    draft_session_id: null as string | null,
+  },
+  pollError: false,
+  capReached: false,
+  bindingLost: false,
+}))
+
+vi.mock('./useInboundStatusPoll', () => ({
+  useInboundStatusPoll: () => ({
+    inbound: inboundPoll.inbound,
+    pollError: inboundPoll.pollError,
+    capReached: inboundPoll.capReached,
+    bindingLost: inboundPoll.bindingLost,
+  }),
+}))
+
+vi.mock('./useOnboardingState', () => ({
+  markWhatsAppIntakeProgress: vi.fn(async () => undefined),
+  completedViaCaption: () => null,
+}))
+
+vi.mock('./useOnlineStatus', () => ({
+  useOnlineStatus: () => true,
 }))
 
 const fetchMock = vi.fn()
@@ -52,6 +81,14 @@ function renderWaiting() {
 
 beforeEach(() => {
   fetchMock.mockReset()
+  inboundPoll.inbound = {
+    bound: true,
+    latest_message_at: null,
+    draft_session_id: null,
+  }
+  inboundPoll.pollError = false
+  inboundPoll.capReached = false
+  inboundPoll.bindingLost = false
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockImplementation((url: string) => {
     const u = String(url)
@@ -70,6 +107,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
+  vi.clearAllTimers()
   vi.useRealTimers()
 })
 
@@ -92,18 +131,11 @@ describe('FirstMessageWaitingPage', () => {
   })
 
   it('navigates to drafting when inbound-status reports a message', async () => {
-    fetchMock.mockImplementation((url: string) => {
-      const u = String(url)
-      if (u.includes('inbound-status')) {
-        return jsonResponse({
-          bound: true,
-          binding_id: 'bind-1',
-          latest_message_at: new Date().toISOString(),
-          draft_session_id: 'sess-42',
-        })
-      }
-      return jsonResponse({})
-    })
+    inboundPoll.inbound = {
+      bound: true,
+      latest_message_at: new Date().toISOString(),
+      draft_session_id: 'sess-42',
+    }
     renderWaiting()
     await waitFor(() => expect(screen.getByText('DRAFTING_PAGE')).toBeInTheDocument())
   })

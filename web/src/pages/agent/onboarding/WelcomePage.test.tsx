@@ -90,7 +90,8 @@ describe('WelcomePage (AGT-ONB-001)', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    expect(screen.getByRole('button', { name: /Get started/i })).toBeInTheDocument()
+    // Radio cards cannot nest a real button (axe nested-interactive); CTA is visual + Enter/second click.
+    expect(screen.getByText(/Get started/i)).toBeInTheDocument()
     const radios = screen.getAllByRole('radio')
     expect(radios[0]).toHaveAttribute('aria-checked', 'true')
     expect(radios[1]).toHaveAttribute('aria-checked', 'false')
@@ -100,7 +101,7 @@ describe('WelcomePage (AGT-ONB-001)', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    await user.click(screen.getByRole('button', { name: /Get started/i }))
+    await user.click(screen.getByText(/Get started/i))
     await waitFor(() =>
       expect(hook.patch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -171,8 +172,9 @@ describe('WelcomePage a11y / non-blockers', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    const cta = screen.getByRole('button', { name: /Get started/i })
-    const describedBy = cta.getAttribute('aria-describedby')
+    // Nested button removed for axe nested-interactive — describedby lives on the radio.
+    const radio = screen.getByRole('radio', { name: /WhatsApp voice memo/i })
+    const describedBy = radio.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     const desc = document.getElementById(describedBy!)
     expect(desc?.textContent).toMatch(/Send photos/i)

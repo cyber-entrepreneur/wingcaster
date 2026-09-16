@@ -300,10 +300,9 @@ function OnboardingChecklistWidgetView({
     )
   }
 
+  // Card already exposes role="region" aria-label="Onboarding progress" (AGT-ONB-005).
   return (
     <div
-      role="region"
-      aria-label={t('checklist.region', onbLocale)}
       className={cn(reducedMotion ? undefined : 'transition-opacity duration-slow', className)}
       data-checklist-pct={pct}
       data-checklist-remaining={remaining}

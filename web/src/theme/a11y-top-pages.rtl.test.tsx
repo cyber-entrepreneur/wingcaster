@@ -59,6 +59,7 @@ import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
+import { Act001WelcomeSurface, Onb001WelcomeSurface } from '@/theme/wave4a-fixtures'
 
 const pages: Array<[string, ComponentType, string, boolean]> = [
   ['Dashboard', AgentDashboardPage, '/dashboard', true],
@@ -92,5 +93,27 @@ describe('Broadcast a11y — top 10 pages', () => {
     await waitFor(async () => {
       expect(await axe(container)).toHaveNoViolations()
     })
+  })
+})
+
+describe('Broadcast a11y — Wave 4A /onboarding/welcome and /activate', () => {
+  it.each([
+    ['Onboarding welcome', Onb001WelcomeSurface, '/onboarding/welcome'],
+    ['Activate', Act001WelcomeSurface, '/activate'],
+  ] as const)('%s has no axe violations (rtl)', async (_name, Page, path) => {
+    document.documentElement.lang = 'ar'
+    document.documentElement.dir = 'rtl'
+    const { container } = render(
+      <MemoryRouter initialEntries={[path]}>
+        <BrandProvider>
+          <ToastProvider>
+            <main>
+              <Page />
+            </main>
+          </ToastProvider>
+        </BrandProvider>
+      </MemoryRouter>,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

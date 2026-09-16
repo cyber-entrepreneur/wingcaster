@@ -28,6 +28,11 @@ vi.mock('./useDraftProgress', async () => {
   }
 })
 
+vi.mock('./useOnboardingState', () => ({
+  markWhatsAppIntakeProgress: vi.fn(async () => undefined),
+  completedViaCaption: () => null,
+}))
+
 import { useDraftProgress } from './useDraftProgress'
 import type { DraftField } from '@/components/onboarding/whatsapp'
 

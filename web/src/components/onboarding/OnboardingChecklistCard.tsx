@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ProgressRing } from '@/components/onboarding/ProgressRing'
 import { SparkleBurst } from '@/components/onboarding/SparkleBurst'
 import { tUi, type OnboardingUiLocale } from '@/components/onboarding/copy'
@@ -96,6 +96,10 @@ export function OnboardingChecklistCard({
   const locale: OnboardingUiLocale = isArabic ? 'ar' : 'en'
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [showCompleted, setShowCompleted] = useState(false)
+  const reducedMotion = useMemo(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  }, [])
 
   if (state.dismissed_forever) return null
 
@@ -116,6 +120,8 @@ export function OnboardingChecklistCard({
 
   return (
     <section
+      role="region"
+      aria-label="Onboarding progress"
       className={cn(
         'relative rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)]',
         'bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]',
@@ -127,7 +133,7 @@ export function OnboardingChecklistCard({
     >
       {allDone ? (
         <div className="absolute end-3 top-3">
-          <SparkleBurst active />
+          <SparkleBurst active reducedMotion={reducedMotion} />
         </div>
       ) : null}
 
@@ -200,11 +206,12 @@ export function OnboardingChecklistCard({
                   disabled={done}
                   onClick={() => onStepTap?.(item.key)}
                   className={cn(
-                    'flex w-full items-start gap-3 rounded-[var(--lc-radius-md)]',
+                    'flex w-full min-h-tap items-start gap-3 rounded-[var(--lc-radius-md)]',
                     'px-2 py-2 text-start focus-visible:outline-none',
                     !done && 'hover:bg-[var(--lc-surface-sunken)]',
                   )}
                 >
+                  {done ? <span className="sr-only">Completed</span> : null}
                   <span
                     className={cn(
                       'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
