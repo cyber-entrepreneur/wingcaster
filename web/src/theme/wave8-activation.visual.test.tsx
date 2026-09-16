@@ -25,6 +25,7 @@ import {
   type ViewportAxis,
 } from '@/theme/visualSerialize'
 import {
+  FIXED_NOW,
   sampleConsentTerms,
   sampleInboxConversation,
   sampleListings,
@@ -309,6 +310,10 @@ beforeAll(() => {
     style.textContent = THEME_CSS
     document.head.appendChild(style)
   }
+  // Freeze the wall clock to the fixtures' FIXED_NOW so real-time-derived values
+  // (e.g. ProListingsTable daysOnMarket = floor((Date.now() - listed_date)/day))
+  // stay byte-stable across calendar days instead of drifting each night.
+  vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW)
   vi.spyOn(Date.prototype, 'getHours').mockReturnValue(10)
   vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('9/1/2026')
   vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
