@@ -805,7 +805,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {zone3Urgent.label}
                   </p>
-                  <CardTitle className="text-base">{zone3Urgent.title}</CardTitle>
+                  <CardTitle as="h2" className="text-base">{zone3Urgent.title}</CardTitle>
                   {zone3Urgent.sub ? <CardDescription>{zone3Urgent.sub}</CardDescription> : null}
                 </CardHeader>
                 {zone3Urgent.to ? (
@@ -835,7 +835,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         {showOnboardingBanner && (
           <Card className="mb-6 border-amber-200 bg-amber-50/60">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Account activation in progress</CardTitle>
+              <CardTitle as="h2" className="text-base">Account activation in progress</CardTitle>
               <CardDescription>
                 Current stage: <span className="font-medium">{onboardingStage.replace(/_/g, ' ')}</span> · Status: <span className="font-medium">{onboardingStatus.replace(/_/g, ' ')}</span>
               </CardDescription>
@@ -892,7 +892,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         {operations && operations.todays_viewings && operations.todays_viewings.length > 0 && (
           <Card className="mb-6">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Today&apos;s viewings</CardTitle>
+              <CardTitle as="h2" className="text-base">Today&apos;s viewings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -927,7 +927,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
           <TabsContent value="listings">
             <Card>
               <CardHeader>
-                <CardTitle>My Property Listings</CardTitle>
+                <CardTitle as="h2">My Property Listings</CardTitle>
                 <CardDescription>Picture, city, engagement, and a full Actions menu per listing</CardDescription>
               </CardHeader>
               <CardContent>
@@ -965,7 +965,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
           {/* ====== INQUIRIES ====== */}
           <TabsContent value="inquiries">
             <Card>
-              <CardHeader><CardTitle>Recent Inquiries</CardTitle><CardDescription>Messages from potential buyers and renters</CardDescription></CardHeader>
+              <CardHeader><CardTitle as="h2">Recent Inquiries</CardTitle><CardDescription>Messages from potential buyers and renters</CardDescription></CardHeader>
               <CardContent>
                 <div className="mb-4 flex flex-wrap items-end gap-3">
                   <div>
@@ -1469,7 +1469,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5" />Your social platforms</CardTitle>
+                  <CardTitle as="h2" className="flex items-center gap-2"><Settings className="h-5 w-5" />Your social platforms</CardTitle>
                   <CardDescription>
                     Connect your Instagram, Telegram, TikTok, and X accounts. When you Promote a listing you can post to these and/or REB pages.
                   </CardDescription>
@@ -1579,7 +1579,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />REB pages</CardTitle>
+                  <CardTitle as="h2" className="flex items-center gap-2"><Globe className="h-5 w-5" />REB pages</CardTitle>
                   <CardDescription>Official REB channels you can request promotion on (admin review)</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1611,7 +1611,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
           <TabsContent value="notifications">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Notification Preferences</CardTitle>
+                <CardTitle as="h2" className="flex items-center gap-2"><Bell className="h-5 w-5" />Notification Preferences</CardTitle>
                 <CardDescription>Choose which notifications you receive and how they are delivered</CardDescription>
               </CardHeader>
               <CardContent>
@@ -1738,7 +1738,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
           <TabsContent value="submissions">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Inbox className="h-5 w-5" />Submissions to REB</CardTitle>
+                <CardTitle as="h2" className="flex items-center gap-2"><Inbox className="h-5 w-5" />Submissions to REB</CardTitle>
                 <CardDescription>Track your listings submitted to REB's official channels</CardDescription>
               </CardHeader>
               <CardContent>
@@ -1798,7 +1798,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   {/* FI Submissions Summary */}
                   {performance.overview?.fiSubmissions && (
                     <Card>
-                      <CardHeader><CardTitle>REB Submission Status</CardTitle></CardHeader>
+                      <CardHeader><CardTitle as="h2">REB Submission Status</CardTitle></CardHeader>
                       <CardContent>
                         <div className="flex gap-6">
                           <div className="text-center"><p className="text-2xl font-bold text-yellow-600">{performance.overview?.fiSubmissions?.pending}</p><p className="text-xs text-muted-foreground">Pending</p></div>
@@ -1810,7 +1810,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   )}
 
                   <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Performance by Channel</CardTitle></CardHeader>
+                    <CardHeader><CardTitle as="h2" className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Performance by Channel</CardTitle></CardHeader>
                     <CardContent>
                       {!(performance.byPlatform?.length) ? (
                         <p className="text-center text-muted-foreground py-8">No distributions yet.</p>
@@ -1843,7 +1843,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   <Card>
                     <CardHeader className="flex flex-row items-start justify-between gap-3">
                       <div>
-                        <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />Delivery retry queue</CardTitle>
+                        <CardTitle as="h2" className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />Delivery retry queue</CardTitle>
                         <CardDescription>Retry queued and failed channel deliveries</CardDescription>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleRetryPendingBatch} disabled={bulkRetrying}>
@@ -1895,7 +1895,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
           <TabsContent value="admin">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Inbox className="h-5 w-5" />Pending Review Queue</CardTitle>
+                <CardTitle as="h2" className="flex items-center gap-2"><Inbox className="h-5 w-5" />Pending Review Queue</CardTitle>
                 <CardDescription>Review and approve agency submissions for REB channels</CardDescription>
               </CardHeader>
               <CardContent>

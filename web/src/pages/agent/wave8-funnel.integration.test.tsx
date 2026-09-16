@@ -570,13 +570,13 @@ describe('Wave 8 funnel — sign-in → dashboard mode', () => {
     tenantState.activeTenant.uiMode = 'pro'
 
     wrap(
-      <AgentDashboardProGate guided={<div data-testid="guided-dashboard">Guided</div>} />,
+      <AgentDashboardProGate guided={<div data-testid="guided-slot">Guided</div>} />,
     )
 
     await waitFor(() => {
       expect(screen.getByTestId('pro-dashboard')).toBeInTheDocument()
     })
-    expect(screen.queryByTestId('guided-dashboard')).toBeNull()
+    expect(screen.queryByTestId('guided-slot')).toBeNull()
   })
 
   it('2b. Guided fallback <768 preserves server ui_mode=pro (D-S-06)', () => {
@@ -588,10 +588,10 @@ describe('Wave 8 funnel — sign-in → dashboard mode', () => {
     tenantState.activeTenant.uiMode = 'pro'
 
     wrap(
-      <AgentDashboardProGate guided={<div data-testid="guided-dashboard">Guided</div>} />,
+      <AgentDashboardProGate guided={<div data-testid="guided-slot">Guided</div>} />,
     )
 
-    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
+    expect(screen.getByTestId('guided-slot')).toBeInTheDocument()
     expect(screen.queryByTestId('pro-dashboard')).toBeNull()
     // Preference remains pro on the tenant membership even while Guided renders.
     expect(tenantState.activeTenant.uiMode).toBe('pro')

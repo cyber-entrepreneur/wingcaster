@@ -45,7 +45,7 @@ describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
       <AgentDashboardModeMount
         shouldRenderPro
         agentName="Sara"
-        guided={<div data-testid="guided-dashboard" />}
+        guided={<div data-testid="guided-slot" />}
       />,
     )
 
@@ -55,18 +55,18 @@ describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
       },
       { timeout: 5_000 },
     )
-    expect(screen.queryByTestId('guided-dashboard')).toBeNull()
+    expect(screen.queryByTestId('guided-slot')).toBeNull()
   })
 
   it('keeps Guided when shouldRenderPro is false (D-S-06 mobile fallback)', () => {
     wrap(
       <AgentDashboardModeMount
         shouldRenderPro={false}
-        guided={<div data-testid="guided-dashboard" />}
+        guided={<div data-testid="guided-slot" />}
       />,
     )
 
-    expect(screen.getByTestId('guided-dashboard')).toBeTruthy()
+    expect(screen.getByTestId('guided-slot')).toBeTruthy()
     expect(screen.queryByTestId('pro-dashboard')).toBeNull()
   })
 })
@@ -84,12 +84,12 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-slot" />} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('pro-dashboard')).toBeTruthy()
     })
-    expect(screen.queryByTestId('guided-dashboard')).toBeNull()
+    expect(screen.queryByTestId('guided-slot')).toBeNull()
   })
 
   it('preserves Guided when ui_mode=pro but viewport is not Pro-capable', () => {
@@ -100,9 +100,9 @@ describe('AgentDashboardProGate', () => {
       loading: false,
     })
 
-    wrap(<AgentDashboardProGate guided={<div data-testid="guided-dashboard" />} />)
+    wrap(<AgentDashboardProGate guided={<div data-testid="guided-slot" />} />)
 
-    expect(screen.getByTestId('guided-dashboard')).toBeTruthy()
+    expect(screen.getByTestId('guided-slot')).toBeTruthy()
     expect(screen.queryByTestId('pro-dashboard')).toBeNull()
   })
 })
