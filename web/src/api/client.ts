@@ -2321,6 +2321,73 @@ export const api = {
       },
     }),
 
+  // ── WF-20 two-person approval execute cluster (PA-APR-003/005/006) ──────
+  getApprovalExecutePreview: (id: string): Promise<import('@/components/approval/approvalTypes').ExecutePreview> =>
+    fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/execute-preview`),
+
+  executeApproval: (
+    id: string,
+    data: {
+      workflowCode: string
+      confirmationPhrase?: string | null
+      version: number
+      idempotencyKey?: string
+    },
+  ): Promise<import('@/components/approval/approvalTypes').ExecuteResult> =>
+    fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/execute`, {
+      method: 'POST',
+      body: JSON.stringify({
+        workflow_code: data.workflowCode,
+        confirmation_phrase: data.confirmationPhrase ?? undefined,
+      }),
+      headers: {
+        'If-Match': `"${data.version}"`,
+        'Idempotency-Key': data.idempotencyKey || (globalThis.crypto?.randomUUID?.() || `exec-${Date.now()}`),
+      },
+    }),
+
+  getEligibleEscalationTargets: (
+    id: string,
+    opts: { q?: string; requestType?: string } = {},
+  ): Promise<import('@/components/approval/approvalTypes').EligibleEscalationTargets> => {
+    const parts: string[] = []
+    if (opts.q) parts.push(`q=${encodeURIComponent(opts.q)}`)
+    if (opts.requestType) parts.push(`request_type=${encodeURIComponent(opts.requestType)}`)
+    const qs = parts.length ? `?${parts.join('&')}` : ''
+    return fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/eligible-escalation-targets${qs}`)
+  },
+
+  escalateApproval: (
+    id: string,
+    data: {
+      targetApproverId: string
+      reasonVocab: string
+      notes: string
+      notifyChannels: string[]
+      version: number
+    },
+  ): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/escalate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        target_approver_id: data.targetApproverId,
+        reason_vocab: data.reasonVocab,
+        notes: data.notes,
+        notify_channels: data.notifyChannels,
+      }),
+      headers: { 'If-Match': `"${data.version}"` },
+    }),
+
+  withdrawFinApproval: (
+    id: string,
+    data: { reason: string; version: number },
+  ): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: data.reason }),
+      headers: { 'If-Match': `"${data.version}"` },
+    }),
+
   getTenantCreditsBalance: (): Promise<TenantCreditsBalance> =>
     fetchJson('/tenant/credits/balance'),
   getTenantSubscription: (): Promise<{ subscription: TenantSubscription | null; tenant_id: string }> =>
