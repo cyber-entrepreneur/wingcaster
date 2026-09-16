@@ -74,6 +74,14 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
+  PackageListPage,
+  PackageEditPage,
+  PackageApprovalQueuePage,
+  PackageApprovalDetailPage,
+  PackageVersionHistoryPage,
+  PackageVersionReadOnlyPage,
+} from '@/pages/admin/packages'
+import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -243,6 +251,13 @@ function AppRoutes() {
         path="/admin/valuation/price-reports/:reportId"
         element={<PriceReportDetailPage />}
       />
+      {/* PA-PKG family — package admin (WF-07 package publishing) */}
+      <Route path="/admin/packages" element={<PackageListPage />} />
+      <Route path="/admin/packages/approvals" element={<PackageApprovalQueuePage />} />
+      <Route path="/admin/packages/approvals/:versionId" element={<PackageApprovalDetailPage />} />
+      <Route path="/admin/packages/:packageId/history" element={<PackageVersionHistoryPage />} />
+      <Route path="/admin/packages/:packageId/versions/:versionId/edit" element={<PackageEditPage />} />
+      <Route path="/admin/packages/:packageId/versions/:version" element={<PackageVersionReadOnlyPage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
