@@ -74,6 +74,14 @@ import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
+  PackageListPage,
+  PackageEditPage,
+  PackageApprovalQueuePage,
+  PackageApprovalDetailPage,
+  PackageVersionHistoryPage,
+  PackageVersionReadOnlyPage,
+} from '@/pages/admin/packages'
+import {
   BadComparableQueuePage,
   BadComparableDetailPage,
   PriceReportQueuePage,
@@ -260,6 +268,13 @@ function AppRoutes() {
         path="/admin/valuation/price-reports/:reportId"
         element={<PriceReportDetailPage />}
       />
+      {/* PA-PKG-001..004 — package admin (list / edit / approval queue+detail / version history) */}
+      <Route path="/admin/packages" element={<PackageListPage />} />
+      <Route path="/admin/packages/approvals" element={<PackageApprovalQueuePage />} />
+      <Route path="/admin/packages/approvals/:versionId" element={<PackageApprovalDetailPage />} />
+      <Route path="/admin/packages/:packageId/history" element={<PackageVersionHistoryPage />} />
+      <Route path="/admin/packages/:packageId/versions/:versionId/edit" element={<PackageEditPage />} />
+      <Route path="/admin/packages/:packageId/versions/:version" element={<PackageVersionReadOnlyPage />} />
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
