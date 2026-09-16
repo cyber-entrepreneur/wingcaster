@@ -118,6 +118,7 @@ export function PAQueueFilterStrip({
 
   return (
     <div
+      data-pa-queue-filter-strip=""
       aria-label={ariaLabel}
       className={cn(
         'sticky top-0 z-10 border-b border-[var(--lc-border)] bg-[var(--lc-surface-raised)]',
