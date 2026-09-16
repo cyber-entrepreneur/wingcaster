@@ -197,5 +197,7 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
     .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
     .replace(/\d+[smhdwy]\s+ago/gi, '__REL__')
     .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+    // Date inputs often stamp max/min to "today" — scrub so wall-clock day flips don't flake CI.
+    .replace(/\b(max|min)="\d{4}-\d{2}-\d{2}"/g, '$1="__DATE__"')
   return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${body}`
 }
