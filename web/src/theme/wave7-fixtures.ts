@@ -2,7 +2,7 @@
  * Wave 7 quality fixtures — WF-31 ownership transfer + AGN-ROL + AGN-DSH + AGN-MEM.
  *
  * Per-page rationale for real-vs-synthetic mount. Follows the pattern proven
- * on Wave 4A #180 and Wave 6 (`wave6-fixtures.ts`).
+ * on Wave 4A PR 180 and Wave 6 (`wave6-fixtures.ts`).
  *
  * Skips in `wave7-screens.visual.test.tsx` cite these entries by key.
  */
@@ -54,7 +54,7 @@ export const WAVE7_SURFACES: Readonly<Wave7Surface[]> = Object.freeze([
     realComponent: 'OwnershipTransferOutcomePage',
     a11ySuite: 'wave7-wf31-pages.a11y.test.tsx',
     syntheticRationale:
-      'Real-mount plan when AGT-REC-006 lands. Consumes REC-family primitives (<StatusHero>, <OutcomeTimeline>, <ResolverMessage>, <PrimaryCtaPerState>) landed via #128. Async blocker: outcome-payload fetch resolves on later microtask.',
+      'Real-mount plan when AGT-REC-006 lands. Consumes REC-family primitives (<StatusHero>, <OutcomeTimeline>, <ResolverMessage>, <PrimaryCtaPerState>) landed via PR 128. Async blocker: outcome-payload fetch resolves on later microtask.',
     status: 'awaiting-family-pr',
     consumesShared: ['<StatusHero>', '<OutcomeTimeline>', '<ResolverMessage>', '<PrimaryCtaPerState>'],
   },
@@ -87,10 +87,10 @@ export const WAVE7_SURFACES: Readonly<Wave7Surface[]> = Object.freeze([
     realComponent: 'AgencyOnboardingChecklistPage',
     a11ySuite: 'wave7-agn-dsh-pages.a11y.test.tsx',
     syntheticRationale:
-      'Real-mount plan when AGN-DSH-002 lands. Async blocker: `agency_onboarding_state` fetch + first-listing status + team-invites summary all resolve on later microtask. Uses same shape as AGT-ONB-005 (already on main via #123).',
+      'Real-mount plan when AGN-DSH-002 lands. Async blocker: `agency_onboarding_state` fetch + first-listing status + team-invites summary all resolve on later microtask. Uses same shape as AGT-ONB-005 (already on main via PR 123).',
     status: 'awaiting-family-pr',
   },
-  // AGN-MEM — 3 screens. Cursor's #181-followup batch-2 report noted AGN-MEM
+  // AGN-MEM — 3 screens. Cursor's PR 181-followup batch-2 report noted AGN-MEM
   // briefs may overlap with existing `pages/agency/Application*Page.tsx`.
   // Verify before family agent starts.
   {

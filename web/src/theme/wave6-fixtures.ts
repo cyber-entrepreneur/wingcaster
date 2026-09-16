@@ -2,7 +2,7 @@
  * Wave 6 quality fixtures — PA-PKG (packages) + PA-POR (portals).
  *
  * Per-page rationale for real-vs-synthetic mount decision. Follows the pattern
- * proven on Wave 4A #180: each of the 7 target surfaces gets an inline note
+ * proven on Wave 4A PR 180: each of the 7 target surfaces gets an inline note
  * naming the async blocker and the parallel a11y suite that covers real-page
  * axe + behavior.
  *
@@ -67,7 +67,7 @@ export const WAVE6_SURFACES: Readonly<Wave6Surface[]> = Object.freeze([
     realComponent: 'PackageApprovalQueuePage',
     a11ySuite: 'wave6-pa-pkg-pages.a11y.test.tsx (uses assertPaQueueFamilyInvariants harness)',
     syntheticRationale:
-      'Real-mount plan when PA-PKG-003 lands. This surface consumes #181 primitives (`TwoPersonExecuteModal`, `useTwoPersonExecuteModal`) — assert via harness that PA-queue-family invariants (7) hold + that #181 modal opens on execute-click. Async blocker: fetches approval-request preview via /execute-preview when modal opens.',
+      'Real-mount plan when PA-PKG-003 lands. This surface consumes PR 181 primitives (`TwoPersonExecuteModal`, `useTwoPersonExecuteModal`) — assert via harness that PA-queue-family invariants (7) hold + that PR 181 modal opens on execute-click. Async blocker: fetches approval-request preview via /execute-preview when modal opens.',
     status: 'awaiting-family-pr',
   },
   {
