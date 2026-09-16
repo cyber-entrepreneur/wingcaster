@@ -243,6 +243,7 @@ import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEdi
 import { ChannelSourceBadges } from '@/components/inbox/ChannelSourceBadges'
 import { InboxRow } from '@/components/inbox/InboxRow'
 import { LOGIN_COPY } from '@/pages/agent/dashboard/copy'
+import { t as consentT } from '@/pages/public/consentCopy'
 // Guided listings fallback ListingsPage covered in wave8-listings-fallback.a11y.test.tsx
 
 function setViewport(minWidth: number) {
@@ -497,14 +498,22 @@ describe('Wave 8 a11y — RTL + dark smoke', () => {
     await expectNoAxeViolations(container)
   })
 
-  it('consent landing stays public-safe under dark RTL', async () => {
+  it('consent landing stays public-safe under dark RTL and renders AR copy', async () => {
     document.documentElement.dir = 'rtl'
     document.documentElement.lang = 'ar'
+    localeState.locale = 'ar'
     applyLcMode('dark')
     const { container } = renderConsent()
+    // AR pass (#145 LOGIN_COPY pattern) must reach this surface — heading flips
+    // to Arabic once the page consumes useLocale().isArabic.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Confirm this relationship/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: consentT('consent.title', 'ar') }),
+      ).toBeInTheDocument()
     })
+    expect(container.textContent).toContain(consentT('consent.title', 'ar'))
+    expect(container.textContent).toContain(consentT('consent.accept', 'ar'))
+    expect(screen.queryByText('Confirm this relationship')).toBeNull()
     expect(screen.queryByRole('navigation')).toBeNull()
     await expectNoAxeViolations(container)
   })
