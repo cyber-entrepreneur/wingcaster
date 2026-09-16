@@ -18,6 +18,7 @@ import { cleanup, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement } from 'react'
 import { applyLcMode } from '@/theme/mode'
+import { LOCALE_STORAGE_KEY } from '@/hooks/useLocale'
 import { ToastProvider } from '@/components/ui/toast'
 import { BrandProvider } from '@/context/BrandContext'
 import {
@@ -59,6 +60,9 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  // Locale is fetch/stored-backed; a leaked 'ar' from an RTL case would flip
+  // <html dir> for the next LTR render. Start every case from a clean slate.
+  localStorage.clear()
   document.documentElement.lang = 'en'
   document.documentElement.dir = 'ltr'
   applyLcMode('light')
@@ -77,6 +81,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+  localStorage.clear()
 })
 
 function wrap(ui: ReactElement, pathName = '/onboarding/welcome') {
@@ -116,6 +121,9 @@ describe('Wave 4A visual matrix — 15 surfaces × light/dark × mobile/desktop'
     document.documentElement.dir = 'ltr'
     document.documentElement.lang = 'en'
     const view = wrap(surface.render(), surface.path)
+    // No surface may silently reset <html dir> via a locale side-effect. On the
+    // LTR axis it must stay ltr (this guards the ONB-005 no-op class of bug).
+    expect(document.documentElement.getAttribute('dir')).toBe('ltr')
     expect(snap(view.container, mode)).toMatchSnapshot()
   })
 
@@ -146,9 +154,18 @@ describe('Wave 4A visual — RTL smoke (welcome, drafting, checklist, activate)'
     setVisualViewport(viewport)
     document.documentElement.dir = 'rtl'
     document.documentElement.lang = 'ar'
+    // ONB-005 mounts OnboardingChecklistCard → useLocale(), which re-applies
+    // <html dir/lang> from the *resolved* locale on mount. With no stored locale
+    // it resolved to 'en' and flipped dir back to ltr — making ONB-005 · rtl a
+    // byte-for-byte copy of its LTR twin. Seed the stored locale so useLocale
+    // resolves 'ar' and the RTL axis actually renders RTL.
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'ar')
     const surface = WAVE4A_SURFACES.find((s) => s.id === id)
     expect(surface).toBeTruthy()
     const view = wrap(surface!.render(), surface!.path)
+    // Fail loudly if a locale side-effect reset the axis before serialize().
+    expect(document.documentElement.getAttribute('dir')).toBe('rtl')
+    expect(document.documentElement.getAttribute('lang')).toBe('ar')
     expect(snap(view.container, mode)).toMatchSnapshot()
   })
 })
@@ -162,7 +179,11 @@ describe('Wave 4A visual — ONB-005 Pro pill + WLB-004 fallback', () => {
     setVisualViewport(viewport)
     document.documentElement.dir = dir
     document.documentElement.lang = dir === 'rtl' ? 'ar' : 'en'
+    // OnboardingPill also mounts useLocale(); seed the stored locale so the RTL
+    // axis stays RTL (same fix as the ONB-005 card no-op above).
+    if (dir === 'rtl') localStorage.setItem(LOCALE_STORAGE_KEY, 'ar')
     const view = wrap(<Onb005ChecklistSurface completed={2} pro />, '/dashboard')
+    expect(document.documentElement.getAttribute('dir')).toBe(dir)
     expect(snap(view.container, mode)).toMatchSnapshot()
   })
 
