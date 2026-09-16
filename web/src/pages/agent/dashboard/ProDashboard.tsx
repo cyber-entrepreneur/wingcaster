@@ -200,7 +200,7 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
         viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
         // Coerce getConversations() rows into the widget shape — real field
-        // narrowing, no as-unknown-as Record widen (#174).
+        // narrowing, no as-unknown-as Record widen (issue 174).
         conversations: (Array.isArray(conversations) ? conversations : [])
           .map(coerceDashboardConversation)
           .filter((c): c is DashboardConversation => c != null),
