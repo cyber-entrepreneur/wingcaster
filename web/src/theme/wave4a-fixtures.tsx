@@ -1,9 +1,55 @@
 /**
  * Wave 4A activation-funnel fixtures (AGT-ONB / AGT-WLB / AGT-ACT).
  *
- * Page modules land on Phase A branches. These compositions mount the
- * Shared Prep primitives that those screens own, so a11y + visual coverage
- * is meaningful before (and after) the family PRs merge.
+ * The real page modules now exist on this branch and ARE rendered as real
+ * pages (mount + axe + behaviour) in the async page-level suites:
+ *   - web/src/theme/wave4a-onb-act-pages.a11y.test.tsx  (ONB-001/003/004/005, ACT-001..005)
+ *   - web/src/theme/wave4a-wlb-pages.a11y.test.tsx      (WLB-001..005)
+ *
+ * These `*Surface()` compositions exist for the SYNCHRONOUS DOM-snapshot
+ * matrix (wave4a-screens.visual.test.tsx + the axe-15 smoke in
+ * wave4a-screens.a11y.test.tsx). That matrix calls `render()` and serializes
+ * on the SAME tick — it never awaits. Every flagged page below loads its
+ * content through a fetch/SSE round-trip that only resolves on a later
+ * microtask (the data hooks are hand-rolled, fetch-backed, and start
+ * `isLoading: true` — there is no SWR fallback lever to seed synchronously),
+ * so a real mount here would only ever snapshot the loading skeleton. This is
+ * exactly the "network round-trip that even fixture-mocked-fetch can't cover
+ * [in a synchronous serialize]" carve-out. Per-page rationale for each of the
+ * five previously-flagged fixtures:
+ *
+ *   - Onb003ReviewSurface (AGT-ONB-003 → FirstListingReviewPage):
+ *       FirstListingReviewPage starts `loading:true` and fetches the draft via
+ *       getWhatsAppDraft(draftId) in an effect, and also reads the fetch-backed
+ *       useOnboardingState() (isLoading:true). Real content appears only after
+ *       both async GETs resolve. Real-page render+axe:
+ *       wave4a-onb-act-pages.a11y.test.tsx › "ONB-003 FirstListingReviewPage has no axe violations".
+ *   - Wlb005ReadySurface (AGT-WLB-005 → ListingDraftingPage, ready state):
+ *       The "ready" view is driven by useDraftProgress() — a live SSE/polling
+ *       hook whose isReady/fields only flip mid-stream. Forcing ready requires
+ *       module-mocking useDraftProgress (its own test does exactly that); that
+ *       mock is module-scoped and cannot live in this shared fixtures module.
+ *       Real-page ready render+axe:
+ *       wave4a-wlb-pages.a11y.test.tsx › "WLB-005 ListingDraftingPage complete state announces ready copy".
+ *   - Act002WhatsAppSurface (AGT-ACT-002 → ActivationWhatsAppPage):
+ *       Reads fetch-backed useActivationState() plus fetchWhatsAppActivationCode()
+ *       / fetchWhatsAppBindingStatus() in effects; the handshake panel is empty
+ *       until those resolve. Real-page render+axe:
+ *       wave4a-onb-act-pages.a11y.test.tsx › "ACT-002 WhatsApp connect has no axe violations".
+ *   - Act003FirstListingSurface (AGT-ACT-003 → ActivationFirstListingPage):
+ *       useActivationState() starts isLoading:true; the path picker renders only
+ *       after the activation GET resolves. Real-page render+axe:
+ *       wave4a-onb-act-pages.a11y.test.tsx › "ACT-003 first listing has no axe violations".
+ *   - Act005InviteTeamSurface (AGT-ACT-005 → ActivationInviteTeamPage):
+ *       useActivationState() + fetchShareLink() + fetchAgencyInvitations() in
+ *       effects; the pending-invite table (and its PII masking) populate only
+ *       after those GETs resolve. Real-page render + axe + positive PII-masking
+ *       assertions:
+ *       wave4a-onb-act-pages.a11y.test.tsx › "ACT-005 …" (masks by default / reveal fires audit).
+ *
+ * Follow-up: when a Chromatic/Storybook pipeline lands it can await + snapshot
+ * these real pages in the visual budget; tracked in
+ * scratchpad/wave4a-chromatic-gap.md.
  */
 import { useState, type ReactElement } from 'react'
 import { Camera, Mic, MapPin, Sparkles } from 'lucide-react'
@@ -188,7 +234,12 @@ export function Onb002TourSurface() {
   )
 }
 
-/** AGT-ONB-003 — First-listing review. */
+/**
+ * AGT-ONB-003 — First-listing review (primitive composition).
+ * Synthetic mount: FirstListingReviewPage fetches the draft async (getWhatsAppDraft)
+ * and would only snapshot the loading skeleton in the synchronous serialize matrix.
+ * Real page is rendered+axed in wave4a-onb-act-pages.a11y.test.tsx (ONB-003). See file docstring.
+ */
 export function Onb003ReviewSurface() {
   return (
     <div data-wave4a-surface>
@@ -349,7 +400,12 @@ export function Wlb004DraftingSurface({
   )
 }
 
-/** AGT-WLB-005 — Drafting-page complete state (same route as -004). */
+/**
+ * AGT-WLB-005 — Drafting-page complete state (same route as -004).
+ * Synthetic mount: the real ready view is gated by useDraftProgress() (live SSE);
+ * forcing it needs a module-scoped hook mock that can't live in this shared module.
+ * Real page ready-state is rendered+axed in wave4a-wlb-pages.a11y.test.tsx (WLB-005). See docstring.
+ */
 export function Wlb005ReadySurface() {
   return (
     <TourFrame step={5} totalSteps={5} title="Your listing is ready" onExit={NOOP}>
@@ -429,7 +485,12 @@ export function SkipWizardDialog({
   )
 }
 
-/** AGT-ACT-002 — WhatsApp connect step inside the wizard. */
+/**
+ * AGT-ACT-002 — WhatsApp connect step inside the wizard.
+ * Synthetic mount: ActivationWhatsAppPage reads fetch-backed useActivationState() +
+ * fetchWhatsAppActivationCode() (async); handshake data is absent on the first sync render.
+ * Real page is rendered+axed in wave4a-onb-act-pages.a11y.test.tsx (ACT-002). See docstring.
+ */
 export function Act002WhatsAppSurface() {
   return (
     <div data-wave4a-surface>
@@ -444,7 +505,12 @@ export function Act002WhatsAppSurface() {
   )
 }
 
-/** AGT-ACT-003 — First listing step. */
+/**
+ * AGT-ACT-003 — First listing step.
+ * Synthetic mount: ActivationFirstListingPage starts isLoading:true on fetch-backed
+ * useActivationState(); the path picker renders only after the async activation GET resolves.
+ * Real page is rendered+axed in wave4a-onb-act-pages.a11y.test.tsx (ACT-003). See docstring.
+ */
 export function Act003FirstListingSurface() {
   return (
     <div data-wave4a-surface>
@@ -470,7 +536,13 @@ export function Act004PortalLockedSurface() {
   )
 }
 
-/** AGT-ACT-005 — Invite team. */
+/**
+ * AGT-ACT-005 — Invite team.
+ * Synthetic mount: ActivationInviteTeamPage populates the pending-invite table (and its
+ * PII masking) only after async fetchShareLink()/fetchAgencyInvitations() resolve.
+ * Real page render + axe + positive PII-masking assertions live in
+ * wave4a-onb-act-pages.a11y.test.tsx (ACT-005). See docstring.
+ */
 export function Act005InviteTeamSurface() {
   return (
     <div data-wave4a-surface>
