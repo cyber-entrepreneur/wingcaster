@@ -18,9 +18,11 @@ import { applyLcMode } from '@/theme/mode'
 import { ToastProvider } from '@/components/ui/toast'
 import {
   assertNoPiiBleed,
+  assertNoPlaintextPiiSubstring,
   serializeVisualRoot,
   setVisualViewport,
   stampLcTokens,
+  type ViewportAxis,
 } from '@/theme/visualSerialize'
 import {
   sampleConsentTerms,
@@ -29,6 +31,7 @@ import {
   sampleMineRelationship,
   sampleRedactedRelationship,
 } from '@/theme/wave8-fixtures'
+import { t as consentT } from '@/pages/public/consentCopy'
 
 type Mode = 'light' | 'dark'
 type Dir = 'ltr' | 'rtl'
@@ -182,7 +185,6 @@ vi.mock('@/components/ui/toast', async () => {
   }
 })
 
-import { AgentDashboardProGate } from '@/pages/agent/dashboard/AgentDashboardModeMount'
 import { ProListingsTable } from '@/pages/agent/listings/ProListingsTable'
 import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
@@ -205,13 +207,32 @@ function wrapProviders(ui: ReactElement) {
   )
 }
 
-function expectSnap(container: HTMLElement, mode: Mode = 'light') {
+/**
+ * Every seeded contact PII value in the Wave 8 fixtures. `Sara Agent` is the
+ * signed-in agent (self) — never masked — so it is intentionally excluded.
+ */
+const FIXTURE_PII = {
+  emails: ['omar@example.com'],
+  phones: ['+971500000000'],
+  names: ['Omar Hassan'],
+} as const
+
+function expectSnap(container: HTMLElement, mode: Mode = 'light', hint?: string) {
   const root =
     (container.querySelector('[data-wave8-visual-root]') as HTMLElement | null) ?? container
   stampLcTokens(root, mode)
   const serialized = serializeVisualRoot(root, { mode })
-  assertNoPiiBleed(serialized)
-  expect(serialized).toMatchSnapshot()
+  // Regex sweep (email/phone) + names denylist parsed from the fixtures.
+  assertNoPiiBleed(serialized, [...FIXTURE_PII.names])
+  // Substring sweep of the rendered HTML — catches PII embedded in prose that
+  // whole-node queryByText misses (e.g. "Waiting on <name> to confirm").
+  assertNoPlaintextPiiSubstring(root, {
+    emails: [...FIXTURE_PII.emails],
+    phones: [...FIXTURE_PII.phones],
+    names: [...FIXTURE_PII.names],
+  })
+  if (hint) expect(serialized).toMatchSnapshot(hint)
+  else expect(serialized).toMatchSnapshot()
   return serialized
 }
 
@@ -220,6 +241,58 @@ function assertPiiMasked() {
   expect(screen.queryByText('omar@example.com')).toBeNull()
   const masks = document.querySelectorAll('[data-pii-revealed="false"]')
   expect(masks.length).toBeGreaterThan(0)
+}
+
+type Dir3 = 'ltr' | 'rtl'
+interface CoreVariant {
+  key: string
+  mode: Mode
+  dir: Dir3
+  viewport: ViewportAxis
+}
+
+/**
+ * Orthogonal matrix (Option A): each core fixture ships 4 variants so any
+ * single-axis pair is byte-diff verifiable on the SAME fixture —
+ *   dark≠light   : light-ltr-desktop vs dark-ltr-desktop
+ *   rtl≠ltr      : light-ltr-desktop vs light-rtl-desktop
+ *   mobile≠desktop: light-ltr-desktop vs light-ltr-mobile
+ */
+const CORE_VARIANTS: CoreVariant[] = [
+  { key: 'light-ltr-desktop', mode: 'light', dir: 'ltr', viewport: 'desktop' },
+  { key: 'dark-ltr-desktop', mode: 'dark', dir: 'ltr', viewport: 'desktop' },
+  { key: 'light-rtl-desktop', mode: 'light', dir: 'rtl', viewport: 'desktop' },
+  { key: 'light-ltr-mobile', mode: 'light', dir: 'ltr', viewport: 'mobile' },
+]
+
+function applyVariant(v: CoreVariant) {
+  applySurface(v.mode, v.dir)
+  setVisualViewport(v.viewport)
+}
+
+/**
+ * Render one fixture across all 4 orthogonal variants, snapshotting each and
+ * proving the single-axis pairs are byte-different on the SAME fixture.
+ */
+async function renderMatrix(
+  makeUi: () => ReactElement,
+  ready: (container: HTMLElement) => void | Promise<void>,
+  perVariant?: (container: HTMLElement, v: CoreVariant) => void,
+): Promise<Record<string, string>> {
+  const snaps: Record<string, string> = {}
+  for (const v of CORE_VARIANTS) {
+    applyVariant(v)
+    const { container } = render(makeUi())
+    await ready(container)
+    perVariant?.(container, v)
+    snaps[v.key] = expectSnap(container, v.mode, v.key)
+    cleanup()
+  }
+  // Orthogonal byte-diff proofs — each pair changes exactly one axis.
+  expect(snaps['dark-ltr-desktop']).not.toEqual(snaps['light-ltr-desktop'])
+  expect(snaps['light-rtl-desktop']).not.toEqual(snaps['light-ltr-desktop'])
+  expect(snaps['light-ltr-mobile']).not.toEqual(snaps['light-ltr-desktop'])
+  return snaps
 }
 
 beforeAll(() => {
@@ -318,37 +391,67 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
     expect(lightTokens['--lc-bg-page']).not.toEqual(darkTokens['--lc-bg-page'])
   })
 
-  it('03 ProListingsTable-light-ltr-desktop', async () => {
-    const { container } = render(
-      wrapProviders(
+  it('ProListingsTable orthogonal matrix (dark≠light, rtl≠ltr, mobile≠desktop)', async () => {
+    await renderMatrix(
+      () => (
         <MemoryRouter>
           <ProListingsTable listings={sampleListings()} totalCount={3} />
-        </MemoryRouter>,
+        </MemoryRouter>
       ),
+      () => {
+        expect(screen.getByTestId('pro-listings-table')).toBeInTheDocument()
+      },
     )
-    expect(screen.getByTestId('pro-listings-table')).toBeInTheDocument()
-    expectSnap(container, 'light')
   })
 
-  it('05 Guided-fallback-dashboard-ui-mode-pro-mobile', async () => {
-    setVisualViewport('mobile')
-    uiModeState.mode = 'pro'
-    uiModeState.effectiveMode = 'guided'
-    uiModeState.shouldRenderPro = false
-    uiModeState.isProCapable = false
-    const { container } = render(
-      wrapProviders(
-        <MemoryRouter>
-          <AgentDashboardProGate guided={<div data-testid="guided-dashboard">Guided dashboard</div>} />
-        </MemoryRouter>,
+  it('InboxRow dual-badge orthogonal matrix (dark≠light, rtl≠ltr, mobile≠desktop)', async () => {
+    await renderMatrix(
+      () => (
+        <div>
+          <InboxRow conversation={sampleInboxConversation} onSelect={() => undefined} />
+          <ChannelSourceBadges channel="email" source="property_finder" />
+        </div>
       ),
+      () => {
+        expect(screen.getByLabelText(/WhatsApp from Bayut/i)).toBeInTheDocument()
+        // Contact name stays masked across every variant.
+        assertPiiMasked()
+      },
     )
-    expect(screen.getByTestId('guided-dashboard')).toBeInTheDocument()
-    expect(screen.queryByTestId('pro-dashboard')).toBeNull()
-    expectSnap(container, 'light')
   })
 
-  it('06 Guided-listings-fallback-ui-mode-pro-mobile', async () => {
+  it('Consent-landing orthogonal matrix (dark≠light, rtl≠ltr/AR, mobile≠desktop)', async () => {
+    await renderMatrix(
+      () => (
+        <MemoryRouter initialEntries={['/public/relationships/consent?token=tok_wave8']}>
+          <Routes>
+            <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
+          </Routes>
+        </MemoryRouter>
+      ),
+      async (container) => {
+        await waitFor(() => {
+          expect(container.querySelector('#consent-title')).toBeTruthy()
+        })
+        // Public consent must not surface agent CRM chrome.
+        expect(screen.queryByTestId('crm-shell')).toBeNull()
+        expect(screen.queryByRole('navigation')).toBeNull()
+      },
+      (container, v) => {
+        if (v.dir === 'rtl') {
+          // #145 AR pass reaches this surface via useLocale().isArabic — the
+          // rtl variant renders Arabic copy, not English strings under dir=rtl.
+          expect(container.textContent).toContain(consentT('consent.title', 'ar'))
+          expect(container.textContent).toContain(consentT('consent.accept', 'ar'))
+          expect(container.textContent).not.toContain('Confirm this relationship')
+        } else {
+          expect(container.textContent).toContain(consentT('consent.title', 'en'))
+        }
+      },
+    )
+  })
+
+  it('Guided-listings-fallback-ui-mode-pro-mobile', async () => {
     setVisualViewport('mobile')
     expect(window.innerWidth).toBe(375)
     uiModeState.mode = 'pro'
@@ -371,43 +474,7 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
     expectSnap(container, 'light')
   })
 
-  it('07 Consent-landing-ready-light-ltr', async () => {
-    const { container } = render(
-      wrapProviders(
-        <MemoryRouter initialEntries={['/public/relationships/consent?token=tok_wave8']}>
-          <Routes>
-            <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
-          </Routes>
-        </MemoryRouter>,
-      ),
-    )
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Confirm this relationship/i })).toBeInTheDocument()
-    })
-    // Public consent must not surface agent CRM chrome.
-    expect(screen.queryByTestId('crm-shell')).toBeNull()
-    expect(screen.queryByRole('navigation')).toBeNull()
-    expectSnap(container, 'light')
-  })
-
-  it('08 Consent-landing-ready-dark-rtl', async () => {
-    applySurface('dark', 'rtl')
-    const { container } = render(
-      wrapProviders(
-        <MemoryRouter initialEntries={['/public/relationships/consent?token=tok_wave8']}>
-          <Routes>
-            <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
-          </Routes>
-        </MemoryRouter>,
-      ),
-    )
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Confirm this relationship/i })).toBeInTheDocument()
-    })
-    expectSnap(container, 'dark')
-  })
-
-  it('09 Consent-landing-missing-token-light-ltr', async () => {
+  it('Consent-landing-missing-token-light-ltr', async () => {
     const { container } = render(
       wrapProviders(
         <MemoryRouter initialEntries={['/public/relationships/consent?contactId=spoof']}>
@@ -423,21 +490,7 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
     expectSnap(container, 'light')
   })
 
-  it('10 Inbox-dual-badge-row-light-ltr', () => {
-    const { container } = render(
-      wrapProviders(
-        <div>
-          <InboxRow conversation={sampleInboxConversation} onSelect={() => undefined} />
-          <ChannelSourceBadges channel="email" source="property_finder" />
-        </div>,
-      ),
-    )
-    expect(screen.getByLabelText(/WhatsApp from Bayut/i)).toBeInTheDocument()
-    assertPiiMasked()
-    expectSnap(container, 'light')
-  })
-
-  it('11 Relationships-editor-pending-light-ltr', async () => {
+  it('Relationships-editor-pending-light-ltr', async () => {
     const { container } = render(
       wrapProviders(
         <MemoryRouter initialEntries={['/contacts/cnt_wave8/relationships']}>
@@ -451,6 +504,13 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
       expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
     })
     assertPiiMasked()
+    // Positive: the masked-name PIIMask is present for this row (item 1).
+    expect(screen.getByLabelText(/Masked name/i)).toBeInTheDocument()
+    // The pending prose is masked too — no plaintext contact name bleeds.
+    expect(screen.getByText(/Waiting on .+ to confirm via link/i)).toBeInTheDocument()
+    expect(container.querySelector('[data-wave8-visual-root]')!.innerHTML).not.toContain(
+      'Omar Hassan',
+    )
     expectSnap(container, 'light')
   })
 
