@@ -231,6 +231,7 @@ import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onbo
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
+import { registerApiTokenRoutes } from './lib/auth/api-tokens-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7690,6 +7691,11 @@ app.get('/api/agencies/search', async (req, res) => {
 // BE-BLOCKER-06 — slug apply + promoted agency_applications (after /search so
 // :id/:slug params cannot shadow the static search path).
 registerAgencyApplicationRoutes(app)
+
+// Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
+// automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
+// through this table.
+registerApiTokenRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.

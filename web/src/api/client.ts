@@ -22,6 +22,24 @@ import type {
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
 
+/** Issue #192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
+export interface ApiTokenRecord {
+  id: string
+  name: string
+  scopes: string[]
+  last_used_at: string | null
+  expires_at: string | null
+  revoked_at: string | null
+  created_at: string
+  agency_id: string | null
+}
+
+/** Server response on POST — the raw token is here exactly once. */
+export interface ApiTokenCreateResponse {
+  token: string
+  record: ApiTokenRecord
+}
+
 export interface CommandItem {
   message_id: string
   conversation_id: string
@@ -659,6 +677,21 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  // Issue #192a — Personal Access Tokens.
+  listApiTokens: (): Promise<{ tokens: ApiTokenRecord[] }> =>
+    fetchJson('/settings/api-tokens'),
+  createApiToken: (payload: {
+    name: string
+    scopes?: string[]
+    expires_at?: string | null
+  }): Promise<ApiTokenCreateResponse> =>
+    fetchJson('/settings/api-tokens', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  revokeApiToken: (id: string) =>
+    fetchJson(`/settings/api-tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

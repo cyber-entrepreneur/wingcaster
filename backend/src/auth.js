@@ -263,6 +263,23 @@ export async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
   const token = authHeader.slice(7)
+
+  // Issue #192a — Personal Access Tokens (`wc_pat_...`) are accepted as an
+  // alternative bearer. Detected by the greppable prefix; falls through to
+  // JWT if the shape does not match. PATs are the machine-to-machine story
+  // (CRM integrations, BI, automation).
+  if (token.startsWith('wc_pat_')) {
+    const { authenticateWithApiToken } = await import('./lib/auth/api-tokens-routes.js')
+    const result = await authenticateWithApiToken(token)
+    if (!result) return res.status(401).json({ error: 'Invalid token' })
+    req.user = {
+      id: result.user.id,
+      token_version: Number(result.user.token_version ?? 0),
+      api_token_id: result.tokenRow.id,
+    }
+    return next()
+  }
+
   const decoded = verifyToken(token)
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token' })
