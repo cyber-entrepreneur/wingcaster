@@ -8,7 +8,7 @@ import {
 } from '@/pages/agency/ownershipTransferCopy'
 
 /** Renders `**bold**` spans without a full markdown dependency. */
-export function renderBold(text: string): ReactNode[] {
+function renderBold(text: string): ReactNode[] {
   return text.split(/(\*\*[^*]+\*\*)/g).map((chunk, i) => {
     const m = chunk.match(/^\*\*([^*]+)\*\*$/)
     if (m) {

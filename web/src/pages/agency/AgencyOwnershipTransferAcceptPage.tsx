@@ -266,7 +266,7 @@ export function AgencyOwnershipTransferAcceptPage() {
       </section>
 
       <label className="flex items-start gap-[var(--lc-space-sm)]">
-        <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} aria-describedby="recv-consent-text" />
+        <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} aria-labelledby="recv-consent-text" />
         <span id="recv-consent-text" className="text-[var(--lc-text-primary)]" style={{ font: 'var(--lc-type-body-sm)' }}>
           {t('recv.consent', { agency: agency.agencyName })}
         </span>

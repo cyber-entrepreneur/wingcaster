@@ -31,6 +31,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useOwnershipTransfer } from '@/hooks/useOwnershipTransfer'
 import { useStepUpPrompt } from '@/hooks/useStepUpPrompt'
 import { useOwnershipTransferCopy } from '@/pages/agency/ownershipTransferCopy'
+import { reversalRemaining } from './ownershipOutcomeUtil'
 import type { OwnershipTransfer, OwnershipTransferStatus } from '@/types/ownershipTransfer'
 import { cn } from '@/lib/utils'
 
@@ -41,14 +42,6 @@ function monogram(name: string): string {
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase()
-}
-
-/** Days/hours left until an ISO deadline, or null when past. `now` injected for testable clocks. */
-export function reversalRemaining(deadlineIso: string | null, now: number): { days: number; hours: number } | null {
-  if (!deadlineIso) return null
-  const ms = new Date(deadlineIso).getTime() - now
-  if (!Number.isFinite(ms) || ms <= 0) return null
-  return { days: Math.floor(ms / 86_400_000), hours: Math.floor((ms % 86_400_000) / 3_600_000) }
 }
 
 function heroFor(

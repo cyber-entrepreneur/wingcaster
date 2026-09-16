@@ -371,7 +371,7 @@ export function AgencyOwnershipTransferInitiatorPage() {
       </section>
 
       <label className="flex items-start gap-[var(--lc-space-sm)]">
-        <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} aria-describedby="ownership-consent-text" />
+        <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} aria-labelledby="ownership-consent-text" />
         <span id="ownership-consent-text" className="text-[var(--lc-text-primary)]" style={{ font: 'var(--lc-type-body-sm)' }}>
           {t('init.consent', vars)}
         </span>
