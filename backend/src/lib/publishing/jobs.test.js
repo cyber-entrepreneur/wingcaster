@@ -6,6 +6,7 @@ import {
   computeAggregate,
   isRetryAvailable,
   mapDestinationStatus,
+  resolvePublishingMaxRetries,
   RETRYABLE_ERROR_CLASSES,
   toApiErrorClass,
   toDbErrorClass,
@@ -41,7 +42,17 @@ describe('destination status + error_class mapping', () => {
     expect(mapDestinationStatus('pending', 'published')).toBe('succeeded')
     expect(mapDestinationStatus('published', 'failed')).toBe('failed')
     expect(mapDestinationStatus('pending', 'in_review')).toBe('in_review')
+  })
+
+  it('maps pending_retry + dead_letter as failed', () => {
     expect(mapDestinationStatus('pending_retry', null)).toBe('failed')
+    expect(mapDestinationStatus('dead_letter', null)).toBe('failed')
+  })
+
+  it('dead_letter job status wins over a stale attempt (SLA reaper)', () => {
+    expect(mapDestinationStatus('dead_letter', 'in_review')).toBe('failed')
+    expect(mapDestinationStatus('dead_letter', 'pending')).toBe('failed')
+    expect(mapDestinationStatus('dead_letter', 'published')).toBe('failed')
   })
 
   it('round-trips snake_case DB ↔ UPPER_SNAKE API', () => {
@@ -56,7 +67,14 @@ describe('destination status + error_class mapping', () => {
     expect(isRetryAvailable('failed', 'UNKNOWN_ERROR')).toBe(true)
     expect(isRetryAvailable('failed', 'auth_expired')).toBe(false)
     expect(isRetryAvailable('succeeded', 'portal_down')).toBe(false)
+    expect(isRetryAvailable('dead_letter', 'portal_down')).toBe(false)
     expect(RETRYABLE_ERROR_CLASSES).toEqual(['PORTAL_DOWN', 'UNKNOWN_ERROR'])
+  })
+
+  it('resolvePublishingMaxRetries reads PUBLISHING_MAX_RETRIES with default 5', () => {
+    expect(resolvePublishingMaxRetries(3)).toBe(3)
+    expect(resolvePublishingMaxRetries(0)).toBe(5)
+    expect(resolvePublishingMaxRetries()).toBe(5)
   })
 })
 

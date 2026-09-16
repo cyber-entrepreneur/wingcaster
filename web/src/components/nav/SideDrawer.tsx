@@ -202,6 +202,7 @@ const PA_NAV: DrawerNavGroup[] = [
     items: [
       { id: 'portal-submissions', label: 'Portal submissions', href: '/admin/moderation', icon: Shield },
       { id: 'pva', label: 'Property valuation', href: '/admin/pva', icon: Calculator },
+      { id: 'price-reports', label: 'Price reports', href: '/admin/valuation/price-reports', icon: Calculator },
       { id: 'acr', label: 'Account recovery', href: '/admin/acr', icon: KeyRound },
     ],
   },

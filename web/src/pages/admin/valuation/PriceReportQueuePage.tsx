@@ -24,6 +24,7 @@ import {
   type PAQueueSubmittedWithin,
 } from '@/components/queue'
 import { cn } from '@/lib/utils'
+import { usePriceReportCopy } from './priceReportCopy'
 import {
   PriceReportIncorporateDialog,
   PriceReportReasonDialog,
@@ -102,6 +103,7 @@ function normalizeListPayload(raw: unknown): PriceReportListResponse {
 export function PriceReportQueuePage() {
   const { isAdmin } = useAuth()
   const { addToast } = useToast()
+  const { t } = usePriceReportCopy()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -124,7 +126,13 @@ export function PriceReportQueuePage() {
   const [busy, setBusy] = useState(false)
   const [incorporateWeight, setIncorporateWeight] = useState(100)
   const [signalWeight, setSignalWeight] = useState(50)
-  const [undo, setUndo] = useState<{ reportId: string; label: string } | null>(null)
+  const [undo, setUndo] = useState<{
+    reportId: string
+    label: string
+    undo_token_id: string
+    undo_expires_at: string
+  } | null>(null)
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0)
 
   const filterValues: PAQueueFilterValues = {
     status,
@@ -179,9 +187,22 @@ export function PriceReportQueuePage() {
   }, [load])
 
   useEffect(() => {
-    if (!undo) return
-    const timer = window.setTimeout(() => setUndo(null), 5000)
-    return () => window.clearTimeout(timer)
+    if (!undo?.undo_expires_at) {
+      setUndoSecondsLeft(0)
+      return
+    }
+    const tick = () => {
+      const ms = Date.parse(undo.undo_expires_at) - Date.now()
+      if (ms <= 0) {
+        setUndoSecondsLeft(0)
+        setUndo(null)
+        return
+      }
+      setUndoSecondsLeft(Math.ceil(ms / 1000))
+    }
+    tick()
+    const timer = window.setInterval(tick, 250)
+    return () => window.clearInterval(timer)
   }, [undo])
 
   const rows = useMemo(
@@ -211,26 +232,33 @@ export function PriceReportQueuePage() {
     try {
       const result = (await api.reviewAdminAgentPriceReport(
         report.id,
-        body as unknown as Record<string, unknown>,
+        body,
       )) as PriceReportReviewResult
       if (result.pending_second_approval) {
         addToast({
           variant: 'warning',
-          title: 'Incorporation request created. Awaiting second approver.',
+          title: t('toast.second_approval.pending'),
         })
       } else {
         addToast({ variant: 'success', title: toastLabel })
-        setUndo({ reportId: report.id, label: toastLabel })
+        if (result.undo_token_id && result.undo_expires_at) {
+        setUndo({
+          reportId: report.id,
+          label: toastLabel,
+          undo_token_id: result.undo_token_id,
+          undo_expires_at: result.undo_expires_at,
+        })
+      }
       }
       await load()
     } catch (err) {
       const code = (err as { code?: string })?.code
       if (code === 'OWN_REPORT') {
-        addToast({ variant: 'warning', title: "You can't act on this row — you are the submitting agent." })
+        addToast({ variant: 'warning', title: t('toast.own_row.blocked') })
       } else {
         addToast({
           variant: 'error',
-          title: err instanceof Error ? err.message : 'Review failed',
+          title: err instanceof Error ? err.message : t('toast.action.failed'),
         })
       }
     } finally {
@@ -261,7 +289,7 @@ export function PriceReportQueuePage() {
     } catch (err) {
       addToast({
         variant: 'error',
-        title: err instanceof Error ? err.message : 'Bulk review failed',
+        title: err instanceof Error ? err.message : t('toast.bulk.failed'),
       })
     } finally {
       setBusy(false)
@@ -272,15 +300,34 @@ export function PriceReportQueuePage() {
   const handleUndo = async () => {
     if (!undo) return
     try {
-      await api.undoAdminAgentPriceReportReview(undo.reportId)
-      addToast({ variant: 'success', title: 'Review undone.' })
+      await api.undoAdminAgentPriceReportReview(undo.reportId, {
+        undo_token_id: undo.undo_token_id,
+      })
+      addToast({
+        variant: 'success',
+        title: t('toast.undo.success'),
+      })
       setUndo(null)
       await load()
     } catch (err) {
-      addToast({
-        variant: 'error',
-        title: err instanceof Error ? err.message : 'Undo failed',
-      })
+      const e = err as { code?: string; status?: number; message?: string }
+      if (e.code === 'TOKEN_CONSUMED' || e.status === 410) {
+        addToast({
+          variant: 'error',
+          title: t('toast.undo.token_consumed'),
+        })
+      } else if (e.code === 'UNDO_EXPIRED') {
+        addToast({
+          variant: 'error',
+          title: t('toast.undo.expired'),
+        })
+      } else {
+        addToast({
+          variant: 'error',
+          title: e.message || (err instanceof Error ? err.message : t('toast.action.failed')),
+        })
+      }
+      setUndo(null)
     }
   }
 
@@ -342,7 +389,7 @@ export function PriceReportQueuePage() {
         if (selectedIds.length > 1) {
           addToast({
             variant: 'warning',
-            title: 'Incorporate must be reviewed one report at a time.',
+            title: t('toast.incorporate.single_only'),
           })
           return
         }
@@ -376,7 +423,7 @@ export function PriceReportQueuePage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [rows, focusedId, selectedIds.length, load, addToast, navigate])
+  }, [rows, focusedId, selectedIds.length, load, addToast, openDetail])
 
   const columns: PAQueueColumn<PriceReportListItem & { isOwn?: boolean }>[] = [
     {
@@ -756,12 +803,11 @@ export function PriceReportQueuePage() {
           </div>
         ) : null}
 
-        {undo ? (
-          <div
-            role="status"
-            className="mt-[var(--lc-space-sm)] flex items-center justify-between rounded-[var(--lc-radius-md)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-surface-raised)] px-3 py-2 text-sm"
-          >
-            <span>{undo.label}</span>
+        {undo && undoSecondsLeft > 0 ? (
+          <div className="fixed inset-x-0 bottom-4 z-40 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-[var(--lc-radius-lg)] border border-[var(--lc-accent-bold-edge)] bg-[var(--lc-surface-raised)] px-4 py-3 text-sm shadow-lg">
+            <span>
+              {undo.label} — undo within <Numeric as="span">{undoSecondsLeft}</Numeric>s
+            </span>
             <Button type="button" variant="link" size="sm" onClick={() => void handleUndo()}>
               Undo
             </Button>

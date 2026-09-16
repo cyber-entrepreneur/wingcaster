@@ -409,3 +409,29 @@ describe('WF-05 queue running SLA countdown (PR #130 follow-up)', () => {
     expect(subtitle.textContent).not.toMatch(/^$/)
   })
 })
+
+describe('WF-05 runtime PII mask on BadComparable queue+detail', () => {
+  beforeEach(() => {
+    cleanup()
+    authMock.isAdmin = true
+    apiMock.list.mockClear()
+    apiMock.get.mockClear()
+  })
+
+  it('queue masks reporter name at runtime (no plaintext Ahmed Khan)', async () => {
+    wrapQueue()
+    await screen.findByText(/Villa/i)
+    expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Ahmed Khan')).toBeNull()
+    expect(document.querySelector('[data-pii-kind="name"]')).toBeTruthy()
+  })
+
+  it('detail masks reporter name at runtime until reveal', async () => {
+    wrapDetail()
+    await screen.findByText(/Villa/i)
+    expect(screen.getAllByLabelText(/Masked name/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Ahmed Khan')).toBeNull()
+    expect(document.querySelector('[data-pii-kind="name"]')).toBeTruthy()
+  })
+})
+

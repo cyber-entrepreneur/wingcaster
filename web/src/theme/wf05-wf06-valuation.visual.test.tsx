@@ -244,7 +244,7 @@ function serialize(root: HTMLElement): string {
       el.setAttribute('id', '__stable__')
     }
   })
-  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], for').forEach((el) => {
+  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], [for]').forEach((el) => {
     for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for'] as const) {
       if (el.hasAttribute(attr)) {
         const val = el.getAttribute(attr) || ''
@@ -281,6 +281,7 @@ function serialize(root: HTMLElement): string {
     .replace(/__ABS__\s+[A-Z]{2,5}\b/g, '__ABS__')
     .replace(/title="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'title="__ISO__"')
     .replace(/datetime="\d{4}-\d{2}-\d{2}T[^"]+"/g, 'datetime="__ISO__"')
+    .replace(/\b(max|min)="\d{4}-\d{2}-\d{2}"/g, '$1="__DATE__"')
   return `<!-- mode=${mode} dir=${dir} lang=${lang} -->\n${stable}`
 }
 

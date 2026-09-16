@@ -132,9 +132,12 @@ export function buildDecisionSnapshot(report, {
 }
 
 export function summarizeReport(report) {
-  const decision = report?.data?.decision && typeof report.data.decision === 'object'
-    ? report.data.decision
-    : null
+  const decision = (report?.decision && typeof report.decision === 'object'
+    ? report.decision
+    : null)
+    || (report?.data?.decision && typeof report.data.decision === 'object'
+      ? report.data.decision
+      : null)
   return {
     id: report.id,
     status: report.status,
@@ -181,6 +184,8 @@ export class DecisionError extends Error {
     this.name = 'DecisionError'
     this.code = code
     this.httpStatus = httpStatus
+    // Align with serviceError() so admin-routes sendServiceError reads either field.
+    this.status = httpStatus
     this.extra = extra
   }
 
@@ -737,18 +742,22 @@ export function createComparableReportDecisionService({
   }
 
   async function patchReport(reportId, patch) {
+    // Postgres fromRow flattens JSONB `data` onto the document root and drops
+    // the nested `data` key. Merge patch.data fields at the root so toRow
+    // persists them in the JSONB blob (a nested `data: { decision }` would
+    // be double-wrapped and lost on the next read).
     await dal.update(
       Collections.COMPARABLE_REPORTS,
       (r) => r.id === reportId,
-      (r) => ({
-        ...r,
-        ...patch,
-        data: {
-          ...(r.data || {}),
-          ...(patch.data || {}),
-        },
-        updated_at: nowIsoLocal(),
-      }),
+      (r) => {
+        const { data: patchData, ...rest } = patch
+        return {
+          ...r,
+          ...rest,
+          ...(patchData && typeof patchData === 'object' ? patchData : {}),
+          updated_at: nowIsoLocal(),
+        }
+      },
     )
     return loadReport(reportId)
   }
@@ -1207,9 +1216,22 @@ export function createComparableReportDecisionService({
     userAgent = null,
   } = {}) {
     const report = await loadReport(reportId)
-    const decision = report.data?.decision
-    const storedToken = report.data?.undo_token_id || decision?.undo_token_id || null
-    const expiresAt = report.data?.undo_expires_at || decision?.undo_expires_at || null
+    // fromRow flattens JSONB onto the document root; tolerate both shapes.
+    const decision = (report.decision && typeof report.decision === 'object'
+      ? report.decision
+      : null)
+      || (report.data?.decision && typeof report.data.decision === 'object'
+        ? report.data.decision
+        : null)
+    const storedToken = report.undo_token_id
+      || report.data?.undo_token_id
+      || decision?.undo_token_id
+      || null
+    const expiresAt = report.undo_expires_at
+      || report.data?.undo_expires_at
+      || decision?.undo_expires_at
+      || null
+    const undoConsumed = Boolean(report.undo_consumed ?? report.data?.undo_consumed)
 
     const auditBase = {
       report,
@@ -1254,7 +1276,7 @@ export function createComparableReportDecisionService({
         )
       }
     } else {
-      if (report.data?.undo_consumed) {
+      if (undoConsumed) {
         await rejectWithAudit(
           'token_consumed',
           decisionError(REPORT_ERROR.TOKEN_CONSUMED, 'Undo token already consumed', 409),
@@ -1298,11 +1320,14 @@ export function createComparableReportDecisionService({
         reviewed_by: decision.previous_reviewed_by ?? null,
         reviewed_at: decision.previous_reviewed_at ?? null,
         approval_request_id: null,
+        // Clear the decision snapshot; keep undo markers for TOKEN_CONSUMED.
+        decision: null,
         data: {
           ...previousData,
           undo_consumed: true,
           undo_token_id: storedToken,
           undo_expires_at: expiresAt,
+          decision: null,
         },
       })
       return updated
@@ -1552,6 +1577,9 @@ async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}
 
     // Option A: vote + status + finalize (tombstone/report/audit) + outbox in one txn.
     // Recalc enqueue runs after commit via outbox dispatch (retryable).
+    // Do NOT swallow INSERT/UPDATE errors — a failed statement aborts the PG
+    // transaction; catching and continuing yields "current transaction is aborted"
+    // on later work and hides the root cause (e.g. self-approval trigger).
     let outboxRow = null
     const finalized = await runTransaction(async (client) => {
       await client.query(
@@ -1559,13 +1587,13 @@ async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}
          VALUES ($1, $2, $3, $4, $5::timestamptz)
          ON CONFLICT DO NOTHING`,
         [actionId, approvalRequestId, actorUuid, actionDecision, now],
-      ).catch(() => null)
+      )
       await client.query(
         `UPDATE fin.approval_requests
-            SET status = 'APPROVED', updated_at = $2::timestamptz, decided_at = $2::timestamptz
+            SET status = 'APPROVED', updated_at = $2::timestamptz
           WHERE id = $1`,
         [approvalRequestId, now],
-      ).catch(() => null)
+      )
 
       const result = await finalizeApprovedRemoval({
         report,

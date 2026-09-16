@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { getFeatureByCode } from './registry.js'
+import { getFeatureByCode, PRICE_REPORTS_SUBMIT_FEATURE_CODE } from './registry.js'
+import { syntheticTenantId } from '../credits/wallets.js'
+
+/** Subscription statuses the submit gate treats as an open/entitling subscription. */
+export const OPEN_SUBSCRIPTION_STATUSES = Object.freeze([
+  'PENDING_START',
+  'ACTIVE',
+  'PAUSED',
+  'CANCELED_AT_PERIOD_END',
+])
 
 export const FREE_PACKAGE_ID = '30400000-0000-4000-8000-000000000001'
 export const FREE_VERSION_ID = '30400000-0000-4000-8000-000000000002'
@@ -26,6 +35,43 @@ export const MARKETING_VERSION_IDS = {
   agency: '31600000-0000-4000-8000-000000000014',
   brokerage: '31600000-0000-4000-8000-000000000015',
   enterprise: '31600000-0000-4000-8000-000000000016',
+}
+
+/**
+ * Grant the `valuation.price_reports.submit` capability to a personal-tenant
+ * agent by pointing their open subscription at the Pro agent package version.
+ *
+ * This is the canonical way to seed price/comparable-report submit entitlement
+ * in Real-PG tests. The capability is a boolean `package_feature_flags` flag on
+ * Pro / Pro Elite agent packages (migration 338:93-121) — it is intentionally
+ * NOT a `metered_features` row, so `checkEntitlement`/credit seeding does not
+ * apply. Granting Pro mirrors production reality: a paying Pro agent can submit;
+ * a Free/plain agent (no flag) is correctly rejected with 403 FEATURE_NOT_ENABLED
+ * by `requirePriceReportsSubmitEntitlement`.
+ *
+ * `createAgentAccount` provisions a Free-tier open subscription, so this UPDATE
+ * swaps that subscription's package_version_id to Pro.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} client
+ * @param {{ userId: string, versionId?: string }} opts
+ */
+export async function grantPriceReportsSubmit(client, { userId, versionId = PRO_VERSION_ID }) {
+  if (!userId) throw new Error('grantPriceReportsSubmit: userId is required')
+  const tenantId = syntheticTenantId('personal', userId)
+  const updated = await client.query(
+    `UPDATE public.tenant_subscriptions
+        SET package_version_id = $2,
+            updated_at = NOW(),
+            data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('package_code', 'pro-agent')
+      WHERE tenant_id = $1
+        AND status = ANY($3::text[])
+      RETURNING id`,
+    [tenantId, versionId, [...OPEN_SUBSCRIPTION_STATUSES]],
+  )
+  if (!updated.rowCount) {
+    throw new Error(`grantPriceReportsSubmit: no open subscription for tenant ${tenantId}`)
+  }
+  return { tenantId, featureCode: PRICE_REPORTS_SUBMIT_FEATURE_CODE }
 }
 
 export async function withTx(pool, fn) {

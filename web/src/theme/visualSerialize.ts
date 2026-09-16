@@ -159,7 +159,7 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
       el.setAttribute('id', '__stable__')
     }
   })
-  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], for').forEach((el) => {
+  clone.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], [for]').forEach((el) => {
     for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for'] as const) {
       if (el.hasAttribute(attr)) {
         const val = el.getAttribute(attr) || ''
@@ -193,5 +193,11 @@ export function serializeVisualRoot(root: HTMLElement, opts?: { mode?: string })
   const lang = document.documentElement.lang || 'en'
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0
   const tokensAttr = root.getAttribute('data-lc-tokens') || ''
-  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${clone.outerHTML}\n<!-- portals -->\n${portals}`
+  const body = `${clone.outerHTML}\n<!-- portals -->\n${portals}`
+    .replace(/\d+\s+(second|minute|hour|day|month|year)s?\s+ago/gi, '__REL__')
+    .replace(/\d+[smhdwy]\s+ago/gi, '__REL__')
+    .replace(/\bin\s+\d+\s+(second|minute|hour|day|month|year)s?\b/gi, '__REL__')
+    // Date inputs often stamp max/min to "today" — scrub so wall-clock day flips don't flake CI.
+    .replace(/\b(max|min)="\d{4}-\d{2}-\d{2}"/g, '$1="__DATE__"')
+  return `<!-- mode=${mode} dir=${dir} lang=${lang} vw=${vw} -->\n<!-- lc-tokens=${tokensAttr} -->\n${body}`
 }

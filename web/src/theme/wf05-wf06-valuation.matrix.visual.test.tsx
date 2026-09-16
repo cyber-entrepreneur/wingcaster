@@ -197,9 +197,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   cleanup()
-  // Freeze wall clock so FIXED_NOW-relative fixture timestamps (and absolute
-  // outcome dates) render stable relative strings — without this, PVA-009b
-  // "Signed off Nd ago" flips as calendar days elapse past the #131 snap date.
+  // Freeze wall clock so FIXED_NOW-relative fixture timestamps, relative copy,
+  // and date-input max="YYYY-MM-DD" stay stable across CI day flips.
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(FIXED_NOW)
   applyTheme('light', 'ltr', 'desktop')

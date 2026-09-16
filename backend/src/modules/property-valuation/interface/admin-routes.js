@@ -103,7 +103,7 @@ export function registerAdminRoutes(app, services) {
     : Promise.resolve(null)
 
   function sendServiceError(res, err) {
-    const status = err.status || err.httpStatus || 500
+    const status = Number(err.status || err.httpStatus || err.statusCode) || 500
     if (status >= 500) throw err
     return res.status(status).json({
       error: err.code || err.message,
@@ -505,12 +505,111 @@ export function registerAdminRoutes(app, services) {
       const result = await agentPriceReportAdminService.undoReview(req.params.id, {
         viewerId: req.user?.id,
         env,
+        undoTokenId: req.body?.undo_token_id || req.body?.undoTokenId || null,
       })
       res.json(result)
     } catch (err) {
       try { return sendServiceError(res, err) } catch (e) { next(e) }
     }
   })
+
+  app.post('/api/admin/pricing/agent-price-reports/:id/reveal-audit', admin, async (req, res, next) => {
+    try {
+      if (!agentPriceReportAdminService?.recordRevealAudit) {
+        return res.status(501).json({ error: 'Reveal audit unavailable' })
+      }
+      const env = resolveSessionEnv(req)
+      const result = await agentPriceReportAdminService.recordRevealAudit(req.params.id, {
+        viewerId: req.user?.id,
+        field: req.body?.field || null,
+        kind: req.body?.kind || 'name',
+        env,
+      })
+      res.json(result)
+    } catch (err) {
+      try { return sendServiceError(res, err) } catch (e) { next(e) }
+    }
+  })
+  // WF-05 / WF-06 second-approver vote — route by approval action_kind
+  app.post('/api/admin/valuation/approval-requests/:id/vote', admin, async (req, res, next) => {
+    try {
+      stampEnv(req, res)
+      const env = resolveSessionEnv(req)
+      const decision = req.body?.decision || req.body?.vote
+      const notes = req.body?.notes || null
+      const approvalId = req.params.id
+
+      let actionKind = null
+      if (typeof dal?.query === 'function') {
+        try {
+          const q = await dal.query(
+            `SELECT action_kind FROM fin.approval_requests WHERE id = $1 LIMIT 1`,
+            [approvalId],
+          )
+          // persistence query() returns a rows array; tolerate { rows } too.
+          const row = Array.isArray(q) ? q[0] : q?.rows?.[0]
+          actionKind = row?.action_kind || null
+        } catch {
+          actionKind = null
+        }
+      }
+      if (!actionKind && typeof dal?.findOne === 'function') {
+        const row = await dal.findOne('approval_requests', (r) => String(r.id) === String(approvalId))
+        actionKind = row?.action_kind || null
+      }
+
+      const runComparable = async () => {
+        if (!decisionService?.castSecondApprovalVote) {
+          return res.status(501).json({ error: 'Second-vote unavailable', code: 'NOT_IMPLEMENTED' })
+        }
+        const result = await decisionService.castSecondApprovalVote({
+          approvalRequestId: approvalId,
+          decision,
+          notes,
+          viewerId: req.user.id,
+          viewerEmail: req.user.email,
+          env,
+        })
+        return res.json(result)
+      }
+
+      const runPrice = async () => {
+        if (!agentPriceReportAdminService?.castSecondApprovalVote) {
+          return res.status(501).json({ error: 'Second-approver vote unavailable' })
+        }
+        const result = await agentPriceReportAdminService.castSecondApprovalVote({
+          approvalRequestId: approvalId,
+          decision,
+          notes,
+          viewerId: req.user?.id,
+          env,
+        })
+        return res.json(result)
+      }
+
+      if (actionKind === 'COMPARABLE_REMOVE') return await runComparable()
+      if (actionKind === 'PRICE_REPORT_INCORPORATE') return await runPrice()
+
+      if (agentPriceReportAdminService?.castSecondApprovalVote) {
+        try {
+          return await runPrice()
+        } catch (err) {
+          if (err?.code !== 'NOT_FOUND' && err?.status !== 404 && err?.httpStatus !== 404) throw err
+        }
+      }
+      return await runComparable()
+    } catch (err) {
+      try {
+        if (typeof err?.toJSON === 'function' && (err.status || err.httpStatus)) {
+          const status = Number(err.status || err.httpStatus) || 500
+          if (status < 500) return res.status(status).json(err.toJSON())
+        }
+        return sendServiceError(res, err)
+      } catch (e) { next(e) }
+    }
+  })
+
+
 
   app.get('/api/admin/pricing/agent-price-reports/:reportId/evidence/:evidenceId/url', admin, async (req, res, next) => {
     try {
@@ -734,26 +833,6 @@ export function registerAdminRoutes(app, services) {
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
       res.json({ url, expires_at: expiresAt })
     } catch (err) { next(err) }
-  })
-
-  app.post('/api/admin/valuation/approval-requests/:id/vote', admin, async (req, res, next) => {
-    try {
-      stampEnv(req, res)
-      if (!decisionService?.castSecondApprovalVote) {
-        return res.status(501).json({ error: 'Second-vote unavailable', code: 'NOT_IMPLEMENTED' })
-      }
-      const result = await decisionService.castSecondApprovalVote({
-        approvalRequestId: req.params.id,
-        decision: req.body?.decision,
-        notes: req.body?.notes,
-        viewerId: req.user.id,
-        viewerEmail: req.user.email,
-        env: resolveSessionEnv(req),
-      })
-      res.json(result)
-    } catch (err) {
-      try { return sendDecisionError(res, err) } catch (e) { next(e) }
-    }
   })
 
 
