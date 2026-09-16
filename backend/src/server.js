@@ -238,6 +238,7 @@ import {
   registerAgencyMfaPolicyRoutes,
   evaluateMfaPolicyForSignIn,
 } from './lib/agencies/mfa-policy-routes.js'
+import { registerApiTokenRoutes } from './lib/auth/api-tokens-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7758,6 +7759,11 @@ registerDataExportRoutes(app, { authMiddleware })
 // Issue #190 — admin-enforced 2FA policy per agency (SOC 2 / ISO 27001 control).
 // The runtime write-gate is chained inside `authMiddleware` (see auth.js).
 registerAgencyMfaPolicyRoutes(app, { authMiddleware })
+
+// Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
+// automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
+// through this table.
+registerApiTokenRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
