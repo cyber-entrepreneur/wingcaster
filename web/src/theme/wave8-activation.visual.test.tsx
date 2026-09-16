@@ -467,8 +467,12 @@ describe('Wave 8 visual matrix — Chromatic stand-ins', () => {
         </MemoryRouter>,
       ),
     )
+    // Wait for scoped listings to resolve — heading alone paints before
+    // getProperties settles, which raced empty-state snaps on CI.
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /Listings/i })).toBeInTheDocument()
+      expect(screen.getByText(/Marina Gate 2BR with balcony/i)).toBeInTheDocument()
+      expect(screen.queryByText(/Your first listing awaits/i)).toBeNull()
     })
     expect(screen.queryByTestId('pro-listings-table')).toBeNull()
     expectSnap(container, 'light')
