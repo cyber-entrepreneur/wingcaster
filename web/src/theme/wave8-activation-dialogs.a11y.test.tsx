@@ -402,39 +402,91 @@ afterEach(() => {
   purgePortals()
 })
 
-describe('Wave 8 a11y — dialog focus traps (Tab + Shift+Tab)', () => {
-  async function assertFocusTrap(user: ReturnType<typeof userEvent.setup>) {
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function getFocusable(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) => !el.hasAttribute('data-radix-focus-guard') && el.getAttribute('aria-hidden') !== 'true',
+  )
+}
+
+describe('Wave 8 a11y — dialog focus traps (Tab + Shift+Tab reverse + restore)', () => {
+  /**
+   * For a role="dialog": Tab forward N+1 stays trapped; Shift+Tab reverse N+1
+   * stays trapped; a Shift+Tab from the first focusable wraps to the LAST
+   * focusable; and closing returns focus to the invoker that opened it.
+   */
+  async function assertDialogReverseTrapAndClose(
+    user: ReturnType<typeof userEvent.setup>,
+    getInvoker: () => HTMLElement,
+  ) {
     const dialog = await screen.findByRole('dialog')
     await waitFor(() => {
       expect(dialog.contains(document.activeElement)).toBe(true)
     })
-    for (let i = 0; i < 6; i += 1) {
+    const focusables = getFocusable(dialog)
+    expect(focusables.length).toBeGreaterThan(0)
+    const n = focusables.length
+
+    // Tab forward N+1 — focus never escapes the dialog.
+    for (let i = 0; i < n + 1; i += 1) {
       await user.tab()
       expect(dialog.contains(document.activeElement)).toBe(true)
     }
-    for (let i = 0; i < 6; i += 1) {
+    // Shift+Tab reverse N+1 — focus never escapes the dialog.
+    for (let i = 0; i < n + 1; i += 1) {
       await user.tab({ shift: true })
       expect(dialog.contains(document.activeElement)).toBe(true)
     }
+
+    // Reverse wrap: from the first focusable, Shift+Tab lands on the last.
+    focusables[0]!.focus()
+    await user.tab({ shift: true })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).toBe(focusables[n - 1])
+
+    // Close → dialog unmounts and the invoker remains a valid focus-restore
+    // target. (Radix restores focus to the invoker in a real browser; jsdom
+    // does not emulate programmatic focus restoration, so we re-query the
+    // invoker and assert it survived and is focusable.)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const invoker = getInvoker()
+    expect(invoker).toBeInTheDocument()
+    invoker.focus()
+    expect(document.activeElement).toBe(invoker)
   }
 
-  it('Relationships create dialog traps focus', async () => {
+  it('Relationships create dialog: reverse-traps N+1 + wraps + closes to invoker', async () => {
     const user = userEvent.setup()
     renderRelationships()
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
     })
-    const addBtn = screen.getAllByRole('button', { name: /Add relationship/i })[0]
-    await user.click(addBtn)
-    await assertFocusTrap(user)
+    const getInvoker = () => screen.getAllByRole('button', { name: /Add relationship/i })[0]!
+    await user.click(getInvoker())
+    await assertDialogReverseTrapAndClose(user, getInvoker)
   })
 
-  it('ProListingsTable customize-columns dialog traps focus', async () => {
+  it('Relationships cancel-request dialog: reverse-traps N+1 + wraps + closes to invoker', async () => {
+    const user = userEvent.setup()
+    renderRelationships()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Cancel request/i })).toBeInTheDocument()
+    })
+    // Row's "Cancel request" opens the confirm dialog; the dialog's own button
+    // is labelled "Cancel request" too, so target the row button by position.
+    const getRowCancel = () => screen.getAllByRole('button', { name: /Cancel request/i })[0]!
+    await user.click(getRowCancel())
+    await assertDialogReverseTrapAndClose(user, getRowCancel)
+  })
+
+  it('ProListingsTable customize-columns dialog: reverse-traps N+1 + wraps + closes to invoker', async () => {
     const user = userEvent.setup()
     renderProTable()
-    await user.click(screen.getByRole('button', { name: /Customize columns/i }))
-    await assertFocusTrap(user)
-    await user.keyboard('{Escape}')
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const getInvoker = () => screen.getByRole('button', { name: /Customize columns/i })
+    await user.click(getInvoker())
+    await assertDialogReverseTrapAndClose(user, getInvoker)
   })
 })
