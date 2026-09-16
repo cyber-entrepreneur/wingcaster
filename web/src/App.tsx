@@ -59,6 +59,9 @@ import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/Admin
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
 import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
+import { AgencyOwnershipTransferInitiatorPage } from '@/pages/agency/AgencyOwnershipTransferInitiatorPage'
+import { AgencyOwnershipTransferAcceptPage } from '@/pages/agency/AgencyOwnershipTransferAcceptPage'
+import { OwnershipTransferOutcomePage } from '@/pages/agent/OwnershipTransferOutcomePage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
@@ -172,6 +175,8 @@ function AppRoutes() {
       {/* AGT-REC-004 — application outcome (Wave 1). Deep-link target for WF-02.
           Must stay BEFORE /inbox/:conversationId so "applications" is not captured. */}
       <Route path="/inbox/applications/:applicationId" element={<ApplicationOutcomePage />} />
+      {/* AGT-REC-006 — WF-31 ownership-transfer outcome. BEFORE /inbox/:conversationId. */}
+      <Route path="/inbox/ownership-transfers/:transferId" element={<OwnershipTransferOutcomePage />} />
       <Route path="/inbox/:conversationId" element={<InboxConversationPage />} />
       <Route path="/dashboard/inbox" element={<InboxPage />} />
       <Route path="/dashboard/inbox/:conversationId" element={<InboxConversationPage />} />
@@ -196,6 +201,12 @@ function AppRoutes() {
         element={<ScheduledDeletionConfirmationPage />}
       />
       <Route path="/agency" element={<AgencyManagementPage />} />
+      {/* WF-31 ownership transfer (AGN-SET-005 initiator, AGN-SET-005b recipient). */}
+      <Route path="/agency/settings/ownership-transfer" element={<AgencyOwnershipTransferInitiatorPage />} />
+      <Route
+        path="/agency/ownership-transfer/incoming/:transferId"
+        element={<AgencyOwnershipTransferAcceptPage />}
+      />
       <Route path="/agency/members/applications" element={<ApplicationsQueuePage />} />
       <Route
         path="/agency/members/applications/:applicationId"

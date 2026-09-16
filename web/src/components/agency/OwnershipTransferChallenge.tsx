@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, Copy, ShieldCheck } from 'lucide-react'
+import { Check, Copy, Loader2, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,16 @@ export interface OwnershipTransferChallengeProps {
   onAllComplete: (proofs: OwnershipTransferProofs) => void
   /** Reset from a resend or a wrong code (clears step 2+ progress). */
   onReset: () => void
+  /**
+   * Real step-up wiring (SHR-MFA-007). When provided, step 1 awaits it and
+   * only completes on a `true` resolution. Omit for the visual stub behavior.
+   */
+  onStepUp?: () => Promise<boolean> | boolean
+  /**
+   * Real OTP dispatch. When provided, step 2's "Send code" awaits it before
+   * revealing the 6-box input. Reject to keep the step pending. Omit for stub.
+   */
+  onSendOtp?: () => Promise<unknown> | unknown
   className?: string
 }
 
@@ -59,9 +69,13 @@ export function OwnershipTransferChallenge({
   ownerEmailMasked,
   onAllComplete,
   onReset,
+  onStepUp,
+  onSendOtp,
   className,
 }: OwnershipTransferChallengeProps) {
   const liveId = useId()
+  const [step1Busy, setStep1Busy] = useState(false)
+  const [step2Busy, setStep2Busy] = useState(false)
   const [step1Complete, setStep1Complete] = useState(false)
   const [step2Complete, setStep2Complete] = useState(false)
   const [step3Complete, setStep3Complete] = useState(false)
@@ -103,12 +117,29 @@ export function OwnershipTransferChallenge({
   const announce = (msg: string) => setLiveMessage(msg)
 
   const handleVerifyPassword = () => {
+    if (onStepUp) {
+      if (step1Busy) return
+      setStep1Busy(true)
+      Promise.resolve(onStepUp())
+        .then((ok) => {
+          if (ok) {
+            stubTokenRef.current = `elev_${Date.now().toString(36)}`
+            setStep1Complete(true)
+            announce('Step 1 complete. Continue to email code.')
+          } else {
+            announce('Password verification was not completed.')
+          }
+        })
+        .catch(() => announce('Password verification failed. Try again.'))
+        .finally(() => setStep1Busy(false))
+      return
+    }
     stubTokenRef.current = `elev_stub_${Date.now().toString(36)}`
     setStep1Complete(true)
     announce('Step 1 complete. Continue to email code.')
   }
 
-  const handleSendOtp = () => {
+  const revealOtpBoxes = () => {
     setOtpSent(true)
     setOtpDigits(Array(OTP_LENGTH).fill(''))
     setStep2Complete(false)
@@ -116,6 +147,19 @@ export function OwnershipTransferChallenge({
     completedRef.current = false
     announce(`Code sent to ${ownerEmailMasked}.`)
     queueMicrotask(() => otpRefs.current[0]?.focus())
+  }
+
+  const handleSendOtp = () => {
+    if (onSendOtp) {
+      if (step2Busy) return
+      setStep2Busy(true)
+      Promise.resolve(onSendOtp())
+        .then(() => revealOtpBoxes())
+        .catch(() => announce('Could not send the code. Try again.'))
+        .finally(() => setStep2Busy(false))
+      return
+    }
+    revealOtpBoxes()
   }
 
   const handleResetOtp = () => {
@@ -237,7 +281,10 @@ export function OwnershipTransferChallenge({
             )}
           </div>
           {!step1Complete ? (
-            <Button type="button" variant="outline" onClick={handleVerifyPassword}>
+            <Button type="button" variant="outline" onClick={handleVerifyPassword} disabled={step1Busy}>
+              {step1Busy ? (
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
               Verify password
             </Button>
           ) : null}
@@ -274,7 +321,10 @@ export function OwnershipTransferChallenge({
           </div>
 
           {step2Status !== 'disabled' && !otpSent ? (
-            <Button type="button" variant="outline" onClick={handleSendOtp}>
+            <Button type="button" variant="outline" onClick={handleSendOtp} disabled={step2Busy}>
+              {step2Busy ? (
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
               Send code to {ownerEmailMasked}
             </Button>
           ) : null}

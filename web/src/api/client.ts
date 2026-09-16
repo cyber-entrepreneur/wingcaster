@@ -16,6 +16,11 @@ import type {
 } from '@/types/marketPricing'
 import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
 import type { Territory } from '@/types/territory'
+import type {
+  OwnershipTransferMutationResult,
+  OwnershipTransferOtpResult,
+  OwnershipTransferStateResponse,
+} from '@/types/ownershipTransfer'
 
 export interface CommandItem {
   message_id: string
@@ -715,6 +720,74 @@ export const api = {
     fetchJson(`/agencies/${agencyId}/members/${memberId}/tied-listings`),
   reassignAgencyListing: (agencyId: string, propertyId: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${agencyId}/listings/${propertyId}/reassign`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // WF-31 ownership transfer (BE-BLOCKER-31) — routes under /agencies/:id/ownership-transfer.
+  /** Current transfer + eligibility for the caller's agency (owner + involved parties). */
+  getOwnershipTransferState: (agencyId: string): Promise<OwnershipTransferStateResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/state`),
+  /** Sends a 6-digit OTP to the caller's account email. Rate-limited server-side. */
+  sendOwnershipTransferOtp: (agencyId: string): Promise<OwnershipTransferOtpResult> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/otp/send`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  /** Owner initiates a transfer (requires elevation + OTP + typed name). */
+  initiateOwnershipTransfer: (
+    agencyId: string,
+    body: { target_user_id: string; rationale: string; otp_code: string; typed_agency_name: string },
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/initiate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /** Target accepts a pending transfer (requires elevation + OTP + typed name). */
+  acceptOwnershipTransfer: (
+    agencyId: string,
+    transferId: string,
+    body: { otp_code: string; typed_agency_name: string },
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(
+      `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/accept`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  /** Target declines a pending transfer with a required reason (no challenge). */
+  declineOwnershipTransfer: (
+    agencyId: string,
+    transferId: string,
+    body: { reason: string },
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(
+      `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/decline`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  /** Initiator cancels a pending transfer. */
+  cancelOwnershipTransfer: (
+    agencyId: string,
+    transferId: string,
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(
+      `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/cancel`,
+      { method: 'POST', body: '{}' },
+    ),
+  /** Party acknowledges a resolved transfer so the screen resets on next load. */
+  acknowledgeOwnershipTransfer: (
+    agencyId: string,
+    transferId: string,
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(
+      `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/acknowledge`,
+      { method: 'POST', body: '{}' },
+    ),
+  /** Former owner reverses an executed transfer within the 30-day window. */
+  reverseOwnershipTransfer: (
+    agencyId: string,
+    transferId: string,
+    body: { otp_code: string; typed_agency_name: string },
+  ): Promise<OwnershipTransferMutationResult> =>
+    fetchJson(
+      `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/reverse`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   // Properties
   getProperties: (params?: Record<string, string>) => {
