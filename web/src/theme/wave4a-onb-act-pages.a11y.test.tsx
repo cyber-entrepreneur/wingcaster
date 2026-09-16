@@ -391,6 +391,97 @@ describe('Wave 4A a11y — real ACT pages (feat/wave-4a-act)', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 
+  it('ACT-005 invite table masks pending invitee emails by default', async () => {
+    authAgent.current = {
+      id: 'u1',
+      name: 'Sara Owner',
+      email: 'owner@agency.test',
+      role: 'owner',
+      agency_name: 'Elite Realty',
+    }
+    apiMock.fetchActivationState.mockResolvedValue(agencyOwnerState())
+    apiMock.fetchShareLink.mockResolvedValue({
+      url: 'https://example.test/join/abc',
+      code: 'JOIN-1',
+      expires_at: null,
+    })
+    apiMock.fetchAgencyInvitations.mockResolvedValue([
+      { id: 'inv_1', email: 'ali@example.test', status: 'pending', sent_at: '2026-09-08T10:00:00.000Z' },
+      { id: 'inv_2', email: 'sara@example.test', status: 'pending', sent_at: '2026-09-08T11:00:00.000Z' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/activate/invite-team']}>
+        <BrandProvider>
+          <ToastProvider>
+            <ActivationInviteTeamPage />
+          </ToastProvider>
+        </BrandProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Invite your team/i })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByTestId('pending-invite-row')).toHaveLength(2))
+
+    // Positive: raw plaintext emails must NOT appear anywhere in the rendered tree.
+    expect(screen.queryByText('ali@example.test')).toBeNull()
+    expect(screen.queryByText('sara@example.test')).toBeNull()
+
+    // Every pending row is masked-by-default.
+    const rows = screen.getAllByTestId('pending-invite-row')
+    rows.forEach((row) => {
+      const mask = row.querySelector('[data-pii-revealed]')
+      expect(mask?.getAttribute('data-pii-revealed')).toBe('false')
+    })
+
+    // The masked chips render the PIIMask email pattern (labelled for a11y).
+    expect(screen.getAllByLabelText(/Masked email/i)).toHaveLength(2)
+    // Local part of each address is masked (e.g. `a***@…`) — the domain half of
+    // the plaintext never survives into the DOM text either.
+    const bodyText = document.body.textContent ?? ''
+    expect(bodyText).not.toMatch(/ali@example\.test/)
+    expect(bodyText).not.toMatch(/sara@example\.test/)
+  })
+
+  it('ACT-005 revealing a pending email fires an audit event', async () => {
+    const user = userEvent.setup()
+    authAgent.current = {
+      id: 'u1',
+      name: 'Sara Owner',
+      email: 'owner@agency.test',
+      role: 'owner',
+      agency_name: 'Elite Realty',
+    }
+    apiMock.fetchActivationState.mockResolvedValue(agencyOwnerState())
+    apiMock.fetchShareLink.mockResolvedValue({
+      url: 'https://example.test/join/abc',
+      code: 'JOIN-1',
+      expires_at: null,
+    })
+    apiMock.fetchAgencyInvitations.mockResolvedValue([
+      { id: 'inv_1', email: 'ali@example.test', status: 'pending', sent_at: '2026-09-08T10:00:00.000Z' },
+      { id: 'inv_2', email: 'sara@example.test', status: 'pending', sent_at: '2026-09-08T11:00:00.000Z' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/activate/invite-team']}>
+        <BrandProvider>
+          <ToastProvider>
+            <ActivationInviteTeamPage />
+          </ToastProvider>
+        </BrandProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getAllByTestId('pending-invite-row')).toHaveLength(2))
+
+    const revealButtons = screen.getAllByRole('button', { name: /Reveal PII/i })
+    expect(revealButtons).toHaveLength(2)
+    await user.click(revealButtons[0])
+
+    await waitFor(() =>
+      expect(apiMock.recordOnboardingEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'pii_reveal', step_id: 'invite_team' }),
+      ),
+    )
+  })
+
   it('ACT-004 locked portal credentials has no axe violations', async () => {
     apiMock.fetchActivationState.mockResolvedValue(
       makeActivationState({
