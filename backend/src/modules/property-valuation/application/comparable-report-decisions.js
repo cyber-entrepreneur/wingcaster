@@ -1590,7 +1590,7 @@ async function listAffectedValuations(reportId, { page = 1, pageSize = 25 } = {}
       )
       await client.query(
         `UPDATE fin.approval_requests
-            SET status = 'APPROVED', updated_at = $2::timestamptz, decided_at = $2::timestamptz
+            SET status = 'APPROVED', updated_at = $2::timestamptz
           WHERE id = $1`,
         [approvalRequestId, now],
       )
