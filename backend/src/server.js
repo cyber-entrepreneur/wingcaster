@@ -231,6 +231,7 @@ import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onbo
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
+import { registerDataExportRoutes } from './lib/settings/data-export-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7690,6 +7691,10 @@ app.get('/api/agencies/search', async (req, res) => {
 // BE-BLOCKER-06 — slug apply + promoted agency_applications (after /search so
 // :id/:slug params cannot shadow the static search path).
 registerAgencyApplicationRoutes(app)
+
+// Issue #192b — GDPR Article 20 / UAE PDPL / KSA PDPL portability: user-
+// initiated data export produces a signed JSON file with all their data.
+registerDataExportRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
