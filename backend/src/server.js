@@ -231,6 +231,10 @@ import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onbo
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
+import {
+  registerAgencyMfaPolicyRoutes,
+  evaluateMfaPolicyForSignIn,
+} from './lib/agencies/mfa-policy-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -1330,8 +1334,49 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
     return res.json({ status: '2fa_required', challenge_id: challenge.id, method: challenge.method })
   }
 
+  // Issue #190 — agency-level enforced 2FA policy. If any of the user's
+  // agencies require MFA and this user has not enrolled, decide between
+  // three outcomes:
+  //   - grace_active: sign in, return banner metadata (frontend nags)
+  //   - grace_expired: sign in, return mfa_enrollment_required (frontend
+  //     forces enrollment page + backend middleware gates other endpoints)
+  //   - no policy / user already enrolled: normal sign-in
+  const policyDecision = await evaluateMfaPolicyForSignIn(user)
+  const session = await buildAuthSession(user, agent, { req })
+  if (policyDecision.block) {
+    addAuthBreadcrumb('mfa_enrollment_required', {
+      user_id: user.id,
+      agency_id: policyDecision.agency_id,
+      reason: policyDecision.reason,
+    })
+    return res.json({
+      ...session,
+      mfa_enrollment_required: true,
+      mfa_policy: {
+        agency_id: policyDecision.agency_id,
+        grace_expired_at: policyDecision.deadline_at,
+        reason: policyDecision.reason,
+      },
+    })
+  }
+  if (policyDecision.banner === 'grace_active') {
+    addAuthBreadcrumb('mfa_grace_banner', {
+      user_id: user.id,
+      agency_id: policyDecision.agency_id,
+      days_left: policyDecision.days_left,
+    })
+    return res.json({
+      ...session,
+      mfa_policy: {
+        agency_id: policyDecision.agency_id,
+        grace_deadline_at: policyDecision.deadline_at,
+        days_left: policyDecision.days_left,
+      },
+    })
+  }
+
   addAuthBreadcrumb('login_success', { user_id: user.id })
-  res.json(await buildAuthSession(user, agent, { req }))
+  res.json(session)
 })
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -7690,6 +7735,10 @@ app.get('/api/agencies/search', async (req, res) => {
 // BE-BLOCKER-06 — slug apply + promoted agency_applications (after /search so
 // :id/:slug params cannot shadow the static search path).
 registerAgencyApplicationRoutes(app)
+
+// Issue #190 — admin-enforced 2FA policy per agency (SOC 2 / ISO 27001 control).
+// The runtime write-gate is chained inside `authMiddleware` (see auth.js).
+registerAgencyMfaPolicyRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.

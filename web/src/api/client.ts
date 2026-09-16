@@ -22,6 +22,18 @@ import type {
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
 
+/** Issue #190 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
+export interface AgencyMfaPolicy {
+  agency_id: string
+  required: boolean
+  grace_days: number
+  allowed_factors: string[]
+  updated_by: string | null
+  updated_at: string | null
+  created_at: string | null
+  is_default: boolean
+}
+
 export interface CommandItem {
   message_id: string
   conversation_id: string
@@ -662,6 +674,20 @@ export const api = {
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Issue #190 — admin-enforced 2FA policy.
+  getAgencyMfaPolicy: (
+    agencyId: string,
+  ): Promise<{ policy: AgencyMfaPolicy }> =>
+    fetchJson(`/agencies/${agencyId}/security/mfa-policy`),
+  updateAgencyMfaPolicy: (
+    agencyId: string,
+    patch: Partial<Pick<AgencyMfaPolicy, 'required' | 'grace_days' | 'allowed_factors'>>,
+  ): Promise<{ policy: AgencyMfaPolicy }> =>
+    fetchJson(`/agencies/${agencyId}/security/mfa-policy`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
   /** AGN-MEM-002 — list agency applications (raw array today; client normalizes). */
   listAgencyApplications: (agencyId: string) =>
     fetchJson(`/agencies/${agencyId}/applications`),
