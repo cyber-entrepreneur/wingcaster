@@ -108,7 +108,6 @@ import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { SocialChannelsPage } from '@/pages/SocialChannelsPage'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
-import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
 import { IntegrationSettingsPage } from '@/pages/IntegrationSettingsPage'
 import { AgencyManagementPage } from '@/pages/AgencyManagementPage'
 import { WhiteLabelBuilderPage } from '@/pages/WhiteLabelBuilderPage'
@@ -167,7 +166,6 @@ const pages: Array<[string, ComponentType]> = [
   ['Command center', CommandCenterPage],
   ['Social channels', SocialChannelsPage],
   ['Notification preferences', NotificationPreferencesPage],
-  ['TOTP settings', TotpSettingsPage],
   ['Settings home', SettingsHomePage],
   ['Two-factor settings', TwoFactorSettingsPage],
   ['Integrations', IntegrationSettingsPage],
