@@ -20,9 +20,15 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 )
 CardHeader.displayName = 'CardHeader'
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3
+type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  /** Heading level to render. Defaults to `h3`; pass `h2` for a top-level
+   * section so callers can keep a valid `heading-order` hierarchy. */
+  as?: 'h2' | 'h3' | 'h4'
+}
+
+const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, as: Comp = 'h3', ...props }, ref) => (
+    <Comp
       ref={ref}
       className={cn('leading-none', className)}
       style={{

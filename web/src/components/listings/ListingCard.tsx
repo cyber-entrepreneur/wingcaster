@@ -108,14 +108,14 @@ export function ListingCard({ property, className, onInquiriesClick }: ListingCa
       </div>
 
       <div className="p-[var(--lc-space-md)]">
-        <h3
+        <h2
           className={cn(
             'mb-1 line-clamp-2 font-[family-name:var(--lc-font-ui)] font-semibold',
             'text-[length:var(--lc-type-heading-3)] leading-6 text-[var(--lc-text-heading)]',
           )}
         >
           {property.title}
-        </h3>
+        </h2>
         {address && (
           <p className="mb-2 flex items-center gap-1 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
             <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />

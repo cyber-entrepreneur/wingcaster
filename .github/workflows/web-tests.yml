@@ -11,9 +11,9 @@ name: web tests
 
 on:
   push:
-    # feat/wave-4a* so stacked PR heads still get checks when the PR merge
-    # ref is unavailable (CONFLICTING / closed bases).
-    branches: [main, 'feat/wave-4a*']
+    # feat/wave-4a* / feat/wave-8* so stacked PR heads still get checks when the PR
+    # merge ref is unavailable (CONFLICTING / closed bases).
+    branches: [main, 'feat/wave-4a*', 'feat/wave-8*']
     paths:
       - 'web/**'
       - '.github/workflows/web-tests.yml'

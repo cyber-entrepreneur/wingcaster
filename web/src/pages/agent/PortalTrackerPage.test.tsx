@@ -166,8 +166,11 @@ describe('PortalTrackerPage', () => {
     await waitFor(() => expect(screen.getByTestId('tracker-row-att_live_2')).toBeInTheDocument())
     const row = screen.getByTestId('tracker-row-att_live_2')
     expect(within(row).queryByText(/Marina Gate T2 · Apt 102/)).not.toBeInTheDocument()
+    expect(within(row).queryByText('Marina Gate T2 · Apt 102')).toBeNull()
     expect(within(row).getByText(/Marina/)).toBeInTheDocument()
     expect(within(row).getByText(/••••/)).toBeInTheDocument()
+    expect(within(row).getByText(/••••/).closest('[data-pii-revealed="false"]')).toBeTruthy()
+    expect(document.querySelectorAll('[data-pii-revealed="false"]').length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render a per-row retry control (retry lives on receipt)', async () => {

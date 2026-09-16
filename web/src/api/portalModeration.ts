@@ -38,6 +38,8 @@ export interface PortalModerationAgent {
   id: string
   display_name: string
   avatar_url?: string | null
+  /** Optional contact email when the list API includes it — masked via PIIMask. */
+  email?: string | null
 }
 
 export interface PortalModerationAgency {

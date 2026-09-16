@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChannelMark } from '@/components/ui/channel-mark'
 import { SourceMark } from '@/components/ui/source-mark'
 import { Numeric } from '@/components/ui/numeric'
+import { PIIMask } from '@/components/security'
 import { channelLabel, sourceLabel } from '@/lib/inbox-labels'
 import { cn } from '@/lib/utils'
 
@@ -81,8 +82,9 @@ export function InboxRow({
   const name = c.contact_name || 'Unknown'
   const channels = c.channels?.length ? c.channels : [c.channel]
   const overflow = Math.max(0, channels.length - 3)
+  // Omit plaintext contact name from aria — name is disclosed via PIIMask.
   const aria = [
-    name,
+    'Conversation',
     `${channelLabel(c.channel)} from ${sourceLabel(c.source)}`,
     relativeTime(c.last_message_at),
     unread ? 'unread' : 'read',
@@ -138,9 +140,16 @@ export function InboxRow({
         {checked ? <Check className="h-3 w-3 text-[var(--lc-action-primary)]" /> : null}
       </button>
 
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleActivate}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleActivate()
+          }
+        }}
         onPointerDown={() => {
           clearPress()
           pressTimer.current = window.setTimeout(() => {
@@ -152,7 +161,7 @@ export function InboxRow({
         onPointerLeave={clearPress}
         aria-label={aria}
         aria-current={selected ? 'true' : undefined}
-        className="flex min-w-0 flex-1 items-stretch text-start"
+        className="flex min-w-0 flex-1 cursor-pointer items-stretch text-start"
       >
         <span className="flex w-2 shrink-0 items-center justify-center md:w-3" aria-hidden={!unread}>
           {unread && !checked ? (
@@ -194,11 +203,21 @@ export function InboxRow({
             ) : null}
             <span
               className={cn(
-                'truncate text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]',
+                'min-w-0 truncate text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]',
                 unread ? 'font-semibold' : 'font-normal',
               )}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
-              {name}
+              {c.contact_name ? (
+                <PIIMask
+                  kind="name"
+                  value={c.contact_name}
+                  auditContext={{ caseId: c.id, field: 'contact_name' }}
+                />
+              ) : (
+                name
+              )}
             </span>
             {c.merged && channels.length > 1 ? (
               <span className="inline-flex items-center gap-0.5" aria-label={`${channels.length} channels`}>
@@ -239,7 +258,7 @@ export function InboxRow({
           </Numeric>
           <SourceMark source={c.source} compact />
         </span>
-      </button>
+      </div>
     </div>
   )
 }
