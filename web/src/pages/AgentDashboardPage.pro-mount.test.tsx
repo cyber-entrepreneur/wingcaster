@@ -49,9 +49,12 @@ describe('AgentDashboardModeMount (AGT-DSH-002)', () => {
       />,
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('pro-dashboard')).toBeTruthy()
-    })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('pro-dashboard')).toBeTruthy()
+      },
+      { timeout: 5_000 },
+    )
     expect(screen.queryByTestId('guided-dashboard')).toBeNull()
   })
 

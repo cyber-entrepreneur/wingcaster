@@ -84,6 +84,7 @@ export function IntakePathCard({
     <div
       role={isNextAction ? 'group' : 'radio'}
       aria-checked={isNextAction ? undefined : selected}
+      aria-describedby={!isNextAction ? ctaDescribedBy : undefined}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : 0}
       onClick={() => {

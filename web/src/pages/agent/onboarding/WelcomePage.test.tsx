@@ -172,8 +172,9 @@ describe('WelcomePage a11y / non-blockers', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText('WhatsApp voice memo'))
-    const cta = screen.getByRole('button', { name: /Get started/i })
-    const describedBy = cta.getAttribute('aria-describedby')
+    // Nested button removed for axe nested-interactive — describedby lives on the radio.
+    const radio = screen.getByRole('radio', { name: /WhatsApp voice memo/i })
+    const describedBy = radio.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     const desc = document.getElementById(describedBy!)
     expect(desc?.textContent).toMatch(/Send photos/i)
