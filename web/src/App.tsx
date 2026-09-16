@@ -68,6 +68,11 @@ import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
+  PortalRegistryListPage,
+  PortalDetailPage,
+  PortalActivationHistoryPage,
+} from '@/pages/admin/portals'
+import {
   BadComparableQueuePage,
   BadComparableDetailPage,
   PriceReportQueuePage,
@@ -230,6 +235,13 @@ function AppRoutes() {
       {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
       <Route path="/admin/moderation/portals" element={<PortalModerationQueuePage />} />
+      {/* PA-POR-001/002/003 — portal registry admin (Wave 6). Static + nested
+          routes precede the :code view route. */}
+      <Route path="/admin/portals" element={<PortalRegistryListPage />} />
+      <Route path="/admin/portals/new" element={<PortalDetailPage mode="create" />} />
+      <Route path="/admin/portals/:code/edit" element={<PortalDetailPage mode="edit" />} />
+      <Route path="/admin/portals/:code/history" element={<PortalActivationHistoryPage />} />
+      <Route path="/admin/portals/:code" element={<PortalDetailPage mode="view" />} />
       <Route
         path="/admin/valuation/comparable-reports"
         element={<BadComparableQueuePage />}
