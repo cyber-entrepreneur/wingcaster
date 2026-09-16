@@ -276,7 +276,13 @@ export async function authMiddleware(req, res, next) {
       ...(failure.code ? { code: failure.code } : {}),
     })
   }
-  next()
+  // Issue #190 — after successful auth, enforce agency MFA policy:
+  // if the user's agency requires 2FA and grace has expired, refuse
+  // non-safe methods on non-whitelisted paths. Imported dynamically to
+  // avoid a startup cycle with lib/agencies (which itself pulls from
+  // tenant-authorization → identity → back to auth for constants).
+  const { mfaEnforcementGate } = await import('./lib/auth/mfa-enforcement.js')
+  return mfaEnforcementGate(req, res, next)
 }
 
 /**
