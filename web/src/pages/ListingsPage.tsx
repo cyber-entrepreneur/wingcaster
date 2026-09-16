@@ -972,9 +972,9 @@ function EmptyState({
         className="mx-auto max-w-md rounded-[var(--lc-radius-lg)] border-2 border-dashed border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-8 py-16 text-center"
       >
         <Building2 className="mx-auto mb-3 h-10 w-10 text-[var(--lc-text-muted)]" />
-        <h3 className="text-[length:var(--lc-type-heading-3)] font-semibold text-[var(--lc-text-heading)]">
+        <h2 className="text-[length:var(--lc-type-heading-3)] font-semibold text-[var(--lc-text-heading)]">
           Your first listing awaits
-        </h3>
+        </h2>
         <p className="mt-1 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
           Add photos, price, and details — or send us a voice memo on WhatsApp and we&apos;ll draft
           it for you.

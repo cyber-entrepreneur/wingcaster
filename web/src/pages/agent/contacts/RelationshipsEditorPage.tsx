@@ -37,6 +37,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Numeric } from '@/components/ui/numeric'
+import { PIIMask } from '@/components/security'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/lib/usePageTitle'
@@ -1145,10 +1146,32 @@ export function RelationshipsEditorPage() {
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold" style={{ font: 'var(--lc-type-heading-2)' }}>
-              {contact.name || 'Unknown'}
+              {contact.name ? (
+                <PIIMask
+                  kind="name"
+                  value={contact.name}
+                  auditContext={{ caseId: contact.id, field: 'contact_name' }}
+                />
+              ) : (
+                'Unknown'
+              )}
             </p>
             <p className="truncate text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]" dir="ltr">
-              {contact.email || contact.phone || 'No channel on file'}
+              {contact.email ? (
+                <PIIMask
+                  kind="email"
+                  value={contact.email}
+                  auditContext={{ caseId: contact.id, field: 'contact_email' }}
+                />
+              ) : contact.phone ? (
+                <PIIMask
+                  kind="phone"
+                  value={contact.phone}
+                  auditContext={{ caseId: contact.id, field: 'contact_phone' }}
+                />
+              ) : (
+                'No channel on file'
+              )}
             </p>
           </div>
           <Link

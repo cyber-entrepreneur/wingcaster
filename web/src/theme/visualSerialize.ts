@@ -143,6 +143,7 @@ export function assertNoPiiBleed(serialized: string): void {
   const real = hits.filter((h) => {
     if (/XXX/i.test(h)) return false
     if (/@example\.test\b/i.test(h)) return false
+    if (/@wingcaster\.test\b/i.test(h)) return false
     if (/example\.test\//i.test(h)) return false
     return true
   })
