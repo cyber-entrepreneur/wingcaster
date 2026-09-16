@@ -625,6 +625,40 @@ export const api = {
   createAgency: (data: Record<string, unknown>) =>
     fetchJson('/agencies', { method: 'POST', body: JSON.stringify(data) }),
   getMyAgency: () => fetchJson('/agencies/my'),
+  /** AGN-ROL-001 — capability-pack list with member counts + agency owner meta. */
+  listAgencyCapabilityPacks: () => fetchJson('/agency/capability-packs'),
+  /** AGN-ROL-002 — one pack's full capability matrix (domains) + members preview. */
+  getAgencyCapabilityPack: (packId: string) =>
+    fetchJson(`/agency/capability-packs/${encodeURIComponent(packId)}`),
+  /**
+   * AGN-ROL-001 — replace a member's capability-pack assignment. 202 when a
+   * Finance grant needs a second-owner approval; 409 SECOND_OWNER_REQUIRED.
+   */
+  assignMemberCapabilityPacks: (
+    userId: string,
+    data: { packs: string[]; audit_reason?: string | null },
+  ) =>
+    fetchJson(`/agency/members/${encodeURIComponent(userId)}/capability-packs`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  /** AGN-DSH-002 — agency first-run onboarding checklist state. */
+  getAgencyOnboardingState: (agencyId: string) =>
+    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state`),
+  /** AGN-DSH-002 — patch onboarding state (checklist_delta / dismissed_forever). */
+  patchAgencyOnboardingState: (
+    agencyId: string,
+    data: {
+      step?: string
+      path?: string | null
+      checklist_delta?: Record<string, unknown>
+      dismissed_forever?: boolean
+    },
+  ) =>
+    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
