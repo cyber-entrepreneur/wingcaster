@@ -232,6 +232,7 @@ import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-sta
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAuditSearchRoutes } from './lib/audit/audit-search-routes.js'
+import { registerDataExportRoutes } from './lib/settings/data-export-routes.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7695,6 +7696,10 @@ registerAgencyApplicationRoutes(app)
 // H5 — cross-cutting audit-log search + CSV export (platform admin +
 // agency admin/owner scopes). SOC 2 CC7.2 evidence surface.
 registerAuditSearchRoutes(app, { authMiddleware })
+
+// Issue #192b — GDPR Article 20 / UAE PDPL / KSA PDPL portability: user-
+// initiated data export produces a signed JSON file with all their data.
+registerDataExportRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
