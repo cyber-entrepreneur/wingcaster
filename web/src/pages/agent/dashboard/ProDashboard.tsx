@@ -166,12 +166,13 @@ export function ProDashboard({ stats: statsProp, greetingName, className }: ProD
         inquiries: (Array.isArray(inquiryItems) ? inquiryItems : []) as Array<Record<string, unknown>>,
         viewings: (Array.isArray(viewings) ? viewings : []) as Array<Record<string, unknown>>,
         // getConversations() is InboxConversation[]; LiveData keeps a loose
-        // Record shape for widget mappers. Filter non-objects, then widen.
+        // Record shape for widget mappers. Narrow non-objects out.
         conversations: (
           Array.isArray(conversations) ? conversations : []
-        )
-          .filter((c): boolean => !!c && typeof c === 'object' && !Array.isArray(c))
-          .map((c) => c as unknown as Record<string, unknown>),
+        ).filter(
+          (c): c is Record<string, unknown> =>
+            !!c && typeof c === 'object' && !Array.isArray(c),
+        ),
         operations: ops as Record<string, unknown> | null,
         analytics: analytics as Record<string, unknown> | null,
       })

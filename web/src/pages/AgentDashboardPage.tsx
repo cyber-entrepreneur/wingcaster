@@ -70,6 +70,15 @@ type DistQueueRow = DistT & {
 type TimelineFollowUp = { id: string; label?: string; due_at?: string; status?: string }
 type TimelineActivity = { id: string; type?: string; created_at?: string; actor_name?: string }
 type ClientNotifiedInfo = { channel?: string; sent_at?: string }
+
+function asClientNotified(value: unknown): ClientNotifiedInfo | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const rec = value as Record<string, unknown>
+  return {
+    channel: typeof rec.channel === 'string' ? rec.channel : undefined,
+    sent_at: typeof rec.sent_at === 'string' ? rec.sent_at : undefined,
+  }
+}
 type AgentOnboardingFields = {
   onboarding_status?: string
   onboarding_stage?: string
@@ -1250,9 +1259,16 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                                 </div>
                                 <p className="text-muted-foreground mt-1">{new Date(v.scheduled_at).toLocaleString()} · {v.location || 'No location'}</p>
                                 {v.outcome && <p className="mt-1">Outcome: <span className="font-medium">{v.outcome.replace(/_/g, ' ')}</span></p>}
-                                {v.client_notified && (
-                                  <p className="mt-1 text-green-700">Client notified via {(v.client_notified as unknown as ClientNotifiedInfo).channel} at {new Date((v.client_notified as unknown as ClientNotifiedInfo).sent_at || 0).toLocaleString()}</p>
-                                )}
+                                {(() => {
+                                  const notified = asClientNotified(v.client_notified)
+                                  if (!notified) return null
+                                  return (
+                                    <p className="mt-1 text-green-700">
+                                      Client notified via {notified.channel} at{' '}
+                                      {new Date(notified.sent_at || 0).toLocaleString()}
+                                    </p>
+                                  )
+                                })()}
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {['scheduled', 'confirmed'].includes(v.status) && (
