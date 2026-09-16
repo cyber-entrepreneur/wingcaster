@@ -138,7 +138,9 @@ describe('RelationshipsEditorPage', () => {
     expect(
       screen.getByRole('heading', { name: /Other agencies representing this contact/i }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/Waiting on Sara Al-Mansoori to confirm via link/i)).toBeInTheDocument()
+    // Pending prose must mask the contact name (no plaintext bleed).
+    expect(screen.getByText(/Waiting on .+ to confirm via link/i)).toBeInTheDocument()
+    expect(document.body.innerHTML).not.toContain('Sara Al-Mansoori')
     expect(screen.getByText(/Agent \+ agency: hidden per contact privacy/i)).toBeInTheDocument()
     expect(screen.getByText(/Price range redacted/i)).toBeInTheDocument()
     expect(screen.queryByText(/Elite Real Estate/i)).not.toBeInTheDocument()

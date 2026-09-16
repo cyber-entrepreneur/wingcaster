@@ -37,7 +37,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Numeric } from '@/components/ui/numeric'
-import { PIIMask } from '@/components/security'
+import { PIIMask, maskDisplayName } from '@/components/security'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/lib/usePageTitle'
@@ -266,14 +266,15 @@ function TypePartyBadges({
 
 function RelationshipCard({
   relationship,
-  contactName,
+  contactNameMasked,
   onEdit,
   onResend,
   onCancel,
   busyId,
 }: {
   relationship: ContactRelationship
-  contactName: string
+  /** Already masked for display — never pass the plaintext contact name here. */
+  contactNameMasked: string
   onEdit: (rel: ContactRelationship) => void
   onResend: (rel: ContactRelationship) => void
   onCancel: (rel: ContactRelationship) => void
@@ -363,7 +364,7 @@ function RelationshipCard({
         {pending ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-[var(--lc-border)] pt-[var(--lc-space-md)]">
             <p className="flex-1 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
-              Waiting on {contactName || 'contact'} to confirm via link.
+              Waiting on {contactNameMasked || 'contact'} to confirm via link.
             </p>
             <Button
               variant="outline"
@@ -1107,7 +1108,11 @@ export function RelationshipsEditorPage() {
     )
   }
 
-  const contactName = contact.name || 'this contact'
+  // Masked for any prose that would otherwise bleed the plaintext name into the
+  // DOM (visual snapshots, conflict copy). Header identity uses <PIIMask>.
+  const contactNameMasked = contact.name
+    ? maskDisplayName(contact.name, 'name')
+    : 'this contact'
 
   return (
     <div className="min-h-screen bg-[var(--lc-bg-page)] pb-24">
@@ -1219,7 +1224,7 @@ export function RelationshipsEditorPage() {
                 <RelationshipCard
                   key={rel.id}
                   relationship={rel}
-                  contactName={contactName}
+                  contactNameMasked={contactNameMasked}
                   onEdit={openEdit}
                   onResend={(r) => void handleResend(r)}
                   onCancel={setCancelTarget}
@@ -1240,7 +1245,7 @@ export function RelationshipsEditorPage() {
                     <RelationshipCard
                       key={rel.id}
                       relationship={rel}
-                      contactName={contactName}
+                      contactNameMasked={contactNameMasked}
                       onEdit={openEdit}
                       onResend={(r) => void handleResend(r)}
                       onCancel={setCancelTarget}
@@ -1343,9 +1348,9 @@ export function RelationshipsEditorPage() {
           <DialogHeader>
             <DialogTitle>Another agency holds this exclusive</DialogTitle>
             <DialogDescription>
-              {contactName} already has an active exclusive relationship for this party type with a
-              different agency. Only one exclusive of this type can be active across all agencies at
-              once.
+              {contactNameMasked} already has an active exclusive relationship for this party type
+              with a different agency. Only one exclusive of this type can be active across all
+              agencies at once.
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 flex flex-col gap-2">

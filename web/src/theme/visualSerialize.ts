@@ -137,18 +137,47 @@ export function stampLcTokens(el: HTMLElement, mode: 'light' | 'dark' | LcColorM
 export const PII_BLEED_RE =
   /(?:[a-z0-9._%+-]+@[^\s"'<>]+\.[a-z]{2,})|(?:\+\d{2,3}\s?\d[\d\s-]{6,})/gi
 
-export function assertNoPiiBleed(serialized: string): void {
+export function assertNoPiiBleed(serialized: string, names: string[] = []): void {
   const hits = serialized.match(PII_BLEED_RE)
-  if (!hits || hits.length === 0) return
-  const real = hits.filter((h) => {
+  const real = (hits ?? []).filter((h) => {
     if (/XXX/i.test(h)) return false
     if (/@example\.test\b/i.test(h)) return false
     if (/@wingcaster\.test\b/i.test(h)) return false
     if (/example\.test\//i.test(h)) return false
     return true
   })
-  if (real.length > 0) {
-    throw new Error(`PII bleed in visual snapshot: ${real.slice(0, 5).join(', ')}`)
+  // Names are not email/phone-shaped, so the regex sweep above misses them.
+  // A denylist parsed from the fixtures catches plaintext names embedded in
+  // prose (e.g. "Waiting on Omar Hassan to confirm via link.").
+  const nameHits = names
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0 && serialized.includes(n))
+  const all = [...real, ...nameHits]
+  if (all.length > 0) {
+    throw new Error(`PII bleed in visual snapshot: ${all.slice(0, 5).join(', ')}`)
+  }
+}
+
+/**
+ * Substring PII sweep for the *rendered HTML* — stronger than Testing Library's
+ * `queryByText`, which only matches whole-node text and misses PII embedded in
+ * larger prose strings. Assert masking held for every seeded fixture value.
+ */
+export function assertNoPlaintextPiiSubstring(
+  container: HTMLElement,
+  {
+    emails = [],
+    phones = [],
+    names = [],
+  }: { emails?: string[]; phones?: string[]; names?: string[] },
+): void {
+  const html = container.innerHTML
+  const bleed: string[] = []
+  for (const email of emails) if (email && html.includes(email)) bleed.push(email)
+  for (const phone of phones) if (phone && html.includes(phone)) bleed.push(phone)
+  for (const name of names) if (name && html.includes(name)) bleed.push(name)
+  if (bleed.length > 0) {
+    throw new Error(`Plaintext PII substring in rendered HTML: ${bleed.slice(0, 5).join(', ')}`)
   }
 }
 
