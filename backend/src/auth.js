@@ -31,8 +31,25 @@ function getJwtSecret() {
 
 const JWT_SECRET = getJwtSecret()
 
-export function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+/** Default session TTL when no policy narrows it. */
+export const DEFAULT_SESSION_TTL_SECONDS = 7 * 24 * 3600
+
+/**
+ * T6 — Shortened session TTL when an MFA policy requires it.
+ *
+ * Okta / Entra let admins reduce session lifetime under stricter security
+ * postures. Enterprise IT wants "if MFA is required, sessions expire in 8
+ * hours, not 7 days" — otherwise a single successful sign-in coasts a
+ * whole week.
+ */
+export const MFA_POLICY_SESSION_TTL_SECONDS = 8 * 3600
+
+export function signToken(payload, { ttlSeconds } = {}) {
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: Number.isFinite(ttlSeconds) && ttlSeconds > 0
+      ? ttlSeconds
+      : DEFAULT_SESSION_TTL_SECONDS,
+  })
 }
 
 /**
@@ -59,7 +76,7 @@ export function verifyToken(token) {
  * browser signed in). A missing or already-revoked id falls through to a
  * fresh insert.
  */
-export async function issueAuthToken(user, extraClaims = {}, { req = null, reuseSessionId = null } = {}) {
+export async function issueAuthToken(user, extraClaims = {}, { req = null, reuseSessionId = null, ttlSeconds = null } = {}) {
   let sessionId = reuseSessionId || null
   if (sessionId) {
     const existing = await findActiveSession(sessionId, user.id)
@@ -74,16 +91,19 @@ export async function issueAuthToken(user, extraClaims = {}, { req = null, reuse
     sessionId = row.id
   }
   const { verified_at: verifiedOverride, ...rest } = extraClaims
-  return signToken({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    token_version: Number(user.token_version ?? 0),
-    verified_at: verifiedOverride ?? isoTimestamp(user.verified_at),
-    ...rest,
-    session_id: sessionId,
-    jti: sessionId,
-  })
+  return signToken(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      token_version: Number(user.token_version ?? 0),
+      verified_at: verifiedOverride ?? isoTimestamp(user.verified_at),
+      ...rest,
+      session_id: sessionId,
+      jti: sessionId,
+    },
+    { ttlSeconds },
+  )
 }
 
 /** Default lifetime of an elevation token, in seconds. */
