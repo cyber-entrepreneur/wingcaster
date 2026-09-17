@@ -47,6 +47,7 @@ import {
   serveExportDownload,
 } from './data-export-storage.js'
 import { sendExportReadyEmail } from './data-export-notify.js'
+import { serializeExport as serializePayloadForStorage } from './data-export-serializer.js'
 import { getAgencyMembership } from '../../tenant-authorization.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
@@ -166,14 +167,18 @@ export async function runExport(exportId, userId, options = {}) {
   try {
     await updateExportRow(exportId, { status: 'running', started_at: new Date().toISOString() })
     const payload = await collectExportPayload(userId)
-    const body = JSON.stringify(payload, null, 2)
+    // T7 — Multi-format. Serializer picks by format string; falls back to
+    // JSON on any unknown value so a bad request never blows up the worker.
+    const format = options.format || 'json'
+    const { body, extension } = await serializePayloadForStorage(format, payload)
     // H3 — storage adapter picks S3 vs disk based on env.
     const descriptor = await persistExportPayload({
       exportId,
       body,
       localDir: DATA_EXPORT_DIR,
+      extension,
     })
-    const bytes = Buffer.byteLength(body, 'utf8')
+    const bytes = body.length
     const sha = createHash('sha256').update(body).digest('hex')
     await updateExportRow(exportId, {
       status: 'complete',
@@ -256,16 +261,21 @@ export function registerDataExportRoutes(app, deps) {
         })
       }
 
+      // T7 — accept format=json|zip; fallback to json on unknown values
+      // so a bad body doesn't 500. Persist on the row so the download
+      // endpoint can serve the correct Content-Type without re-reading.
+      const requestedFormat = req.body?.format === 'zip' ? 'zip' : 'json'
       const row = {
         id: randomUUID(),
         user_id: req.user.id,
         status: 'pending',
+        format: requestedFormat,
         requested_ip: req.ip,
         requested_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 7 * 86400_000).toISOString(),
       }
       await insert('data_exports', row)
-      schedule(row.id, req.user.id)
+      schedule(row.id, req.user.id, { format: requestedFormat })
       return res.status(202).json({ export: serializeExport(row) })
     } catch (err) {
       return next(err)
