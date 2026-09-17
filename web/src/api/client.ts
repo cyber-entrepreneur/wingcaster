@@ -22,6 +22,20 @@ import type {
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
 
+/** Issue #189 — WebAuthn / passkey credential shape returned by /credentials. */
+export interface PasskeyCredential {
+  id: string
+  credential_id: string
+  name: string
+  device_type: string | null
+  backup_eligible: boolean
+  backup_state: boolean
+  transports: string[]
+  last_used_at: string | null
+  created_at: string
+  revoked_at: string | null
+}
+
 export interface CommandItem {
   message_id: string
   conversation_id: string
@@ -659,6 +673,40 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  // Issue #189 — WebAuthn / passkey factor.
+  webauthnRegisterBegin: (): Promise<{ options: unknown }> =>
+    fetchJson('/auth/webauthn/register/begin', { method: 'POST', body: '{}' }),
+  webauthnRegisterComplete: (payload: {
+    name: string
+    response: unknown
+  }): Promise<{ credential: PasskeyCredential }> =>
+    fetchJson('/auth/webauthn/register/complete', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  webauthnAuthenticateBegin: (identifier?: string): Promise<{ options: unknown; session_key: string | null }> =>
+    fetchJson('/auth/webauthn/authenticate/begin', {
+      method: 'POST',
+      body: JSON.stringify(identifier ? { identifier } : {}),
+    }),
+  webauthnAuthenticateComplete: (payload: {
+    response: unknown
+    challenge?: string
+  }): Promise<{ token: string; agent?: unknown; factor_used: 'passkey' }> =>
+    fetchJson('/auth/webauthn/authenticate/complete', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  listPasskeys: (): Promise<{ credentials: PasskeyCredential[] }> =>
+    fetchJson('/auth/webauthn/credentials'),
+  revokePasskey: (id: string) =>
+    fetchJson(`/auth/webauthn/credentials/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  renamePasskey: (id: string, name: string) =>
+    fetchJson(`/auth/webauthn/credentials/${encodeURIComponent(id)}/rename`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

@@ -49,6 +49,7 @@ import {
   PaActionError,
 } from './account-recovery/pa-actions.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
+import { registerWebauthnRoutes } from './lib/auth/webauthn-routes.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
 import {
@@ -727,6 +728,14 @@ registerCommentRouterRoutes(app, { authMiddleware })
 
 // Phase 7f — TOTP enrolment, sign-in second factor, step-up elevation.
 registerTwoFactorRoutes(app, {
+  authMiddleware,
+  buildAuthSession,
+  findAgentForUser,
+  logActivity,
+})
+
+// Issue #189 — WebAuthn / passkey second factor (phishing-resistant).
+registerWebauthnRoutes(app, {
   authMiddleware,
   buildAuthSession,
   findAgentForUser,

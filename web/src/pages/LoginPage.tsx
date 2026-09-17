@@ -9,6 +9,7 @@ import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { clearElevatedToken } from '@/api/client'
+import { SignInWithPasskeyButton } from '@/components/auth/SignInWithPasskeyButton'
 import type { TwoFactorRequired } from '@/types/twoFactor'
 import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import {
@@ -567,6 +568,16 @@ export function LoginPage() {
             signInLabel
           )}
         </Button>
+
+        {/* Issue #189 — passkey sign-in as an alternative to password. */}
+        <SignInWithPasskeyButton
+          className="min-h-[48px] w-full"
+          identifier={identifier}
+          disabled={loading || authLoading}
+          onSignedIn={async () => {
+            navigate(returnTo, { replace: true })
+          }}
+        />
 
         <div className="flex justify-end">
           <Link
