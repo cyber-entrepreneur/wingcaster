@@ -37,12 +37,19 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream, statSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { insert, query, findAll } from '../../db.js'
 import { findUserById, findAgentForUser } from '../../identity.js'
 import logger from '../logger.js'
+import {
+  encodeStoragePath,
+  persistExportPayload,
+  serveExportDownload,
+} from './data-export-storage.js'
+import { sendExportReadyEmail } from './data-export-notify.js'
+import { getAgencyMembership } from '../../tenant-authorization.js'
+
+const ADMIN_ROLES = new Set(['owner', 'admin'])
 
 /**
  * Where files land on disk today. Overridable so tests do not pollute a
@@ -56,7 +63,11 @@ export const DATA_EXPORT_DIR =
 /** Cap on active (pending / running / recently-completed) exports per user. */
 export const MAX_ACTIVE_EXPORTS_PER_USER = 3
 
+// H3 — export-dir creation moved into the storage adapter so the S3 backend
+// isn't tied to a local FS mkdir call. Kept as a re-export for tests that
+// still import __testables.ensureExportDir.
 async function ensureExportDir() {
+  const { mkdir } = await import('node:fs/promises')
   await mkdir(DATA_EXPORT_DIR, { recursive: true })
 }
 
@@ -151,23 +162,36 @@ async function updateExportRow(id, patch) {
  * the HTTP response returns immediately. Errors are captured on the row —
  * they must never crash the process.
  */
-export async function runExport(exportId, userId) {
+export async function runExport(exportId, userId, options = {}) {
   try {
     await updateExportRow(exportId, { status: 'running', started_at: new Date().toISOString() })
-    await ensureExportDir()
     const payload = await collectExportPayload(userId)
     const body = JSON.stringify(payload, null, 2)
-    const filePath = path.join(DATA_EXPORT_DIR, `${exportId}.json`)
-    await writeFile(filePath, body, 'utf8')
+    // H3 — storage adapter picks S3 vs disk based on env.
+    const descriptor = await persistExportPayload({
+      exportId,
+      body,
+      localDir: DATA_EXPORT_DIR,
+    })
     const bytes = Buffer.byteLength(body, 'utf8')
     const sha = createHash('sha256').update(body).digest('hex')
     await updateExportRow(exportId, {
       status: 'complete',
-      file_path: filePath,
+      file_path: encodeStoragePath(descriptor),
       bytes,
       sha256: sha,
       completed_at: new Date().toISOString(),
     })
+    // H3 — notify the data-subject (or the SAR requester's report-to email
+    // if this was an admin SAR). Fail-safe: an email failure doesn't roll
+    // back the export.
+    if (payload.data_subject?.email) {
+      void sendExportReadyEmail({
+        email: options.notifyEmail || payload.data_subject.email,
+        exportId,
+        bytes,
+      })
+    }
   } catch (err) {
     logger.error({ err, exportId, userId }, 'data export run failed')
     try {
@@ -209,9 +233,9 @@ export function registerDataExportRoutes(app, deps) {
   const auth = deps.authMiddleware
   const schedule =
     deps.scheduleRun ||
-    ((id, uid) => {
+    ((id, uid, options = {}) => {
       setImmediate(() => {
-        void runExport(id, uid)
+        void runExport(id, uid, options)
       })
     })
 
@@ -288,30 +312,92 @@ export function registerDataExportRoutes(app, deps) {
       if (new Date(row.expires_at).getTime() <= Date.now()) {
         return res.status(410).json({ error: 'expired', message: 'Export link has expired. Request a new one.' })
       }
-      if (!row.file_path) {
-        return res.status(500).json({ error: 'missing_file' })
-      }
-      // Stream (not readFileSync) so a large export does not hold N bytes
-      // of RAM per download.
-      let stat
-      try {
-        stat = statSync(row.file_path)
-      } catch {
-        return res.status(410).json({ error: 'file_missing', message: 'Export file has been cleaned up. Request a new one.' })
-      }
-      res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="wingcaster-export-${row.id}.json"`,
+      // H3 — storage adapter handles both disk stream + S3 redirect.
+      return serveExportDownload({ res, row })
+    } catch (err) {
+      return next(err)
+    }
+  })
+
+  // H3 — admin subject-access request. Agency owner/admin can request a
+  // data export on behalf of a member of their tenant. This is the
+  // regulator-facing pattern (GDPR Art. 15 "right of access") — a data
+  // subject may file the SAR through their agency admin instead of the
+  // self-serve flow. The export payload targets `:userId`, but the
+  // download row is owned by the admin so audit trails point at the
+  // requester (not the subject).
+  app.post('/api/settings/data-export/admin/:userId', auth, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.userId
+      const target = await findUserById(targetUserId)
+      if (!target) return res.status(404).json({ error: 'user_not_found' })
+
+      // Verify caller is an owner/admin of an agency the target belongs to.
+      const memberships = await findAll(
+        'agency_members',
+        (m) => m.user_id === targetUserId && m.status === 'active',
       )
-      res.setHeader('Content-Length', String(stat.size))
-      if (row.sha256) res.setHeader('X-WingCaster-Export-Sha256', row.sha256)
-      const stream = createReadStream(row.file_path)
-      stream.on('error', () => {
-        // Best-effort — headers already sent.
-        try { res.end() } catch { /* swallow */ }
-      })
-      return stream.pipe(res)
+      let sharedAgencyId = null
+      for (const m of memberships) {
+        const callerMembership = await getAgencyMembership(m.agency_id, req.user.id)
+        if (callerMembership && ADMIN_ROLES.has(callerMembership.role)) {
+          sharedAgencyId = m.agency_id
+          break
+        }
+      }
+      if (!sharedAgencyId) return res.status(403).json({ error: 'Forbidden' })
+
+      // Cap-check on the admin (not the subject) — admin can be running
+      // several SARs for their tenant; the row is owned by the admin.
+      const active = await query(
+        `SELECT COUNT(*)::int AS n FROM data_exports
+         WHERE user_id = $1 AND status IN ('pending', 'running')`,
+        [req.user.id],
+      )
+      if ((active[0]?.n ?? 0) >= MAX_ACTIVE_EXPORTS_PER_USER) {
+        return res.status(409).json({ error: 'export_in_progress' })
+      }
+
+      const row = {
+        id: randomUUID(),
+        user_id: req.user.id, // admin owns the row
+        status: 'pending',
+        requested_ip: req.ip,
+        requested_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 7 * 86400_000).toISOString(),
+        data: JSON.stringify({
+          sar: true,
+          data_subject_user_id: targetUserId,
+          agency_id: sharedAgencyId,
+          requested_by_admin: req.user.id,
+        }),
+      }
+      await insert('data_exports', row)
+      // Also write to audit_log so a compliance auditor can trace who
+      // requested access to whose data.
+      try {
+        await insert('audit_log', {
+          id: randomUUID(),
+          agent_id: req.user.id,
+          agency_id: sharedAgencyId,
+          type: 'data_export_sar_requested',
+          action: 'create',
+          entity_type: 'data_export',
+          entity_id: row.id,
+          ip: req.ip,
+          user_agent: req.get('user-agent') || null,
+          metadata: {
+            data_subject_user_id: targetUserId,
+          },
+        })
+      } catch (err) {
+        logger.error({ err, exportId: row.id }, 'SAR audit_log write failed (non-fatal)')
+      }
+      // Run against the SUBJECT's data, not the admin's. Notify the SUBJECT
+      // by default — the regulator wants the data subject to know their
+      // data was accessed.
+      schedule(row.id, targetUserId, { notifyEmail: target.email })
+      return res.status(202).json({ export: serializeExport(row) })
     } catch (err) {
       return next(err)
     }
