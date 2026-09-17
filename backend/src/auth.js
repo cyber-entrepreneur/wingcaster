@@ -277,6 +277,11 @@ export async function authMiddleware(req, res, next) {
       token_version: Number(result.user.token_version ?? 0),
       api_token_id: result.tokenRow.id,
     }
+    // H2 — Attach the token's declared scopes so per-route `requireApiTokenScope`
+    // middlewares can enforce without re-querying. JWT sessions skip this
+    // entirely: they always satisfy scope checks (scopes are a PAT concept).
+    const { attachApiTokenScopes } = await import('./lib/auth/api-token-scope.js')
+    await attachApiTokenScopes(req, result.tokenRow.id)
     return next()
   }
 
