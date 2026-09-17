@@ -48,18 +48,18 @@ describe('assertPaQueueFamilyInvariants', () => {
     ).not.toThrow()
   })
 
-  it('invariant 1: fails when StatusHero missing', () => {
+  it('invariant 1: fails when hero missing', () => {
     const root = makeSyntheticQueueDom({ status: 'no-hero' })
     expect(() =>
       assertPaQueueFamilyInvariants(root, { hasBulk: true, hasTypeToConfirm: false, briefRef: 'X' }),
-    ).toThrow(/invariant 1: StatusHero/)
+    ).toThrow(/invariant 1: hero/)
   })
 
-  it('invariant 1: fails when count subtitle missing', () => {
+  it('invariant 1: fails when count subtitle missing digits', () => {
     const root = makeSyntheticQueueDom({ status: 'no-count' })
     expect(() =>
       assertPaQueueFamilyInvariants(root, { hasBulk: true, hasTypeToConfirm: false, briefRef: 'X' }),
-    ).toThrow(/invariant 1: StatusHero subtitle element/)
+    ).toThrow(/invariant 1: hero subtitle must include a count digit/)
   })
 
   it('invariant 2: fails when filter strip missing', () => {
@@ -76,11 +76,11 @@ describe('assertPaQueueFamilyInvariants', () => {
     ).toThrow(/invariant 3: empty-state hero/)
   })
 
-  it('invariant 4: fails when shortcuts panel missing', () => {
+  it('invariant 4: fails when shortcuts signals all missing', () => {
     const root = makeSyntheticQueueDom({ status: 'no-shortcuts' })
     expect(() =>
       assertPaQueueFamilyInvariants(root, { hasBulk: true, hasTypeToConfirm: false, briefRef: 'X' }),
-    ).toThrow(/invariant 4: PAQueueKeyboardShortcutsPanel/)
+    ).toThrow(/invariant 4: shortcuts panel or trigger/)
   })
 
   it('invariant 5: fails when table primitive missing', () => {

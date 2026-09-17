@@ -108,12 +108,16 @@ export function PAQueueTable<TRow extends PAQueueRow = PAQueueRow>({
 
   return (
     <div
+      data-pa-queue-table=""
       className={cn(
         'overflow-hidden rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)]',
         'bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-sm)]',
         className,
       )}
     >
+      {emptyState ? (
+        <template data-pa-queue-empty-template="" aria-hidden="true" />
+      ) : null}
       <div className="overflow-x-auto">
         <table role="grid" aria-label={ariaLabel} className="w-full border-collapse text-start">
           <thead>
