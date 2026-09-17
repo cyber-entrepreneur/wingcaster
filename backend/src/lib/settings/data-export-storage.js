@@ -45,21 +45,23 @@ async function loadS3() {
  *   { location: 'disk', file_path } — local disk
  *   { location: 's3',   bucket, key } — S3
  */
-export async function persistExportPayload({ exportId, body, localDir }) {
+export async function persistExportPayload({ exportId, body, localDir, extension = 'json' }) {
   if (!S3_ENABLED) {
     await mkdir(localDir, { recursive: true })
-    const filePath = path.join(localDir, `${exportId}.json`)
-    await writeFile(filePath, body, 'utf8')
+    const filePath = path.join(localDir, `${exportId}.${extension}`)
+    // T7 — accept both Buffer and string bodies; ZIP is binary.
+    await writeFile(filePath, body)
     return { location: 'disk', file_path: filePath }
   }
   const { S3Client, PutObjectCommand } = await loadS3()
   const client = new S3Client({ region: S3_REGION })
-  const key = `${S3_KEY_PREFIX}${exportId}.json`
+  const key = `${S3_KEY_PREFIX}${exportId}.${extension}`
+  const contentType = extension === 'zip' ? 'application/zip' : 'application/json'
   const command = new PutObjectCommand({
     Bucket: S3_BUCKET,
     Key: key,
     Body: body,
-    ContentType: 'application/json',
+    ContentType: contentType,
     ...(S3_KMS_KEY_ID
       ? {
           ServerSideEncryption: 'aws:kms',
