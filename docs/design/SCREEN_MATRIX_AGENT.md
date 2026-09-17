@@ -546,6 +546,18 @@ Exit to: same.
 Metering: n/a
 Notes: Public consumer-facing view of the canonical happens on Real Estate Bazaar (separate platform); this WingCaster-side screen is the AGENT's transparency into what's happening.
 
+### AGT-LST-015 — Seller performance report (vendor report) (ADDED 2026-09-17)
+
+Purpose: Client-facing "report card" the agent shares with the property owner (seller/landlord) — reach, engagement, declared interest, viewings, where/when advertised, pricing-vs-benchmark, and the agent's own commentary. Retention + commission-justification tool. Distinct audience from AGT-LST-006 (agent-private analytics) and SHR-PUB-001 (buyer-facing public view). Full brief: `docs/design/briefs/AGT-LST-015-seller-performance-report-brief.md`.
+Route: `/listings/:id/report` (agent-side) + `/r/:shareToken` (unauthenticated client render, also via QR)   Persona: Agent (author) + Seller/owner (unauthenticated consumer)   Device: mobile + desktop + print   Mode: both
+Current state: MISSING — net-new. Data exists (distribution_attempts posting log, property scoring, valuation benchmark service, analytics engagement feed, viewing 'interested' outcomes); no report packaging / share layer / client-safe render.
+Workflow role: n/a
+Key components: Letterhead header (agent identity + live badge), headline KPI strip (impressions, engagements=clicks/likes/saves/comments, declared interests, leads/qualified leads, viewings, calls/inquiries shielded), dated advertising posting-log table (one event per row, channel can repeat), interest funnel, pricing context (property score + benchmarked-vs-listed price), agent's brief (free-text commentary), share sheet (link / specific emails / print-PDF / QR), section-level visibility toggles (Pro).
+Primary actions: Write brief; Share (copy link / email / print / QR); Revoke; Toggle section visibility.
+State variants: loading, empty (campaign just started), error, shared-live, shared-frozen (campaign ended), revoked.
+Metering: n/a
+Notes: Client-safe invariants — no buyer PII (counts only), internal notes/lead-scores/offer identities never exposed, offer amounts opt-in (default off), address area-only by default. Live while listed; freezes to a final snapshot on sold/archived. Open questions: exact "calls shielded" definition, offer-amount opt-in scope, address exposure default — see brief.
+
 ### AGT-LST-012 — Comments tab
 
 Purpose: See comments received on published channels for this listing.
