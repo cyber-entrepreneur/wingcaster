@@ -44,6 +44,17 @@ function makeMdsJwt(payload) {
 }
 
 describe('refreshMdsBlob', () => {
+  // T3 — every test in this block runs with the insecure flag ON so we can
+  // exercise the parse + upsert path without a real FIDO root cert. The
+  // full signature-verify path is covered separately in
+  // webauthn-mds-verify.test.js.
+  beforeEach(() => {
+    process.env.WINGCASTER_FIDO_MDS_VERIFY_INSECURE = 'true'
+  })
+  afterEach(() => {
+    delete process.env.WINGCASTER_FIDO_MDS_VERIFY_INSECURE
+  })
+
   it('decodes the MDS payload and upserts each entry by AAGUID', async () => {
     const payload = {
       entries: [
