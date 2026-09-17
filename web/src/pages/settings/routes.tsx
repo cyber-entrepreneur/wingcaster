@@ -2,6 +2,7 @@ import { Navigate, Route } from 'react-router-dom'
 import { SettingsHomePage } from './SettingsHomePage'
 import { AccountPage } from './AccountPage'
 import { DataExportPage } from './DataExportPage'
+import { ApiTokensPage } from './ApiTokensPage'
 import { BillingPage } from './BillingPage'
 import { SessionsPage } from './SessionsPage'
 import { PasswordPage } from './PasswordPage'
@@ -33,6 +34,8 @@ export const settingsRoutes = (
     <Route path="preferences" element={<PreferencesPage />} />
     <Route path="data-export" element={<DataExportPage />} />
     <Route path="privacy/data-export" element={<Navigate to="/settings/data-export" replace />} />
+    <Route path="api-tokens" element={<ApiTokensPage />} />
+    <Route path="developer/api-tokens" element={<Navigate to="/settings/api-tokens" replace />} />
     <Route path="danger/delete-account" element={<DeleteAccountPage />} />
     <Route path="delete-account" element={<Navigate to="/settings/danger/delete-account" replace />} />
     <Route path="account/delete" element={<Navigate to="/settings/danger/delete-account" replace />} />
