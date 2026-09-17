@@ -21,7 +21,6 @@ const PAGE_CANDIDATES = {
     'pages/security/mfa/TwoFactorSettingsPage.tsx',
     'pages/settings/TwoFactorSettingsPage.tsx',
     'pages/settings/2fa/TwoFactorSettingsPage.tsx',
-    'pages/TotpSettingsPage.tsx',
   ],
   'MFA-002': [
     'pages/security/mfa/TotpSetupQrPage.tsx',

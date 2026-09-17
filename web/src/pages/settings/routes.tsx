@@ -13,8 +13,8 @@ import { PreferencesPage } from '@/pages/PreferencesPage'
  *
  * MFA-owned pages (`/settings/2fa`, `/settings/2fa/*`) are NOT implemented
  * here. App.tsx nests them as children of `<SettingsPage />` so they inherit
- * the shell; the MFA agent replaces TotpSettingsPage. Brief aliases
- * `/settings/security/2fa` redirect into that MFA route.
+ * the shell. Brief aliases `/settings/security/2fa` redirect into that MFA
+ * route.
  */
 export const settingsRoutes = (
   <>

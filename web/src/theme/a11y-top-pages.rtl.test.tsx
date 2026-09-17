@@ -55,9 +55,10 @@ import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
-import { TotpSettingsPage } from '@/pages/TotpSettingsPage'
+import { TwoFactorSettingsPage } from '@/pages/security/mfa/TwoFactorSettingsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { ToastProvider } from '@/components/ui/toast'
+import { StepUpProvider } from '@/components/mfa'
 import { BrandProvider } from '@/context/BrandContext'
 import { Act001WelcomeSurface, Onb001WelcomeSurface } from '@/theme/wave4a-fixtures'
 
@@ -70,7 +71,7 @@ const pages: Array<[string, ComponentType, string, boolean]> = [
   ['Contact detail', ContactDetailPage, '/contacts/contact-1', true],
   ['Login', LoginPage, '/login', false],
   ['Register', RegisterPage, '/register', false],
-  ['Settings', TotpSettingsPage, '/settings/2fa', true],
+  ['Settings', TwoFactorSettingsPage, '/settings/2fa', true],
   ['Command Center', CommandCenterPage, '/command-center', true],
 ]
 
@@ -85,7 +86,9 @@ describe('Broadcast a11y — top 10 pages', () => {
     const { container } = render(
       <MemoryRouter initialEntries={[path]}>
         <BrandProvider>
-          <ToastProvider>{wrapInMain ? <main>{page}</main> : page}</ToastProvider>
+          <ToastProvider>
+            <StepUpProvider>{wrapInMain ? <main>{page}</main> : page}</StepUpProvider>
+          </ToastProvider>
         </BrandProvider>
       </MemoryRouter>,
     )
