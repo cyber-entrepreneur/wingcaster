@@ -232,6 +232,7 @@ import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-sta
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerDataExportRoutes } from './lib/settings/data-export-routes.js'
+import { startDataExportCleanupJob } from './workers/data-export-cleanup.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7694,7 +7695,12 @@ registerAgencyApplicationRoutes(app)
 
 // Issue #192b — GDPR Article 20 / UAE PDPL / KSA PDPL portability: user-
 // initiated data export produces a signed JSON file with all their data.
+// H3 — extended with S3+KMS storage, admin SAR endpoint, and a cleanup
+// worker that prunes expired files on a 6-hour tick.
 registerDataExportRoutes(app, { authMiddleware })
+if (process.env.NODE_ENV !== 'test') {
+  startDataExportCleanupJob()
+}
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
