@@ -243,6 +243,7 @@ import {
   evaluateMfaPolicyForSignInAuto,
   recordSigninSignal,
 } from './lib/agencies/mfa-policy-conditional.js'
+import { requireApiTokenScope } from './lib/auth/api-token-scope.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -1968,7 +1969,7 @@ app.get('/api/properties/:id/cta-config', async (req, res) => {
   })
 })
 
-app.post('/api/properties', authMiddleware, validate(propertyCreateSchema), async (req, res) => {
+app.post('/api/properties', authMiddleware, requireApiTokenScope('listings:write'), validate(propertyCreateSchema), async (req, res) => {
   const body = req.validated
   const id = uuidv4()
   const agent = await findOne('agents', a => a.id === req.user.id)
@@ -2086,7 +2087,7 @@ app.post('/api/properties', authMiddleware, validate(propertyCreateSchema), asyn
   res.json(serializeProperty(propertyRecord))
 })
 
-app.put('/api/properties/:id', authMiddleware, validate(propertyUpdateSchema), async (req, res) => {
+app.put('/api/properties/:id', authMiddleware, requireApiTokenScope('listings:write'), validate(propertyUpdateSchema), async (req, res) => {
   const prop = await assertOwnsProperty(req.user.id, req.params.id)
   let updates = { ...req.validated }
   if (updates.agency_tied !== undefined) {
@@ -2166,7 +2167,7 @@ app.post('/api/properties/:id/offers', authMiddleware, async (req, res) => {
   res.json(serializeProperty(offer))
 })
 
-app.delete('/api/properties/:id', authMiddleware, async (req, res) => {
+app.delete('/api/properties/:id', authMiddleware, requireApiTokenScope('listings:write'), async (req, res) => {
   const prop = await assertOwnsProperty(req.user.id, req.params.id)
   await remove('properties', p => p.id === req.params.id)
   await invalidatePricingForPropertyChange({ ...prop, status: 'deleted' })
@@ -2548,7 +2549,7 @@ app.get('/api/inquiries/:id', authMiddleware, async (req, res) => {
   })
 })
 
-app.patch('/api/inquiries/:id', authMiddleware, validate(inquiryUpdateSchema), async (req, res) => {
+app.patch('/api/inquiries/:id', authMiddleware, requireApiTokenScope('inquiries:write'), validate(inquiryUpdateSchema), async (req, res) => {
   const inquiry = await findOne('inquiries', i => i.id === req.params.id)
   if (!inquiry) return res.status(404).json({ error: 'Not found' })
   const agentProps = (await findAll('properties', p => p.agent_id === req.user.id)).map(p => p.id)
@@ -3935,7 +3936,7 @@ app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   res.json({ ...contact, inquiries, viewings, conversations })
 })
 
-app.patch('/api/contacts/:id', authMiddleware, async (req, res) => {
+app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:write'), async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
   const allowed = ['name', 'email', 'phone', 'tags', 'status', 'assigned_agent_id']
   const patch = {}
@@ -3996,7 +3997,7 @@ async function deleteContactData(contactId) {
   return { deleted: true, contact_id: contactId }
 }
 
-app.delete('/api/contacts/:id', authMiddleware, async (req, res) => {
+app.delete('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:write'), async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
   const result = await deleteContactData(contact.id)
   await logActivity({ type: 'contact_deleted', agent_id: req.user.id, meta: { contact_id: contact.id } })
