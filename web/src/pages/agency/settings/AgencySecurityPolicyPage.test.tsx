@@ -40,6 +40,12 @@ const DEFAULT_POLICY = {
   required: false,
   grace_days: 14,
   allowed_factors: [] as string[],
+  // H1 fields (migration 371) — non-null defaults so the page's load()
+  // spread does not crash on missing arrays.
+  scoped_roles: [] as string[],
+  bypass_user_ids: [] as string[],
+  conditional_rules: [] as Array<{ kind: string }>,
+  enforce_on_next_login: false,
   updated_by: null as string | null,
   updated_at: null as string | null,
   created_at: null as string | null,
@@ -101,10 +107,19 @@ describe('AgencySecurityPolicyPage', () => {
 
     await user.click(save)
     await waitFor(() =>
-      expect(apiMock.updateAgencyMfaPolicy).toHaveBeenCalledWith('agency-1', {
-        required: true,
-        grace_days: 14,
-      }),
+      expect(apiMock.updateAgencyMfaPolicy).toHaveBeenCalledWith(
+        'agency-1',
+        // H1 extended payload — required + grace_days + all H1 fields at
+        // their form-state defaults (empty arrays + false).
+        expect.objectContaining({
+          required: true,
+          grace_days: 14,
+          scoped_roles: [],
+          bypass_user_ids: [],
+          conditional_rules: [],
+          enforce_on_next_login: false,
+        }),
+      ),
     )
   })
 
