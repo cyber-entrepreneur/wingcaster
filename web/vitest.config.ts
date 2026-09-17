@@ -8,6 +8,17 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Issue #189 — the real `@simplewebauthn/browser` package is a browser-
+      // only WebAuthn wrapper. Vitest sees the dynamic import in
+      // PasskeysPage / SignInWithPasskeyButton at collect time before
+      // `vi.mock` runs, and `Failed to resolve import` blocks the suite. This
+      // alias points every test-time import at a stub whose exports match the
+      // real API's shape; tests that need behaviour override the stub with
+      // `vi.mock('@simplewebauthn/browser', ...)` as usual.
+      '@simplewebauthn/browser': path.resolve(
+        __dirname,
+        './src/test-stubs/simplewebauthn-browser.ts',
+      ),
     },
   },
   test: {

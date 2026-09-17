@@ -3,9 +3,10 @@ import { LoginFlow } from './LoginFlow'
 import { TwoFactorSettingsPage } from './TwoFactorSettingsPage'
 import { TotpEnrollPage } from './TotpEnrollPage'
 import { BackupCodesViewerPage } from './BackupCodesViewerPage'
+import { PasskeysPage } from './PasskeysPage'
 
 /**
- * MFA family routes (SHR-MFA-001..007).
+ * MFA family routes (SHR-MFA-001..007 + issue #189 passkeys).
  *
  * Import from App.tsx:
  * - `mfaRoutes` — top-level `/login` flow wrapper
@@ -20,6 +21,7 @@ export const mfaSettingsChildRoutes = (
     <Route path="2fa" element={<TwoFactorSettingsPage />} />
     <Route path="2fa/enroll" element={<TotpEnrollPage />} />
     <Route path="2fa/backup-codes" element={<BackupCodesViewerPage />} />
+    <Route path="2fa/passkeys" element={<PasskeysPage />} />
   </>
 )
 
