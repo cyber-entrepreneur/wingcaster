@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WingCaster</string>
+    <string name="title_activity_main">WingCaster</string>
+    <string name="package_name">com.wingcaster.app</string>
+    <string name="custom_url_scheme">com.wingcaster.app</string>
+</resources>
