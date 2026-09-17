@@ -26,6 +26,7 @@
 
 import { query } from '../../db.js'
 import logger from '../logger.js'
+import { verifyMdsBlob } from './webauthn-mds-verify.js'
 
 /** Official FIDO Metadata Service endpoint (public). */
 export const MDS_BLOB_URL = process.env.WINGCASTER_FIDO_MDS_URL || 'https://mds.fidoalliance.org/'
@@ -40,15 +41,29 @@ export async function refreshMdsBlob({ fetchImpl = globalThis.fetch } = {}) {
     throw new Error(`FIDO MDS fetch failed: ${res.status}`)
   }
   const jwtText = await res.text()
-  // Decode the middle segment (base64url-encoded JSON). The FIDO spec ships
-  // the BLOB as a JWS; we take the payload without verifying the signature
-  // for this iteration — a future hardening step adds JWS verify.
-  const segments = jwtText.trim().split('.')
-  if (segments.length !== 3) {
-    throw new Error(`FIDO MDS BLOB malformed (${segments.length} segments)`)
+
+  // T3 — Verify the JWS signature against the FIDO Alliance root cert
+  // chain before trusting a single entry. Ops teams that need to skip
+  // (staging without the root PEM wired) set
+  // `WINGCASTER_FIDO_MDS_VERIFY_INSECURE=true`; this logs loudly so the
+  // choice is visible in audit.
+  let payload
+  if (process.env.WINGCASTER_FIDO_MDS_VERIFY_INSECURE === 'true') {
+    logger.warn('FIDO MDS BLOB signature verification DISABLED (WINGCASTER_FIDO_MDS_VERIFY_INSECURE=true)')
+    const segments = jwtText.trim().split('.')
+    if (segments.length !== 3) {
+      throw new Error(`FIDO MDS BLOB malformed (${segments.length} segments)`)
+    }
+    const payloadJson = Buffer.from(segments[1], 'base64url').toString('utf8')
+    payload = JSON.parse(payloadJson)
+  } else {
+    // verifyMdsBlob throws on any failure (bad alg, bad chain, bad
+    // signature). We do NOT catch: an unverified BLOB must not populate
+    // the cache — that's the whole point of T3.
+    const result = verifyMdsBlob(jwtText)
+    payload = result.payload
+    logger.info({ leafSubject: result.leafSubject }, 'FIDO MDS BLOB JWS verified')
   }
-  const payloadJson = Buffer.from(segments[1], 'base64url').toString('utf8')
-  const payload = JSON.parse(payloadJson)
   const entries = Array.isArray(payload?.entries) ? payload.entries : []
 
   let cached = 0
