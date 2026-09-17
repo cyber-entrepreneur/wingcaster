@@ -33,10 +33,14 @@ import { api, setAuthToken, clearElevatedToken } from '@/api/client'
  * user picks a credential from the autofill offer.
  */
 
-type StartAuthentication = (opts: {
-  optionsJSON: unknown
-  useBrowserAutofill?: boolean
-}) => Promise<unknown>
+// @simplewebauthn/browser v10 takes positional args:
+//   startAuthentication(optionsJSON, useBrowserAutofill?)
+// (v11 switched to a single object param — keep this aligned with the
+// version pinned in package.json).
+type StartAuthentication = (
+  optionsJSON: unknown,
+  useBrowserAutofill?: boolean,
+) => Promise<unknown>
 
 export interface UsePasskeyAutofillOptions {
   onSignedIn: () => void | Promise<void>
@@ -66,7 +70,7 @@ async function isSupported(): Promise<boolean> {
 }
 
 async function loadStartAuthentication(): Promise<StartAuthentication> {
-  const mod = (await import('@simplewebauthn/browser')) as {
+  const mod = (await import('@simplewebauthn/browser')) as unknown as {
     startAuthentication: StartAuthentication
   }
   return mod.startAuthentication
@@ -96,10 +100,7 @@ export function usePasskeyAutofill({
         if (cancelled) return
         // useBrowserAutofill=true is the @simplewebauthn/browser flag that
         // sets mediation:'conditional' on the underlying navigator call.
-        const assertion = await startAuthentication({
-          optionsJSON: options,
-          useBrowserAutofill: true,
-        })
+        const assertion = await startAuthentication(options, true)
         if (cancelled) return
         const result = await api.webauthnAuthenticateComplete({
           response: assertion,

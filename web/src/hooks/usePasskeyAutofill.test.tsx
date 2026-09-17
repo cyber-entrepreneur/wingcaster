@@ -109,10 +109,12 @@ describe('usePasskeyAutofill', () => {
     renderHook(() => usePasskeyAutofill({ onSignedIn }))
     await waitFor(() => expect(apiMock.webauthnAuthenticateBegin).toHaveBeenCalled())
     await waitFor(() => expect(startAuthenticationMock).toHaveBeenCalled())
-    // Confirm the flag is set — @simplewebauthn/browser's startAuthentication
-    // interprets useBrowserAutofill:true as WebAuthn's mediation:'conditional'.
-    const call = startAuthenticationMock.mock.calls[0][0]
-    expect(call.useBrowserAutofill).toBe(true)
+    // Confirm the flag is set — @simplewebauthn/browser v10's
+    // startAuthentication(optionsJSON, useBrowserAutofill) interprets the
+    // positional useBrowserAutofill=true as WebAuthn's mediation:'conditional'.
+    const [optionsArg, useBrowserAutofill] = startAuthenticationMock.mock.calls[0]
+    expect(optionsArg).toBeDefined()
+    expect(useBrowserAutofill).toBe(true)
     await waitFor(() => expect(apiMock.webauthnAuthenticateComplete).toHaveBeenCalled())
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
   })
