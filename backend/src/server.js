@@ -232,6 +232,7 @@ import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-sta
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAuditSearchRoutes } from './lib/audit/audit-search-routes.js'
+import { registerAuditSiemRoutes } from './lib/audit/audit-siem.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7695,6 +7696,8 @@ registerAgencyApplicationRoutes(app)
 // H5 — cross-cutting audit-log search + CSV export (platform admin +
 // agency admin/owner scopes). SOC 2 CC7.2 evidence surface.
 registerAuditSearchRoutes(app, { authMiddleware })
+// T5 — real-time SSE audit stream + JSON Lines export for SIEM ingest.
+registerAuditSiemRoutes(app, { authMiddleware })
 
 // Path (c) agency-owner signup: POST /api/auth/register with agency_mode=new
 // creates the agency tenant in the same transaction as the personal tenant.
