@@ -247,6 +247,7 @@ import {
 import { requireApiTokenScope } from './lib/auth/api-token-scope.js'
 import { startDataExportCleanupJob } from './workers/data-export-cleanup.js'
 import { registerAuditSiemRoutes } from './lib/audit/audit-siem.js'
+import { recordSigninEvent, scoreSigninAttempt } from './lib/auth/signin-risk.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -1333,7 +1334,39 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
   const user = await resolveLoginUser({ identifier_type, identifier, email })
   if (!user?.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
     addAuthBreadcrumb('login_fail', { reason: 'invalid_credentials' }, 'warning')
+    // T1 — record every failed attempt for the risk engine's velocity signal.
+    // Fire-and-forget so a signal-write failure doesn't hide the credential error.
+    void recordSigninEvent({
+      userId: user?.id || null,
+      identifier: identifier || email,
+      outcome: 'password_fail',
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    })
     return res.status(401).json({ error: 'Invalid credentials' })
+  }
+
+  // T1 — score the attempt against the event log before minting a session.
+  // High score → 401 with risk_high; elevated → same session but forces
+  // a step-up before the client can act (leverages the existing step-up
+  // infrastructure from Phase 7f/3).
+  const risk = await scoreSigninAttempt({ userId: user.id, ip: req.ip })
+  if (risk.decision === 'block') {
+    void recordSigninEvent({
+      userId: user.id,
+      identifier: identifier || email,
+      outcome: 'blocked_by_policy',
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      riskScore: risk.score,
+      riskReasons: risk.reasons,
+    })
+    addAuthBreadcrumb('login_blocked_high_risk', { user_id: user.id, score: risk.score }, 'warning')
+    return res.status(401).json({
+      error: 'risk_high',
+      code: 'risk_high',
+      message: 'Sign-in blocked as a security precaution. Contact your admin to unblock this account.',
+    })
   }
   if (!user.verified || !user.verified_at) {
     const otp = await latestUserOtp(user.id)
@@ -1424,6 +1457,17 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
   }
 
   addAuthBreadcrumb('login_success', { user_id: user.id })
+  // T1 — record the success + the risk score so future scoring has a
+  // baseline for time_of_day and geo signals.
+  void recordSigninEvent({
+    userId: user.id,
+    identifier: identifier || email,
+    outcome: 'success',
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+    riskScore: risk.score,
+    riskReasons: risk.reasons,
+  })
   res.json(session)
 })
 
