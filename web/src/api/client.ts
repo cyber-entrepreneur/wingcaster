@@ -83,11 +83,23 @@ export interface PasskeyCredential {
 }
 
 /** Issue #190 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
+/** H1 conditional rule union — extend as new kinds land in mfa-policy-conditional.js. */
+export type AgencyMfaConditionalRule =
+  | { kind: 'unusual_ip' }
+  | { kind: 'new_device' }
+  | { kind: 'impossible_geo_hop' }
+
+/** Issue #190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
   required: boolean
   grace_days: number
   allowed_factors: string[]
+  // H1 fields (migration 371) — default to empty/false on non-H1 rows.
+  scoped_roles: string[]
+  bypass_user_ids: string[]
+  conditional_rules: AgencyMfaConditionalRule[]
+  enforce_on_next_login: boolean
   updated_by: string | null
   updated_at: string | null
   created_at: string | null
@@ -841,7 +853,18 @@ export const api = {
     fetchJson(`/agencies/${agencyId}/security/mfa-policy`),
   updateAgencyMfaPolicy: (
     agencyId: string,
-    patch: Partial<Pick<AgencyMfaPolicy, 'required' | 'grace_days' | 'allowed_factors'>>,
+    patch: Partial<
+      Pick<
+        AgencyMfaPolicy,
+        | 'required'
+        | 'grace_days'
+        | 'allowed_factors'
+        | 'scoped_roles'
+        | 'bypass_user_ids'
+        | 'conditional_rules'
+        | 'enforce_on_next_login'
+      >
+    >,
   ): Promise<{ policy: AgencyMfaPolicy }> =>
     fetchJson(`/agencies/${agencyId}/security/mfa-policy`, {
       method: 'PUT',
