@@ -50,6 +50,7 @@ import {
 } from './account-recovery/pa-actions.js'
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerWebauthnRoutes } from './lib/auth/webauthn-routes.js'
+import { startFidoMdsRefreshJob } from './lib/auth/webauthn-mds.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
 import {
@@ -748,12 +749,18 @@ registerTwoFactorRoutes(app, {
 })
 
 // Issue #189 — WebAuthn / passkey second factor (phishing-resistant).
+// H4 — MDS refresh job cached at startup so registrations can enforce the
+// aaguid allowlist / denylist without hitting the FIDO server on the
+// critical path.
 registerWebauthnRoutes(app, {
   authMiddleware,
   buildAuthSession,
   findAgentForUser,
   logActivity,
 })
+if (process.env.NODE_ENV !== 'test' && process.env.WINGCASTER_FIDO_MDS_ENABLED === 'true') {
+  startFidoMdsRefreshJob()
+}
 
 registerWave0NavRoutes(app, {
   authMiddleware,
