@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 
 /**
- * "Sign in with a passkey" button (issue #189).
+ * "Sign in with a passkey" button (issue 189).
  *
  * Passes the identifier the user typed (email) to
  * `/api/auth/webauthn/authenticate/begin` so the server can narrow the

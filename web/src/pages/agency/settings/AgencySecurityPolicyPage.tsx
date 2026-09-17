@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 
 /**
- * Agency-scoped admin surface for the enforced 2FA policy (issue #190).
+ * Agency-scoped admin surface for the enforced 2FA policy (issue 190).
  *
  * Owner / admin members see a toggle to require 2FA for every member of
  * this agency, plus a grace-days control (0–90) and read-only fields

@@ -222,7 +222,7 @@ export function TwoFactorSettingsPage() {
               </div>
             )}
 
-            {/* Issue #189 — passkeys sit alongside TOTP as a phishing-resistant factor. */}
+            {/* Issue 189 — passkeys sit alongside TOTP as a phishing-resistant factor. */}
             <section>
               <h2 className="mb-[var(--lc-space-sm)] font-[family-name:var(--lc-font-ui)] text-[length:var(--lc-type-heading-3)] text-[var(--lc-text-heading)]">
                 Passkeys
