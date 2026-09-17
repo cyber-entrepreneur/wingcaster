@@ -244,6 +244,7 @@ import {
   recordSigninSignal,
 } from './lib/agencies/mfa-policy-conditional.js'
 import { requireApiTokenScope } from './lib/auth/api-token-scope.js'
+import { startDataExportCleanupJob } from './workers/data-export-cleanup.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7774,7 +7775,12 @@ registerAuditSearchRoutes(app, { authMiddleware })
 
 // Issue #192b — GDPR Article 20 / UAE PDPL / KSA PDPL portability: user-
 // initiated data export produces a signed JSON file with all their data.
+// H3 — extended with S3+KMS storage, admin SAR endpoint, and a cleanup
+// worker that prunes expired files on a 6-hour tick.
 registerDataExportRoutes(app, { authMiddleware })
+if (process.env.NODE_ENV !== 'test') {
+  startDataExportCleanupJob()
+}
 
 // Issue #190 — admin-enforced 2FA policy per agency (SOC 2 / ISO 27001 control).
 // The runtime write-gate is chained inside `authMiddleware` (see auth.js).
