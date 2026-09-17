@@ -22,6 +22,39 @@ import type {
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
 
+/** H5 — audit log entry as returned by /api/audit/log. */
+export interface AuditLogEntry {
+  id: string
+  agent_id: string | null
+  agency_id: string | null
+  type: string
+  action: string | null
+  entity_type: string | null
+  entity_id: string | null
+  ip: string | null
+  user_agent: string | null
+  metadata: unknown
+  created_at: string
+}
+
+export interface AuditLogSearchResponse {
+  entries: AuditLogEntry[]
+  pagination: { limit: number; offset: number; total: number }
+}
+
+export interface AuditLogSearchFilters {
+  agency_id?: string
+  actor_id?: string
+  type?: string
+  entity_type?: string
+  entity_id?: string
+  from?: string
+  to?: string
+  q?: string
+  limit?: number
+  offset?: number
+}
+
 export interface CommandItem {
   message_id: string
   conversation_id: string
@@ -659,6 +692,28 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  // H5 — audit log search.
+  searchAuditLog: (
+    filters: AuditLogSearchFilters = {},
+  ): Promise<AuditLogSearchResponse> => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(filters)) {
+      if (v === undefined || v === null || v === '') continue
+      q.set(k, String(v))
+    }
+    const qs = q.toString()
+    return fetchJson(`/audit/log${qs ? `?${qs}` : ''}`)
+  },
+  auditLogCsvPath: (filters: AuditLogSearchFilters = {}): string => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(filters)) {
+      if (v === undefined || v === null || v === '') continue
+      q.set(k, String(v))
+    }
+    const qs = q.toString()
+    return `${API_BASE}/audit/log.csv${qs ? `?${qs}` : ''}`
+  },
+
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
