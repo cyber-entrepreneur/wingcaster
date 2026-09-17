@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Loader2, ShieldCheck } from 'lucide-react'
-import { api, type AgencyMfaPolicy } from '@/api/client'
+import { AlertTriangle, Loader2, ShieldCheck, X } from 'lucide-react'
+import {
+  api,
+  type AgencyMfaConditionalRule,
+  type AgencyMfaPolicy,
+} from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -42,6 +46,14 @@ export function AgencySecurityPolicyPage() {
   const [graceDays, setGraceDays] = useState(14)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  // H1 fields
+  const [scopedRoles, setScopedRoles] = useState<string[]>([])
+  const [bypassIds, setBypassIds] = useState<string[]>([])
+  const [ruleUnusualIp, setRuleUnusualIp] = useState(false)
+  const [ruleNewDevice, setRuleNewDevice] = useState(false)
+  const [ruleGeoHop, setRuleGeoHop] = useState(false)
+  const [enforceNextLogin, setEnforceNextLogin] = useState(false)
+  const [bypassDraft, setBypassDraft] = useState('')
 
   const load = useCallback(async () => {
     if (!agencyId) {
@@ -54,6 +66,13 @@ export function AgencySecurityPolicyPage() {
       setPolicy(loaded)
       setRequired(loaded.required)
       setGraceDays(loaded.grace_days)
+      setScopedRoles(loaded.scoped_roles ?? [])
+      setBypassIds(loaded.bypass_user_ids ?? [])
+      const rules = loaded.conditional_rules ?? []
+      setRuleUnusualIp(rules.some((r) => r.kind === 'unusual_ip'))
+      setRuleNewDevice(rules.some((r) => r.kind === 'new_device'))
+      setRuleGeoHop(rules.some((r) => r.kind === 'impossible_geo_hop'))
+      setEnforceNextLogin(loaded.enforce_on_next_login ?? false)
       setDirty(false)
       setLoadState('ready')
     } catch (err) {
@@ -69,16 +88,55 @@ export function AgencySecurityPolicyPage() {
 
   useEffect(() => {
     if (!policy) return
-    setDirty(required !== policy.required || graceDays !== policy.grace_days)
-  }, [required, graceDays, policy])
+    const currentRules = new Set<string>()
+    if (ruleUnusualIp) currentRules.add('unusual_ip')
+    if (ruleNewDevice) currentRules.add('new_device')
+    if (ruleGeoHop) currentRules.add('impossible_geo_hop')
+    const savedRules = new Set(policy.conditional_rules?.map((r) => r.kind) ?? [])
+    const rulesDiffer =
+      currentRules.size !== savedRules.size ||
+      [...currentRules].some((r) => !savedRules.has(r))
+    const scopeDiffers =
+      scopedRoles.length !== policy.scoped_roles.length ||
+      scopedRoles.some((r, i) => policy.scoped_roles[i] !== r)
+    const bypassDiffers =
+      bypassIds.length !== policy.bypass_user_ids.length ||
+      bypassIds.some((u, i) => policy.bypass_user_ids[i] !== u)
+    setDirty(
+      required !== policy.required ||
+        graceDays !== policy.grace_days ||
+        enforceNextLogin !== policy.enforce_on_next_login ||
+        rulesDiffer ||
+        scopeDiffers ||
+        bypassDiffers,
+    )
+  }, [
+    required,
+    graceDays,
+    policy,
+    scopedRoles,
+    bypassIds,
+    ruleUnusualIp,
+    ruleNewDevice,
+    ruleGeoHop,
+    enforceNextLogin,
+  ])
 
   async function save() {
     if (!agencyId || !dirty) return
     setSaving(true)
     try {
+      const conditionalRules: AgencyMfaConditionalRule[] = []
+      if (ruleUnusualIp) conditionalRules.push({ kind: 'unusual_ip' })
+      if (ruleNewDevice) conditionalRules.push({ kind: 'new_device' })
+      if (ruleGeoHop) conditionalRules.push({ kind: 'impossible_geo_hop' })
       const { policy: updated } = await api.updateAgencyMfaPolicy(agencyId, {
         required,
         grace_days: graceDays,
+        scoped_roles: scopedRoles,
+        bypass_user_ids: bypassIds,
+        conditional_rules: conditionalRules,
+        enforce_on_next_login: enforceNextLogin,
       })
       setPolicy(updated)
       setDirty(false)
@@ -222,6 +280,130 @@ export function AgencySecurityPolicyPage() {
             </span>
           </div>
         </div>
+
+        {/* H1 — advanced controls */}
+        <details className="mt-[var(--lc-space-md)] border-t border-[var(--lc-border)] pt-[var(--lc-space-md)]">
+          <summary className="cursor-pointer text-[length:var(--lc-type-body)] text-[var(--lc-text-heading)]">
+            Advanced (H1) — group scoping, bypass list, conditional rules
+          </summary>
+          <div className="mt-[var(--lc-space-md)] space-y-[var(--lc-space-md)]">
+            <div>
+              <Label>Apply this policy only to (leave empty for all members):</Label>
+              <div className="mt-[var(--lc-space-xs)] flex flex-wrap gap-[var(--lc-space-sm)]">
+                {(['owner', 'admin', 'agent'] as const).map((role) => (
+                  <label
+                    key={role}
+                    className="flex items-center gap-[var(--lc-space-xs)] rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] px-[var(--lc-space-sm)] py-[var(--lc-space-2xs)]"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                      checked={scopedRoles.includes(role)}
+                      onChange={(e) => {
+                        setScopedRoles((prev) =>
+                          e.target.checked
+                            ? [...prev, role].sort()
+                            : prev.filter((r) => r !== role),
+                        )
+                      }}
+                    />
+                    <span className="capitalize">{role}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="mfa-bypass">Bypass list (user IDs — service accounts, break-glass admin)</Label>
+              <div className="mt-[var(--lc-space-xs)] flex flex-wrap gap-[var(--lc-space-xs)]">
+                {bypassIds.map((uid) => (
+                  <span
+                    key={uid}
+                    className="inline-flex items-center gap-1 rounded-[var(--lc-radius-pill)] bg-[var(--lc-surface-sunken)] px-2 py-0.5 font-[family-name:var(--lc-font-mono)] text-[length:var(--lc-type-caption)]"
+                  >
+                    {uid}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${uid}`}
+                      className="text-[var(--lc-text-muted)] hover:text-[var(--lc-status-unpublished-fg)]"
+                      onClick={() => setBypassIds((prev) => prev.filter((u) => u !== uid))}
+                    >
+                      <X className="h-3 w-3" aria-hidden />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="mt-[var(--lc-space-xs)] flex gap-[var(--lc-space-sm)]">
+                <Input
+                  id="mfa-bypass"
+                  value={bypassDraft}
+                  onChange={(e) => setBypassDraft(e.target.value)}
+                  placeholder="user-…"
+                  className="max-w-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const v = bypassDraft.trim()
+                    if (v && !bypassIds.includes(v)) setBypassIds([...bypassIds, v])
+                    setBypassDraft('')
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label>Conditional rules — extra enforcement when a signal fires</Label>
+              <div className="mt-[var(--lc-space-xs)] flex flex-col gap-[var(--lc-space-xs)]">
+                <label className="flex items-center gap-[var(--lc-space-sm)]">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                    checked={ruleUnusualIp}
+                    onChange={(e) => setRuleUnusualIp(e.target.checked)}
+                  />
+                  <span>Unusual IP — require enrollment when signing in from an IP the user has not signed in from before.</span>
+                </label>
+                <label className="flex items-center gap-[var(--lc-space-sm)]">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                    checked={ruleNewDevice}
+                    onChange={(e) => setRuleNewDevice(e.target.checked)}
+                  />
+                  <span>New device — require enrollment when the browser fingerprint is unrecognised.</span>
+                </label>
+                <label className="flex items-center gap-[var(--lc-space-sm)]">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                    checked={ruleGeoHop}
+                    onChange={(e) => setRuleGeoHop(e.target.checked)}
+                  />
+                  <span>Impossible geo hop — require enrollment when travel between consecutive sign-ins is faster than 500 km/h.</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-[var(--lc-space-sm)]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                  checked={enforceNextLogin}
+                  onChange={(e) => setEnforceNextLogin(e.target.checked)}
+                />
+                <span className="font-medium">Enforce on next login (ignore grace period).</span>
+              </label>
+              <p className="ms-6 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
+                Non-enrolled members are blocked at their next sign-in regardless of grace_days. Use for hard cut-overs.
+              </p>
+            </div>
+          </div>
+        </details>
 
         <div className="flex flex-wrap items-center justify-between gap-[var(--lc-space-sm)] border-t border-[var(--lc-border)] pt-[var(--lc-space-md)]">
           <div className="text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">

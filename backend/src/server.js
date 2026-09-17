@@ -235,6 +235,10 @@ import {
   registerAgencyMfaPolicyRoutes,
   evaluateMfaPolicyForSignIn,
 } from './lib/agencies/mfa-policy-routes.js'
+import {
+  evaluateMfaPolicyForSignInAuto,
+  recordSigninSignal,
+} from './lib/agencies/mfa-policy-conditional.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -1334,14 +1338,29 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
     return res.json({ status: '2fa_required', challenge_id: challenge.id, method: challenge.method })
   }
 
-  // Issue #190 — agency-level enforced 2FA policy. If any of the user's
+  // Issue #190 + H1 — agency-level enforced 2FA policy. If any of the user's
   // agencies require MFA and this user has not enrolled, decide between
   // three outcomes:
   //   - grace_active: sign in, return banner metadata (frontend nags)
   //   - grace_expired: sign in, return mfa_enrollment_required (frontend
   //     forces enrollment page + backend middleware gates other endpoints)
+  //   - conditional_rule_fired: block regardless of grace (H1: unusual IP,
+  //     new device, impossible geo hop)
   //   - no policy / user already enrolled: normal sign-in
-  const policyDecision = await evaluateMfaPolicyForSignIn(user)
+  // Auto-router picks the H1 evaluator when the policy uses H1 fields, else
+  // falls back to the base evaluator from #194.
+  const signinContext = { ip: req.ip, device_fingerprint: req.get('user-agent') || null }
+  const policyDecision = await evaluateMfaPolicyForSignInAuto(user, signinContext)
+  // Record the sign-in IP as a signal so future "unusual_ip" evaluations
+  // have a baseline. Fire-and-forget; a signal-write failure MUST NOT fail
+  // sign-in.
+  if (req.ip) {
+    void recordSigninSignal({
+      userId: user.id,
+      signalKind: 'ip',
+      signalValue: req.ip,
+    })
+  }
   const session = await buildAuthSession(user, agent, { req })
   if (policyDecision.block) {
     addAuthBreadcrumb('mfa_enrollment_required', {

@@ -32,7 +32,17 @@ const DEFAULT_POLICY = Object.freeze({
   required: false,
   grace_days: 14,
   allowed_factors: [],
+  // H1 extension (migration 371) — H1 fields default to empty/false so
+  // existing #194 callers see identical behaviour when they don't touch
+  // these fields.
+  scoped_roles: [],
+  bypass_user_ids: [],
+  conditional_rules: [],
+  enforce_on_next_login: false,
 })
+
+const H1_CONDITIONAL_KINDS = new Set(['unusual_ip', 'new_device', 'impossible_geo_hop'])
+const H1_ROLE_VALUES = new Set(['owner', 'admin', 'agent'])
 
 /** Bound grace_days to the CHECK constraint in migration 367. */
 const GRACE_DAYS_MIN = 0
@@ -72,6 +82,10 @@ export async function loadAgencyMfaPolicy(agencyId) {
       required: DEFAULT_POLICY.required,
       grace_days: DEFAULT_POLICY.grace_days,
       allowed_factors: DEFAULT_POLICY.allowed_factors,
+      scoped_roles: DEFAULT_POLICY.scoped_roles,
+      bypass_user_ids: DEFAULT_POLICY.bypass_user_ids,
+      conditional_rules: DEFAULT_POLICY.conditional_rules,
+      enforce_on_next_login: DEFAULT_POLICY.enforce_on_next_login,
       updated_by: null,
       updated_at: null,
       created_at: null,
@@ -81,6 +95,12 @@ export async function loadAgencyMfaPolicy(agencyId) {
   return {
     ...row,
     allowed_factors: Array.isArray(row.allowed_factors) ? row.allowed_factors : [],
+    // H1 extension fields (migration 371) — coerce missing / non-array JSONB
+    // to safe defaults so callers never see undefined.
+    scoped_roles: Array.isArray(row.scoped_roles) ? row.scoped_roles : [],
+    bypass_user_ids: Array.isArray(row.bypass_user_ids) ? row.bypass_user_ids : [],
+    conditional_rules: Array.isArray(row.conditional_rules) ? row.conditional_rules : [],
+    enforce_on_next_login: Boolean(row.enforce_on_next_login),
     is_default: false,
   }
 }
@@ -172,6 +192,54 @@ function validatePolicyPatch(body) {
     // Normalize: unique + sorted so audit diffs are stable.
     patch.allowed_factors = Array.from(new Set(body.allowed_factors)).sort()
   }
+  // H1 fields — all optional; strict validation so a typo can't silently
+  // half-configure a tenant's policy.
+  if ('scoped_roles' in body) {
+    if (!Array.isArray(body.scoped_roles)) {
+      return { valid: false, error: 'scoped_roles must be an array' }
+    }
+    for (const r of body.scoped_roles) {
+      if (typeof r !== 'string' || !H1_ROLE_VALUES.has(r)) {
+        return { valid: false, error: `scoped_roles contains unknown role: ${JSON.stringify(r)}` }
+      }
+    }
+    patch.scoped_roles = Array.from(new Set(body.scoped_roles)).sort()
+  }
+  if ('bypass_user_ids' in body) {
+    if (!Array.isArray(body.bypass_user_ids)) {
+      return { valid: false, error: 'bypass_user_ids must be an array' }
+    }
+    for (const u of body.bypass_user_ids) {
+      if (typeof u !== 'string' || u.length === 0) {
+        return { valid: false, error: 'bypass_user_ids entries must be non-empty strings' }
+      }
+    }
+    if (body.bypass_user_ids.length > 50) {
+      return { valid: false, error: 'bypass_user_ids exceeds 50 entries' }
+    }
+    patch.bypass_user_ids = Array.from(new Set(body.bypass_user_ids))
+  }
+  if ('conditional_rules' in body) {
+    if (!Array.isArray(body.conditional_rules)) {
+      return { valid: false, error: 'conditional_rules must be an array' }
+    }
+    for (const rule of body.conditional_rules) {
+      if (!rule || typeof rule !== 'object' || typeof rule.kind !== 'string') {
+        return { valid: false, error: 'conditional_rules entries must be { kind: string, ... }' }
+      }
+      if (!H1_CONDITIONAL_KINDS.has(rule.kind)) {
+        return { valid: false, error: `conditional_rules unknown kind: ${JSON.stringify(rule.kind)}` }
+      }
+    }
+    patch.conditional_rules = body.conditional_rules
+  }
+  if ('enforce_on_next_login' in body) {
+    if (typeof body.enforce_on_next_login !== 'boolean') {
+      return { valid: false, error: 'enforce_on_next_login must be boolean' }
+    }
+    patch.enforce_on_next_login = body.enforce_on_next_login
+  }
+
   if (Object.keys(patch).length === 0) {
     return { valid: false, error: 'No editable fields supplied' }
   }
@@ -180,31 +248,51 @@ function validatePolicyPatch(body) {
 
 async function upsertPolicy({ agencyId, patch, actorId }) {
   const existing = await query('SELECT * FROM agency_mfa_policy WHERE agency_id = $1', [agencyId])
+  const existingRow = existing[0]
   const merged = {
     agency_id: agencyId,
-    required: existing[0]?.required ?? DEFAULT_POLICY.required,
-    grace_days: existing[0]?.grace_days ?? DEFAULT_POLICY.grace_days,
-    allowed_factors: Array.isArray(existing[0]?.allowed_factors)
-      ? existing[0].allowed_factors
+    required: existingRow?.required ?? DEFAULT_POLICY.required,
+    grace_days: existingRow?.grace_days ?? DEFAULT_POLICY.grace_days,
+    allowed_factors: Array.isArray(existingRow?.allowed_factors)
+      ? existingRow.allowed_factors
       : DEFAULT_POLICY.allowed_factors,
+    scoped_roles: Array.isArray(existingRow?.scoped_roles)
+      ? existingRow.scoped_roles
+      : DEFAULT_POLICY.scoped_roles,
+    bypass_user_ids: Array.isArray(existingRow?.bypass_user_ids)
+      ? existingRow.bypass_user_ids
+      : DEFAULT_POLICY.bypass_user_ids,
+    conditional_rules: Array.isArray(existingRow?.conditional_rules)
+      ? existingRow.conditional_rules
+      : DEFAULT_POLICY.conditional_rules,
+    enforce_on_next_login:
+      existingRow?.enforce_on_next_login ?? DEFAULT_POLICY.enforce_on_next_login,
     ...patch,
     updated_by: actorId,
     updated_at: new Date().toISOString(),
   }
-  if (existing[0]) {
+  if (existingRow) {
     await query(
       `UPDATE agency_mfa_policy
        SET required = $2,
            grace_days = $3,
            allowed_factors = $4::jsonb,
-           updated_by = $5,
-           updated_at = $6::timestamptz
+           scoped_roles = $5::jsonb,
+           bypass_user_ids = $6::jsonb,
+           conditional_rules = $7::jsonb,
+           enforce_on_next_login = $8,
+           updated_by = $9,
+           updated_at = $10::timestamptz
        WHERE agency_id = $1`,
       [
         agencyId,
         merged.required,
         merged.grace_days,
         JSON.stringify(merged.allowed_factors),
+        JSON.stringify(merged.scoped_roles),
+        JSON.stringify(merged.bypass_user_ids),
+        JSON.stringify(merged.conditional_rules),
+        merged.enforce_on_next_login,
         merged.updated_by,
         merged.updated_at,
       ],
