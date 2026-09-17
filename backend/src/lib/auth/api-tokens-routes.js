@@ -55,6 +55,12 @@ const SUPPORTED_SCOPE_SET = new Set(SUPPORTED_SCOPES)
 /** Max tokens per user. Enterprise-tier admins can revoke old ones; keeps blast radius small. */
 export const MAX_TOKENS_PER_USER = 25
 
+/** T4 — Resource types a per-resource scope entry may target. */
+export const SUPPORTED_RESOURCE_TYPES = Object.freeze(['agency', 'listing', 'contact'])
+const SUPPORTED_RESOURCE_TYPE_SET = new Set(SUPPORTED_RESOURCE_TYPES)
+/** Cap the number of resource-scope entries per token to keep the JSONB blob bounded. */
+export const MAX_RESOURCE_SCOPES_PER_TOKEN = 50
+
 function hashSecret(rawToken) {
   return createHash('sha256').update(String(rawToken)).digest('hex')
 }
@@ -85,6 +91,8 @@ function serializeToken(row) {
     revoked_at: row.revoked_at,
     created_at: row.created_at,
     agency_id: row.agency_id,
+    // T4 — per-resource scope entries; empty = unrestricted
+    resource_scopes: Array.isArray(row.resource_scopes) ? row.resource_scopes : [],
   }
 }
 
@@ -144,7 +152,46 @@ function validateCreateBody(body) {
     if (d.getTime() <= Date.now()) return { valid: false, error: 'expires_at must be in the future' }
     expiresAt = d.toISOString()
   }
-  return { valid: true, name, scopes, expiresAt }
+  // T4 — resource_scopes: optional array of {resource_type, resource_id}.
+  let resourceScopes = []
+  if (body.resource_scopes !== undefined) {
+    if (!Array.isArray(body.resource_scopes)) {
+      return { valid: false, error: 'resource_scopes must be an array' }
+    }
+    if (body.resource_scopes.length > MAX_RESOURCE_SCOPES_PER_TOKEN) {
+      return {
+        valid: false,
+        error: `resource_scopes exceeds ${MAX_RESOURCE_SCOPES_PER_TOKEN} entries`,
+      }
+    }
+    for (const entry of body.resource_scopes) {
+      if (!entry || typeof entry !== 'object') {
+        return { valid: false, error: 'resource_scopes entries must be objects' }
+      }
+      if (
+        typeof entry.resource_type !== 'string' ||
+        !SUPPORTED_RESOURCE_TYPE_SET.has(entry.resource_type)
+      ) {
+        return {
+          valid: false,
+          error: `resource_scopes unknown resource_type: ${JSON.stringify(entry.resource_type)}`,
+        }
+      }
+      if (typeof entry.resource_id !== 'string' || !entry.resource_id) {
+        return { valid: false, error: 'resource_scopes entries must have non-empty resource_id' }
+      }
+    }
+    // Dedupe on (resource_type, resource_id).
+    const seen = new Set()
+    resourceScopes = []
+    for (const e of body.resource_scopes) {
+      const key = `${e.resource_type}:${e.resource_id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      resourceScopes.push({ resource_type: e.resource_type, resource_id: e.resource_id })
+    }
+  }
+  return { valid: true, name, scopes, expiresAt, resourceScopes }
 }
 
 /**
@@ -199,6 +246,8 @@ export function registerApiTokenRoutes(app, deps) {
         name: validation.name,
         hashed_secret: hash,
         scopes: validation.scopes,
+        // T4 — resource-scope list. Empty = unrestricted (H2 behaviour).
+        resource_scopes: validation.resourceScopes,
         last_used_at: null,
         expires_at: validation.expiresAt,
         revoked_at: null,

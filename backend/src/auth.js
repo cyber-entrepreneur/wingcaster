@@ -282,6 +282,9 @@ export async function authMiddleware(req, res, next) {
     // entirely: they always satisfy scope checks (scopes are a PAT concept).
     const { attachApiTokenScopes } = await import('./lib/auth/api-token-scope.js')
     await attachApiTokenScopes(req, result.tokenRow.id)
+    // T4 — Attach per-resource scope entries for the same reason.
+    const { attachApiTokenResourceScopes } = await import('./lib/auth/api-token-resource.js')
+    await attachApiTokenResourceScopes(req, result.tokenRow.id)
     return next()
   }
 
