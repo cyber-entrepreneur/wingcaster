@@ -252,6 +252,7 @@ import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
+import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
   getGraphConfig,
@@ -821,6 +822,7 @@ registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
+registerBuyerOfferRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
