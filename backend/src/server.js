@@ -246,6 +246,7 @@ import {
 } from './lib/agencies/mfa-policy-conditional.js'
 import { requireApiTokenScope } from './lib/auth/api-token-scope.js'
 import { startDataExportCleanupJob } from './workers/data-export-cleanup.js'
+import { registerAuditSiemRoutes } from './lib/audit/audit-siem.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
@@ -7786,6 +7787,8 @@ registerAgencyApplicationRoutes(app)
 // H5 — cross-cutting audit-log search + CSV export (platform admin +
 // agency admin/owner scopes). SOC 2 CC7.2 evidence surface.
 registerAuditSearchRoutes(app, { authMiddleware })
+// T5 — real-time SSE audit stream + JSON Lines export for SIEM ingest.
+registerAuditSiemRoutes(app, { authMiddleware })
 
 // Issue #192b — GDPR Article 20 / UAE PDPL / KSA PDPL portability: user-
 // initiated data export produces a signed JSON file with all their data.
