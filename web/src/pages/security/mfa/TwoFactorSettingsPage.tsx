@@ -222,6 +222,28 @@ export function TwoFactorSettingsPage() {
               </div>
             )}
 
+            {/* Issue #189 — passkeys sit alongside TOTP as a phishing-resistant factor. */}
+            <section>
+              <h2 className="mb-[var(--lc-space-sm)] font-[family-name:var(--lc-font-ui)] text-[length:var(--lc-type-heading-3)] text-[var(--lc-text-heading)]">
+                Passkeys
+              </h2>
+              <div className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-md)]">
+                <p className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-secondary)]">
+                  Sign in without a password using Face ID, Touch ID, Windows Hello, or a hardware
+                  key. Passkeys cannot be phished — your browser refuses to hand them to a wrong
+                  domain.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-[var(--lc-space-sm)]"
+                  onClick={() => navigate('/settings/2fa/passkeys')}
+                >
+                  Manage passkeys →
+                </Button>
+              </div>
+            </section>
+
             <details className="group rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]">
               <summary className="flex min-h-tap cursor-pointer list-none items-center justify-between text-[length:var(--lc-type-body)] text-[var(--lc-text-primary)]">
                 How does two-factor authentication work?
