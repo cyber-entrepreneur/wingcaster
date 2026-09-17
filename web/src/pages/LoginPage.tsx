@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { clearElevatedToken } from '@/api/client'
 import { SignInWithPasskeyButton } from '@/components/auth/SignInWithPasskeyButton'
+import { usePasskeyAutofill } from '@/hooks/usePasskeyAutofill'
 import type { TwoFactorRequired } from '@/types/twoFactor'
 import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import {
@@ -109,6 +110,17 @@ export function LoginPage() {
       if (passwordRevealTimer.current) window.clearTimeout(passwordRevealTimer.current)
     }
   }, [])
+
+  // T2 — passkey autofill (conditional UI). Attaches an invisible WebAuthn
+  // ceremony to the identifier input so the browser can offer saved passkeys
+  // in the autocomplete dropdown. Disabled while a challenge is in flight
+  // to avoid a race between conditional pick and 2FA modal.
+  const passkeyAutofill = usePasskeyAutofill({
+    onSignedIn: async () => {
+      navigate(returnTo, { replace: true })
+    },
+    disabled: Boolean(challenge) || loading,
+  })
 
   const canSubmit =
     identifier.trim().length > 0 && password.length > 0 && !loading && rateSeconds === 0
@@ -464,7 +476,10 @@ export function LoginPage() {
               id="login-identifier"
               type="email"
               inputMode="email"
-              autoComplete="username"
+              // T2 — autoComplete carries the "webauthn" token so the browser
+              // attaches its conditional-mediation passkey offer to this input.
+              // Falls back to plain "username" on browsers without WebAuthn L3.
+              autoComplete={passkeyAutofill.inputProps.autoComplete}
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder={identifierPlaceholder}
