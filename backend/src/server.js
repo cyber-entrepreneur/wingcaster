@@ -1270,7 +1270,7 @@ app.post('/api/auth/register', validate(registerSchema), async (req, res) => {
  * identical response shape to /api/auth/login — the frontend must not care
  * which of the two produced its session.
  */
-async function buildAuthSession(user, agent, { activeTenantId = null, env = null, req = null, reuseSessionId = null } = {}) {
+async function buildAuthSession(user, agent, { activeTenantId = null, env = null, req = null, reuseSessionId = null, ttlSeconds = null } = {}) {
   const affiliation = await getActiveAffiliation(user.id)
   const agency = affiliation ? await findOne('agencies', a => a.id === affiliation.agency_id) : null
   const affiliations = await listUserAgencyMemberships(user.id)
@@ -1284,7 +1284,7 @@ async function buildAuthSession(user, agent, { activeTenantId = null, env = null
       active_tenant_id: resolvedTenantId,
       env: resolvedEnv,
       fin_environment: resolvedEnv === 'test' ? 'TEST' : 'LIVE',
-    }, { req, reuseSessionId }),
+    }, { req, reuseSessionId, ttlSeconds }),
     agent: {
       ...serializeAgent(agent),
       role: user.role,
@@ -1361,7 +1361,14 @@ app.post('/api/auth/login', validate(loginSchema), async (req, res) => {
       signalValue: req.ip,
     })
   }
-  const session = await buildAuthSession(user, agent, { req })
+  // T6 — Shorten the JWT lifetime when the user is subject to an active
+  // MFA policy (either grace-active or block). Enterprise IT wants sessions
+  // to expire in hours-not-weeks under a stricter security posture, so a
+  // stolen laptop doesn't coast a whole week on a single sign-in.
+  const shortenedTtl = policyDecision.block || policyDecision.banner === 'grace_active'
+    ? (await import('./auth.js')).MFA_POLICY_SESSION_TTL_SECONDS
+    : null
+  const session = await buildAuthSession(user, agent, { req, ttlSeconds: shortenedTtl })
   if (policyDecision.block) {
     addAuthBreadcrumb('mfa_enrollment_required', {
       user_id: user.id,
