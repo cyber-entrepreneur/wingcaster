@@ -39,9 +39,14 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
-import { insert, query } from '../../db.js'
+import { insert, query, findAll } from '../../db.js'
 import { findUserById } from '../../identity.js'
 import logger from '../logger.js'
+import {
+  displayNameForMdsEntry,
+  enforcePasskeyPolicy,
+  lookupAaguid,
+} from './webauthn-mds.js'
 
 /**
  * Relying-party identity. In production these are set to the app's
@@ -98,6 +103,57 @@ async function listUserCredentials(userId) {
   )
 }
 
+/**
+ * H4 — Load the strictest per-agency passkey policy across a user's active
+ * memberships. Union semantics: any agency denying an aaguid wins; any
+ * agency requiring attestation wins; allowlist is intersected (safest).
+ * Returns null when the user belongs to no agency or none has H4 fields set.
+ */
+async function loadStrictestPasskeyPolicy(userId) {
+  const memberships = await findAll(
+    'agency_members',
+    (m) => m.user_id === userId && m.status === 'active',
+  ).catch(() => [])
+  if (!memberships.length) return null
+
+  let strictest = null
+  for (const m of memberships) {
+    const rows = await query(
+      `SELECT webauthn_require_attestation, webauthn_allowed_aaguids, webauthn_denied_aaguids
+       FROM agency_mfa_policy WHERE agency_id = $1`,
+      [m.agency_id],
+    ).catch(() => [])
+    const p = rows[0]
+    if (!p) continue
+    if (!strictest) strictest = {
+      webauthn_require_attestation: false,
+      webauthn_allowed_aaguids: [],
+      webauthn_denied_aaguids: [],
+    }
+    if (p.webauthn_require_attestation) strictest.webauthn_require_attestation = true
+    const allowed = Array.isArray(p.webauthn_allowed_aaguids) ? p.webauthn_allowed_aaguids : []
+    const denied = Array.isArray(p.webauthn_denied_aaguids) ? p.webauthn_denied_aaguids : []
+    strictest.webauthn_denied_aaguids = Array.from(
+      new Set([...strictest.webauthn_denied_aaguids, ...denied]),
+    )
+    // Intersection for allowlists is the correct safe semantics:
+    //   agency A allows {yubikey, iphone}, agency B allows {yubikey} →
+    //   the user can only register YubiKeys. But an empty policy means
+    //   "no restriction" — special-case so an all-open policy doesn't
+    //   collapse the union to empty.
+    if (allowed.length > 0) {
+      if (strictest.webauthn_allowed_aaguids.length === 0) {
+        strictest.webauthn_allowed_aaguids = allowed
+      } else {
+        strictest.webauthn_allowed_aaguids = strictest.webauthn_allowed_aaguids.filter((a) =>
+          allowed.includes(a),
+        )
+      }
+    }
+  }
+  return strictest
+}
+
 function serializeCredential(row) {
   return {
     id: row.id,
@@ -110,6 +166,13 @@ function serializeCredential(row) {
     last_used_at: row.last_used_at,
     created_at: row.created_at,
     revoked_at: row.revoked_at,
+    // H4 fields (migration 372) — surfaced so PasskeysPage can show
+    // "attestation verified ✓" and the authenticator model name.
+    attestation_format: row.attestation_format || null,
+    attestation_verified: Boolean(row.attestation_verified),
+    authenticator_name: row.mds_metadata
+      ? displayNameForMdsEntry({ metadata: row.mds_metadata }, row.aaguid)
+      : null,
   }
 }
 
@@ -140,13 +203,21 @@ export function registerWebauthnRoutes(app, deps) {
       if (!user) return res.status(401).json({ error: 'Account no longer exists' })
 
       const existing = await listUserCredentials(user.id)
+      // H4 — consult the strictest policy across the user's agencies
+      // to decide whether to request full attestation. Falling through to
+      // 'none' is the privacy-preserving default (matches GitHub / Google);
+      // only tenants that explicitly enable `webauthn_require_attestation`
+      // opt into the more intrusive 'direct' attestation ceremony.
+      const strictest = await loadStrictestPasskeyPolicy(user.id)
+      const attestationType = strictest?.webauthn_require_attestation ? 'direct' : 'none'
+
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
         rpID: RP_ID,
         userID: Buffer.from(user.id),
         userName: user.email || user.id,
         userDisplayName: user.name || user.email || user.id,
-        attestationType: 'none',
+        attestationType,
         // Exclude the user's already-enrolled passkeys so the authenticator
         // does not offer to re-register something they already have.
         excludeCredentials: existing.map((c) => ({
@@ -201,6 +272,30 @@ export function registerWebauthnRoutes(app, deps) {
         credentialBackedUp,
         aaguid,
       } = registrationInfo
+      // registrationInfo.fmt is set by @simplewebauthn/server when it decodes
+      // the attestation object. Tests that mock the registration return
+      // without fmt — we treat that as 'none' (the privacy-preserving default
+      // the tests use anyway).
+      const attestationFormat = registrationInfo.fmt || 'none'
+
+      // H4 — enforce the per-agency policy against this authenticator
+      // BEFORE we persist the row. Reads use loadStrictestPasskeyPolicy so
+      // multi-agency users get the strictest applied.
+      const policy = await loadStrictestPasskeyPolicy(user.id)
+      if (policy) {
+        const refusal = enforcePasskeyPolicy({
+          policy,
+          aaguid,
+          attestationFormat,
+        })
+        if (refusal) {
+          return res.status(403).json({ error: refusal.code, message: refusal.error })
+        }
+      }
+
+      // H4 — attach MDS metadata for the friendly name + audit trail.
+      const mdsEntry = aaguid ? await lookupAaguid(aaguid) : null
+      const nameFromMds = mdsEntry ? displayNameForMdsEntry(mdsEntry, aaguid) : null
 
       const row = {
         id: randomUUID(),
@@ -217,7 +312,14 @@ export function registerWebauthnRoutes(app, deps) {
         backup_eligible: Boolean(credentialBackedUp || credentialDeviceType === 'multiDevice'),
         backup_state: Boolean(credentialBackedUp),
         aaguid: aaguid || null,
-        name: friendlyName || 'Passkey',
+        // H4 attestation columns (migration 372):
+        attestation_format: attestationFormat,
+        // We treat MDS-known aaguid as "verified" for this iteration — a
+        // future step adds JWS verification of the attestation cert chain
+        // against the FIDO root cert.
+        attestation_verified: attestationFormat !== 'none' && Boolean(mdsEntry),
+        mds_metadata: mdsEntry ? mdsEntry.metadata : null,
+        name: friendlyName || nameFromMds || 'Passkey',
         last_used_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

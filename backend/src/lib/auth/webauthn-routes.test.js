@@ -18,7 +18,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const db = vi.hoisted(() => ({
   insert: vi.fn(),
   query: vi.fn(),
+  findAll: vi.fn().mockResolvedValue([]),
 }))
+
+// H4 — mock the MDS module so register/complete's lookupAaguid + policy
+// enforcement don't require a real cache or FIDO server.
+const mds = vi.hoisted(() => ({
+  lookupAaguid: vi.fn().mockResolvedValue(null),
+  displayNameForMdsEntry: vi.fn().mockReturnValue('Passkey'),
+  enforcePasskeyPolicy: vi.fn().mockReturnValue(null),
+}))
+vi.mock('./webauthn-mds.js', () => mds)
 
 const identity = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -65,12 +75,22 @@ beforeEach(async () => {
   vi.resetModules()
   db.insert.mockReset()
   db.query.mockReset()
+  db.findAll.mockReset()
+  db.findAll.mockResolvedValue([])
   identity.findUserById.mockReset()
   identity.findUserById.mockResolvedValue({ ...USER })
   webauthn.generateRegistrationOptions.mockReset()
   webauthn.generateAuthenticationOptions.mockReset()
   webauthn.verifyRegistrationResponse.mockReset()
   webauthn.verifyAuthenticationResponse.mockReset()
+  // H4 — reset MDS mock defaults every test so leftover state from earlier
+  // tests can't turn a null-return into an error.
+  mds.lookupAaguid.mockReset()
+  mds.lookupAaguid.mockResolvedValue(null)
+  mds.displayNameForMdsEntry.mockReset()
+  mds.displayNameForMdsEntry.mockReturnValue('Passkey')
+  mds.enforcePasskeyPolicy.mockReset()
+  mds.enforcePasskeyPolicy.mockReturnValue(null)
 
   ;({ registerWebauthnRoutes } = await import('./webauthn-routes.js'))
 })
