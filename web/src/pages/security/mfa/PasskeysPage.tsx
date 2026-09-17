@@ -18,7 +18,7 @@ import { usePageTitle } from '@/lib/usePageTitle'
 import { MfaSettingsChrome } from './MfaSettingsChrome'
 
 /**
- * Passkey management surface (issue #189).
+ * Passkey management surface (issue 189).
  *
  * Sits alongside TotpEnrollPage / BackupCodesViewerPage under `/settings/2fa`.
  * Enrollment uses @simplewebauthn/browser to call the platform's authenticator

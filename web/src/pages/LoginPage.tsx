@@ -584,7 +584,7 @@ export function LoginPage() {
           )}
         </Button>
 
-        {/* Issue #189 — passkey sign-in as an alternative to password. */}
+        {/* Issue 189 — passkey sign-in as an alternative to password. */}
         <SignInWithPasskeyButton
           className="min-h-[48px] w-full"
           identifier={identifier}

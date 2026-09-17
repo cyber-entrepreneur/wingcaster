@@ -8,7 +8,7 @@ import { formatRelativeTime, formatShortDate } from '@/lib/relative-time'
 import { usePageTitle } from '@/lib/usePageTitle'
 
 /**
- * Self-serve data export (issue #192b).
+ * Self-serve data export (issue 192b).
  *
  * GDPR Art. 20 + UAE Fed 45/2021 + KSA PDPL — every data subject can ask
  * for a machine-readable copy of their data. This page kicks off the

@@ -55,7 +55,7 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
-/** Issue #192b — self-serve data-export job shape. */
+/** Issue 192b — self-serve data-export job shape. */
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -68,7 +68,7 @@ export interface DataExportRecord {
   expires_at: string
 }
 
-/** Issue #189 — WebAuthn / passkey credential shape returned by /credentials. */
+/** Issue 189 — WebAuthn / passkey credential shape returned by /credentials. */
 export interface PasskeyCredential {
   id: string
   credential_id: string
@@ -82,14 +82,14 @@ export interface PasskeyCredential {
   revoked_at: string | null
 }
 
-/** Issue #190 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
+/** Issue 190 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 /** H1 conditional rule union — extend as new kinds land in mfa-policy-conditional.js. */
 export type AgencyMfaConditionalRule =
   | { kind: 'unusual_ip' }
   | { kind: 'new_device' }
   | { kind: 'impossible_geo_hop' }
 
-/** Issue #190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
+/** Issue 190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
   required: boolean
@@ -106,7 +106,7 @@ export interface AgencyMfaPolicy {
   is_default: boolean
 }
 
-/** Issue #192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
+/** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
   name: string
@@ -783,7 +783,7 @@ export const api = {
     return `${API_BASE}/audit/log.csv${qs ? `?${qs}` : ''}`
   },
 
-  // Issue #192b — self-serve data export (GDPR Art. 20 / UAE / KSA PDPL).
+  // Issue 192b — self-serve data export (GDPR Art. 20 / UAE / KSA PDPL).
   requestDataExport: (): Promise<{ export: DataExportRecord }> =>
     fetchJson('/settings/data-export', { method: 'POST', body: '{}' }),
   listDataExports: (): Promise<{ exports: DataExportRecord[] }> =>
@@ -794,7 +794,7 @@ export const api = {
   dataExportDownloadPath: (id: string): string =>
     `${API_BASE}/settings/data-export/${encodeURIComponent(id)}/download`,
 
-  // Issue #189 — WebAuthn / passkey factor.
+  // Issue 189 — WebAuthn / passkey factor.
   webauthnRegisterBegin: (): Promise<{ options: unknown }> =>
     fetchJson('/auth/webauthn/register/begin', { method: 'POST', body: '{}' }),
   webauthnRegisterComplete: (payload: {
@@ -827,7 +827,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name }),
     }),
-  // Issue #192a — Personal Access Tokens.
+  // Issue 192a — Personal Access Tokens.
   listApiTokens: (): Promise<{ tokens: ApiTokenRecord[] }> =>
     fetchJson('/settings/api-tokens'),
   createApiToken: (payload: {
@@ -846,7 +846,7 @@ export const api = {
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
-  // Issue #190 — admin-enforced 2FA policy.
+  // Issue 190 — admin-enforced 2FA policy.
   getAgencyMfaPolicy: (
     agencyId: string,
   ): Promise<{ policy: AgencyMfaPolicy }> =>

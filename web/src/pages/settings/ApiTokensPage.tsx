@@ -17,7 +17,7 @@ import { formatRelativeTime, formatShortDate } from '@/lib/relative-time'
 import { usePageTitle } from '@/lib/usePageTitle'
 
 /**
- * Personal Access Tokens surface (issue #192a).
+ * Personal Access Tokens surface (issue 192a).
  *
  * Enterprise settings pattern: user creates a named + scoped token, sees the
  * raw value exactly once, and never again. List page shows scopes, last-used

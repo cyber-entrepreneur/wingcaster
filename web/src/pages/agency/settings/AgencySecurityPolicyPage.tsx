@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 
 /**
- * Agency-scoped admin surface for the enforced 2FA policy (issue #190).
+ * Agency-scoped admin surface for the enforced 2FA policy (issue 190).
  *
  * Owner / admin members see a toggle to require 2FA for every member of
  * this agency, plus a grace-days control (0–90) and read-only fields
@@ -92,7 +92,7 @@ export function AgencySecurityPolicyPage() {
     if (ruleUnusualIp) currentRules.add('unusual_ip')
     if (ruleNewDevice) currentRules.add('new_device')
     if (ruleGeoHop) currentRules.add('impossible_geo_hop')
-    const savedRules = new Set(policy.conditional_rules?.map((r) => r.kind) ?? [])
+    const savedRules = new Set<string>(policy.conditional_rules?.map((r) => r.kind) ?? [])
     const rulesDiffer =
       currentRules.size !== savedRules.size ||
       [...currentRules].some((r) => !savedRules.has(r))

@@ -6,7 +6,7 @@ import { BackupCodesViewerPage } from './BackupCodesViewerPage'
 import { PasskeysPage } from './PasskeysPage'
 
 /**
- * MFA family routes (SHR-MFA-001..007 + issue #189 passkeys).
+ * MFA family routes (SHR-MFA-001..007 + issue 189 passkeys).
  *
  * Import from App.tsx:
  * - `mfaRoutes` — top-level `/login` flow wrapper
