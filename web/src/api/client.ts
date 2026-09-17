@@ -55,6 +55,19 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
+/** Issue #192b — self-serve data-export job shape. */
+export interface DataExportRecord {
+  id: string
+  status: 'pending' | 'running' | 'complete' | 'failed'
+  bytes: number | null
+  sha256: string | null
+  error: string | null
+  requested_at: string
+  started_at: string | null
+  completed_at: string | null
+  expires_at: string
+}
+
 export interface CommandItem {
   message_id: string
   conversation_id: string
@@ -713,6 +726,17 @@ export const api = {
     const qs = q.toString()
     return `${API_BASE}/audit/log.csv${qs ? `?${qs}` : ''}`
   },
+
+  // Issue #192b — self-serve data export (GDPR Art. 20 / UAE / KSA PDPL).
+  requestDataExport: (): Promise<{ export: DataExportRecord }> =>
+    fetchJson('/settings/data-export', { method: 'POST', body: '{}' }),
+  listDataExports: (): Promise<{ exports: DataExportRecord[] }> =>
+    fetchJson('/settings/data-export'),
+  getDataExportStatus: (id: string): Promise<{ export: DataExportRecord }> =>
+    fetchJson(`/settings/data-export/${encodeURIComponent(id)}/status`),
+  /** Returns a browser-navigable URL (Authorization header must be sent — use `<a>` download or a fetch → blob flow). */
+  dataExportDownloadPath: (id: string): string =>
+    `${API_BASE}/settings/data-export/${encodeURIComponent(id)}/download`,
 
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
