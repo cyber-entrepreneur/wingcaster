@@ -14,6 +14,7 @@ import {
   deprecatePriceVersion,
   draftPriceVersion,
   getPrice,
+  listActivePriceCatalog,
   listPrices,
 } from '../../pricing/prices.js'
 import {
@@ -23,6 +24,7 @@ import {
   suspendContract,
   terminateContract,
 } from '../../pricing/contracts.js'
+import { draftContractVersionBodySchema } from './contract-version-schemas.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -134,6 +136,17 @@ export function registerFinPricingAdminRoutes(app, { authMiddleware, requirePlat
     }
   })
 
+  app.get('/api/admin/fin/prices/active-catalog', readGuards, async (req, res, next) => {
+    try {
+      const rows = await transaction((client) => listActivePriceCatalog(client, {
+        environment: req.query.environment || 'LIVE',
+      }))
+      return res.status(200).json({ prices: rows })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   app.get('/api/admin/fin/prices/:id', readGuards, async (req, res, next) => {
     try {
       const row = await transaction((client) => getPrice(client, req.params.id))
@@ -157,9 +170,14 @@ export function registerFinPricingAdminRoutes(app, { authMiddleware, requirePlat
 
   app.post('/api/admin/fin/contracts/:id/versions', writeGuards, async (req, res, next) => {
     try {
+      const parsed = draftContractVersionBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0]
+        return res.status(400).json({ error: issue?.message || 'Validation failed' })
+      }
       const result = await draftContractVersion({
         ...actorFrom(req),
-        ...req.body,
+        ...parsed.data,
         contractId: req.params.id,
       })
       setETag(res, result.version)

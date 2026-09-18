@@ -396,3 +396,24 @@ export async function listPrices(client, { environment = 'LIVE' } = {}) {
   )
   return rows
 }
+
+/** Active price version per code — used by PA-CON-003 component picker. */
+export async function listActivePriceCatalog(client, { environment = 'LIVE' } = {}) {
+  const { rows } = await client.query(
+    `SELECT p.id, p.code, p.currency, p.meter_id,
+            pv.id AS price_version_id, pv.version_n, pv.model,
+            pv.unit_rate_minor, pv.package_size_units, pv.effective_from
+       FROM fin.prices p
+       JOIN LATERAL (
+         SELECT id, version_n, model, unit_rate_minor, package_size_units, effective_from
+           FROM fin.price_versions
+          WHERE price_id = p.id AND status = 'ACTIVE'
+          ORDER BY version_n DESC
+          LIMIT 1
+       ) pv ON true
+      WHERE p.environment = $1
+      ORDER BY p.code`,
+    [environment],
+  )
+  return rows
+}
