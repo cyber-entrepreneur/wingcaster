@@ -226,6 +226,21 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// AGT-APR-006 — My submitted reports. Summary row for the agent's own
+// comparable-report submissions (GET /api/pricing/my-comparable-reports).
+export interface ComparableReportSummary {
+  id: string
+  status?: string
+  reason?: string
+  comparable_id?: string
+  comparable_type?: string
+  notes?: string | null
+  decision_reason_code?: string | null
+  decision_notes?: string | null
+  reviewed_at?: string | null
+  created_at?: string
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -2328,7 +2343,7 @@ export const api = {
   },
   deletePricingEvidence: (id: string) =>
     fetchJson(`/pricing/evidence-uploads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  getMyComparableReports: () => fetchJson('/pricing/my-comparable-reports'),
+  getMyComparableReports: (): Promise<ComparableReportSummary[]> => fetchJson('/pricing/my-comparable-reports'),
   getMyAgentPriceReports: (): Promise<AgentPriceReport[]> => fetchJson('/pricing/my-agent-price-reports'),
   /** AGT-REC-002 — preferred user-scoped by-id (falls back in hooks when absent). */
   getMyComparableReportOutcome: (reportId: string) =>
