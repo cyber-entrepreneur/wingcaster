@@ -117,6 +117,21 @@ export const SETTINGS_CATALOG = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: 'agent',
+    label: 'Agent tools',
+    label_key: 'settings.groups.agent',
+    items: Object.freeze([
+      Object.freeze({
+        id: 'saved_searches',
+        label: 'Saved searches',
+        label_key: 'settings.items.saved_searches',
+        route: '/settings/saved-searches',
+        icon: 'search',
+        access: 'authenticated',
+      }),
+    ]),
+  }),
+  Object.freeze({
     id: 'danger',
     label: 'Danger zone',
     label_key: 'settings.groups.danger',

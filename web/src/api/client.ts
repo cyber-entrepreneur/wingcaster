@@ -938,6 +938,34 @@ export interface PerformanceMetricBlock {
   published_posts: number
 }
 
+export type SavedSearchAlertChannel = 'email' | 'whatsapp' | 'inapp'
+export type SavedSearchAlertFrequency = 'instant' | 'daily' | 'weekly'
+
+export interface SavedSearch {
+  id: string
+  user_id: string | null
+  agent_id: string | null
+  contact_id: string | null
+  name: string
+  filters: Record<string, unknown>
+  filter_summary?: string
+  alert_enabled: boolean
+  alert_channel: SavedSearchAlertChannel
+  alert_frequency: SavedSearchAlertFrequency
+  last_alert_run_at: string | null
+  last_match_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SavedSearchInput {
+  name: string
+  filters?: Record<string, unknown>
+  alert_enabled?: boolean
+  alert_channel?: SavedSearchAlertChannel
+  alert_frequency?: SavedSearchAlertFrequency
+}
+
 export type BuyerOfferStatus = 'received' | 'countered' | 'accepted' | 'rejected' | 'withdrawn'
 export type BuyerOfferFinancing = 'cash' | 'mortgage' | 'mixed'
 
@@ -2416,8 +2444,8 @@ export const api = {
     fetchJson(`/properties/${id}/notes/${noteId}`, { method: 'DELETE' }),
   getListingReport: (id: string) => fetchJson(`/properties/${id}/report`),
 
-  // Saved searches
-  getSavedSearches: () => fetchJson('/saved-searches'),
+  // AGT-CMP-005 — saved searches (audience source)
+  getSavedSearches: () => fetchJson('/saved-searches') as Promise<{ saved_searches: SavedSearch[] }>,
   createSavedSearch: (name: string, filters: Record<string, unknown>) =>
     fetchJson('/saved-searches', {
       method: 'POST',
@@ -2429,16 +2457,16 @@ export const api = {
         alert_frequency: 'daily',
       }),
     }),
-  createSavedSearchWithAlerts: (data: {
-    name: string
-    filters: Record<string, unknown>
-    alert_enabled?: boolean
-    alert_channel?: 'email' | 'whatsapp' | 'inapp'
-    alert_frequency?: 'instant' | 'daily' | 'weekly'
-  }) => fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }),
-  updateSavedSearch: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  runSavedSearchAlerts: () => fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }),
+  createSavedSearchWithAlerts: (data: SavedSearchInput) =>
+    fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  updateSavedSearch: (id: string, data: Partial<SavedSearchInput>) =>
+    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  runSavedSearchAlerts: () => fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }) as Promise<{
+    ran_at: string
+    searches_processed: number
+    total_matches: number
+    results: Array<Record<string, unknown>>
+  }>,
   deleteSavedSearch: (id: string) =>
     fetchJson(`/saved-searches/${id}`, { method: 'DELETE' }),
 

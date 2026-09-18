@@ -120,15 +120,22 @@ export function CampaignsPage() {
       <CmdPageHeader
         title="Campaigns"
         subtitle="Drip sequences and nurture journeys"
-        actions={
-          isPro ? (
-            <Link to={newCampaignHref}>
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" /> New campaign
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <Link to="/settings/saved-searches">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                Saved searches
               </Button>
             </Link>
-          ) : null
-        }
+            {isPro ? (
+              <Link to={newCampaignHref}>
+                <Button size="sm" className="gap-1.5">
+                  <Plus className="h-4 w-4" /> New campaign
+                </Button>
+              </Link>
+            ) : null}
+          </div>
+        )}
       />
 
       <CmdKpiStrip

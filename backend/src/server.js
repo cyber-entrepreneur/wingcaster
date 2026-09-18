@@ -282,6 +282,7 @@ import {
   serializePublicReview,
 } from './lib/reviews/agent-review-routes.js'
 import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
+import { registerRoutes as registerSavedSearchRoutes } from './lib/campaigns/saved-search-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -879,6 +880,11 @@ registerPropertyDispositionRoutes(app, { authMiddleware })
 registerPersonalConnectionRoutes(app, { authMiddleware })
 registerCanonicalPropertyRoutes(app, { authMiddleware })
 registerAgentReviewRoutes(app, { authMiddleware })
+registerSavedSearchRoutes(app, {
+  authMiddleware,
+  runSavedSearchAlertsForUser,
+  logActivity,
+})
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
@@ -3882,72 +3888,6 @@ async function processConsumerJourneyAutomation({ agentId = null, forceAlerts = 
   return summary
 }
 
-// ==================== SAVED SEARCHES ====================
-app.get('/api/saved-searches', authMiddleware, async (req, res) => {
-  res.json(
-    (await findAll('saved_searches', s => s.user_id === req.user.id))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-  )
-})
-
-app.post('/api/saved-searches', authMiddleware, validate(savedSearchCreateSchema), async (req, res) => {
-  const body = req.validated
-  const ss = {
-    id: uuidv4(),
-    user_id: req.user.id,
-    name: body.name,
-    filters: body.filters || {},
-    alert_enabled: body.alert_enabled,
-    alert_channel: body.alert_channel,
-    alert_frequency: body.alert_frequency,
-    last_alert_run_at: null,
-    last_match_count: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-  await insert('saved_searches', ss)
-  res.json(ss)
-})
-
-app.patch('/api/saved-searches/:id', authMiddleware, validate(savedSearchUpdateSchema), async (req, res) => {
-  const row = await findOne('saved_searches', s => s.id === req.params.id && s.user_id === req.user.id)
-  if (!row) return res.status(404).json({ error: 'Saved search not found' })
-
-  const patch = req.validated
-  const next = {
-    ...row,
-    ...(patch.name !== undefined && { name: patch.name }),
-    ...(patch.filters !== undefined && { filters: patch.filters }),
-    ...(patch.alert_enabled !== undefined && { alert_enabled: patch.alert_enabled }),
-    ...(patch.alert_channel !== undefined && { alert_channel: patch.alert_channel }),
-    ...(patch.alert_frequency !== undefined && { alert_frequency: patch.alert_frequency }),
-    updated_at: new Date().toISOString(),
-  }
-  await update('saved_searches', s => s.id === row.id, () => next)
-  res.json(next)
-})
-
-app.post('/api/saved-searches/run-alerts', authMiddleware, async (req, res) => {
-  const result = await runSavedSearchAlertsForUser(req.user.id, { force: true })
-
-  await logActivity({
-    type: 'saved_search_alerts_run',
-    agent_id: req.user.id,
-    meta: {
-      searches: result.searches_processed,
-      total_matches: result.total_matches,
-      source: 'manual',
-    },
-  })
-
-  res.json({
-    ran_at: new Date().toISOString(),
-    searches_processed: result.searches_processed,
-    total_matches: result.total_matches,
-    results: result.results,
-  })
-})
-
 app.get('/api/notifications', authMiddleware, validateQuery(notificationQuerySchema), async (req, res) => {
   const q = req.validatedQuery
   let rows = await findAll('consumer_notifications', (n) => n.user_id === req.user.id)
@@ -4964,11 +4904,6 @@ app.post('/api/automation/consumer/run', authMiddleware, async (req, res) => {
     requestedBy: req.user.id,
   })
   res.json({ ran_at: new Date().toISOString(), scope, force_alerts: forceAlerts, summary })
-})
-
-app.delete('/api/saved-searches/:id', authMiddleware, async (req, res) => {
-  await remove('saved_searches', s => s.id === req.params.id && s.user_id === req.user.id)
-  res.json({ success: true })
 })
 
 async function logActivity(entry) {
