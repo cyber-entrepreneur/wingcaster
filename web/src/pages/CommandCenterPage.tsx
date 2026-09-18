@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  AlertTriangle, ArrowLeft, ArrowRight, Award, Building2, ChevronRight, Eye,
+  AlertTriangle, ArrowLeft, ArrowRight, Award, Bell, Building2, ChevronRight, Eye,
   Flame, Heart, Inbox, Loader2, MessageCircle, Settings2, Share2,
   Sparkles, TrendingUp, Users, ExternalLink,
 } from 'lucide-react'
@@ -93,6 +93,12 @@ export function CommandCenterPage() {
             <Button variant="outline" size="sm" className="gap-1.5">
               <Settings2 className="h-4 w-4" />
               Routing rules
+            </Button>
+          </Link>
+          <Link to="/settings/reminders">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Bell className="h-4 w-4" />
+              Reminder policies
             </Button>
           </Link>
           <Button size="sm" variant="ghost" onClick={load} disabled={loading} className="gap-1.5">

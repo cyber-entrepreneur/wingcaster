@@ -256,6 +256,7 @@ import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { registerRoutes as registerAssignableAgentsRoutes } from './lib/conversations/assignable-agents-routes.js'
+import { registerRoutes as registerReminderPolicyRoutes } from './lib/reminders/reminder-policy-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -413,11 +414,6 @@ import {
   autoEnrollContactsForCampaign,
 } from './campaigns.js'
 import {
-  createReminderPolicy,
-  getReminderPolicies,
-  getReminderPolicyById,
-  updateReminderPolicy,
-  deleteReminderPolicy,
   resolveReminderPolicy,
   evaluateReminderPolicy,
   markReminderSent,
@@ -4149,79 +4145,6 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
-// ==================== REMINDER POLICIES ====================
-app.get('/api/reminder-policies', authMiddleware, async (req, res) => {
-  res.json(await getReminderPolicies({
-    ownerType: req.query.owner_type,
-    ownerId: req.query.owner_id || req.user.id,
-    appointmentType: req.query.appointment_type,
-  }))
-})
-
-app.post('/api/reminder-policies', authMiddleware, async (req, res) => {
-  try {
-    const ownerType = req.body.owner_type || 'agent'
-    const ownerId = ownerType === 'agent' ? req.user.id : req.body.owner_id
-    if (ownerType === 'agency') {
-      const member = await findOne('agency_members', m => m.agency_id === ownerId && m.user_id === req.user.id && m.status === 'active')
-      if (!member || !['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Forbidden' })
-    }
-    const policy = await createReminderPolicy({
-      name: req.body.name,
-      ownerType,
-      ownerId,
-      appointmentType: req.body.appointment_type,
-      rules: req.body.rules || [],
-      isDefault: req.body.is_default,
-    })
-    await logActivity({ type: 'reminder_policy_created', agent_id: req.user.id, meta: { policy_id: policy.id, appointment_type: policy.appointment_type } })
-    res.status(201).json(policy)
-  } catch (e) {
-    res.status(400).json({ error: e.message })
-  }
-})
-
-app.get('/api/reminder-policies/:id', authMiddleware, async (req, res) => {
-  const policy = await getReminderPolicyById(req.params.id)
-  if (!policy) return res.status(404).json({ error: 'Not found' })
-  if (policy.owner_type === 'agent' && policy.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' })
-  if (policy.owner_type === 'agency') {
-    const member = await findOne('agency_members', m => m.agency_id === policy.owner_id && m.user_id === req.user.id && m.status === 'active')
-    if (!member) return res.status(403).json({ error: 'Forbidden' })
-  }
-  res.json(policy)
-})
-
-app.patch('/api/reminder-policies/:id', authMiddleware, async (req, res) => {
-  const policy = await getReminderPolicyById(req.params.id)
-  if (!policy) return res.status(404).json({ error: 'Not found' })
-  if (policy.owner_type === 'agent' && policy.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' })
-  if (policy.owner_type === 'agency') {
-    const member = await findOne('agency_members', m => m.agency_id === policy.owner_id && m.user_id === req.user.id && m.status === 'active')
-    if (!member || !['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Forbidden' })
-  }
-  try {
-    const updated = await updateReminderPolicy(req.params.id, req.body)
-    await logActivity({ type: 'reminder_policy_updated', agent_id: req.user.id, meta: { policy_id: req.params.id } })
-    res.json(updated)
-  } catch (e) {
-    res.status(400).json({ error: e.message })
-  }
-})
-
-app.delete('/api/reminder-policies/:id', authMiddleware, async (req, res) => {
-  const policy = await getReminderPolicyById(req.params.id)
-  if (!policy) return res.status(404).json({ error: 'Not found' })
-  if (policy.owner_type === 'agent' && policy.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' })
-  if (policy.owner_type === 'agency') {
-    const member = await findOne('agency_members', m => m.agency_id === policy.owner_id && m.user_id === req.user.id && m.status === 'active')
-    if (!member || !['owner', 'admin'].includes(member.role)) return res.status(403).json({ error: 'Forbidden' })
-  }
-  await deleteReminderPolicy(req.params.id)
-  await logActivity({ type: 'reminder_policy_deleted', agent_id: req.user.id, meta: { policy_id: req.params.id } })
-  res.json({ success: true })
-})
-
 // ==================== MESSAGE TEMPLATES ====================
 app.get('/api/message-templates', authMiddleware, async (req, res) => {
   const agentId = req.user.id
@@ -7682,6 +7605,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
 
 // BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
 registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
+registerReminderPolicyRoutes(app, { authMiddleware, logActivity })
 
 async function notifyAccountRecoveryApplicant({
   recoveryCase,

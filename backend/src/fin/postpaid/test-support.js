@@ -22,13 +22,21 @@ export async function seedActiveFacility(pool, world, {
   // replay of FACILITY:CREATE:{account}:USD with a different limitMinor.
   let chosen = currency || 'USD'
   if (!currency) {
-    const taken = await pool.query(
-      `SELECT 1 FROM fin.credit_facilities
-        WHERE billing_account_id = $1 AND environment = $2 AND currency = $3`,
-      [world.tenantA.billingAccountId, env.environment, 'USD'],
+    const { rows } = await pool.query(
+      `SELECT currency FROM fin.credit_facilities
+        WHERE billing_account_id = $1 AND environment = $2`,
+      [world.tenantA.billingAccountId, env.environment],
     )
-    if (taken.rowCount) {
-      chosen = `T${randomUUID().replace(/-/g, '').slice(0, 2).toUpperCase()}`
+    const taken = new Set(rows.map((row) => row.currency))
+    if (taken.has('USD')) {
+      let attempts = 0
+      do {
+        chosen = `T${randomUUID().replace(/-/g, '').slice(0, 2).toUpperCase()}`
+        attempts += 1
+      } while (taken.has(chosen) && attempts < 64)
+      if (taken.has(chosen)) {
+        throw new Error('seedActiveFacility: could not find unused test currency')
+      }
     }
   }
   const created = await createFacility({
