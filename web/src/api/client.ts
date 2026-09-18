@@ -1721,6 +1721,7 @@ export const api = {
   },
   createOpportunity: (data: Record<string, unknown>) =>
     fetchJson('/opportunities', { method: 'POST', body: JSON.stringify(data) }),
+  getOpportunity: (id: string) => fetchJson(`/opportunities/${id}`),
   updateOpportunity: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getConversations: (): Promise<InboxConversation[]> => fetchJson('/conversations'),
