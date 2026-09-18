@@ -25,6 +25,8 @@ import {
   terminateContract,
 } from '../../pricing/contracts.js'
 import { draftContractVersionBodySchema } from './contract-version-schemas.js'
+import { commandBody } from '../context.js'
+import { draftPriceVersionBodySchema } from './price-version-schemas.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -83,9 +85,13 @@ export function registerFinPricingAdminRoutes(app, { authMiddleware, requirePlat
 
   app.post('/api/admin/fin/prices/:id/versions', writeGuards, async (req, res, next) => {
     try {
+      const parsed = draftPriceVersionBodySchema.safeParse(commandBody(req))
+      if (!parsed.success) {
+        return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+      }
       const result = await draftPriceVersion({
         ...actorFrom(req),
-        ...req.body,
+        ...parsed.data,
         priceId: req.params.id,
       })
       setETag(res, result.version)
