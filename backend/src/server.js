@@ -90,7 +90,7 @@ import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
 import { resolveRequestCreditTenant, creditContextFromRequest, creditTenantIdForScope } from './lib/credits/tenant-context.js'
-import { handleStripeWebhook } from './fin/funding/http.js'
+import { handleStripeWebhook, handlePaddleWebhook } from './fin/funding/http.js'
 import { sendPlatformNotification } from './notifications/platform-templates/index.js'
 import {
   createAgentAccount,
@@ -637,12 +637,21 @@ const captureRawBody = (req, _res, buf) => { req.rawBody = Buffer.from(buf) }
 app.use('/api/webhooks', express.json({ verify: captureRawBody, limit: '1mb' }))
 app.use('/api/webhooks/sms', express.urlencoded({ extended: false, verify: captureRawBody, limit: '1mb' }))
 app.use('/webhooks/stripe', express.json({ verify: captureRawBody, limit: '1mb' }))
+app.use('/webhooks/paddle', express.json({ verify: captureRawBody, limit: '1mb' }))
 app.use(express.json({ limit: '12mb' }))
 app.use(wingcasterEnvMiddleware)
 
 app.post('/webhooks/stripe', async (req, res, next) => {
   try {
     return await handleStripeWebhook(req, res)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.post('/webhooks/paddle', async (req, res, next) => {
+  try {
+    return await handlePaddleWebhook(req, res)
   } catch (err) {
     next(err)
   }

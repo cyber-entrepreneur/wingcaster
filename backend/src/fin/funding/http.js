@@ -121,3 +121,13 @@ export async function handleStripeWebhook(req, res) {
   if (result.retryAfter) res.set('Retry-After', String(result.retryAfter))
   return res.status(result.httpStatus).json(result.body)
 }
+
+export async function handlePaddleWebhook(req, res) {
+  const result = await confirmWebhook(req.rawBody || req.body, req.headers, {
+    provider: 'PADDLE',
+    secret: process.env.PADDLE_WEBHOOK_SECRET,
+    environment: process.env.FIN_ENVIRONMENT || 'LIVE',
+  })
+  if (result.retryAfter) res.set('Retry-After', String(result.retryAfter))
+  return res.status(result.httpStatus).json(result.body)
+}
