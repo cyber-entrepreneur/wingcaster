@@ -203,6 +203,7 @@ const TABLE_MAP = {
   price_history: { schema: 'public', table: 'price_history', columns: ['property_id', 'price', 'price_unit', 'source', 'recorded_at'] },
   property_offers: { schema: 'public', table: 'property_offers', columns: ['property_id', 'agent_id', 'contact_id', 'offeror_name', 'amount', 'currency', 'offer_date', 'terms', 'financing_type', 'expiry_date', 'conditions', 'status', 'notes', 'created_at', 'updated_at'] },
   scheduled_publications: { schema: 'public', table: 'scheduled_publications', columns: ['property_id', 'agent_id', 'agency_id', 'portals', 'message', 'scheduled_at', 'timezone', 'recurrence', 'status', 'job_id', 'attempts', 'last_error', 'last_fired_at', 'created_at', 'updated_at'] },
+  platform_status_notices: { schema: 'public', table: 'platform_status_notices', columns: ['status', 'title', 'body', 'learn_more_url', 'active', 'starts_at', 'ends_at', 'created_by', 'created_at', 'updated_at'] },
   neighborhood_stats: { schema: 'public', table: 'neighborhood_stats', columns: ['name', 'city', 'metric', 'value', 'updated_at'] },
   saved_searches: { schema: 'public', table: 'saved_searches', columns: ['agent_id', 'contact_id', 'name', 'filters', 'alert_settings'] },
 
