@@ -85,6 +85,12 @@ export function Footer() {
             <a href="/terms" className="hover:text-[var(--lc-text-primary)]">
               Terms of Service
             </a>
+            <a href="/refund" className="hover:text-[var(--lc-text-primary)]">
+              Refund Policy
+            </a>
+            <a href="/cookies" className="hover:text-[var(--lc-text-primary)]">
+              Cookies
+            </a>
           </div>
         </div>
       </div>
