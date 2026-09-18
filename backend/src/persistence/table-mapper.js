@@ -73,6 +73,14 @@ const TABLE_MAP = {
       'show_contact_form', 'hero_title', 'hero_body', 'meta_description', 'updated_by',
     ],
   },
+  agency_site_config: {
+    schema: 'public',
+    table: 'agency_site_config',
+    columns: [
+      'agency_id', 'template_id', 'logo_url', 'favicon_url', 'primary_color', 'accent_color',
+      'font_pair', 'copy_fields', 'custom_domain', 'ssl_status', 'published_at',
+    ],
+  },
   agency_applications: {
     schema: 'public',
     table: 'agency_applications',
