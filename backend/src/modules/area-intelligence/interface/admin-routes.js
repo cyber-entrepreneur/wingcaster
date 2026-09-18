@@ -3,6 +3,7 @@ import { authMiddleware, requireElevated } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { AreaStatus } from '../domain/types.js'
 import { aiSynthesis } from '../domain/scoring/ai-synthesis.js'
+import { scoringCalculateBodySchema } from './scoring-calculate-schemas.js'
 
 const aiConfigFields = {
   name: z.string().trim().min(2).max(120),
@@ -462,31 +463,65 @@ export function registerAdminRoutes(
     }
   })
 
-  app.post('/api/admin/scoring/calculate', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/scoring/calculate', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
     try {
-      const { area_id } = req.body
-      if (!area_id) return res.status(400).json({ error: 'area_id is required' })
+      const parsed = scoringCalculateBodySchema.safeParse(req.body || {})
+      if (!parsed.success) {
+        return validationError(res, parsed)
+      }
 
-      const area = await areaService.getById(area_id)
+      const scope = parsed.data.scope || 'one_area'
+      const dimensionFilter = parsed.data.dimension_id || null
+
+      async function calculateArea(area) {
+        const dimensions = await dimensionService.list({ isActive: true })
+        const selectedDimensions = dimensionFilter
+          ? dimensions.filter((row) => row.id === dimensionFilter)
+          : dimensions
+        if (dimensionFilter && !selectedDimensions.length) {
+          throw Object.assign(new Error('Dimension not found or inactive'), { status: 404 })
+        }
+
+        const signals = await signalService.list({ areaId: area.id, limit: 10000 })
+        const submissions = await inspectorService.listSubmissions({
+          areaId: area.id,
+          status: 'approved',
+          limit: 10000,
+        })
+        const aiConfig = await aiConfigService.getActive()
+        const results = await scoreService.calculateForArea(area, selectedDimensions, {
+          signals: signals.items || [],
+          submissions: submissions || [],
+          aiConfig,
+        })
+        return { area_id: area.id, calculated: results.length, results }
+      }
+
+      if (scope === 'all_areas') {
+        const { items } = await areaService.list({
+          status: AreaStatus.SCORING_ENABLED,
+          limit: 10000,
+        })
+        const batch = []
+        for (const area of items) {
+          batch.push(await calculateArea(area))
+        }
+        return res.json({
+          scope,
+          areas: items.length,
+          calculated: batch.reduce((sum, row) => sum + row.calculated, 0),
+          results: batch,
+        })
+      }
+
+      const areaId = parsed.data.area_id
+      const area = await areaService.getById(areaId)
       if (!area) return res.status(404).json({ error: 'Area not found' })
 
-      const dimensions = await dimensionService.list({ isActive: true })
-      const signals = await signalService.list({ areaId: area.id, limit: 10000 })
-      const submissions = await inspectorService.listSubmissions({
-        areaId: area.id,
-        status: 'approved',
-        limit: 10000,
-      })
-      const aiConfig = await aiConfigService.getActive()
-
-      const results = await scoreService.calculateForArea(area, dimensions, {
-        signals: signals.items || [],
-        submissions: submissions || [],
-        aiConfig,
-      })
-
-      res.json({ area_id: area.id, calculated: results.length, results })
+      const payload = await calculateArea(area)
+      return res.json({ scope, ...payload })
     } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: err.message })
       logger.error({ err: err.message }, 'Failed to calculate scores')
       res.status(500).json({ error: err.message })
     }

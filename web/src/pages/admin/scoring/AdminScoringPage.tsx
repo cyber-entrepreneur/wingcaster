@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { useStepUp } from '@/context/StepUpContext'
 import { useToast } from '@/components/ui/toast'
+import { RecalculateScoresDialog } from './RecalculateScoresDialog'
 
 interface ScoringLogicConfig {
   logic?: string
@@ -46,6 +47,12 @@ interface AiConfig {
   is_active: boolean
 }
 
+interface AreaRow {
+  id: string
+  name: string
+  status?: string
+}
+
 interface Signal {
   id: string
   signal_type: string
@@ -64,6 +71,8 @@ export function AdminScoringPage() {
   const [aiConfigs, setAiConfigs] = useState<AiConfig[]>([])
   const [signals, setSignals] = useState<{ items: Signal[]; total: number }>({ items: [], total: 0 })
   const [usage, setUsage] = useState<GoogleUsageSummary | null>(null)
+  const [areas, setAreas] = useState<AreaRow[]>([])
+  const [recalcOpen, setRecalcOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const [newDim, setNewDim] = useState({ name: '', slug: '', name_ar: '', scoring_logic_config: '{"logic":"weighted_average"}' })
@@ -78,19 +87,21 @@ export function AdminScoringPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [dims, srcs, cfgs, sigs, use] = await Promise.all([
+      const [dims, srcs, cfgs, sigs, use, areaList] = await Promise.all([
         api.listAdminDimensions() as Promise<{ items: Dimension[] }>,
         api.listAdminSourceTypes() as Promise<{ items: SourceType[] }>,
         api.listAdminAiConfigs() as Promise<{ items: AiConfig[] }>,
         api.listAdminSignals({ limit: '50' }) as Promise<{ items: Signal[]; total: number }>,
         // fetch/JSON boundary — admin Google usage payload is untyped on the client
         api.getAdminGoogleUsage() as Promise<GoogleUsageSummary>,
+        api.listAdminAreas({ status: 'scoring_enabled', limit: '500' }) as Promise<{ items: AreaRow[] }>,
       ])
       setDimensions(dims.items)
       setSourceTypes(srcs.items)
       setAiConfigs(cfgs.items)
       setSignals(sigs)
       setUsage(use)
+      setAreas(areaList.items || [])
     } catch (err: unknown) {
       addToast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to load scoring data', variant: 'error' })
     } finally {
@@ -174,8 +185,21 @@ export function AdminScoringPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="mb-4 text-2xl font-bold">Area Scoring Admin</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Area Scoring Admin</h1>
+        <Button size="sm" onClick={() => setRecalcOpen(true)}>
+          Recalculate scores
+        </Button>
+      </div>
       {loading && <p className="mb-4 text-sm text-muted-foreground">Loading...</p>}
+
+      <RecalculateScoresDialog
+        open={recalcOpen}
+        onOpenChange={setRecalcOpen}
+        areas={areas}
+        dimensions={dimensions}
+        onStarted={loadAll}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
