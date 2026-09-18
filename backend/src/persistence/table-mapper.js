@@ -456,7 +456,14 @@ const TABLE_MAP = {
     table: 'ai_scoring_configs',
     columns: [
       'name', 'description', 'provider', 'model', 'temperature', 'max_tokens',
-      'system_prompt', 'scoring_prompt_template', 'output_schema', 'is_active',
+      'system_prompt', 'scoring_prompt_template', 'output_schema', 'is_active', 'version',
+    ],
+  },
+  ai_scoring_config_versions: {
+    schema: 'area_intelligence',
+    table: 'ai_scoring_config_versions',
+    columns: [
+      'config_id', 'version', 'snapshot', 'created_by',
     ],
   },
   area_google_scores: {

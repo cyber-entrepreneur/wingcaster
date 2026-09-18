@@ -16,7 +16,23 @@ export function createAiConfigService({ config, logger }) {
     return findOneModule('ai_scoring_configs', (c) => c.is_active)
   }
 
-  async function create(payload) {
+  async function recordVersion(cfg, actorId) {
+    return insertModule('ai_scoring_config_versions', {
+      id: uuidv4(),
+      config_id: cfg.id,
+      version: cfg.version,
+      snapshot: JSON.stringify(cfg),
+      created_by: actorId || null,
+      created_at: new Date().toISOString(),
+    })
+  }
+
+  async function listVersions(configId) {
+    const rows = await findAllModule('ai_scoring_config_versions', (row) => row.config_id === configId)
+    return rows.sort((a, b) => Number(b.version) - Number(a.version))
+  }
+
+  async function create(payload, actorId) {
     const now = new Date().toISOString()
     const cfg = {
       id: uuidv4(),
@@ -30,16 +46,23 @@ export function createAiConfigService({ config, logger }) {
       scoring_prompt_template: payload.scoring_prompt_template,
       output_schema: JSON.stringify(payload.output_schema || {}),
       is_active: payload.is_active ?? true,
+      version: 1,
       created_at: now,
       updated_at: now,
     }
-    return insertModule('ai_scoring_configs', cfg)
+    const created = await insertModule('ai_scoring_configs', cfg)
+    await recordVersion(created, actorId)
+    return created
   }
 
-  async function updateConfig(id, patch) {
+  async function updateConfig(id, patch, actorId) {
     const existing = await getById(id)
     if (!existing) return null
-    const updates = { ...existing, updated_at: new Date().toISOString() }
+    const updates = {
+      ...existing,
+      version: Number(existing.version || 1) + 1,
+      updated_at: new Date().toISOString(),
+    }
     const allowed = [
       'name',
       'description',
@@ -60,6 +83,7 @@ export function createAiConfigService({ config, logger }) {
       }
     }
     await updateModule('ai_scoring_configs', (c) => c.id === id, () => updates)
+    await recordVersion(updates, actorId)
     return updates
   }
 
@@ -67,5 +91,13 @@ export function createAiConfigService({ config, logger }) {
     return removeModule('ai_scoring_configs', (c) => c.id === id)
   }
 
-  return { list, getById, getActive, create, update: updateConfig, remove: removeConfig }
+  return {
+    list,
+    getById,
+    getActive,
+    listVersions,
+    create,
+    update: updateConfig,
+    remove: removeConfig,
+  }
 }

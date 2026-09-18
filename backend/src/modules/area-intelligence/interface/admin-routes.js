@@ -1,6 +1,35 @@
-import { authMiddleware } from '../../../auth.js'
+import { z } from 'zod'
+import { authMiddleware, requireElevated } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { AreaStatus } from '../domain/types.js'
+import { aiSynthesis } from '../domain/scoring/ai-synthesis.js'
+
+const aiConfigFields = {
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(500).optional(),
+  provider: z.string().trim().min(2).max(80),
+  model: z.string().trim().min(1).max(160),
+  temperature: z.number().min(0).max(2),
+  max_tokens: z.number().int().min(128).max(32768),
+  system_prompt: z.string().trim().min(20).max(20000),
+  scoring_prompt_template: z.string().trim().min(20).max(20000),
+  output_schema: z.record(z.unknown()).optional(),
+  is_active: z.boolean(),
+}
+
+const AiConfigCreate = z.object(aiConfigFields).strict()
+const AiConfigUpdate = z.object(aiConfigFields).partial().strict()
+const AiConfigPreview = z.object({
+  area_id: z.string().trim().min(1).max(120),
+  dimension_id: z.string().trim().min(1).max(120),
+}).strict()
+
+function validationError(res, parsed) {
+  return res.status(400).json({
+    code: 'VALIDATION_ERROR',
+    fields: parsed.error.flatten().fieldErrors,
+  })
+}
 
 export function registerAdminRoutes(
   app,
@@ -232,9 +261,11 @@ export function registerAdminRoutes(
     }
   })
 
-  app.post('/api/admin/scoring/ai-configs', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/scoring/ai-configs', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
+    const parsed = AiConfigCreate.safeParse(req.body)
+    if (!parsed.success) return validationError(res, parsed)
     try {
-      const cfg = await aiConfigService.create(req.body)
+      const cfg = await aiConfigService.create(parsed.data, req.user.id)
       res.status(201).json(cfg)
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to create AI config')
@@ -253,13 +284,65 @@ export function registerAdminRoutes(
     }
   })
 
-  app.put('/api/admin/scoring/ai-configs/:id', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.put('/api/admin/scoring/ai-configs/:id', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
+    const parsed = AiConfigUpdate.safeParse(req.body)
+    if (!parsed.success) return validationError(res, parsed)
     try {
-      const cfg = await aiConfigService.update(req.params.id, req.body)
+      const cfg = await aiConfigService.update(req.params.id, parsed.data, req.user.id)
       if (!cfg) return res.status(404).json({ error: 'AI config not found' })
       res.json(cfg)
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to update AI config')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  app.get('/api/admin/scoring/ai-configs/:id/versions', authMiddleware, requirePlatformAdmin, async (req, res) => {
+    try {
+      const cfg = await aiConfigService.getById(req.params.id)
+      if (!cfg) return res.status(404).json({ error: 'AI config not found' })
+      const items = await aiConfigService.listVersions(req.params.id)
+      res.json({ items })
+    } catch (err) {
+      logger.error({ err: err.message }, 'Failed to list AI config versions')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  app.post('/api/admin/scoring/ai-configs/:id/preview', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
+    const parsed = AiConfigPreview.safeParse(req.body)
+    if (!parsed.success) return validationError(res, parsed)
+    try {
+      const [cfg, area, dimension] = await Promise.all([
+        aiConfigService.getById(req.params.id),
+        areaService.getById(parsed.data.area_id),
+        dimensionService.getById(parsed.data.dimension_id),
+      ])
+      if (!cfg || !area || !dimension) {
+        return res.status(404).json({ code: 'PREVIEW_INPUT_NOT_FOUND' })
+      }
+      const signals = await signalService.list({
+        areaId: area.id,
+        status: 'verified',
+        limit: 100,
+      })
+      const result = await aiSynthesis({
+        dimension,
+        signals: signals.items || [],
+        area,
+        aiConfig: cfg,
+        config,
+        logger,
+      })
+      res.json({
+        config_id: cfg.id,
+        config_version: Number(cfg.version || 1),
+        area: { id: area.id, name: area.name },
+        dimension: { id: dimension.id, name: dimension.name },
+        result,
+      })
+    } catch (err) {
+      logger.error({ err: err.message }, 'Failed to preview AI config')
       res.status(500).json({ error: err.message })
     }
   })

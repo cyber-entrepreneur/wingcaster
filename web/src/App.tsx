@@ -73,6 +73,7 @@ import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
+import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
@@ -260,6 +261,7 @@ function AppRoutes() {
       <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
+      <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
