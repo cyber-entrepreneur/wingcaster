@@ -262,6 +262,7 @@ import {
   findAgentPrimaryConnection,
   registerRoutes as registerPersonalConnectionRoutes,
 } from './lib/social/personal-connections-routes.js'
+import { registerRoutes as registerCanonicalPropertyRoutes } from './lib/listings/canonical-property-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -848,6 +849,7 @@ registerScheduledPublishRoutes(app, { authMiddleware })
 registerAssignableAgentsRoutes(app, { authMiddleware })
 registerPropertyDispositionRoutes(app, { authMiddleware })
 registerPersonalConnectionRoutes(app, { authMiddleware })
+registerCanonicalPropertyRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {

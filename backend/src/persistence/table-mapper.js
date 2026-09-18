@@ -202,6 +202,15 @@ const TABLE_MAP = {
   },
   property_media: { schema: 'public', table: 'property_media', columns: ['property_id', 'type', 'url', 'order_index', 'is_hero', 'caption'] },
   canonical_properties: { schema: 'public', table: 'canonical_properties', columns: ['primary_listing_id', 'location', 'latitude', 'longitude', 'city', 'neighborhood'] },
+  canonical_primary_disputes: {
+    schema: 'public',
+    table: 'canonical_primary_disputes',
+    columns: [
+      'canonical_id', 'listing_id', 'requester_agent_id', 'requester_agency_id',
+      'mandate_type', 'mandate_reference', 'evidence_notes', 'status',
+      'resolved_by', 'resolution_notes', 'resolved_at',
+    ],
+  },
   price_history: { schema: 'public', table: 'price_history', columns: ['property_id', 'price', 'price_unit', 'source', 'recorded_at'] },
   property_offers: { schema: 'public', table: 'property_offers', columns: ['property_id', 'agent_id', 'contact_id', 'offeror_name', 'amount', 'currency', 'offer_date', 'terms', 'financing_type', 'expiry_date', 'conditions', 'status', 'notes', 'created_at', 'updated_at'] },
   scheduled_publications: { schema: 'public', table: 'scheduled_publications', columns: ['property_id', 'agent_id', 'agency_id', 'portals', 'message', 'scheduled_at', 'timezone', 'recurrence', 'status', 'job_id', 'attempts', 'last_error', 'last_fired_at', 'created_at', 'updated_at'] },

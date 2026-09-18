@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
@@ -38,6 +38,10 @@ import type {
 
 /** Property fields used on this page that are not always present on the shared Property type. */
 type ListingProperty = Property & { area_id?: string; area_profile_id?: string }
+
+const CanonicalPropertyBanner = lazy(
+  () => import('@/components/listings/CanonicalPropertyBanner'),
+)
 
 interface Viewing {
   id: string
@@ -311,6 +315,19 @@ export function ListingProfilePage() {
           </Button>
         </div>
       )}
+
+      {isOwner && property.canonical_id ? (
+        <Suspense
+          fallback={
+            <div
+              className="mb-4 h-32 animate-pulse rounded-[var(--lc-radius-lg)] bg-[var(--lc-surface-sunken)]"
+              aria-label="Loading canonical property details"
+            />
+          }
+        >
+          <CanonicalPropertyBanner listingId={property.id} />
+        </Suspense>
+      ) : null}
 
       {/* Gallery */}
       <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
