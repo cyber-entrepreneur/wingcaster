@@ -10,6 +10,38 @@ ALTER TABLE public.agencies
   ADD COLUMN IF NOT EXISTS brand_updated_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS brand_updated_by TEXT REFERENCES public.users(id) ON DELETE SET NULL;
 
+-- Legacy agency identity fields lived only in the JSONB document. Backfill
+-- before typed columns take precedence during hydration.
+UPDATE public.agencies
+SET
+  description = COALESCE(description, NULLIF(data->>'description', '')),
+  logo_url = COALESCE(logo_url, NULLIF(data->>'logo_url', ''), NULLIF(data->>'logo', '')),
+  favicon_url = COALESCE(favicon_url, NULLIF(data->>'favicon_url', '')),
+  brand_primary_color = COALESCE(
+    brand_primary_color,
+    CASE
+      WHEN COALESCE(NULLIF(data->>'brand_primary_color', ''), NULLIF(data->>'primary_color', ''))
+        ~ '^#[0-9A-Fa-f]{6}$'
+      THEN UPPER(COALESCE(NULLIF(data->>'brand_primary_color', ''), NULLIF(data->>'primary_color', '')))
+    END
+  ),
+  brand_accent_color = COALESCE(
+    brand_accent_color,
+    CASE
+      WHEN COALESCE(NULLIF(data->>'brand_accent_color', ''), NULLIF(data->>'secondary_color', ''))
+        ~ '^#[0-9A-Fa-f]{6}$'
+      THEN UPPER(COALESCE(NULLIF(data->>'brand_accent_color', ''), NULLIF(data->>'secondary_color', '')))
+    END
+  ),
+  brand_font_family = COALESCE(
+    brand_font_family,
+    CASE
+      WHEN COALESCE(NULLIF(data->>'brand_font_family', ''), NULLIF(data->>'font_family', ''))
+        IN ('system', 'ibm-plex-sans', 'archivo', 'playfair-display')
+      THEN COALESCE(NULLIF(data->>'brand_font_family', ''), NULLIF(data->>'font_family', ''))
+    END
+  );
+
 ALTER TABLE public.agencies
   DROP CONSTRAINT IF EXISTS agencies_brand_primary_color_format,
   ADD CONSTRAINT agencies_brand_primary_color_format

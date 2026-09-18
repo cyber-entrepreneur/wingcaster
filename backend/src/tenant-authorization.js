@@ -123,15 +123,27 @@ export async function createAgencyWithOwner({ agency, ownerUserId, membershipId 
   await transaction(async (client) => {
     await client.query(
       `INSERT INTO agencies (
-        id, owner_id, name, slug, license_number, site_hosting_type, cta_config,
-        created_at, updated_at, data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::timestamptz, $9::timestamptz, $10::jsonb)`,
+        id, owner_id, name, slug, license_number, description, logo_url, favicon_url,
+        brand_primary_color, brand_accent_color, brand_font_family, brand_updated_at,
+        brand_updated_by, site_hosting_type, cta_config, created_at, updated_at, data
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz,
+        $13, $14, $15::jsonb, $16::timestamptz, $17::timestamptz, $18::jsonb
+      )`,
       [
         agency.id,
         ownerUserId,
         agency.name,
         agency.slug || null,
         agency.license_number || null,
+        agency.description || null,
+        agency.logo_url || agency.logo || null,
+        agency.favicon_url || null,
+        agency.brand_primary_color || agency.primary_color || null,
+        agency.brand_accent_color || agency.secondary_color || null,
+        agency.brand_font_family || agency.font_family || null,
+        agency.brand_updated_at || null,
+        agency.brand_updated_by || null,
         agency.site_hosting_type || 'none',
         JSON.stringify(agency.cta_config || {}),
         now,
