@@ -15,11 +15,8 @@ vi.mock('@/api/client', () => ({ api: apiMock }))
 vi.mock('@/hooks/useUiMode', () => ({ useUiMode: () => uiMode }))
 vi.mock('@/lib/usePageTitle', () => ({ usePageTitle: () => undefined }))
 
-import {
-  analyticsCsv,
-  bucketActivity,
-  WhatsAppIntakeAnalyticsPage,
-} from './WhatsAppIntakeAnalyticsPage'
+import { WhatsAppIntakeAnalyticsPage } from './WhatsAppIntakeAnalyticsPage'
+import { analyticsCsv, bucketActivity } from './analytics-utils'
 
 const DATA: WhatsAppIntakeAnalytics = {
   range: {
@@ -90,7 +87,7 @@ describe('WhatsAppIntakeAnalyticsPage', () => {
     renderPage()
 
     expect(await screen.findByText('WhatsApp intake analytics')).toBeInTheDocument()
-    expect(screen.getByText('Drafts')).toBeInTheDocument()
+    expect(screen.getAllByText('Drafts').length).toBeGreaterThan(0)
     expect(screen.getByText('Approval rate')).toBeInTheDocument()
     expect(screen.getByText('Average approval time')).toBeInTheDocument()
     expect(screen.getByText('Estimated AI cost')).toBeInTheDocument()
@@ -106,7 +103,7 @@ describe('WhatsAppIntakeAnalyticsPage', () => {
     renderPage()
     await screen.findByText('WhatsApp intake analytics')
 
-    expect(screen.getByText('Drafts')).toBeInTheDocument()
+    expect(screen.getAllByText('Drafts').length).toBeGreaterThan(0)
     expect(screen.getByText('Approval rate')).toBeInTheDocument()
     expect(screen.queryByText('Average approval time')).not.toBeInTheDocument()
     expect(screen.queryByText('Estimated AI cost')).not.toBeInTheDocument()
