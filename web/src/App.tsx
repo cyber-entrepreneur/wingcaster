@@ -112,6 +112,8 @@ import { PublicWhiteLabelPropertyPage } from '@/pages/PublicWhiteLabelPropertyPa
 import { PublicAgencyApplyPage } from '@/pages/PublicAgencyApplyPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
+import { RefundPolicyPage } from '@/pages/RefundPolicyPage'
+import { CookieNoticePage } from '@/pages/CookieNoticePage'
 import { PlansPage } from '@/pages/PlansPage'
 import { MySubscriptionPage } from '@/pages/MySubscriptionPage'
 import { MyCreditsPage } from '@/pages/MyCreditsPage'
@@ -139,6 +141,8 @@ const BARE_CHROME_PREFIXES = [
   '/join/',
   '/terms',
   '/privacy',
+  '/refund',
+  '/cookies',
   '/onboarding',
   '/activate',
 ] as const
@@ -328,6 +332,8 @@ function AppRoutes() {
       <Route path="/site/:subdomain/property/:propertyId" element={<PublicWhiteLabelPropertyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/refund" element={<RefundPolicyPage />} />
+      <Route path="/cookies" element={<CookieNoticePage />} />
       {onboardingRoutes}
       {activationRoutes}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
