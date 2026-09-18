@@ -1,25 +1,26 @@
 /**
- * CampaignBuilderPage — multi-step wizard for creating / editing a campaign.
- * Step 1: Basics (name, trigger, channel)
- * Step 2: Audience (target rules / tags)
- * Step 3: Steps (message sequence editor)
- * Step 4: Review + publish
+ * AGT-CMP-002 — Guided campaign builder wizard.
+ * Steps: Goal → Audience → Content → Channels → Schedule → Review.
  */
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
+  Calendar,
   Check,
   ChevronDown,
   ChevronUp,
+  Clock,
   Loader2,
   Mail,
   Megaphone,
   MessageSquare,
   Phone,
   Plus,
+  Search,
   Trash2,
+  Users,
   Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,13 @@ import { usePageTitle } from '@/lib/usePageTitle'
 import { cn } from '@/lib/utils'
 import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
+import { Numeric } from '@/components/ui/numeric'
+import {
+  CAMPAIGN_GOALS,
+  applyCampaignGoalPreset,
+  getCampaignGoal,
+  type CampaignGoalId,
+} from '@/components/campaigns/campaign-goals'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -69,14 +77,28 @@ interface AudienceRule {
   value: string
 }
 
+type AudienceSource = 'saved_search' | 'tags' | 'manual'
+
+interface SavedSearchOption {
+  id: string
+  name: string
+  filters?: Record<string, unknown>
+  alert_on_new?: boolean
+}
+
 interface FormState {
+  goal_id: CampaignGoalId
   name: string
   description: string
   trigger: string
   target_channel: string
+  audience_source: AudienceSource
+  saved_search_id: string
   tags_filter: string[]
   audience_rules: AudienceRule[]
   steps: Step[]
+  launch_mode: 'now' | 'later'
+  scheduled_at: string
 }
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -108,7 +130,13 @@ const AUDIENCE_OPERATORS: { value: AudienceRule['operator']; label: string }[] =
   { value: 'contains', label: 'contains' },
 ]
 
-const WIZARD_STEPS = ['Basics', 'Audience', 'Steps', 'Review']
+const WIZARD_STEPS = ['Goal', 'Audience', 'Content', 'Channels', 'Schedule', 'Review']
+
+const CHANNEL_COST_CREDITS: Record<string, number> = {
+  email: 1,
+  whatsapp: 3,
+  sms: 2,
+}
 
 const EMPTY_STEP: Step = { delay_hours: 0, channel: 'email', template_id: null, subject: '', body: '' }
 
@@ -338,8 +366,27 @@ function StepEditor({
 
 // ─── main component ────────────────────────────────────────────────────────────
 
+function applyGoalToForm(goalId: CampaignGoalId, current: FormState): FormState {
+  const goal = getCampaignGoal(goalId)
+  if (!goal?.preset) {
+    return { ...current, goal_id: goalId }
+  }
+  const preset = applyCampaignGoalPreset(goal.preset)
+  return {
+    ...current,
+    goal_id: goalId,
+    name: preset.name,
+    description: preset.description,
+    trigger: preset.trigger,
+    target_channel: preset.target_channel,
+    tags_filter: preset.tags_filter,
+    steps: preset.steps.map((step) => ({ ...step, template_id: null })),
+  }
+}
+
 export function CampaignBuilderPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { agent } = useAuth()
   const { addToast } = useToast()
   usePageTitle('New Campaign')
@@ -347,19 +394,33 @@ export function CampaignBuilderPage() {
   const [wizardStep, setWizardStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [tagInput, setTagInput] = useState('')
+  const [savedSearches, setSavedSearches] = useState<SavedSearchOption[]>([])
+  const [savedSearchesLoading, setSavedSearchesLoading] = useState(false)
 
   const [form, setForm] = useState<FormState>({
+    goal_id: 'custom',
     name: '',
     description: '',
     trigger: 'manual',
     target_channel: 'email',
+    audience_source: 'tags',
+    saved_search_id: '',
     tags_filter: [],
     audience_rules: [],
     steps: [{ ...EMPTY_STEP }],
+    launch_mode: 'now',
+    scheduled_at: '',
   })
 
   const [templates, setTemplates] = useState<Template[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
+
+  useEffect(() => {
+    const goalParam = searchParams.get('goal') as CampaignGoalId | null
+    if (goalParam && getCampaignGoal(goalParam)) {
+      setForm((current) => applyGoalToForm(goalParam, current))
+    }
+  }, [searchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -379,6 +440,34 @@ export function CampaignBuilderPage() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setSavedSearchesLoading(true)
+    api
+      .getSavedSearches()
+      .then((rows) => {
+        if (!cancelled) setSavedSearches(Array.isArray(rows) ? (rows as SavedSearchOption[]) : [])
+      })
+      .catch(() => {
+        if (!cancelled) setSavedSearches([])
+      })
+      .finally(() => {
+        if (!cancelled) setSavedSearchesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const estimatedCredits = useMemo(() => {
+    return form.steps.reduce((sum, step) => sum + (CHANNEL_COST_CREDITS[step.channel] || 1), 0)
+  }, [form.steps])
+
+  const selectedSavedSearch = useMemo(
+    () => savedSearches.find((search) => search.id === form.saved_search_id),
+    [form.saved_search_id, savedSearches],
+  )
 
   // ─ helpers ─
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -413,10 +502,20 @@ export function CampaignBuilderPage() {
     setField('target_channel', t.steps[0]?.channel || 'email')
   }
 
+  const selectGoal = (goalId: CampaignGoalId) => {
+    setForm((current) => applyGoalToForm(goalId, current))
+  }
+
   // ─ validation ─
   const canAdvance = (): boolean => {
     if (wizardStep === 0) return form.name.trim().length >= 2
+    if (wizardStep === 1) {
+      if (form.audience_source === 'saved_search') return Boolean(form.saved_search_id)
+      if (form.audience_source === 'tags') return form.tags_filter.length > 0 || form.audience_rules.length > 0
+      return true
+    }
     if (wizardStep === 2) return form.steps.every((s) => Boolean(s.template_id) || s.body.trim().length > 0)
+    if (wizardStep === 4 && form.launch_mode === 'later') return Boolean(form.scheduled_at)
     return true
   }
 
@@ -424,16 +523,35 @@ export function CampaignBuilderPage() {
   const handleSave = async (status: 'draft' | 'active') => {
     setSaving(true)
     try {
+      const tags = [...form.tags_filter]
+      if (form.audience_source === 'saved_search' && form.saved_search_id) {
+        tags.push(`saved_search:${form.saved_search_id}`)
+      }
+      const scheduleNote =
+        form.launch_mode === 'later' && form.scheduled_at
+          ? `Scheduled launch: ${new Date(`${form.scheduled_at}T09:00:00`).toLocaleString()}`
+          : ''
+      const description = [form.description.trim(), scheduleNote].filter(Boolean).join('\n\n')
+      const resolvedStatus =
+        form.launch_mode === 'later' && status === 'active' ? 'draft' : status
+
       await api.createCampaign({
         name: form.name.trim(),
-        description: form.description.trim(),
-        status,
+        description,
+        status: resolvedStatus,
         trigger: form.trigger,
         target_channel: form.target_channel,
-        tags_filter: form.tags_filter,
+        tags_filter: tags,
         steps: form.steps,
       })
-      addToast({ title: `Campaign ${status === 'active' ? 'launched' : 'saved as draft'}`, variant: 'success' })
+      const launched = resolvedStatus === 'active'
+      addToast({
+        title: launched ? 'Campaign launched' : 'Campaign saved',
+        description: form.launch_mode === 'later' && !launched
+          ? 'Your campaign is saved as a draft until the scheduled launch time.'
+          : undefined,
+        variant: 'success',
+      })
       navigate('/campaigns')
     } catch (e: any) {
       addToast({ title: 'Could not save campaign', description: e.message, variant: 'error' })
@@ -445,6 +563,7 @@ export function CampaignBuilderPage() {
   // ─ render ─
   return (
     <CrmShell>
+      <div data-screen="AGT-CMP-002" className="flex min-h-0 flex-1 flex-col">
       <CmdPageHeader
         title="New campaign"
         actions={
@@ -458,15 +577,41 @@ export function CampaignBuilderPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-8">
 
-          {/* ── Step 0: Basics ── */}
+          {/* ── Step 0: Goal ── */}
           {wizardStep === 0 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Campaign basics</h2>
-                <p className="text-sm text-muted-foreground">Give your campaign a name and choose how it gets triggered.</p>
+                <h2 className="text-lg font-semibold">Choose a goal</h2>
+                <p className="text-sm text-muted-foreground">Pick a template to pre-fill your campaign, then name it.</p>
               </div>
 
-              <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {CAMPAIGN_GOALS.map((goal) => (
+                  <button
+                    key={goal.id}
+                    type="button"
+                    onClick={() => selectGoal(goal.id)}
+                    className={cn(
+                      'rounded-lg border p-4 text-start transition-colors',
+                      form.goal_id === goal.id
+                        ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
+                    )}
+                  >
+                    <p className="text-sm font-semibold">{goal.label}</p>
+                    <p
+                      className={cn(
+                        'mt-1 text-xs',
+                        form.goal_id === goal.id ? 'text-[var(--lc-action-primary-text)]/80' : 'text-muted-foreground',
+                      )}
+                    >
+                      {goal.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-4 border-t border-[var(--lc-border)] pt-4">
                 <div className="space-y-1.5">
                   <Label>Campaign name <span className="text-red-500">*</span></Label>
                   <Input
@@ -477,7 +622,6 @@ export function CampaignBuilderPage() {
                     className="h-10"
                   />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
                   <textarea
@@ -488,55 +632,6 @@ export function CampaignBuilderPage() {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Trigger</Label>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {TRIGGERS.map((t) => (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => setField('trigger', t.value)}
-                        className={cn(
-                          'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-                          form.trigger === t.value
-                            ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
-                            : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
-                        )}
-                      >
-                        <Zap className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium">{t.label}</p>
-                          <p className={cn('text-xs', form.trigger === t.value ? 'text-[var(--lc-action-primary-text)]/70' : 'text-muted-foreground')}>
-                            {t.description}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Default send channel</Label>
-                  <div className="flex gap-2">
-                    {CHANNELS.map(({ value, label, icon: Icon }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setField('target_channel', value)}
-                        className={cn(
-                          'flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors',
-                          form.target_channel === value
-                            ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
-                            : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -546,10 +641,72 @@ export function CampaignBuilderPage() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold">Audience targeting</h2>
-                <p className="text-sm text-muted-foreground">Define who gets enrolled. Leave empty to enroll manually.</p>
+                <p className="text-sm text-muted-foreground">Choose a saved search, tag filters, or enroll contacts manually later.</p>
               </div>
 
-              {/* Tag filters */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'saved_search' as AudienceSource, label: 'Saved search', icon: Search },
+                  { value: 'tags' as AudienceSource, label: 'Tags & rules', icon: Users },
+                  { value: 'manual' as AudienceSource, label: 'Manual only', icon: Users },
+                ].map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setField('audience_source', value)}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      form.audience_source === value
+                        ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'border-[var(--lc-border)] bg-[var(--lc-surface)] text-muted-foreground hover:border-foreground',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {form.audience_source === 'saved_search' && (
+                <div className="space-y-3 rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface)] p-4">
+                  <Label>Saved search audience</Label>
+                  {savedSearchesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading saved searches…
+                    </div>
+                  ) : savedSearches.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No saved searches yet. Create one under Settings or switch to tag filters.
+                    </p>
+                  ) : (
+                    <select
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.saved_search_id}
+                      onChange={(e) => setField('saved_search_id', e.target.value)}
+                    >
+                      <option value="">Select a saved search…</option>
+                      {savedSearches.map((search) => (
+                        <option key={search.id} value={search.id}>{search.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {selectedSavedSearch && (
+                    <p className="text-xs text-muted-foreground">
+                      Contacts matching “{selectedSavedSearch.name}” will be eligible when the campaign runs.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {form.audience_source === 'manual' && (
+                <div className="rounded-lg border border-dashed border-[var(--lc-border-strong)] px-4 py-6 text-center text-sm text-muted-foreground">
+                  You will enroll contacts manually from the campaign detail after launch.
+                </div>
+              )}
+
+              {form.audience_source === 'tags' && (
+              <div className="space-y-6">
               <div className="space-y-3">
                 <Label>Contact tags</Label>
                 <p className="text-xs text-muted-foreground">Contacts must have ALL of the specified tags to be auto-enrolled.</p>
@@ -575,7 +732,6 @@ export function CampaignBuilderPage() {
                 )}
               </div>
 
-              {/* Audience rules */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -623,10 +779,12 @@ export function CampaignBuilderPage() {
                   </div>
                 )}
               </div>
+              </div>
+              )}
             </div>
           )}
 
-          {/* ── Step 2: Steps ── */}
+          {/* ── Step 2: Content ── */}
           {wizardStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
@@ -675,8 +833,120 @@ export function CampaignBuilderPage() {
             </div>
           )}
 
-          {/* ── Step 3: Review ── */}
+          {/* ── Step 3: Channels & trigger ── */}
           {wizardStep === 3 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Channels & trigger</h2>
+                <p className="text-sm text-muted-foreground">Set the default channel and when this campaign should fire.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default send channel</Label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {CHANNELS.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setField('target_channel', value)}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors',
+                        form.target_channel === value
+                          ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                          : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Trigger</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {TRIGGERS.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setField('trigger', t.value)}
+                      className={cn(
+                        'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                        form.trigger === t.value
+                          ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                          : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
+                      )}
+                    >
+                      <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{t.label}</p>
+                        <p className={cn('text-xs', form.trigger === t.value ? 'text-[var(--lc-action-primary-text)]/70' : 'text-muted-foreground')}>
+                          {t.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Schedule ── */}
+          {wizardStep === 4 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Schedule launch</h2>
+                <p className="text-sm text-muted-foreground">Launch immediately or save as a draft for a later start.</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { value: 'now' as const, label: 'Launch now', detail: 'Activate as soon as you confirm on the review step.', icon: Megaphone },
+                  { value: 'later' as const, label: 'Schedule for later', detail: 'Save as draft with your chosen launch date.', icon: Calendar },
+                ].map(({ value, label, detail, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setField('launch_mode', value)}
+                    className={cn(
+                      'flex items-start gap-3 rounded-lg border p-4 text-left transition-colors',
+                      form.launch_mode === value
+                        ? 'border-[var(--lc-action-primary)] bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'border-[var(--lc-border)] bg-[var(--lc-surface)] hover:border-foreground',
+                    )}
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold">{label}</p>
+                      <p className={cn('mt-1 text-xs', form.launch_mode === value ? 'text-[var(--lc-action-primary-text)]/80' : 'text-muted-foreground')}>
+                        {detail}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {form.launch_mode === 'later' && (
+                <div className="space-y-2 rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface)] p-4">
+                  <Label htmlFor="campaign-scheduled-at">Launch date</Label>
+                  <div className="relative max-w-xs">
+                    <Clock className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="campaign-scheduled-at"
+                      type="date"
+                      className="ps-9"
+                      value={form.scheduled_at}
+                      onChange={(e) => setField('scheduled_at', e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Step 5: Review ── */}
+          {wizardStep === 5 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold">Review and launch</h2>
@@ -701,28 +971,47 @@ export function CampaignBuilderPage() {
                     </div>
                   ))}
                 </div>
-                {(form.tags_filter.length > 0 || form.audience_rules.length > 0) && (
-                  <div className="px-5 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audience</p>
-                    {form.tags_filter.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {form.tags_filter.map((t) => (
-                          <Badge key={t} variant="secondary">{t}</Badge>
-                        ))}
-                      </div>
-                    )}
-                    {form.audience_rules.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {form.audience_rules.map((r, i) => (
-                          <p key={i} className="text-sm text-muted-foreground">
-                            {AUDIENCE_FIELDS.find((f) => f.value === r.field)?.label}{' '}
-                            {r.operator} <strong>{r.value}</strong>
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audience</p>
+                  <p className="mt-1 text-sm capitalize">{form.audience_source.replace('_', ' ')}</p>
+                  {form.audience_source === 'saved_search' && selectedSavedSearch && (
+                    <p className="text-sm text-muted-foreground">Saved search: {selectedSavedSearch.name}</p>
+                  )}
+                  {form.tags_filter.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {form.tags_filter.map((t) => (
+                        <Badge key={t} variant="secondary">{t}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {form.audience_rules.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {form.audience_rules.map((r, i) => (
+                        <p key={i} className="text-sm text-muted-foreground">
+                          {AUDIENCE_FIELDS.find((f) => f.value === r.field)?.label}{' '}
+                          {r.operator} <strong>{r.value}</strong>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schedule</p>
+                  <p className="mt-1 text-sm">
+                    {form.launch_mode === 'now'
+                      ? 'Launch immediately'
+                      : form.scheduled_at
+                        ? `Draft until ${new Date(`${form.scheduled_at}T09:00:00`).toLocaleDateString()}`
+                        : 'Scheduled (date required)'}
+                  </p>
+                </div>
+                <div className="px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estimated credits</p>
+                  <p className="mt-1 text-sm">
+                    <Numeric className="font-semibold">{estimatedCredits}</Numeric>
+                    <span className="text-muted-foreground"> credits per enrolled contact (all steps)</span>
+                  </p>
+                </div>
                 <div className="px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Steps</p>
                   <div className="space-y-2">
@@ -773,7 +1062,7 @@ export function CampaignBuilderPage() {
           )}
 
           {/* ── Wizard nav ── */}
-          {wizardStep < 3 && (
+          {wizardStep < 5 && (
             <div className="mt-8 flex items-center justify-between">
               <Button
                 variant="ghost"
@@ -794,6 +1083,7 @@ export function CampaignBuilderPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </CrmShell>
   )
