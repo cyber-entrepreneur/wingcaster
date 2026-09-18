@@ -1,5 +1,7 @@
 export { TwoPersonExecuteModal } from './TwoPersonExecuteModal'
 export type { TwoPersonExecuteModalProps } from './TwoPersonExecuteModal'
+export { ApprovalAuditPanel } from './ApprovalAuditPanel'
+export type { ApprovalAuditPanelProps } from './ApprovalAuditPanel'
 export { EscalationModal } from './EscalationModal'
 export type { EscalationModalProps } from './EscalationModal'
 export { RecallModal } from './RecallModal'

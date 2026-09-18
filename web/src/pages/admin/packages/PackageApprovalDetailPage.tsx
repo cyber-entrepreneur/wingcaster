@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
 import {
+  ApprovalAuditPanel,
   TwoPersonExecuteModal,
   EscalationModal,
   RecallModal,
@@ -262,6 +263,25 @@ export function PackageApprovalDetailPage() {
               </p>
             </div>
           </aside>
+
+          <div className="lg:col-span-2">
+            {row.approval_id ? (
+              <ApprovalAuditPanel requestId={row.approval_id} />
+            ) : (
+              <section
+                aria-labelledby="approval-audit-unavailable"
+                className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-md)]"
+                data-screen="PA-APR-004"
+              >
+                <h2 id="approval-audit-unavailable" style={{ font: 'var(--lc-type-heading-2)' }}>
+                  Approval audit trail
+                </h2>
+                <p className="mt-2 text-[var(--lc-text-muted)]">
+                  No approval request is linked to this package version.
+                </p>
+              </section>
+            )}
+          </div>
         </div>
       )}
 

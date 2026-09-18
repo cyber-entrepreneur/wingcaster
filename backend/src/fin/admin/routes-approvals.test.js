@@ -25,6 +25,7 @@ async function insertGrantApproval(pool, world, {
     holder_id: world.tenantA.holderId,
     tenant_name: 'Elite Real Estate Dubai',
     balance_before: 12_000,
+    integration: { webhook_secret: 'must-not-leak' },
   }
   await pool.query(
     `INSERT INTO fin.approval_requests (
@@ -55,6 +56,40 @@ finPostgresSuite('admin/routes-approvals', {}, ({ url, pool, world }) => {
     const res = await request(app).get('/api/admin/fin/approvals')
     expect(res.status).toBe(200)
     expect(Array.isArray(res.body.approvals)).toBe(true)
+  })
+
+  it('returns a redacted immutable audit trail for one approval', async () => {
+    const id = await insertGrantApproval(pool(), world())
+    await castApprove(pool(), id, APPROVER_A)
+    const { app } = await makeOpsApp(url())
+
+    const res = await request(app).get(`/api/admin/fin/approvals/${id}/audit-trail`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.request).toMatchObject({
+      id,
+      action_kind: 'LARGE_GRANT',
+      workflow_code: 'WF-08',
+    })
+    expect(res.body.request.payload.integration.webhook_secret).toBe('[REDACTED]')
+    expect(res.body.events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['SUBMITTED', 'APPROVED']),
+    )
+    expect(res.body.events.find((event) => event.type === 'SUBMITTED')?.integrity_hash).toBe('test-hash')
+  })
+
+  it('validates audit ids and hides approvals from another environment', async () => {
+    const id = await insertGrantApproval(pool(), world())
+    const { app } = await makeOpsApp(url())
+    const { app: testApp } = await makeOpsApp(url(), { finEnvironment: 'TEST' })
+
+    const invalid = await request(app).get('/api/admin/fin/approvals/not-a-uuid/audit-trail')
+    expect(invalid.status).toBe(400)
+    expect(invalid.body.code).toBe('INVALID_APPROVAL_ID')
+
+    const hidden = await request(testApp).get(`/api/admin/fin/approvals/${id}/audit-trail`)
+    expect(hidden.status).toBe(404)
+    expect(hidden.body.code).toBe('NOT_FOUND')
   })
 
   it('legacy /approve returns 410 USE_EXECUTE', async () => {

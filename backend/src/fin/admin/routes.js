@@ -3,6 +3,7 @@
  * Guards copy Stage 4 pricing routes (platform_admin + elevated + limiter + If-Match).
  * environment / now never come from req.body (DL-164 / DL-101).
  */
+import { z } from 'zod'
 import { requireElevated } from '../../auth.js'
 import { getPool } from '../../persistence/postgres-adapter.js'
 import { CATEGORY, FinError, finError } from '../errors.js'
@@ -12,7 +13,8 @@ import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment }
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
-  getBillingPeriod, getInvoice, getReconRun, getTenant, listApprovals, listAudit, listConfiguration,
+  getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
+  listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
@@ -40,6 +42,8 @@ import {
   listEligibleEscalationTargets,
   withdrawApproval,
 } from './approvals-escalate-withdraw.js'
+
+const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -229,6 +233,20 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/approvals', readGuards, wrap(async (req, res) => {
     const approvals = await listApprovals({ environment: sessionEnvironment(req) })
     return res.status(200).json({ approvals })
+  }))
+
+  // PA-APR-004 — immutable approval history, scoped to the active environment.
+  app.get('/api/admin/fin/approvals/:id/audit-trail', readGuards, wrap(async (req, res) => {
+    const parsed = ApprovalIdParams.safeParse(req.params)
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'INVALID_APPROVAL_ID' })
+    }
+    const payload = await getApprovalAuditTrail({
+      environment: sessionEnvironment(req),
+      id: parsed.data.id,
+    })
+    if (!payload) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json(payload)
   }))
 
   app.get('/api/admin/fin/audit', readGuards, wrap(async (req, res) => {
