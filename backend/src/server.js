@@ -297,6 +297,7 @@ import { registerRoutes as registerClosedTransactionImportRoutes } from './lib/c
 import { registerRoutes as registerReminderPolicyRoutes } from './lib/reminders/reminder-policy-routes.js'
 import { registerRoutes as registerAccessRequestRoutes } from './lib/access-request-routes.js'
 import { registerRoutes as registerSourcePerformanceRoutes } from './analytics/source-performance-routes.js'
+import { registerRoutes as registerPlatformStatusRoutes } from './lib/platform-status-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import { registerRoutes as registerAuditRetentionPolicyRoutes } from './lib/audit/retention-policy-routes.js'
@@ -924,6 +925,7 @@ registerSavedSearchRoutes(app, {
 registerClosedTransactionImportRoutes(app, { authMiddleware, logActivity })
 registerAccessRequestRoutes(app, { authMiddleware })
 registerSourcePerformanceRoutes(app, { authMiddleware })
+registerPlatformStatusRoutes(app, { authMiddleware, requirePlatformAdmin })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 registerAuditRetentionPolicyRoutes(app, { authMiddleware })
 registerNotificationDeadLetterRoutes(app, { authMiddleware })
