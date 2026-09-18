@@ -9,7 +9,7 @@ import {
   ExceptionDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -52,6 +52,19 @@ const apiMock = vi.hoisted(() => ({
         active_version: { id: 'v1', version_n: 1, status: 'ACTIVE', components: [] },
         versions: [{ id: 'v1', version_n: 1, status: 'ACTIVE', components: [] }],
       }
+    }
+    if (String(path).includes('/statements/')) {
+      return {
+        statement: {
+          statement_period_key: '2026-08', status: 'RECEIVED', total_minor: 400,
+          currency: 'USD', unresolved_variance_count: 1,
+        },
+        line_items: [{ rate_key: 'gpt-4', quantity_units: 4, unit_cost_minor: 100, amount_minor: 400, currency: 'USD' }],
+        drift_indicators: [{ axis: 'total', reason_code: 'drift', left_qty: '400', right_qty: '380', resolved: false }],
+      }
+    }
+    if (String(path).includes('/statements')) {
+      return { statements: [{ id: 's1', statement_period_key: '2026-08', status: 'RECEIVED' }] }
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
@@ -142,8 +155,8 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: () => authMock,
 }))
 
-function wrap(ui: ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>)
+function wrap(ui: ReactElement, initialPath = '/') {
+  return render(<MemoryRouter initialEntries={[initialPath]}>{ui}</MemoryRouter>)
 }
 
 describe('admin/fin pages', () => {
@@ -173,6 +186,11 @@ describe('admin/fin pages', () => {
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
     ['Vendor costs', () => <VendorCostsPage />],
+    ['Vendor statement', () => (
+      <Routes>
+        <Route path="/admin/fin/vendors/:vendorId/statements/:month" element={<VendorStatementDetailPage />} />
+      </Routes>
+    )],
     ['Reconciliation', () => <ReconciliationPage />],
     ['Exceptions', () => <ExceptionsPage />],
     ['Approvals', () => <ApprovalsPage />],
@@ -181,7 +199,10 @@ describe('admin/fin pages', () => {
   ]
 
   it.each(pages)('%s renders for a platform admin', (title, Page) => {
-    const { container } = wrap(<Page />)
+    const initialPath = title === 'Vendor statement'
+      ? '/admin/fin/vendors/v1/statements/2026-08'
+      : '/'
+    const { container } = wrap(<Page />, initialPath)
     expect(container.querySelector('h1')?.textContent).toBe(title)
   })
 
@@ -189,6 +210,21 @@ describe('admin/fin pages', () => {
     authMock.isAdmin = false
     wrap(<OverviewPage />)
     expect(screen.getByText('Platform admin required')).toBeTruthy()
+  })
+
+  it('Vendor statement detail exposes reconcile and flag anomaly actions', async () => {
+    wrap(
+      <Routes>
+        <Route
+          path="/admin/fin/vendors/:vendorId/statements/:month"
+          element={<VendorStatementDetailPage />}
+        />
+      </Routes>,
+      '/admin/fin/vendors/v1/statements/2026-08',
+    )
+    expect(await screen.findByRole('button', { name: 'Reconcile statement' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Flag anomaly' })).toBeTruthy()
+    expect(screen.getByText(/out-of-tolerance drift/)).toBeTruthy()
   })
 
   it('Vendor costs shows Stage 11 empty state', async () => {

@@ -21,6 +21,7 @@ import {
   reconcileVendorStatement,
 } from './writes.js'
 import { applyVendorRateBodySchema } from './vendor-rate-schemas.js'
+import { reconcileVendorStatementBodySchema } from './vendor-statement-schemas.js'
 
 function sendFinError(res, error) {
   if (error instanceof FinError && error.httpStatus === 412) {
@@ -137,11 +138,15 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
   }))
 
   app.post('/api/admin/fin/vendors/:id/statements/:month/reconcile', writeGuards, wrap(async (req, res) => {
+    const parsed = reconcileVendorStatementBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
     const env = actorFrom(req)
     const result = await transaction((client) => reconcileVendorStatement(client, env, {
       vendorId: req.params.id,
       month: req.params.month,
-      evidence: pick(req.body || {}, 'evidence', 'signed_evidence', 'signedEvidence'),
+      evidence: pick(parsed.data, 'evidence', 'signed_evidence', 'signedEvidence'),
     }))
     if (result.version != null) setETag(res, result.version)
     return res.status(200).json(result)
