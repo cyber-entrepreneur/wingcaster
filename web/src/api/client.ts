@@ -9,6 +9,10 @@ import type {
   AgencyPricingPortfolio,
   AgentPriceReport,
   AgentPricingPortfolio,
+  BulkAdjustApplyRequest,
+  BulkAdjustRequest,
+  BulkAdjustmentPreview,
+  BulkPriceAdjustment,
   PricingAnalysis,
   PricingDecision,
   PricingRecalculationJob,
@@ -2352,6 +2356,16 @@ export const api = {
     fetchJson(`/agent/pricing/properties/${propertyId}/keep-price`, { method: 'POST', body: JSON.stringify({ reason }) }),
   adjustAgentListingPrice: (propertyId: string, newPrice: number, reason?: string) =>
     fetchJson(`/agent/pricing/properties/${propertyId}/adjust-price`, { method: 'POST', body: JSON.stringify({ new_price: newPrice, reason }) }),
+
+  // AGN-PRC-002 — Agency bulk price adjustment.
+  previewBulkPriceAdjustment: (payload: BulkAdjustRequest): Promise<BulkAdjustmentPreview> =>
+    fetchJson('/agency/pricing/bulk-adjust/preview', { method: 'POST', body: JSON.stringify(payload) }),
+  applyBulkPriceAdjustment: (payload: BulkAdjustApplyRequest): Promise<{ batch: BulkPriceAdjustment; preview: BulkAdjustmentPreview }> =>
+    fetchJson('/agency/pricing/bulk-adjust', { method: 'POST', body: JSON.stringify(payload) }),
+  undoBulkPriceAdjustment: (batchId: string): Promise<{ batch: BulkPriceAdjustment }> =>
+    fetchJson(`/agency/pricing/bulk-adjust/${encodeURIComponent(batchId)}/undo`, { method: 'POST', body: '{}' }),
+  getBulkPriceAdjustments: (): Promise<{ batches: BulkPriceAdjustment[] }> =>
+    fetchJson('/agency/pricing/bulk-adjust'),
 
   // Market Pricing (admin)
   getAdminPricingConfigs: () => fetchJson('/admin/pricing/configs'),

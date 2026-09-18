@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, BarChart3, Building2, Loader2, RefreshCw, Users } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BarChart3, Building2, Loader2, RefreshCw, RotateCcw, Sparkles, Users } from 'lucide-react'
 import { api } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Numeric } from '@/components/ui/numeric'
 import { PriceHealthIndicator } from '@/components/market-pricing/PriceHealthIndicator'
+import { BulkPriceAdjustDialog } from '@/components/market-pricing/BulkPriceAdjustDialog'
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useToast } from '@/components/ui/toast'
-import type { AgencyPricingPortfolio, PricePosition, PricingTrendSnapshot } from '@/types/marketPricing'
+import type { AgencyPricingPortfolio, BulkPriceAdjustment, PricePosition, PricingTrendSnapshot } from '@/types/marketPricing'
+
+const ADMIN_ROLES = new Set(['owner', 'admin'])
 
 export function AgencyPricingPage() {
   const { agent, loading: authLoading } = useAuth()
@@ -24,19 +29,36 @@ export function AgencyPricingPage() {
   const [trendKey, setTrendKey] = useState('')
   const [trends, setTrends] = useState<PricingTrendSnapshot[]>([])
   const [trendsLoading, setTrendsLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [batches, setBatches] = useState<BulkPriceAdjustment[]>([])
+  const [undoing, setUndoing] = useState('')
   usePageTitle('Agency Price Health')
+
+  const canManage = !!portfolio && ADMIN_ROLES.has(portfolio.my_role)
+
+  const loadBatches = useCallback(async () => {
+    try {
+      const { batches: rows } = await api.getBulkPriceAdjustments()
+      setBatches(rows)
+    } catch {
+      setBatches([])
+    }
+  }, [])
 
   const load = useCallback(async () => {
     if (!agent) return
     setLoading(true)
     try {
-      setPortfolio(await api.getAgencyPricingPortfolio())
+      const next = await api.getAgencyPricingPortfolio()
+      setPortfolio(next)
+      if (ADMIN_ROLES.has(next.my_role)) await loadBatches()
     } catch (err: any) {
       addToast({ title: 'Agency pricing unavailable', description: err.message, variant: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [agent, addToast])
+  }, [agent, addToast, loadBatches])
 
   useEffect(() => { load() }, [load])
 
@@ -65,6 +87,52 @@ export function AgencyPricingPage() {
     if (healthFilter && row.pricing_analysis?.target_vs_median !== healthFilter) return false
     return true
   }), [portfolio, agentFilter, areaFilter, typeFilter, healthFilter])
+
+  const selectedListings = useMemo(
+    () => listings.filter((row) => selectedIds.has(row.id)).map((row) => ({
+      id: row.id,
+      title: row.title || row.id,
+      price: row.price,
+      currency: row.currency,
+      agent_name: row.agent_name,
+    })),
+    [listings, selectedIds],
+  )
+
+  const activeBatch = useMemo(() => batches.find((batch) => batch.reversible) || null, [batches])
+
+  const toggleOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }, [])
+
+  const allVisibleSelected = listings.length > 0 && listings.every((row) => selectedIds.has(row.id))
+  const toggleAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      const everySelected = listings.length > 0 && listings.every((row) => next.has(row.id))
+      if (everySelected) listings.forEach((row) => next.delete(row.id))
+      else listings.forEach((row) => next.add(row.id))
+      return next
+    })
+  }, [listings])
+
+  const handleUndo = useCallback(async (batchId: string) => {
+    setUndoing(batchId)
+    try {
+      await api.undoBulkPriceAdjustment(batchId)
+      addToast({ title: 'Adjustment reverted', description: 'Every affected listing was restored to its prior price.', variant: 'success' })
+      await load()
+    } catch (err: any) {
+      addToast({ title: 'Undo failed', description: err.message, variant: 'error' })
+      await loadBatches()
+    } finally {
+      setUndoing('')
+    }
+  }, [addToast, load, loadBatches])
 
   useEffect(() => {
     if (!trendKey) { setTrends([]); return }
@@ -106,6 +174,28 @@ export function AgencyPricingPage() {
           <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="h-5 w-5 shrink-0" /><p>{summary?.stale_rate || 0} stale-rate and {summary?.low_confidence || 0} low-confidence analyses need review before portfolio-wide decisions.</p></div>
         )}
 
+        {activeBatch && (
+          <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between" role="status">
+            <div className="flex items-start gap-3">
+              <RotateCcw className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>
+                Bulk adjustment applied to <Numeric>{activeBatch.listing_count}</Numeric> listing{activeBatch.listing_count === 1 ? '' : 's'}.
+                {' '}You can undo it until <Numeric>{activeBatch.reversal_deadline ? new Date(activeBatch.reversal_deadline).toLocaleString() : ''}</Numeric>.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 self-start sm:self-auto"
+              disabled={undoing === activeBatch.id}
+              onClick={() => void handleUndo(activeBatch.id)}
+            >
+              {undoing === activeBatch.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              Undo
+            </Button>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle>Portfolio distribution</CardTitle><CardDescription>Counts reflect the latest analysis for each active agency listing.</CardDescription></CardHeader>
@@ -131,8 +221,28 @@ export function AgencyPricingPage() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Portfolio listings</CardTitle><CardDescription>Filter and drill into individual listing evidence. Price changes remain an Agent-owned action.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Portfolio listings</CardTitle><CardDescription>{canManage ? 'Filter, drill into evidence, and bulk-adjust asking prices across the selection.' : 'Filter and drill into individual listing evidence.'}</CardDescription></CardHeader>
           <CardContent>
+            {canManage && (
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAllVisible} aria-label="Select all listings in view" />
+                  <span>
+                    {selectedIds.size > 0
+                      ? <><Numeric>{selectedIds.size}</Numeric> selected</>
+                      : 'Select listings to adjust prices in bulk'}
+                  </span>
+                </label>
+                <div className="flex items-center gap-2">
+                  {selectedIds.size > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                  )}
+                  <Button size="sm" className="gap-2" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
+                    <Sparkles className="h-4 w-4" />Bulk adjust
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <FilterSelect label="Agent" value={agentFilter} onChange={setAgentFilter} options={filterOptions.agents.map(([value, label]) => ({ value, label }))} />
               <FilterSelect label="Area" value={areaFilter} onChange={setAreaFilter} options={filterOptions.areas.map((value) => ({ value, label: value }))} />
@@ -141,11 +251,21 @@ export function AgencyPricingPage() {
             </div>
             <div className="space-y-3">
               {listings.map((listing) => (
-                <div key={listing.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_auto] md:items-center">
-                  <div className="min-w-0"><Link to={`/listings/${listing.id}`} className="font-medium hover:underline">{listing.title || listing.id}</Link><p className="truncate text-xs text-muted-foreground">{listing.agent_name || 'Unassigned'} · {[listing.neighborhood, listing.city, listing.property_type].filter(Boolean).join(' · ')}</p></div>
-                  <div><p className="text-xs text-muted-foreground">List price</p><p className="font-semibold">{formatMoney(listing.price, listing.currency)}</p></div>
-                  <PriceHealthIndicator analysis={listing.pricing_analysis} />
-                  <Button asChild size="sm" variant="outline"><Link to={`/listings/${listing.id}`}>Evidence</Link></Button>
+                <div key={listing.id} className="flex items-start gap-3 rounded-lg border p-4">
+                  {canManage && (
+                    <Checkbox
+                      className="mt-1"
+                      checked={selectedIds.has(listing.id)}
+                      onCheckedChange={() => toggleOne(listing.id)}
+                      aria-label={`Select ${listing.title || listing.id}`}
+                    />
+                  )}
+                  <div className="grid flex-1 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_auto] md:items-center">
+                    <div className="min-w-0"><Link to={`/listings/${listing.id}`} className="font-medium hover:underline">{listing.title || listing.id}</Link><p className="truncate text-xs text-muted-foreground">{listing.agent_name || 'Unassigned'} · {[listing.neighborhood, listing.city, listing.property_type].filter(Boolean).join(' · ')}</p></div>
+                    <div><p className="text-xs text-muted-foreground">List price</p><p className="font-semibold">{formatMoney(listing.price, listing.currency)}</p></div>
+                    <PriceHealthIndicator analysis={listing.pricing_analysis} />
+                    <Button asChild size="sm" variant="outline"><Link to={`/listings/${listing.id}`}>Evidence</Link></Button>
+                  </div>
                 </div>
               ))}
               {listings.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No listings match these filters.</p>}
@@ -174,6 +294,18 @@ export function AgencyPricingPage() {
 
         <p className="text-xs text-muted-foreground"><BarChart3 className="mr-1 inline h-4 w-4" />Portfolio metrics are based on weighted comparable analysis and are not appraisals, guarantees, or completed-transaction valuations.</p>
       </div>
+
+      {canManage && (
+        <BulkPriceAdjustDialog
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          selection={selectedListings}
+          onApplied={async () => {
+            setSelectedIds(new Set())
+            await load()
+          }}
+        />
+      )}
     </div>
   )
 }
