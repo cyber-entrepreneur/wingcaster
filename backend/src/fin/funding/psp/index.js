@@ -1,10 +1,12 @@
 /**
- * Pluggable PSP adapters. Stage 7 implements STRIPE only.
+ * Pluggable PSP adapters. STRIPE (stage 7) + PADDLE (go-live merchant-of-record).
  */
 import * as stripe from './stripe.js'
+import * as paddle from './paddle.js'
 
 const adapters = {
   STRIPE: stripe,
+  PADDLE: paddle,
 }
 
 export function getAdapter(provider = 'STRIPE') {
@@ -37,3 +39,10 @@ export {
   computeStripeSignature,
   parseStripeSignatureHeader,
 } from './stripe.js'
+
+export {
+  verifyPaddleSignature,
+  decodePaddleEvent,
+  computePaddleSignature,
+  parsePaddleSignatureHeader,
+} from './paddle.js'
