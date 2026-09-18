@@ -1247,6 +1247,27 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// PA-NDL-001 — Notifications dead-letter queue.
+export type NotificationDeadLetterStatus = 'dead_letter' | 'failed' | 'ignored' | 'pending'
+
+export interface NotificationDeadLetterItem {
+  id: string
+  notification_id: string | null
+  channel: string | null
+  status: NotificationDeadLetterStatus
+  attempts: number
+  last_error: string | null
+  next_retry_at: string | null
+  created_at: string | null
+  event_type: string | null
+  title: string | null
+}
+
+export interface NotificationDeadLetterResponse {
+  items: NotificationDeadLetterItem[]
+  total: number
+}
+
 // AGT-TSK-002 — Task detail / edit.
 export type TaskType = 'call' | 'email' | 'follow_up' | 'viewing' | 'meeting'
 export type TaskStatus = 'pending' | 'completed' | 'cancelled' | 'snoozed'
@@ -2718,8 +2739,31 @@ export const api = {
   getConsumerAutomationMetrics: () => fetchJson('/automation/consumer/metrics'),
   getViewing: (id: string) => fetchJson(`/viewings/${id}`),
   retryNotification: (id: string) => fetchJson(`/notifications/${id}/retry`, { method: 'POST', body: '{}' }),
-  getAdminNotificationDeadLetter: () => fetchJson('/admin/notifications/dead-letter'),
-  retryAdminPendingNotifications: (limit = 20) =>
+  getAdminNotificationDeadLetter: (
+    params?: { channel?: string; q?: string; include_ignored?: boolean; limit?: number },
+  ): Promise<NotificationDeadLetterResponse> => {
+    const qs = new URLSearchParams()
+    if (params?.channel) qs.set('channel', params.channel)
+    if (params?.q) qs.set('q', params.q)
+    if (params?.include_ignored) qs.set('include_ignored', 'true')
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return fetchJson(`/admin/notifications/dead-letter${suffix}`)
+  },
+  retryAdminNotificationDeadLetter: (id: string): Promise<{ item: NotificationDeadLetterItem }> =>
+    fetchJson(`/admin/notifications/dead-letter/${encodeURIComponent(id)}/retry`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  ignoreAdminNotificationDeadLetter: (
+    id: string,
+    reason?: string,
+  ): Promise<{ item: NotificationDeadLetterItem }> =>
+    fetchJson(`/admin/notifications/dead-letter/${encodeURIComponent(id)}/ignore`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    }),
+  retryAdminPendingNotifications: (limit = 20): Promise<{ processed?: number } & Record<string, unknown>> =>
     fetchJson('/admin/notifications/retry-pending', { method: 'POST', body: JSON.stringify({ limit }) }),
 
   getActivityLog: () => fetchJson('/activity-log'),
