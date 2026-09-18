@@ -158,6 +158,42 @@ export interface PerformanceMetricBlock {
   published_posts: number
 }
 
+export type BuyerOfferStatus = 'received' | 'countered' | 'accepted' | 'rejected' | 'withdrawn'
+export type BuyerOfferFinancing = 'cash' | 'mortgage' | 'mixed'
+
+export interface BuyerOffer {
+  id: string
+  property_id: string
+  agent_id: string
+  contact_id: string | null
+  offeror_name: string
+  amount: number
+  currency: string
+  offer_date: string
+  terms: string | null
+  financing_type: BuyerOfferFinancing | null
+  expiry_date: string | null
+  conditions: string | null
+  status: BuyerOfferStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BuyerOfferInput {
+  contact_id?: string | null
+  offeror_name: string
+  amount: number
+  currency?: string
+  offer_date?: string
+  terms?: string | null
+  financing_type?: BuyerOfferFinancing | null
+  expiry_date?: string | null
+  conditions?: string | null
+  status?: BuyerOfferStatus
+  notes?: string | null
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -1100,6 +1136,22 @@ export const api = {
     fetchJson(`/properties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProperty: (id: string) =>
     fetchJson(`/properties/${id}`, { method: 'DELETE' }),
+
+  // AGT-LST-010 — buyer offers on a listing
+  listBuyerOffers: (propertyId: string) =>
+    fetchJson(`/properties/${propertyId}/buyer-offers`) as Promise<{ offers: BuyerOffer[] }>,
+  createBuyerOffer: (propertyId: string, data: BuyerOfferInput) =>
+    fetchJson(`/properties/${propertyId}/buyer-offers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }) as Promise<BuyerOffer>,
+  updateBuyerOffer: (offerId: string, data: Partial<BuyerOfferInput>) =>
+    fetchJson(`/buyer-offers/${offerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }) as Promise<BuyerOffer>,
+  deleteBuyerOffer: (offerId: string) =>
+    fetchJson(`/buyer-offers/${offerId}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
 
   // Agents
   getAgents: () => fetchJson('/agents'),

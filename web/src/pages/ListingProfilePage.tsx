@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label'
 import { SocialCardStudio } from '@/components/social-cards/SocialCardStudio'
 import { PerformanceTab } from '@/components/performance/PerformanceTab'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
+import { OffersPanel } from '@/components/listings/OffersPanel'
 import { MarketContextCard } from '@/components/market-pricing/MarketContextCard'
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
@@ -351,6 +352,14 @@ export function ListingProfilePage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          <OffersPanel
+            propertyId={property.id}
+            currency={property.price_unit || 'USD'}
+            asking={property.price ?? null}
+            benchmark={pricingAnalysis?.median_price ?? null}
+            avgAsking={pricingAnalysis?.mean_price ?? null}
+            onOfferAccepted={() => setClosureModalOpen(true)}
+          />
           {property.description && (
             <Card>
               <CardHeader><CardTitle className="text-lg">Description</CardTitle></CardHeader>
