@@ -20,6 +20,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage'
 import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
+import { AgencyComparablesPage } from '@/pages/agency/pricing/AgencyComparablesPage'
 import {
   BadComparableReportPage,
   PriceReportPage,
@@ -243,6 +244,7 @@ function AppRoutes() {
       <Route path="/agency/settings/audit" element={<AuditLogPage />} />
       <Route path="/agency/settings/security" element={<AgencySecurityPolicyPage />} />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
+      <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />
       <Route path="/plans" element={<PlansPage />} />

@@ -143,6 +143,51 @@ export interface AgencyPricingPortfolio extends AgentPricingPortfolio {
   agents: Array<{ agent_id: string; agent_name: string } & PricingPortfolioSummary>
 }
 
+export type AgencyComparableSource = 'internal' | 'external' | 'agent_report'
+export type ComparableStrength = 'limited' | 'moderate' | 'strong'
+
+export interface AgencyComparable {
+  id: string
+  source: AgencyComparableSource
+  source_label: string
+  title?: string | null
+  location?: string | null
+  city?: string | null
+  area_name?: string | null
+  property_type?: string | null
+  evidence_date?: string | null
+  price?: number | null
+  normalized_price?: number | null
+  currency?: string | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  area_sqm?: number | null
+  latitude?: number | null
+  longitude?: number | null
+  status?: string | null
+  source_url?: string | null
+  detail_path?: string | null
+  strength_score: number
+  strength: ComparableStrength
+}
+
+export interface AgencyComparablesResponse {
+  agency_id: string
+  total: number
+  coordinates_available: number
+  items: AgencyComparable[]
+}
+
+export interface AgencyComparablesFilters {
+  city?: string
+  area?: string
+  property_type?: string
+  source?: AgencyComparableSource
+  date_from?: string
+  date_to?: string
+  limit?: number
+}
+
 export type RecalculationJobStatus = 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'cancelled'
 
 export interface PricingRecalculationJob {

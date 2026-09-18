@@ -6,6 +6,8 @@ import type {
   TwoFactorStatus,
 } from '@/types/twoFactor'
 import type {
+  AgencyComparablesFilters,
+  AgencyComparablesResponse,
   AgencyPricingPortfolio,
   AgentPriceReport,
   AgentPricingPortfolio,
@@ -2365,6 +2367,14 @@ export const api = {
     }),
   getAgentPricingPortfolio: (): Promise<AgentPricingPortfolio> => fetchJson('/agent/pricing/portfolio'),
   getAgencyPricingPortfolio: (): Promise<AgencyPricingPortfolio> => fetchJson('/agency/pricing/portfolio'),
+  getAgencyPricingComparables: (filters: AgencyComparablesFilters = {}): Promise<AgencyComparablesResponse> => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value))
+    }
+    const query = params.toString()
+    return fetchJson(`/agency/pricing/comparables${query ? `?${query}` : ''}`)
+  },
   keepAgentListingPrice: (propertyId: string, reason?: string): Promise<PricingDecision> =>
     fetchJson(`/agent/pricing/properties/${propertyId}/keep-price`, { method: 'POST', body: JSON.stringify({ reason }) }),
   adjustAgentListingPrice: (propertyId: string, newPrice: number, reason?: string) =>
