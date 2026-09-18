@@ -40,6 +40,7 @@ function makeApp({ role = 'platform_admin', environment = 'LIVE' } = {}) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks()
   mocks.getApprovalAuditTrail.mockResolvedValue({
     request: {
       id: APPROVAL_ID,
