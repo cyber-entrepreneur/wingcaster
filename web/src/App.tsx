@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { Sentry } from '@/lib/observability/sentry'
 import { PersonaAppShell } from '@/app/PersonaAppShell'
+import { PlatformStatusBanner } from '@/components/status/PlatformStatusBanner'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
@@ -341,22 +342,37 @@ function AppShell() {
   const { agent, loading } = useAuth()
   const bare = usesBareChrome(location.pathname)
 
+  // SHR-ERR-005 — platform maintenance / degraded strip, mounted once above
+  // every surface (authed personas, guest chrome, and bare auth pages). It
+  // renders nothing while the platform is healthy, so there is no layout cost
+  // in the common case.
+  const statusBanner = <PlatformStatusBanner />
+
   if (bare) {
-    return <AppRoutes />
+    return (
+      <>
+        {statusBanner}
+        <AppRoutes />
+      </>
+    )
   }
 
   // Signed-in: Wave 0 persona chrome (agent / agency / pa).
   if (!loading && agent) {
     return (
-      <PersonaAppShell>
-        <AppRoutes />
-      </PersonaAppShell>
+      <>
+        {statusBanner}
+        <PersonaAppShell>
+          <AppRoutes />
+        </PersonaAppShell>
+      </>
     )
   }
 
   // Guest / auth-loading: legacy public Navbar + Footer.
   return (
     <div className="flex min-h-screen flex-col">
+      {statusBanner}
       <Navbar />
       <main className="flex-1">
         <AppRoutes />

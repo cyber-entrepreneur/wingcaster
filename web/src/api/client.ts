@@ -88,6 +88,41 @@ export interface ScheduledPublicationInput {
   recurrence?: 'none' | 'weekly'
 }
 
+/** SHR-ERR-005 — maintenance / degraded severity (also the overall status). */
+export type PlatformStatusLevel = 'info' | 'degraded' | 'maintenance'
+
+/** SHR-ERR-005 — one platform-wide status notice shown in the global banner. */
+export interface PlatformStatusNotice {
+  id: string
+  status: PlatformStatusLevel
+  title: string
+  body: string | null
+  learn_more_url: string | null
+  active: boolean
+  starts_at: string | null
+  ends_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** SHR-ERR-005 — response of the public GET /api/status poll. */
+export interface PlatformStatusResponse {
+  /** Highest severity among the live notices, or `ok` when there are none. */
+  status: 'ok' | PlatformStatusLevel
+  notices: PlatformStatusNotice[]
+}
+
+/** SHR-ERR-005 — platform-admin create/patch payload for a status notice. */
+export interface PlatformStatusNoticeInput {
+  status?: PlatformStatusLevel
+  title?: string
+  body?: string | null
+  learn_more_url?: string | null
+  active?: boolean
+  starts_at?: string | null
+  ends_at?: string | null
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -1971,6 +2006,18 @@ export const api = {
     }) as Promise<ScheduledPublication>,
   cancelScheduledPublication: (schedId: string) =>
     fetchJson(`/scheduled-publications/${schedId}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
+
+  // SHR-ERR-005 — platform maintenance / degraded status
+  getPlatformStatus: (): Promise<PlatformStatusResponse> => fetchJson('/status'),
+  listPlatformStatusNotices: (): Promise<{ notices: PlatformStatusNotice[] }> =>
+    fetchJson('/admin/status-notices'),
+  createPlatformStatusNotice: (input: PlatformStatusNoticeInput) =>
+    fetchJson('/admin/status-notices', { method: 'POST', body: JSON.stringify(input) }) as Promise<PlatformStatusNotice>,
+  updatePlatformStatusNotice: (id: string, patch: PlatformStatusNoticeInput) =>
+    fetchJson(`/admin/status-notices/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }) as Promise<PlatformStatusNotice>,
 
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),
