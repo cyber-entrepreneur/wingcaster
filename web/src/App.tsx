@@ -25,6 +25,7 @@ import {
   PriceReportPage,
   ComparableReportOutcomePage,
   PriceReportOutcomePage,
+  MySubmittedReportsPage,
 } from '@/pages/agent/reports'
 import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
@@ -173,6 +174,8 @@ function AppRoutes() {
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
+      {/* AGT-APR-006 — my submitted reports (sold-price + comparables) */}
+      <Route path="/agent/pricing/reports" element={<MySubmittedReportsPage />} />
       {/* Wave 5 WF-05 / WF-06 agent submitters (AGT-APR-004 / AGT-APR-005).
           Static /new routes MUST precede :reportId outcome routes. */}
       <Route path="/reports/comparables/new" element={<BadComparableReportPage />} />
