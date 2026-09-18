@@ -2701,6 +2701,18 @@ export const api = {
     return fetchJson(`/admin/message-templates/resolve?${parts.join('&')}`)
   },
 
+  getAdminVendor: (id: string): Promise<import('@/pages/admin/fin/vendorTypes').VendorDetail> =>
+    fetchJson(`/admin/fin/vendors/${encodeURIComponent(id)}`),
+  listAdminVendorRates: (id: string): Promise<import('@/pages/admin/fin/vendorTypes').VendorRatesResponse> =>
+    fetchJson(`/admin/fin/vendors/${encodeURIComponent(id)}/rates`),
+  listAdminVendorStatements: (id: string): Promise<import('@/pages/admin/fin/vendorTypes').VendorStatementsResponse> =>
+    fetchJson(`/admin/fin/vendors/${encodeURIComponent(id)}/statements`),
+  getAdminVendorMargin: (
+    id: string,
+    month: string,
+  ): Promise<import('@/pages/admin/fin/vendorTypes').VendorMarginResponse> =>
+    fetchJson(`/admin/fin/vendors/${encodeURIComponent(id)}/margin?month=${encodeURIComponent(month)}`),
+
   finGet: (path: string): Promise<Record<string, unknown>> =>
     fetchJson(`/admin/fin${path}`),
 
