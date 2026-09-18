@@ -256,6 +256,8 @@ import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-off
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
+import { registerRoutes as registerAuditRetentionPolicyRoutes } from './lib/audit/retention-policy-routes.js'
+import { loadRetentionPolicy } from './lib/audit/retention-policy.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -827,6 +829,7 @@ registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
+registerAuditRetentionPolicyRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -4091,8 +4094,14 @@ app.get('/api/admin/audit-log', authMiddleware, requireAdmin, async (req, res) =
 })
 
 app.post('/api/admin/audit-log/retention', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
-  const cutoff = new Date(Date.now() - AUDIT_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-  const activityCutoff = new Date(Date.now() - ACTIVITY_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  // PA-AUD-002: retention windows come from the configurable policy. The
+  // audit_log window respects the financial floor (keep the longer of the
+  // financial + pa windows so regulated rows are never purged early).
+  const policy = await loadRetentionPolicy()
+  const auditRetentionDays = Math.max(policy.financial_actions_days, policy.pa_actions_days)
+  const activityRetentionDays = policy.system_events_days
+  const cutoff = new Date(Date.now() - auditRetentionDays * 24 * 60 * 60 * 1000).toISOString()
+  const activityCutoff = new Date(Date.now() - activityRetentionDays * 24 * 60 * 60 * 1000).toISOString()
   let removed = 0
   let activityRemoved = 0
   try {
@@ -4105,8 +4114,8 @@ app.post('/api/admin/audit-log/retention', authMiddleware, requirePlatformAdmin,
   } catch (err) {
     logger.warn({ err: err.message }, 'activity_log retention cleanup warning')
   }
-  await logActivity({ type: 'audit_log_retention_run', agent_id: req.user.id, meta: { removed_audit_log: removed, removed_activity_log: activityRemoved, audit_retention_days: AUDIT_LOG_RETENTION_DAYS, activity_retention_days: ACTIVITY_LOG_RETENTION_DAYS } })
-  res.json({ removed_audit_log: removed, removed_activity_log: activityRemoved, audit_retention_days: AUDIT_LOG_RETENTION_DAYS, activity_retention_days: ACTIVITY_LOG_RETENTION_DAYS })
+  await logActivity({ type: 'audit_log_retention_run', agent_id: req.user.id, meta: { removed_audit_log: removed, removed_activity_log: activityRemoved, audit_retention_days: auditRetentionDays, activity_retention_days: activityRetentionDays } })
+  res.json({ removed_audit_log: removed, removed_activity_log: activityRemoved, audit_retention_days: auditRetentionDays, activity_retention_days: activityRetentionDays })
 })
 
 app.post('/api/admin/users/:id/promote', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
