@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
   GitCompareArrows, Globe2, Loader2, Mail, MapPin, Maximize, Megaphone, MessageCircle, MoreHorizontal,
@@ -25,6 +25,7 @@ import { SocialCardStudio } from '@/components/social-cards/SocialCardStudio'
 import { PerformanceTab } from '@/components/performance/PerformanceTab'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
 import { OffersPanel } from '@/components/listings/OffersPanel'
+import { ListingPublicationsTab } from '@/components/listings/ListingPublicationsTab'
 import { MarketContextCard } from '@/components/market-pricing/MarketContextCard'
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
@@ -69,18 +70,35 @@ interface AreaDetailResponse {
   scores: Array<{ score: number | null }>
 }
 
-type TabKey = 'overview' | 'portals' | 'comms' | 'email' | 'viewings' | 'area'
+type TabKey = 'overview' | 'publications' | 'comms' | 'email' | 'viewings' | 'area' | 'performance'
+
+const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'email', 'viewings', 'area', 'performance']
+
+function parseTabParam(value: string | null): TabKey {
+  if (value && TAB_KEYS.includes(value as TabKey)) return value as TabKey
+  return 'overview'
+}
 
 export function ListingProfilePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { agent } = useAuth()
   const { addToast } = useToast()
 
   const [property, setProperty] = useState<ListingProperty | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeImage, setActiveImage] = useState(0)
-  const [tab, setTab] = useState<TabKey>('overview')
+  const tab = parseTabParam(searchParams.get('tab'))
+
+  const setTab = useCallback((next: TabKey) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev)
+      if (next === 'overview') params.delete('tab')
+      else params.set('tab', next)
+      return params
+    }, { replace: true })
+  }, [setSearchParams])
   const [editOpen, setEditOpen] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -397,8 +415,8 @@ export function ListingProfilePage() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
         <TabsList className="mb-4 flex flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="portals">
-            Portals
+          <TabsTrigger value="publications">
+            Publications
           </TabsTrigger>
           <TabsTrigger value="comms">
             Comms
@@ -458,27 +476,8 @@ export function ListingProfilePage() {
           <MetaGrid property={property} />
         </TabsContent>
 
-        <TabsContent value="portals">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Globe2 className="h-5 w-5 text-[var(--lc-action-primary)]" />
-                Property portals
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-[var(--lc-text-muted)]">
-              <p>
-                Submit this listing to real-estate portals from the live portal registry.
-                Submissions create a publishing job and open the outcome receipt when done.
-              </p>
-              <Link to={`/listings/${property.id}/portals/submit`}>
-                <Button className="gap-1.5 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]">
-                  <Globe2 className="h-4 w-4" />
-                  Submit to portals
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+        <TabsContent value="publications">
+          <ListingPublicationsTab listingId={property.id} />
         </TabsContent>
 
         <TabsContent value="comms" className="space-y-6">
