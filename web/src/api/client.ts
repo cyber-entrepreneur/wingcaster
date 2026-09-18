@@ -81,8 +81,9 @@ export interface WhatsAppIntakeAnalytics {
     label: string
     accuracy: number
     sample_size: number
+    corrected_count: number
   }>
-  field_accuracy_basis: 'model_confidence'
+  field_accuracy_basis: 'accepted_without_correction'
   quota: {
     used?: number
     max?: number

@@ -46,7 +46,7 @@ export function analyticsCsv(data: WhatsAppIntakeAnalytics) {
     ['Average approval time (minutes)', data.summary.avg_approval_minutes ?? ''],
     ['Estimated AI cost (USD)', data.summary.ai_cost_estimate_usd],
     [],
-    ['Field', 'Model confidence', 'Samples'],
+    ['Field', 'Accepted without correction', 'Samples'],
     ...data.field_accuracy.map((field) => [field.label, `${field.accuracy}%`, field.sample_size]),
     [],
     ['Date', 'Drafts', 'Approved'],

@@ -123,8 +123,8 @@ export function WhatsAppIntakeAnalyticsPage() {
               className="mt-[var(--lc-space-xs)] max-w-2xl text-[var(--lc-text-secondary)]"
               style={{ font: 'var(--lc-type-body)' }}
             >
-              Monitor draft volume, review speed, and the confidence of AI-extracted listing
-              fields.
+              Monitor draft volume, review speed, and how often AI-extracted fields are accepted
+              without correction.
             </p>
           </div>
           <Button
@@ -352,13 +352,13 @@ export function WhatsAppIntakeAnalyticsPage() {
                   className="text-[var(--lc-text-heading)]"
                   style={{ font: 'var(--lc-type-heading-3)' }}
                 >
-                  Extraction confidence
+                  Field accuracy
                 </h2>
                 <p
                   className="mt-1 text-[var(--lc-text-muted)]"
                   style={{ font: 'var(--lc-type-caption)' }}
                 >
-                  Model confidence by field. This is a quality signal, not verified accuracy.
+                  Share of published drafts accepted without correction, tracked for new drafts.
                 </p>
                 {data.field_accuracy.length ? (
                   <div className="mt-[var(--lc-space-md)] space-y-[var(--lc-space-sm)]">
@@ -378,7 +378,7 @@ export function WhatsAppIntakeAnalyticsPage() {
                         <div
                           className="h-2.5 overflow-hidden rounded-full bg-[var(--lc-surface-sunken)]"
                           role="progressbar"
-                          aria-label={`${field.label} confidence`}
+                          aria-label={`${field.label} accuracy`}
                           aria-valuemin={0}
                           aria-valuemax={100}
                           aria-valuenow={field.accuracy}
@@ -393,7 +393,7 @@ export function WhatsAppIntakeAnalyticsPage() {
                   </div>
                 ) : (
                   <p className="mt-[var(--lc-space-lg)] text-center text-sm text-[var(--lc-text-muted)]">
-                    Confidence data is not available for these drafts.
+                    Accuracy data will appear after newly tracked drafts are published.
                   </p>
                 )}
               </article>

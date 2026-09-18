@@ -34,31 +34,24 @@ function hasValue(value) {
   return value !== null && value !== undefined && value !== ''
 }
 
-function clampConfidence(value) {
-  const confidence = Number(value)
-  if (!Number.isFinite(confidence)) return null
-  return Math.max(0, Math.min(1, confidence))
+function fieldValue(property, definition) {
+  for (const key of definition.keys) {
+    if (hasValue(property?.[key])) return property[key]
+  }
+  return null
 }
 
-function fieldConfidence(property, definition) {
-  const confidenceMap =
-    property?.field_confidences ||
-    property?.field_confidence ||
-    property?.confidence_by_field ||
-    {}
-  for (const key of definition.keys) {
-    const explicit = clampConfidence(confidenceMap[key])
-    if (explicit !== null) return explicit
-  }
-  const populated = definition.keys.some((key) => hasValue(property?.[key]))
-  return populated ? clampConfidence(property?.confidence) : null
+function normalizeFieldValue(value) {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value)
 }
 
 /**
  * AGT-WLA-005 analytics aggregator. `drafts` must already be scoped to the
- * authenticated agent. The result deliberately calls the field metric
- * model-confidence rather than verified accuracy: corrected-field history is
- * not retained, so claiming ground-truth accuracy would be misleading.
+ * authenticated agent. Field accuracy means an AI-extracted value reached
+ * publish without an agent correction. Drafts predating migration 440 have no
+ * original snapshot and are excluded from this metric rather than guessed.
  */
 export function buildAgentAnalytics({ drafts, usageRows, range, quota, now = new Date() }) {
   const days = RANGE_DAYS[range]
@@ -97,25 +90,32 @@ export function buildAgentAnalytics({ drafts, usageRows, range, quota, now = new
   }
 
   const fieldAccuracy = FIELD_DEFINITIONS.map((definition) => {
-    const confidences = filteredDrafts
-      .map((draft) => fieldConfidence(draft.extracted_property || {}, definition))
+    const samples = approvedDrafts
+      .filter((draft) => draft.original_extracted_property)
+      .map((draft) => {
+        const original = fieldValue(draft.original_extracted_property, definition)
+        const published = fieldValue(draft.extracted_property || {}, definition)
+        if (!hasValue(original) && !hasValue(published)) return null
+        return normalizeFieldValue(original) === normalizeFieldValue(published)
+      })
       .filter((value) => value !== null)
-    if (!confidences.length) return null
+    if (!samples.length) return null
+    const accepted = samples.filter(Boolean).length
     return {
       field: definition.field,
       label: definition.label,
-      accuracy: Math.round(
-        (confidences.reduce((sum, value) => sum + value, 0) / confidences.length) * 100,
-      ),
-      sample_size: confidences.length,
+      accuracy: Math.round((accepted / samples.length) * 100),
+      sample_size: samples.length,
+      corrected_count: samples.length - accepted,
     }
   }).filter(Boolean)
 
   const aiCostMicroUsd = usageRows
     .filter((row) => inRange(row.occurred_at || row.created_at))
     .reduce((sum, row) => sum + Math.max(0, Number(row.cost_estimate_micro_usd) || 0), 0)
-  const approvalRate = filteredDrafts.length
-    ? Math.round((approvedDrafts.length / filteredDrafts.length) * 100)
+  const reviewedDrafts = approvedDrafts.length + discardedDrafts.length
+  const approvalRate = reviewedDrafts
+    ? Math.round((approvedDrafts.length / reviewedDrafts) * 100)
     : 0
 
   return {
@@ -137,7 +137,7 @@ export function buildAgentAnalytics({ drafts, usageRows, range, quota, now = new
     },
     activity: [...activityByDate.values()],
     field_accuracy: fieldAccuracy,
-    field_accuracy_basis: 'model_confidence',
+    field_accuracy_basis: 'accepted_without_correction',
     quota,
     // Backward-compatible fields used by the combined drafts/settings screen.
     total_drafts: filteredDrafts.length,

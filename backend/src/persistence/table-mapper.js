@@ -391,7 +391,7 @@ const TABLE_MAP = {
   whatsapp_listing_drafts: {
     schema: 'wa_listings',
     table: 'drafts',
-    columns: ['session_id', 'agent_id', 'agency_id', 'intent', 'update_of', 'extracted_property', 'change_summary', 'thumbnails', 'captions', 'location_pin_latitude', 'location_pin_longitude', 'location_pin_name', 'location_source', 'address_description', 'status', 'credits_reserved', 'credit_scope', 'credit_scope_id'],
+    columns: ['session_id', 'agent_id', 'agency_id', 'intent', 'update_of', 'extracted_property', 'original_extracted_property', 'change_summary', 'thumbnails', 'captions', 'location_pin_latitude', 'location_pin_longitude', 'location_pin_name', 'location_source', 'address_description', 'status', 'credits_reserved', 'credit_scope', 'credit_scope_id'],
   },
   whatsapp_listing_media: { schema: 'wa_listings', table: 'media', columns: ['session_id', 'draft_id', 'agent_id', 'url', 'mime_type', 'caption', 'file_size'] },
   whatsapp_listing_dead_letters: { schema: 'wa_listings', table: 'dead_letters', columns: ['session_id', 'draft_id', 'stage', 'error_message', 'retry_count', 'payload'] },

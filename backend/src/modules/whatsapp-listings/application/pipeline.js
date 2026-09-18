@@ -372,6 +372,7 @@ export function createPipeline({ adapter, entitlements, credits, aiAdapter, temp
       intent: intentResult.intent,
       update_of: matchedListing?.id || null,
       extracted_property: extractedProperty,
+      original_extracted_property: extractedProperty,
       change_summary: intentResult.intent === Intent.UPDATE
         ? buildAiChangeSummary(matchedListing, extractedProperty, extraction.changeSummary, session.media)
         : null,

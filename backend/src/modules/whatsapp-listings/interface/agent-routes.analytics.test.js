@@ -57,7 +57,7 @@ beforeEach(() => {
 })
 
 describe('buildAgentAnalytics', () => {
-  it('aggregates activity, review time, AI cost, and per-field confidence', () => {
+  it('aggregates activity, review time, AI cost, and correction-based field accuracy', () => {
     const result = buildAgentAnalytics({
       range: '7d',
       now: new Date('2026-09-18T15:00:00Z'),
@@ -70,9 +70,9 @@ describe('buildAgentAnalytics', () => {
           updated_at: '2026-09-17T10:30:00Z',
           extracted_property: {
             title: 'Marina apartment',
-            price: 500000,
-            field_confidences: { title: 0.96, price: 0.84 },
+            price: 480000,
           },
+          original_extracted_property: { title: 'Marina apartment', price: 500000 },
         },
         {
           id: 'd-2',
@@ -80,6 +80,14 @@ describe('buildAgentAnalytics', () => {
           created_at: '2026-09-18T10:00:00Z',
           updated_at: '2026-09-18T10:05:00Z',
           extracted_property: { title: 'Townhouse', confidence: 0.8 },
+        },
+        {
+          id: 'd-3',
+          status: 'discarded',
+          created_at: '2026-09-17T12:00:00Z',
+          updated_at: '2026-09-17T12:10:00Z',
+          extracted_property: { title: 'Discarded draft' },
+          original_extracted_property: { title: 'Discarded draft' },
         },
         {
           id: 'old',
@@ -96,7 +104,7 @@ describe('buildAgentAnalytics', () => {
     })
 
     expect(result.summary).toEqual({
-      total_drafts: 2,
+      total_drafts: 3,
       approved: 1,
       approval_rate: 50,
       avg_approval_minutes: 30,
@@ -110,11 +118,11 @@ describe('buildAgentAnalytics', () => {
     })
     expect(result.field_accuracy).toEqual(
       expect.arrayContaining([
-        { field: 'title', label: 'Title', accuracy: 88, sample_size: 2 },
-        { field: 'price', label: 'Price', accuracy: 84, sample_size: 1 },
+        { field: 'title', label: 'Title', accuracy: 100, sample_size: 1, corrected_count: 0 },
+        { field: 'price', label: 'Price', accuracy: 0, sample_size: 1, corrected_count: 1 },
       ]),
     )
-    expect(result.field_accuracy_basis).toBe('model_confidence')
+    expect(result.field_accuracy_basis).toBe('accepted_without_correction')
   })
 
   it('returns a complete zero-state payload', () => {
@@ -145,6 +153,7 @@ describe('GET /api/agent/whatsapp-listings/analytics', () => {
         created_at: earlier,
         updated_at: now.toISOString(),
         extracted_property: { title: 'Mine', confidence: 0.9 },
+        original_extracted_property: { title: 'Mine', confidence: 0.9 },
       },
       {
         id: 'theirs',
@@ -153,6 +162,7 @@ describe('GET /api/agent/whatsapp-listings/analytics', () => {
         created_at: earlier,
         updated_at: now.toISOString(),
         extracted_property: { title: 'Theirs', confidence: 1 },
+        original_extracted_property: { title: 'Theirs', confidence: 1 },
       },
     ]
     const usage = [

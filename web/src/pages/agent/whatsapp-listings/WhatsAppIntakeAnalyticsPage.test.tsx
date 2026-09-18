@@ -38,10 +38,10 @@ const DATA: WhatsAppIntakeAnalytics = {
     { date: '2026-09-18', drafts: 6, approved: 5 },
   ],
   field_accuracy: [
-    { field: 'title', label: 'Title', accuracy: 96, sample_size: 12 },
-    { field: 'price', label: 'Price', accuracy: 88, sample_size: 10 },
+    { field: 'title', label: 'Title', accuracy: 96, sample_size: 12, corrected_count: 1 },
+    { field: 'price', label: 'Price', accuracy: 88, sample_size: 10, corrected_count: 1 },
   ],
-  field_accuracy_basis: 'model_confidence',
+  field_accuracy_basis: 'accepted_without_correction',
   quota: { used: 12, max: 100 },
   total_drafts: 12,
   published: 9,
@@ -83,7 +83,7 @@ afterEach(() => {
 })
 
 describe('WhatsAppIntakeAnalyticsPage', () => {
-  it('renders the Pro KPIs, trend, and model-confidence breakdown', async () => {
+  it('renders the Pro KPIs, trend, and correction-based accuracy breakdown', async () => {
     renderPage()
 
     expect(await screen.findByText('WhatsApp intake analytics')).toBeInTheDocument()
@@ -91,11 +91,11 @@ describe('WhatsAppIntakeAnalyticsPage', () => {
     expect(screen.getByText('Approval rate')).toBeInTheDocument()
     expect(screen.getByText('Average approval time')).toBeInTheDocument()
     expect(screen.getByText('Estimated AI cost')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Title confidence' })).toHaveAttribute(
+    expect(screen.getByRole('progressbar', { name: 'Title accuracy' })).toHaveAttribute(
       'aria-valuenow',
       '96',
     )
-    expect(screen.getByText(/not verified accuracy/i)).toBeInTheDocument()
+    expect(screen.getByText(/accepted without correction/i)).toBeInTheDocument()
   })
 
   it('shows only the two core KPIs in Guided mode', async () => {
@@ -149,13 +149,13 @@ describe('WhatsAppIntakeAnalyticsPage', () => {
     expect(await screen.findByText('Analytics are unavailable')).toBeInTheDocument()
     expect(screen.getByText('network unavailable')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByText('Extraction confidence')).toBeInTheDocument()
+    expect(await screen.findByText('Field accuracy')).toBeInTheDocument()
   })
 
   it('exports the selected analytics as CSV', async () => {
     const user = userEvent.setup()
     renderPage()
-    await screen.findByText('Extraction confidence')
+    await screen.findByText('Field accuracy')
     await user.click(screen.getByRole('button', { name: 'Export CSV' }))
 
     expect(URL.createObjectURL).toHaveBeenCalled()
