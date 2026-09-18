@@ -129,7 +129,7 @@ const TABLE_MAP = {
     schema: 'public',
     table: 'tenant_lead_routing_policies',
     columns: [
-      'tenant_id', 'name', 'priority', 'strategy', 'relationship_priority', 'filters', 'eligible_members',
+      'tenant_id', 'name', 'priority', 'trigger', 'strategy', 'relationship_priority', 'filters', 'eligible_members',
       'strategy_config', 'claim_timeout_seconds', 'response_timeout_seconds', 'max_attempts',
       'cooldown_seconds', 'escalation_membership_id', 'enabled', 'created_by',
     ],
