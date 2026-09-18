@@ -6,7 +6,19 @@ import { useLocale, type AppLocale } from '@/hooks/useLocale'
 import { cn } from '@/lib/utils'
 
 const COPY: Record<
-  'assign' | 'assignedTo' | 'unassigned' | 'you' | 'loading' | 'error' | 'retry' | 'search' | 'noMatches' | 'assignedToast' | 'failedToast',
+  | 'assign'
+  | 'assignedTo'
+  | 'unassigned'
+  | 'you'
+  | 'loading'
+  | 'error'
+  | 'retry'
+  | 'search'
+  | 'noMatches'
+  | 'assignedToast'
+  | 'failedToast'
+  | 'note'
+  | 'notePlaceholder',
   Record<AppLocale, string>
 > = {
   assign: { en: 'Assign', ar: 'إسناد' },
@@ -20,6 +32,8 @@ const COPY: Record<
   noMatches: { en: 'No matches', ar: 'لا نتائج' },
   assignedToast: { en: 'Conversation assigned', ar: 'تم إسناد المحادثة' },
   failedToast: { en: 'Could not assign conversation', ar: 'تعذّر إسناد المحادثة' },
+  note: { en: 'Note (optional)', ar: 'ملاحظة (اختياري)' },
+  notePlaceholder: { en: 'Context for the teammate…', ar: 'سياق للزميل…' },
 }
 
 export interface AssignConversationMenuProps {
@@ -45,6 +59,7 @@ export function AssignConversationMenu({ conversationId, assignedAgentId, onAssi
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [agents, setAgents] = useState<AssignableAgent[]>([])
   const [query, setQuery] = useState('')
+  const [note, setNote] = useState('')
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -97,9 +112,10 @@ export function AssignConversationMenu({ conversationId, assignedAgentId, onAssi
     async (agentId: string) => {
       setAssigningId(agentId)
       try {
-        await api.assignConversation(conversationId, agentId)
+        await api.assignConversation(conversationId, agentId, note.trim() || undefined)
         onAssigned?.(agentId)
         addToast({ title: COPY.assignedToast[locale], variant: 'success' })
+        setNote('')
         setOpen(false)
       } catch (e: unknown) {
         const err = e as { message?: string }
@@ -108,8 +124,11 @@ export function AssignConversationMenu({ conversationId, assignedAgentId, onAssi
         setAssigningId(null)
       }
     },
-    [conversationId, onAssigned, addToast, locale],
+    [conversationId, note, onAssigned, addToast, locale],
   )
+
+  // Solo agents have no teammates to assign to — hide the control entirely.
+  if (status === 'ready' && agents.length <= 1) return null
 
   return (
     <div ref={rootRef} dir={dir} className={cn('relative', className)} data-testid="assign-conversation-menu">
@@ -204,6 +223,18 @@ export function AssignConversationMenu({ conversationId, assignedAgentId, onAssi
                   })}
                 </ul>
               )}
+              <label className="mt-[var(--lc-space-2xs)] block border-t border-[var(--lc-border)] px-[var(--lc-space-sm)] pt-[var(--lc-space-sm)]">
+                <span className="text-[length:var(--lc-type-caption)] font-medium text-[var(--lc-text-muted)]">
+                  {COPY.note[locale]}
+                </span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder={COPY.notePlaceholder[locale]}
+                  rows={2}
+                  className="mt-[var(--lc-space-2xs)] w-full rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-[var(--lc-space-sm)] py-[var(--lc-space-2xs)] text-[length:var(--lc-type-body-sm)]"
+                />
+              </label>
             </>
           ) : null}
         </div>

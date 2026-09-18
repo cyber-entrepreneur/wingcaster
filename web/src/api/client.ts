@@ -2605,6 +2605,7 @@ export const api = {
     conversation_ids: string[]
     action: 'mark_read' | 'mark_unread' | 'assign' | 'archive'
     assign_to_agent_id?: string
+    assignment_note?: string
   }) => fetchJson('/conversations/bulk', { method: 'POST', body: JSON.stringify(payload) }),
   getAgentPreferences: (): Promise<{ inbox_merge_mode: 'merged' | 'separate' }> =>
     fetchJson('/agent-preferences'),
@@ -2751,8 +2752,11 @@ export const api = {
       testimonials_total: number; ai_watching_total: number
     }
   }> => fetchJson('/command-center'),
-  assignConversation: (id: string, agentId?: string) =>
-    fetchJson(`/conversations/${id}/assign`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
+  assignConversation: (id: string, agentId?: string, note?: string) =>
+    fetchJson(`/conversations/${id}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: agentId, note: note || undefined }),
+    }),
   getAssignableAgents: (id: string): Promise<{ agents: AssignableAgent[] }> =>
     fetchJson(`/conversations/${id}/assignable-agents`),
   updateConversation: (id: string, data: Record<string, unknown>) =>

@@ -30,11 +30,14 @@ const prefsPatchSchema = z.object({
   inbox_merge_mode: z.enum(['merged', 'separate']),
 })
 
-const bulkSchema = z.object({
-  conversation_ids: z.array(z.string().min(1).max(80)).min(1).max(200),
-  action: z.enum(['mark_read', 'mark_unread', 'assign', 'archive']),
-  assign_to_agent_id: z.string().min(1).max(80).optional(),
-})
+const bulkSchema = z
+  .object({
+    conversation_ids: z.array(z.string().min(1).max(80)).min(1).max(200),
+    action: z.enum(['mark_read', 'mark_unread', 'assign', 'archive']),
+    assign_to_agent_id: z.string().min(1).max(80).optional(),
+    assignment_note: z.string().max(500).optional(),
+  })
+  .strict()
 
 const revealPiiSchema = z.object({
   field: z.enum(['phone', 'email', 'name']),
@@ -136,7 +139,7 @@ export function registerInboxAgentRoutes(app, deps) {
   })
 
   app.post('/api/conversations/bulk', authMiddleware, validate(bulkSchema), async (req, res) => {
-    const { conversation_ids, action, assign_to_agent_id } = req.validated
+    const { conversation_ids, action, assign_to_agent_id, assignment_note } = req.validated
     if (action === 'assign' && !assign_to_agent_id) {
       return res.status(400).json({ error: 'assign_to_agent_id is required' })
     }
