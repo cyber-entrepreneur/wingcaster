@@ -76,4 +76,35 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
     expect(paused.status).toBe(200)
     expect(paused.body.status).toBe('PAUSED')
   })
+
+  it('GET facility detail returns composite payload and limit rejects invalid body', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const created = await request(app)
+      .post('/api/admin/fin/facilities')
+      .set(writeHeaders(token, { idempotencyKey: `FACILITY:${randomUUID()}` }))
+      .send({
+        reason_code: 'TEST',
+        tenant_id: world().tenantA.tenantId,
+        billing_account_id: world().tenantA.billingAccountId,
+        currency: 'USD',
+        limit_minor: 8000,
+        net_terms_days: 30,
+        valid_from: new Date(Date.parse(NOW) - 5000).toISOString(),
+      })
+    expect(created.status).toBe(200)
+
+    const detail = await request(app).get(`/api/admin/fin/facilities/${created.body.facilityId}`)
+    expect(detail.status).toBe(200)
+    expect(detail.body.id).toBe(created.body.facilityId)
+    expect(detail.body.current_draw_minor).toBeDefined()
+    expect(Array.isArray(detail.body.reservations)).toBe(true)
+    expect(Array.isArray(detail.body.audit_events)).toBe(true)
+
+    const badLimit = await request(app)
+      .post(`/api/admin/fin/facilities/${created.body.facilityId}/limit`)
+      .set(writeHeaders(token))
+      .send({ limit_minor: -1 })
+    expect(badLimit.status).toBe(400)
+  })
 })
