@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { z } from 'zod'
 import { authMiddleware } from '../../../auth.js'
 import { findOne } from '../../../db.js'
 import { findUserById } from '../../../identity.js'
@@ -6,6 +7,49 @@ import { creditContextFromRequest } from '../../../lib/credits/tenant-context.js
 import { creditErrorHttpStatus } from '../../../lib/credits/errors.js'
 import { rateProperty } from '../../../lib/credits/ai-stubs.js'
 import { authorizeInspectorPropertyRate } from '../application/property-area-match.js'
+
+const submissionSchema = z
+  .object({
+    assignment_id: z.string().trim().min(1).max(80),
+    area_id: z.string().trim().min(1).max(80),
+    gps_latitude: z.number().finite().gte(-90).lte(90),
+    gps_longitude: z.number().finite().gte(-180).lte(180),
+    dimension_scores: z.record(z.string(), z.number().finite()).default({}),
+    photo_urls: z.array(z.string().trim().min(1).max(2000)).max(50).optional(),
+    notes: z.string().max(4000).nullish(),
+    signature: z.string().max(500000).nullish(),
+  })
+  .strict()
+
+function serializeSubmission(row) {
+  if (!row) return row
+  const parseJson = (value, fallback) => {
+    if (value == null) return fallback
+    if (typeof value !== 'string') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return fallback
+    }
+  }
+  return {
+    id: row.id,
+    assignment_id: row.assignment_id,
+    agent_id: row.agent_id,
+    area_id: row.area_id,
+    gps_latitude: row.gps_latitude == null ? null : Number(row.gps_latitude),
+    gps_longitude: row.gps_longitude == null ? null : Number(row.gps_longitude),
+    photo_urls: parseJson(row.photo_urls, []),
+    dimension_scores: parseJson(row.dimension_scores, {}),
+    notes: row.notes ?? null,
+    signature: row.signature ?? null,
+    status: row.status,
+    reviewed_by: row.reviewed_by ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    review_notes: row.review_notes ?? null,
+    submitted_at: row.submitted_at,
+  }
+}
 
 async function callerIsPlatformAdmin(userId) {
   if (!userId) return false
@@ -97,22 +141,27 @@ export function registerInspectorRoutes(
   })
 
   app.post('/api/inspector/submissions', authMiddleware, requireAgent, async (req, res) => {
+    const parsed = submissionSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid submission' })
+    }
+    const body = parsed.data
     try {
-      const body = req.body
-      const assignment = body.assignment_id
-        ? await inspectorService.getAssignmentById(body.assignment_id)
-        : null
-      if (assignment && assignment.agent_id !== req.user.id) {
-        return res.status(403).json({ error: 'Forbidden: assignment not owned by you' })
+      // Leak-safe: an assignment that does not exist OR is not owned by the
+      // caller returns the same 404 — never reveal another inspector's work.
+      const assignment = await inspectorService.getAssignmentById(body.assignment_id)
+      if (!assignment || assignment.agent_id !== req.user.id) {
+        return res.status(404).json({ error: 'Assignment not found' })
+      }
+      if (body.area_id !== assignment.area_id) {
+        return res.status(400).json({ error: 'area_id does not match the assignment' })
       }
       const submission = await inspectorService.createSubmission({
         ...body,
         agent_id: req.user.id,
       })
-      if (assignment) {
-        await inspectorService.updateAssignmentStatus(assignment.id, 'completed')
-      }
-      res.status(201).json(submission)
+      await inspectorService.updateAssignmentStatus(assignment.id, 'completed')
+      res.status(201).json(serializeSubmission(submission))
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to create submission')
       res.status(500).json({ error: err.message })
