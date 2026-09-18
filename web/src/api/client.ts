@@ -304,6 +304,28 @@ export interface ManagedAgentReviewsResponse {
   }
   reviews: ManagedAgentReview[]
 }
+/** AGT-WLA-004 — WhatsApp intake agent preferences. */
+export type WhatsAppIntakeNotificationCadence = 'immediately' | 'hourly' | 'daily'
+
+export interface WhatsAppIntakeAgentSettings {
+  intake_enabled: boolean
+  notification_cadence: WhatsAppIntakeNotificationCadence
+  auto_approve_high_confidence: boolean
+  ai_provider_preference: string
+  default_template_variant: string
+  auto_publish_social: boolean
+  ai_providers_allowed: string[]
+  thumbnail_variants_allowed: string[]
+}
+
+export interface WhatsAppIntakeAgentSettingsPatch {
+  whatsapp_intake_enabled?: boolean
+  whatsapp_intake_notification_cadence?: WhatsAppIntakeNotificationCadence
+  whatsapp_intake_auto_approve_high_confidence?: boolean
+  whatsapp_listings_ai_provider?: string
+  whatsapp_listings_template_variant?: string
+  whatsapp_listings_auto_publish_social?: boolean
+}
 
 export interface DataExportRecord {
   id: string
@@ -2431,9 +2453,13 @@ export const api = {
     fetchJson(`/agent/whatsapp-listings/drafts/${id}/discard`, { method: 'POST', body: '{}' }),
   reprocessWhatsAppListingsDraft: (id: string) =>
     fetchJson(`/agent/whatsapp-listings/drafts/${id}/reprocess`, { method: 'POST', body: '{}' }),
-  getWhatsAppListingsAgentSettings: () => fetchJson('/agent/whatsapp-listings/settings'),
-  updateWhatsAppListingsAgentSettings: (data: Record<string, unknown>) =>
-    fetchJson('/agent/whatsapp-listings/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  getWhatsAppListingsAgentSettings: () =>
+    fetchJson('/agent/whatsapp-listings/settings') as Promise<WhatsAppIntakeAgentSettings>,
+  updateWhatsAppListingsAgentSettings: (data: WhatsAppIntakeAgentSettingsPatch) =>
+    fetchJson('/agent/whatsapp-listings/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }) as Promise<WhatsAppIntakeAgentSettings>,
   getWhatsAppListingsAgentAnalytics: (
     range: WhatsAppIntakeAnalyticsRange = '30d',
   ): Promise<WhatsAppIntakeAnalytics> =>

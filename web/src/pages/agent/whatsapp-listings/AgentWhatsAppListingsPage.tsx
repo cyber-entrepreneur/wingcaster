@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Settings } from 'lucide-react'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,8 +89,8 @@ export function AgentWhatsAppListingsPage() {
     const fd = new FormData(e.currentTarget)
     try {
       await api.updateWhatsAppListingsAgentSettings({
-        whatsapp_listings_ai_provider: fd.get('ai_provider'),
-        whatsapp_listings_template_variant: fd.get('template_variant'),
+        whatsapp_listings_ai_provider: String(fd.get('ai_provider') || ''),
+        whatsapp_listings_template_variant: String(fd.get('template_variant') || ''),
         whatsapp_listings_auto_publish_social: fd.get('auto_publish') === 'on',
       })
       addToast({ title: 'Settings saved' })
@@ -112,7 +113,15 @@ export function AgentWhatsAppListingsPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <h1 className="text-2xl font-bold">WhatsApp Listings</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-[var(--lc-text-heading)]">WhatsApp Listings</h1>
+        <Link to="/agent/whatsapp-listings/settings">
+          <Button type="button" variant="outline" className="inline-flex items-center gap-2">
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            Intake settings
+          </Button>
+        </Link>
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <CreditBalance balance={credits?.credits_remaining || 0} reserved={credits?.credits_reserved || 0} />
         <Card>

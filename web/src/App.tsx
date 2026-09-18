@@ -75,6 +75,7 @@ import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurity
 import { AgencyBrandingPage } from '@/pages/agency/settings/AgencyBrandingPage'
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
+import { WhatsAppIntakeSettingsPage } from '@/pages/agent/whatsapp-listings/WhatsAppIntakeSettingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
@@ -339,6 +340,7 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      <Route path="/agent/whatsapp-listings/settings" element={<WhatsAppIntakeSettingsPage />} />
       <Route
         path="/agent/whatsapp-listings/analytics"
         element={

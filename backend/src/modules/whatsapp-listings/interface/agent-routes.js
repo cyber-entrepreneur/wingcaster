@@ -13,6 +13,17 @@ const analyticsQuerySchema = z
   })
   .strict()
 
+const patchSettingsSchema = z
+  .object({
+    whatsapp_listings_ai_provider: z.string().min(1).max(64).optional(),
+    whatsapp_listings_template_variant: z.string().min(1).max(64).optional(),
+    whatsapp_listings_auto_publish_social: z.boolean().optional(),
+    whatsapp_intake_enabled: z.boolean().optional(),
+    whatsapp_intake_notification_cadence: z.enum(['immediately', 'hourly', 'daily']).optional(),
+    whatsapp_intake_auto_approve_high_confidence: z.boolean().optional(),
+  })
+  .strict()
+
 const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90 }
 const DAY_MS = 24 * 60 * 60 * 1000
 const FIELD_DEFINITIONS = [
@@ -45,6 +56,19 @@ function normalizeFieldValue(value) {
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
   return JSON.stringify(value)
+}
+
+function serializeAgentSettings(agent, entitlement, config) {
+  return {
+    ai_provider_preference: agent?.whatsapp_listings_ai_provider || config.aiProvider,
+    default_template_variant: agent?.whatsapp_listings_template_variant || 'modern',
+    auto_publish_social: agent?.whatsapp_listings_auto_publish_social || entitlement.auto_publish_social || false,
+    ai_providers_allowed: entitlement.ai_providers_allowed || [],
+    thumbnail_variants_allowed: entitlement.thumbnail_variants || [],
+    intake_enabled: agent?.whatsapp_intake_enabled ?? true,
+    notification_cadence: agent?.whatsapp_intake_notification_cadence || 'immediately',
+    auto_approve_high_confidence: agent?.whatsapp_intake_auto_approve_high_confidence ?? false,
+  }
 }
 
 /**
@@ -280,15 +304,10 @@ export function registerAgentRoutes(app, { entitlements, credits, pipeline, conf
   app.get('/api/agent/whatsapp-listings/settings', authMiddleware, async (req, res) => {
     try {
       const agent = await findOne('agents', (a) => a.id === req.user.id)
+      if (!agent) return res.status(404).json({ error: 'Agent not found' })
       const agencyId = agent?.agency_id || null
       const entitlement = await entitlements.getConfig({ agentId: req.user.id, agencyId })
-      res.json({
-        ai_provider_preference: agent?.whatsapp_listings_ai_provider || config.aiProvider,
-        default_template_variant: agent?.whatsapp_listings_template_variant || 'modern',
-        auto_publish_social: agent?.whatsapp_listings_auto_publish_social || entitlement.auto_publish_social || false,
-        ai_providers_allowed: entitlement.ai_providers_allowed || [],
-        thumbnail_variants_allowed: entitlement.thumbnail_variants || [],
-      })
+      res.json(serializeAgentSettings(agent, entitlement, config))
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
@@ -296,13 +315,25 @@ export function registerAgentRoutes(app, { entitlements, credits, pipeline, conf
 
   app.patch('/api/agent/whatsapp-listings/settings', authMiddleware, async (req, res) => {
     try {
-      const allowed = ['whatsapp_listings_ai_provider', 'whatsapp_listings_template_variant', 'whatsapp_listings_auto_publish_social']
-      const patch = {}
-      for (const key of allowed) {
-        if (req.body[key] !== undefined) patch[key] = req.body[key]
+      const agent = await findOne('agents', (a) => a.id === req.user.id)
+      if (!agent) return res.status(404).json({ error: 'Agent not found' })
+      const parsed = patchSettingsSchema.safeParse(req.body ?? {})
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() })
       }
-      await update('agents', (a) => a.id === req.user.id, (a) => ({ ...a, ...patch, updated_at: new Date().toISOString() }))
-      res.json({ success: true })
+      const body = parsed.data
+      if (!Object.keys(body).length) {
+        return res.status(400).json({ error: 'No valid fields to update' })
+      }
+      await update('agents', (a) => a.id === req.user.id, (a) => ({
+        ...a,
+        ...body,
+        updated_at: new Date().toISOString(),
+      }))
+      const agencyId = agent?.agency_id || null
+      const entitlement = await entitlements.getConfig({ agentId: req.user.id, agencyId })
+      const next = await findOne('agents', (a) => a.id === req.user.id)
+      res.json(serializeAgentSettings(next, entitlement, config))
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
