@@ -8,7 +8,7 @@ import {
   ContractVersionEditorPage, CreditsPage,
   ExceptionDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
 } from './index'
 
@@ -81,6 +81,23 @@ const apiMock = vi.hoisted(() => ({
       return {
         id: 'vendor-1', name: 'OpenAI', currency: 'USD',
         products: [{ product_code: 'gpt-4o.input_tokens', product_class: 'TOK' }],
+      }
+    }
+    if (String(path).includes('/reconciliation/runs/')) {
+      return {
+        id: 'run-1',
+        status: 'COMPLETED',
+        scope: 'platform',
+        schedule_kind: 'ON_DEMAND',
+        started_at: '2026-01-01T00:00:00.000Z',
+        finished_at: '2026-01-01T00:05:00.000Z',
+        checks: [
+          { id: 'c1', check_code: 'R001', severity: 'CRITICAL', result: 'GREEN', observed_delta_units: 0, drift_action: 'BLOCK_BILLING_CLOSE' },
+          { id: 'c2', check_code: 'R002', severity: 'CRITICAL', result: 'DRIFT', observed_delta_units: 1, drift_action: 'BLOCK_AFFECTED_BOOK' },
+        ],
+        drifts: [
+          { id: 'd1', check_id: 'c2', entity_type: 'ledger_postings', entity_id: '00000000-0000-0000-0000-000000000001', expected: { qty: 0 }, actual: { qty: 1 }, delta: { qty: -1 } },
+        ],
       }
     }
     if (String(path).match(/\/prices\/.+/)) {
@@ -321,5 +338,17 @@ describe('admin/fin pages', () => {
   it('Pricing page exposes new version CTA', () => {
     wrap(<FinPricingPage />)
     expect(screen.getByRole('button', { name: 'New version' })).toBeTruthy()
+  })
+  it('Reconciliation run detail renders checks and drift summary', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/reconciliation/run-1']}>
+        <Routes>
+          <Route path="/admin/fin/reconciliation/:id" element={<ReconciliationRunDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('R001')).toBeTruthy()
+    expect(screen.getAllByText('R002').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Drift items' })).toBeTruthy()
   })
 })

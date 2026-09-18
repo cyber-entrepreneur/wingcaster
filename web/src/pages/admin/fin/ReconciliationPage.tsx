@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import { FinAction, FinAdminGate, FinTable } from './shell'
 import { RunReconciliationDialog } from './RunReconciliationDialog'
 
 export function ReconciliationPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
   const [runOpen, setRunOpen] = useState(false)
 
@@ -23,7 +25,14 @@ export function ReconciliationPage() {
         onOpenChange={setRunOpen}
         onCompleted={() => reload()}
       />
-      <FinTable columns={['id', 'status', 'scope', 'started_at']} rows={rows} />
+      <FinTable
+        columns={['id', 'status', 'scope', 'started_at']}
+        rows={rows}
+        onRowClick={(row) => {
+          const runId = String(row.id || '')
+          if (runId) navigate(`/admin/fin/reconciliation/${runId}`)
+        }}
+      />
     </FinAdminGate>
   )
 }
