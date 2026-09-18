@@ -176,5 +176,40 @@ loading · empty (campaign just started — encouraging "your campaign just star
 
 ---
 
+## Core architecture — standard form, template-driven render (confirmed 2026-09-18)
+
+**The data-entry form is standard regardless of which template/layout the agent uses.** The agent enters the platform property **reference number**; the report engine pulls every field (metrics, posting log, score, benchmark, photos, agent brief) into whatever slots the chosen template — a built-in one, the agent's saved custom layout, or a tier-2 designed layout — exposes. Template = presentation; data pull = fixed pipeline keyed off the reference number. This separation is load-bearing: it lets branding and custom layouts vary freely without ever forking the data contract.
+
+---
+
+## Enhancement tier 1 — Agent branding (all paid tiers)
+
+Applies the agent/agency identity to the **standard** report template (no layout design needed):
+- **Colors:** primary, secondary, highlight/accent (mapped onto the report's `--lc-*` slots at render — a scoped theme override, still passing token-hygiene since values come from a validated brand palette, not raw hex sprinkled in components). Also: text-on-brand contrast auto-checked (WCAG AA) so a bad brand color can't make the report unreadable.
+- **Logo:** agent/agency logo in the letterhead (+ optional watermark on the client render).
+- **Font:** a font choice from an allowlisted, license-cleared set (self-hosted or Google Fonts per the artifact font rules); never arbitrary uploads in v1 (licensing + rendering risk).
+- Branding is saved on the agent/agency profile and reused across every report. `[new: branding profile fields + scoped theme]`
+
+## Enhancement tier 2 — Custom report builder (higher tier only)
+
+A WYSIWYG page designer that lets higher-tier agents design their own report layout, which the standard data pull then fills. Capabilities requested:
+- **Page-layout picker** — ≥15 preset layouts (3-row, halves, four-quadrant, header+2col, sidebar, hero+grid, etc.); pick one per page as a starting grid.
+- **Data field catalog** — a list of every available field/metric/section to drop in.
+- **Drag-and-drop** placement onto the page grid; **resize** by dragging edges; **snapping** to neighbors/grid; **multi-page** (add as many pages as wanted); reorder.
+- **Per-field title** — a label the agent sets for each dropped field.
+- **Rich text control** — font family / size / style (bold, italic, both) / color / effects (underline, double-underline) / alignment (left, center, right) / justification / line-spacing; text direction/orientation (critical for Arabic RTL).
+- **Bullets** — add/remove/manage bulleted lists.
+- **Images** — fixed (standard branding asset) or property-specific (pulled by reference number).
+- Save as a **reusable template** the agent applies to future reports.
+
+**Product read (honest):** this is not a screen — it is a mini page-design product (a Canva/Google-Docs-layout-editor for reports). It is a multi-month, multi-PR workstream in its own right: a serializable layout schema, a canvas engine (drag/resize/snap), a rich-text model, an image-asset pipeline, a render-from-schema engine that must produce identical output on screen **and** in the PDF/print path, and RTL correctness throughout. It should be **gated to a higher subscription tier**, **phased after** tier-1 branding + the standard templated report ship and prove valuable, and **spec'd on its own** before any code. Recommend: v1 = standard report + tier-1 branding + a handful (3–5) of built-in fixed layouts the agent selects (no free-form design); the full builder = a separate initiative (call it AGT-LST-015b) scoped later. Building the free-form designer up front would dwarf the rest of Wave 1 and delay the seller-report value that tier-1 already delivers.
+
+---
+
 ## Wave slotting
-Wave 1 (Agent gap-closure), **Listings+Publishing slice**, sequenced **after** AGT-LST-006 (private analytics) — the report reads the same metric feed, so finishing -006 first de-risks -015. Ships as its own full-stack PR(s): likely split into (1) report data model + agent-side report + agent brief/commentary, (2) share-token model + client route + share sheet + print/QR. Depends on AGT-LST-010 (offers) for the optional offers section. `[source]`/`[new]`-tagged elements (ads, area market, geography, predictive) land as follow-ups so v1 ships on data we already have.
+Wave 1 (Agent gap-closure), **Listings+Publishing slice**, sequenced **after** AGT-LST-006 (private analytics) — the report reads the same metric feed, so finishing -006 first de-risks -015. Ships as its own full-stack PR(s):
+1. Report data model + reference-number data pull + agent-side report + agent brief/commentary.
+2. Share-token model + client route + share sheet + print/QR.
+3. **Tier-1 branding** (colors/logo/font as a scoped theme on the standard template) + 3–5 built-in fixed layouts.
+Depends on AGT-LST-010 (offers) for the optional offers section. `[source]`/`[new]`-tagged elements (ads, area market, geography, predictive) land as follow-ups so v1 ships on data we already have.
+**Tier-2 custom report builder → separate initiative AGT-LST-015b, higher tier, spec'd + scoped on its own after v1 ships.**
