@@ -205,7 +205,8 @@ async function listInvoiceOverdue(environment, limit) {
 
 async function listPaymentUnapplied(environment, limit) {
   const rows = await query(
-    `SELECT id AS source_id, tenant_id, balance_minor, currency, updated_at AS created_at
+    `SELECT billing_account_id AS source_id, tenant_id, balance_minor, currency,
+            updated_at AS created_at
        FROM fin.unapplied_cash
       WHERE environment = $1 AND balance_minor > 0
       ORDER BY updated_at DESC
@@ -218,7 +219,7 @@ async function listPaymentUnapplied(environment, limit) {
     createdAt: row.created_at,
     severity: 'MED',
     tenantId: row.tenant_id,
-    resourceType: 'UNAPPLIED_CASH',
+    resourceType: 'BILLING_ACCOUNT',
     resourceId: row.source_id,
     description: `Unapplied cash ${row.balance_minor} ${row.currency}`,
   }))
@@ -449,7 +450,10 @@ async function loadPayload(type, environment, sourceId) {
       ))[0] || null
     case 'PAYMENT_UNAPPLIED':
       return (await query(
-        `SELECT * FROM fin.unapplied_cash WHERE environment = $1 AND id = $2`,
+        `SELECT * FROM fin.unapplied_cash
+          WHERE environment = $1 AND billing_account_id = $2
+          ORDER BY updated_at DESC
+          LIMIT 1`,
         [environment, sourceId],
       ))[0] || null
     case 'APPROVAL_PENDING':
