@@ -56,6 +56,38 @@ export interface AuditLogSearchFilters {
 }
 
 /** Issue 192b — self-serve data-export job shape. */
+export type ScheduledPublicationStatus =
+  | 'pending'
+  | 'processing'
+  | 'published'
+  | 'cancelled'
+  | 'failed'
+
+export interface ScheduledPublication {
+  id: string
+  property_id: string
+  agent_id: string
+  portals: Array<string | { code: string; country_code?: string }>
+  message: string | null
+  scheduled_at: string
+  timezone: string | null
+  recurrence: 'none' | 'weekly'
+  status: ScheduledPublicationStatus
+  job_id: string | null
+  last_error: string | null
+  last_fired_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduledPublicationInput {
+  portals: Array<string | { code: string; country_code?: string }>
+  message?: string | null
+  scheduled_at: string
+  timezone?: string | null
+  recurrence?: 'none' | 'weekly'
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -1926,6 +1958,19 @@ export const api = {
         message: message || undefined,
       }),
     }),
+
+  // AGT-PUB-007 — schedule publish (later)
+  listScheduledPublications: (propertyId: string) =>
+    fetchJson(`/properties/${propertyId}/scheduled-publications`) as Promise<{
+      scheduled: ScheduledPublication[]
+    }>,
+  createScheduledPublication: (propertyId: string, input: ScheduledPublicationInput) =>
+    fetchJson(`/properties/${propertyId}/scheduled-publications`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }) as Promise<ScheduledPublication>,
+  cancelScheduledPublication: (schedId: string) =>
+    fetchJson(`/scheduled-publications/${schedId}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
 
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),

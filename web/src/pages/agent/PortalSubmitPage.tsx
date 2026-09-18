@@ -7,8 +7,9 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Globe2, Loader2, Send } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Check, Globe2, Loader2, Send } from 'lucide-react'
 import { api } from '@/api/client'
+import { SchedulePublishDialog } from '@/components/publishing/SchedulePublishDialog'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/components/ui/button'
@@ -82,6 +83,16 @@ export function PortalSubmitPage() {
   }, [propertyId])
 
   const chosenCodes = useMemo(() => Object.keys(selected), [selected])
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+
+  const portalsPayload = useMemo(
+    () =>
+      chosenCodes.map((code) => {
+        const country = selected[code]
+        return country ? { code, country_code: country } : code
+      }),
+    [chosenCodes, selected],
+  )
 
   function togglePortal(code: string, countryCodes: string[]) {
     setSelected((prev) => {
@@ -286,6 +297,17 @@ export function PortalSubmitPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
+              variant="outline"
+              onClick={() => setScheduleOpen(true)}
+              disabled={submitting || chosenCodes.length === 0}
+              className="gap-2"
+              data-testid="portal-schedule-cta"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Schedule for later
+            </Button>
+            <Button
+              type="button"
               onClick={handleSubmit}
               disabled={submitting || chosenCodes.length === 0}
               className="gap-2 bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)] hover:bg-[var(--lc-action-primary-hover)]"
@@ -302,6 +324,19 @@ export function PortalSubmitPage() {
           </div>
         </CardContent>
       </Card>
+
+      {scheduleOpen && propertyId ? (
+        <SchedulePublishDialog
+          propertyId={propertyId}
+          portals={portalsPayload}
+          message={message.trim() || undefined}
+          onClose={() => setScheduleOpen(false)}
+          onScheduled={() => {
+            setScheduleOpen(false)
+            navigate(propertyId ? `/listings/${propertyId}?tab=portals` : '/listings')
+          }}
+        />
+      ) : null}
     </div>
   )
 }
