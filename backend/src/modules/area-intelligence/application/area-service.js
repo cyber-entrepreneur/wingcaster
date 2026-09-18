@@ -84,6 +84,7 @@ export function createAreaService({ adapter, config, logger }) {
       'family_profile_skew',
       'estimated_population_density',
       'status',
+      'last_google_signals_refresh_at',
     ]
     for (const key of allowed) {
       if (patch[key] !== undefined) {

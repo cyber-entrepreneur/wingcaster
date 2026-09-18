@@ -6,6 +6,11 @@ import { aiSynthesis } from '../domain/scoring/ai-synthesis.js'
 import { scoringCalculateBodySchema } from './scoring-calculate-schemas.js'
 import { scoringOverrideBodySchema } from './scoring-override-schemas.js'
 import { areaSignalRejectBodySchema, areaSignalVerifyBodySchema } from './area-signal-review-schemas.js'
+import {
+  createAreaSourceBodySchema,
+  updateAreaBodySchema,
+  updateAreaSourceBodySchema,
+} from './admin-routes-schemas.js'
 
 const aiConfigFields = {
   name: z.string().trim().min(2).max(120),
@@ -32,6 +37,30 @@ function validationError(res, parsed) {
     code: 'VALIDATION_ERROR',
     fields: parsed.error.flatten().fieldErrors,
   })
+}
+
+function parseBody(schema, body) {
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { ok: false, error: issue?.message || 'Validation failed' }
+  }
+  return { ok: true, value: parsed.data }
+}
+
+function normalizeBoundaryGeojson(value) {
+  if (value == null) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    try {
+      JSON.parse(trimmed)
+    } catch {
+      throw new Error('boundary_geojson must be valid GeoJSON JSON')
+    }
+    return trimmed
+  }
+  return JSON.stringify(value)
 }
 
 export function registerAdminRoutes(
@@ -90,14 +119,44 @@ export function registerAdminRoutes(
     }
   })
 
+  app.get('/api/admin/areas/:id/detail', authMiddleware, requirePlatformAdmin, async (req, res) => {
+    try {
+      const area = await areaService.getById(req.params.id)
+      if (!area) return res.status(404).json({ error: 'Area not found' })
+      const [sources, monthlySpend] = await Promise.all([
+        sourceService.listForArea(req.params.id),
+        googleService.getMonthlySpend(),
+      ])
+      const budgetUsd = config.googleMapsBudgetUsdMonthly
+      res.json({
+        area,
+        sources,
+        google_budget: {
+          monthly_spend_usd: monthlySpend,
+          budget_usd_monthly: budgetUsd,
+          quota_exceeded: monthlySpend >= budgetUsd,
+        },
+      })
+    } catch (err) {
+      logger.error({ err: err.message }, 'Failed to get area detail')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   app.put('/api/admin/areas/:id', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
-      const area = await areaService.update(req.params.id, req.body)
+      const parsed = parseBody(updateAreaBodySchema, req.body)
+      if (!parsed.ok) return res.status(400).json({ error: parsed.error })
+      let payload = parsed.value
+      if (payload.boundary_geojson !== undefined) {
+        payload = { ...payload, boundary_geojson: normalizeBoundaryGeojson(payload.boundary_geojson) }
+      }
+      const area = await areaService.update(req.params.id, payload)
       if (!area) return res.status(404).json({ error: 'Area not found' })
       res.json(area)
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to update area')
-      res.status(500).json({ error: err.message })
+      res.status(400).json({ error: err.message })
     }
   })
 
@@ -375,7 +434,9 @@ export function registerAdminRoutes(
 
   app.post('/api/admin/areas/:areaId/sources', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
-      const source = await sourceService.create({ ...req.body, area_id: req.params.areaId })
+      const parsed = parseBody(createAreaSourceBodySchema, req.body)
+      if (!parsed.ok) return res.status(400).json({ error: parsed.error })
+      const source = await sourceService.create({ ...parsed.value, area_id: req.params.areaId })
       res.status(201).json(source)
     } catch (err) {
       logger.error({ err: err.message }, 'Failed to create area source')
@@ -385,7 +446,9 @@ export function registerAdminRoutes(
 
   app.put('/api/admin/areas/:areaId/sources/:id', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
-      const source = await sourceService.update(req.params.id, req.body)
+      const parsed = parseBody(updateAreaSourceBodySchema, req.body)
+      if (!parsed.ok) return res.status(400).json({ error: parsed.error })
+      const source = await sourceService.update(req.params.id, parsed.value)
       if (!source) return res.status(404).json({ error: 'Source not found' })
       res.json(source)
     } catch (err) {
@@ -469,7 +532,11 @@ export function registerAdminRoutes(
       res.json(result)
     } catch (err) {
       logger.error({ err: err.message, area_id: req.params.id }, 'On-demand Google refresh failed')
-      res.status(400).json({ error: err.message })
+      const quotaExceeded = /budget cap reached/i.test(err.message)
+      res.status(quotaExceeded ? 429 : 400).json({
+        error: err.message,
+        code: quotaExceeded ? 'GOOGLE_QUOTA_EXCEEDED' : 'REFRESH_FAILED',
+      })
     }
   })
 

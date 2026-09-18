@@ -693,7 +693,7 @@ const TABLE_MAP = {
       'name', 'name_ar', 'slug', 'level', 'parent_id', 'center_latitude', 'center_longitude',
       'boundary_geojson', 'proximity_radii_json', 'summary', 'summary_ar', 'lifestyle_profile',
       'investment_outlook', 'activity_score', 'activity_trend', 'family_profile_skew',
-      'estimated_population_density', 'status', 'published_at',
+      'estimated_population_density', 'status', 'published_at', 'last_google_signals_refresh_at',
     ],
   },
   score_dimensions: {
