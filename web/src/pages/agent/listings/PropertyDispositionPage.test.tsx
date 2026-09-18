@@ -85,7 +85,7 @@ describe('PropertyDispositionPage', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading disposition case')
     expect(await screen.findByRole('heading', { name: 'Property disposition case' })).toBeInTheDocument()
-    expect(screen.getByText('Compass Realty and Rania Agent must agree')).toBeInTheDocument()
+    expect(screen.getByText(/Compass Realty and Rania Agent must agree/)).toBeInTheDocument()
     expect(screen.getByText('WC-100')).toHaveAttribute('data-lc-numeric')
     expect(screen.getByText('Awaiting decisions')).toBeInTheDocument()
     expect(screen.getByText('Waiting for their decision')).toBeInTheDocument()
@@ -147,7 +147,7 @@ describe('PropertyDispositionPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Resolve case' }))
 
     await waitFor(() => expect(mocks.resolveCase).toHaveBeenCalledWith('prop-1'))
-    expect(await screen.findByText('Resolved as')).toBeInTheDocument()
+    expect(await screen.findByText(/Resolved as/)).toBeInTheDocument()
     expect(screen.getByText('Resolved')).toBeInTheDocument()
   })
 

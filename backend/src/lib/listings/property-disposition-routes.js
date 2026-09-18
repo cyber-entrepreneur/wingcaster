@@ -6,7 +6,7 @@
  * become resolvable; disagreement remains visible as a disputed case.
  */
 import { z } from 'zod'
-import { findOne, update } from '../../db.js'
+import { findAll, findOne, update } from '../../db.js'
 
 const dispositionSchema = z.enum(['agency_retains', 'agent_retains', 'archive'])
 const decisionSchema = z.object({
@@ -21,10 +21,16 @@ function legacyProposal(row, party) {
 }
 
 async function loadContext(propertyId, userId) {
-  const dispositionCase = await findOne(
+  const cases = await findAll(
     'property_disposition_cases',
     (row) => row.property_id === propertyId,
   )
+  const openStatuses = new Set(['pending', 'agreed', 'disputed'])
+  cases.sort((a, b) => {
+    const openDelta = Number(openStatuses.has(b.status)) - Number(openStatuses.has(a.status))
+    return openDelta || String(b.created_at).localeCompare(String(a.created_at))
+  })
+  const dispositionCase = cases[0] ?? null
   if (!dispositionCase) return null
 
   const property = await findOne('properties', (row) => row.id === propertyId)

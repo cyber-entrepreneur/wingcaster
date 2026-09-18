@@ -12,6 +12,7 @@ const store = vi.hoisted(() => ({
 }))
 
 vi.mock('../../db.js', () => ({
+  findAll: vi.fn(async (collection, predicate) => store[collection].filter(predicate)),
   findOne: vi.fn(async (collection, predicate) => store[collection].find(predicate) ?? null),
   update: vi.fn(async (collection, predicate, updater) => {
     store[collection] = store[collection].map((row) => (predicate(row) ? updater(row) : row))
