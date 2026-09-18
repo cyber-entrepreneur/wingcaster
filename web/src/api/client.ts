@@ -55,6 +55,36 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
+// PA-AUD-002 — Audit-log retention policy.
+export interface AuditRetentionPolicy {
+  financial_actions_days: number
+  pa_actions_days: number
+  tenant_actions_days: number
+  system_events_days: number
+  export_before_purge: boolean
+  updated_by: string | null
+  updated_at: string | null
+}
+
+export interface AuditRetentionConstraints {
+  financial_floor_days: number
+  min_category_days: number
+  max_category_days: number
+}
+
+export interface AuditRetentionPolicyResponse {
+  policy: AuditRetentionPolicy
+  constraints: AuditRetentionConstraints
+}
+
+export interface AuditRetentionPolicyInput {
+  financial_actions_days: number
+  pa_actions_days: number
+  tenant_actions_days: number
+  system_events_days: number
+  export_before_purge: boolean
+}
+
 /** Issue 192b — self-serve data-export job shape. */
 export type ScheduledPublicationStatus =
   | 'pending'
@@ -2174,6 +2204,12 @@ export const api = {
     return fetchJson(`/admin/audit-log${qs}`)
   },
   runAuditLogRetention: () => fetchJson('/admin/audit-log/retention', { method: 'POST', body: '{}' }),
+  getAuditRetentionPolicy: (): Promise<AuditRetentionPolicyResponse> =>
+    fetchJson('/admin/audit-log/retention-policy'),
+  updateAuditRetentionPolicy: (
+    body: AuditRetentionPolicyInput,
+  ): Promise<{ policy: AuditRetentionPolicy }> =>
+    fetchJson('/admin/audit-log/retention-policy', { method: 'PUT', body: JSON.stringify(body) }),
   promoteUser: (id: string, role: 'platform_admin' | null) =>
     fetchJson(`/admin/users/${id}/promote`, { method: 'POST', body: JSON.stringify({ role }) }),
 
