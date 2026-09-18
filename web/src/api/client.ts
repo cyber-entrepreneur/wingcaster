@@ -55,6 +55,47 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
+export type WhatsAppIntakeAnalyticsRange = '7d' | '30d' | '90d'
+
+export interface WhatsAppIntakeAnalytics {
+  range: {
+    key: WhatsAppIntakeAnalyticsRange
+    days: number
+    from: string
+    to: string
+  }
+  summary: {
+    total_drafts: number
+    approved: number
+    approval_rate: number
+    avg_approval_minutes: number | null
+    ai_cost_estimate_usd: number
+  }
+  activity: Array<{
+    date: string
+    drafts: number
+    approved: number
+  }>
+  field_accuracy: Array<{
+    field: string
+    label: string
+    accuracy: number
+    sample_size: number
+  }>
+  field_accuracy_basis: 'model_confidence'
+  quota: {
+    used?: number
+    max?: number
+    remaining?: number
+    allowed?: boolean
+  } | null
+  total_drafts: number
+  published: number
+  discarded: number
+  awaiting_approval: number
+  approval_rate: number
+}
+
 /** Issue 192b — self-serve data-export job shape. */
 export type ScheduledPublicationStatus =
   | 'pending'
@@ -2122,7 +2163,10 @@ export const api = {
   getWhatsAppListingsAgentSettings: () => fetchJson('/agent/whatsapp-listings/settings'),
   updateWhatsAppListingsAgentSettings: (data: Record<string, unknown>) =>
     fetchJson('/agent/whatsapp-listings/settings', { method: 'PATCH', body: JSON.stringify(data) }),
-  getWhatsAppListingsAgentAnalytics: () => fetchJson('/agent/whatsapp-listings/analytics'),
+  getWhatsAppListingsAgentAnalytics: (
+    range: WhatsAppIntakeAnalyticsRange = '30d',
+  ): Promise<WhatsAppIntakeAnalytics> =>
+    fetchJson(`/agent/whatsapp-listings/analytics?range=${range}`),
   getWhatsAppListingsAgentCredits: () => fetchJson('/agent/credits/balance'),
   getWhatsAppListingsAgentTransactions: (limit = 100) =>
     fetchJson(`/agent/credits/transactions?limit=${limit}`),

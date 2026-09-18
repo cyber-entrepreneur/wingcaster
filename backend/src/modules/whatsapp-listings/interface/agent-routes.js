@@ -2,9 +2,151 @@
  * Agent routes for the WhatsApp Listing module.
  */
 
+import { z } from 'zod'
 import { authMiddleware } from '../../../auth.js'
-import { findOne, update } from '../../../db.js'
+import { findAll, findOne, update } from '../../../db.js'
 import { Collections, findAllModule, findOneModule, updateModule } from '../infrastructure/db.js'
+
+const analyticsQuerySchema = z
+  .object({
+    range: z.enum(['7d', '30d', '90d']).default('30d'),
+  })
+  .strict()
+
+const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90 }
+const DAY_MS = 24 * 60 * 60 * 1000
+const FIELD_DEFINITIONS = [
+  { field: 'title', label: 'Title', keys: ['title'] },
+  { field: 'price', label: 'Price', keys: ['price', 'price_cents'] },
+  { field: 'bedrooms', label: 'Bedrooms', keys: ['bedrooms'] },
+  { field: 'bathrooms', label: 'Bathrooms', keys: ['bathrooms'] },
+  { field: 'property_type', label: 'Property type', keys: ['property_type', 'type'] },
+  { field: 'location', label: 'Location', keys: ['address_display', 'address', 'location', 'area_name'] },
+  { field: 'description', label: 'Description', keys: ['description'] },
+]
+
+function asTimestamp(value) {
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function hasValue(value) {
+  return value !== null && value !== undefined && value !== ''
+}
+
+function clampConfidence(value) {
+  const confidence = Number(value)
+  if (!Number.isFinite(confidence)) return null
+  return Math.max(0, Math.min(1, confidence))
+}
+
+function fieldConfidence(property, definition) {
+  const confidenceMap =
+    property?.field_confidences ||
+    property?.field_confidence ||
+    property?.confidence_by_field ||
+    {}
+  for (const key of definition.keys) {
+    const explicit = clampConfidence(confidenceMap[key])
+    if (explicit !== null) return explicit
+  }
+  const populated = definition.keys.some((key) => hasValue(property?.[key]))
+  return populated ? clampConfidence(property?.confidence) : null
+}
+
+/**
+ * AGT-WLA-005 analytics aggregator. `drafts` must already be scoped to the
+ * authenticated agent. The result deliberately calls the field metric
+ * model-confidence rather than verified accuracy: corrected-field history is
+ * not retained, so claiming ground-truth accuracy would be misleading.
+ */
+export function buildAgentAnalytics({ drafts, usageRows, range, quota, now = new Date() }) {
+  const days = RANGE_DAYS[range]
+  const endDayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const startMs = endDayMs - (days - 1) * DAY_MS
+  const endMs = endDayMs + DAY_MS
+  const inRange = (value) => {
+    const timestamp = asTimestamp(value)
+    return timestamp !== null && timestamp >= startMs && timestamp < endMs
+  }
+
+  const filteredDrafts = drafts.filter((draft) => inRange(draft.created_at))
+  const approvedDrafts = filteredDrafts.filter((draft) => draft.status === 'published')
+  const discardedDrafts = filteredDrafts.filter((draft) => draft.status === 'discarded')
+  const awaitingDrafts = filteredDrafts.filter((draft) => draft.status === 'awaiting_approval')
+  const approvalMinutes = approvedDrafts
+    .map((draft) => {
+      const created = asTimestamp(draft.created_at)
+      const approved = asTimestamp(draft.updated_at)
+      if (created === null || approved === null || approved < created) return null
+      return (approved - created) / 60_000
+    })
+    .filter((value) => value !== null)
+
+  const activityByDate = new Map()
+  for (let index = 0; index < days; index += 1) {
+    const date = new Date(startMs + index * DAY_MS).toISOString().slice(0, 10)
+    activityByDate.set(date, { date, drafts: 0, approved: 0 })
+  }
+  for (const draft of filteredDrafts) {
+    const date = new Date(draft.created_at).toISOString().slice(0, 10)
+    const bucket = activityByDate.get(date)
+    if (!bucket) continue
+    bucket.drafts += 1
+    if (draft.status === 'published') bucket.approved += 1
+  }
+
+  const fieldAccuracy = FIELD_DEFINITIONS.map((definition) => {
+    const confidences = filteredDrafts
+      .map((draft) => fieldConfidence(draft.extracted_property || {}, definition))
+      .filter((value) => value !== null)
+    if (!confidences.length) return null
+    return {
+      field: definition.field,
+      label: definition.label,
+      accuracy: Math.round(
+        (confidences.reduce((sum, value) => sum + value, 0) / confidences.length) * 100,
+      ),
+      sample_size: confidences.length,
+    }
+  }).filter(Boolean)
+
+  const aiCostMicroUsd = usageRows
+    .filter((row) => inRange(row.occurred_at || row.created_at))
+    .reduce((sum, row) => sum + Math.max(0, Number(row.cost_estimate_micro_usd) || 0), 0)
+  const approvalRate = filteredDrafts.length
+    ? Math.round((approvedDrafts.length / filteredDrafts.length) * 100)
+    : 0
+
+  return {
+    range: {
+      key: range,
+      days,
+      from: new Date(startMs).toISOString(),
+      to: new Date(endMs - 1).toISOString(),
+    },
+    summary: {
+      total_drafts: filteredDrafts.length,
+      approved: approvedDrafts.length,
+      approval_rate: approvalRate,
+      avg_approval_minutes: approvalMinutes.length
+        ? Math.round(approvalMinutes.reduce((sum, value) => sum + value, 0) / approvalMinutes.length)
+        : null,
+      // Historical column name says micro-USD; canonical logger unit is USD × 10,000.
+      ai_cost_estimate_usd: Number((aiCostMicroUsd / 10_000).toFixed(4)),
+    },
+    activity: [...activityByDate.values()],
+    field_accuracy: fieldAccuracy,
+    field_accuracy_basis: 'model_confidence',
+    quota,
+    // Backward-compatible fields used by the combined drafts/settings screen.
+    total_drafts: filteredDrafts.length,
+    published: approvedDrafts.length,
+    discarded: discardedDrafts.length,
+    awaiting_approval: awaitingDrafts.length,
+    approval_rate: approvalRate,
+  }
+}
 
 export function registerAgentRoutes(app, { entitlements, credits, pipeline, config }) {
   app.get('/api/agent/whatsapp-listings/drafts', authMiddleware, async (req, res) => {
@@ -168,19 +310,29 @@ export function registerAgentRoutes(app, { entitlements, credits, pipeline, conf
 
   app.get('/api/agent/whatsapp-listings/analytics', authMiddleware, async (req, res) => {
     try {
-      const drafts = await findAllModule(Collections.DRAFTS, (d) => d.agent_id === req.user.id)
-      const published = drafts.filter((d) => d.status === 'published').length
-      const discarded = drafts.filter((d) => d.status === 'discarded').length
-      const awaiting = drafts.filter((d) => d.status === 'awaiting_approval').length
+      const parsed = analyticsQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Invalid analytics filters',
+          details: parsed.error.flatten(),
+        })
+      }
+      const [drafts, usageRows] = await Promise.all([
+        findAllModule(Collections.DRAFTS, (d) => d.agent_id === req.user.id),
+        findAll(
+          'ai_call_usage',
+          (row) => row.tenant_id === req.user.id && row.feature === 'whatsapp-listings',
+        ),
+      ])
       const quota = await entitlements.checkMonthlyQuota({ agentId: req.user.id })
-      res.json({
-        total_drafts: drafts.length,
-        published,
-        discarded,
-        awaiting_approval: awaiting,
-        approval_rate: drafts.length ? Math.round((published / drafts.length) * 100) : 0,
-        quota,
-      })
+      res.json(
+        buildAgentAnalytics({
+          drafts,
+          usageRows,
+          range: parsed.data.range,
+          quota,
+        }),
+      )
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
