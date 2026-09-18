@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
-  TenantsPage, UsagePage, VendorCostsPage,
+  PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -25,6 +25,14 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/packages/')) {
       return { id: 'p1', display_name: 'Starter', code: 'starter', tier: 'starter', target_audience: 'agent', versions: [] }
+    }
+    if (String(path).includes('/contracts/')) {
+      return {
+        id: 'c1', contract_number: 'C-1001', status: 'ACTIVE', billing_currency: 'USD',
+        tenant_public_id: 'tenant-1', version: 1, component_count: 0,
+        active_version: { id: 'v1', version_n: 1, status: 'ACTIVE', components: [] },
+        versions: [{ id: 'v1', version_n: 1, status: 'ACTIVE', components: [] }],
+      }
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
@@ -72,7 +80,8 @@ describe('admin/fin pages', () => {
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],
-    ['Pricing simulator', () => <PricingPage />],
+    ['Contract detail', () => <ContractDetailPage />],
+    ['Pricing simulator', () => <FinPricingPage />],
     ['Packages', () => <PackagesPage />],
     ['Package', () => <PackageDetailPage />],
     ['Package version', () => <PackageVersionEditor />],

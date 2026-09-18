@@ -235,6 +235,74 @@ export async function listContracts({ environment }) {
   )
 }
 
+export async function getContract({ environment, id }) {
+  const header = (await query(
+    `SELECT c.*,
+            t.public_tenant_id AS tenant_public_id
+       FROM fin.contracts c
+       JOIN fin.tenants t ON t.id = c.tenant_id AND t.environment = c.environment
+      WHERE c.environment = $1 AND c.id = $2`,
+    [environment, id],
+  ))[0]
+  if (!header) return null
+
+  const versions = await query(
+    `SELECT id, version_n, effective_from, effective_to, amendment_reason,
+            status, approved_by_approval_id
+       FROM fin.contract_versions
+      WHERE contract_id = $1 AND environment = $2
+      ORDER BY version_n DESC`,
+    [id, environment],
+  )
+
+  const versionIds = versions.map((v) => v.id)
+  let components = []
+  if (versionIds.length) {
+    components = await query(
+      `SELECT cc.id, cc.contract_version_id, cc.component_type, cc.price_id,
+              cc.meter_id, cc.facility_id, cc.config,
+              p.code AS price_code,
+              pv.unit_rate_minor AS price_unit_rate_minor,
+              p.currency AS price_currency
+         FROM fin.contract_components cc
+         LEFT JOIN fin.prices p ON p.id = cc.price_id
+         LEFT JOIN LATERAL (
+           SELECT unit_rate_minor
+             FROM fin.price_versions
+            WHERE price_id = cc.price_id AND status = 'ACTIVE'
+            ORDER BY version_n DESC
+            LIMIT 1
+         ) pv ON cc.price_id IS NOT NULL
+        WHERE cc.contract_version_id = ANY($1::uuid[])
+        ORDER BY cc.contract_version_id, cc.created_at`,
+      [versionIds],
+    )
+  }
+
+  const componentsByVersion = components.reduce((acc, row) => {
+    const key = row.contract_version_id
+    if (!acc[key]) acc[key] = []
+    acc[key].push(row)
+    return acc
+  }, {})
+
+  const enrichedVersions = versions.map((version) => ({
+    ...version,
+    components: componentsByVersion[version.id] || [],
+  }))
+
+  const activeVersion = enrichedVersions.find((v) => v.status === 'ACTIVE') || null
+  const draftVersions = enrichedVersions.filter((v) => v.status === 'DRAFT')
+
+  return {
+    ...header,
+    versions: enrichedVersions,
+    active_version: activeVersion,
+    draft_versions: draftVersions,
+    component_count: activeVersion?.components?.length ?? 0,
+  }
+}
+
 export async function listInvoices({ environment }) {
   return query(
     `SELECT id, tenant_id, billing_account_id, status, invoice_number,
