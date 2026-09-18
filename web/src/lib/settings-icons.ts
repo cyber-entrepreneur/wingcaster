@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
+  ArrowRightLeft,
   Bell,
   Building2,
   Clock,
@@ -11,7 +12,11 @@ import {
   Globe2,
   KeyRound,
   Laptop,
+  LayoutGrid,
   Monitor,
+  Palette,
+  Plug,
+  ScrollText,
   Shield,
   ShieldCheck,
   Terminal,
@@ -49,6 +54,14 @@ const ICONS: Record<string, LucideIcon> = {
   building2: Building2,
   'alert-triangle': AlertTriangle,
   alerttriangle: AlertTriangle,
+  palette: Palette,
+  'layout-grid': LayoutGrid,
+  layoutgrid: LayoutGrid,
+  'scroll-text': ScrollText,
+  scrolltext: ScrollText,
+  plug: Plug,
+  'arrow-right-left': ArrowRightLeft,
+  arrowrightleft: ArrowRightLeft,
 }
 
 export function resolveSettingsIcon(name: string | undefined | null): LucideIcon {

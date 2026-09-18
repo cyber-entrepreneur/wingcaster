@@ -69,6 +69,7 @@ import { RolesOverviewPage } from '@/pages/agency/settings/RolesOverviewPage'
 import { RolePermissionsDetailPage } from '@/pages/agency/settings/RolePermissionsDetailPage'
 import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
 import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurityPolicyPage'
+import { AgencySettingsHomePage } from '@/pages/agency/settings/AgencySettingsHomePage'
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
@@ -244,6 +245,7 @@ function AppRoutes() {
         element={<ApplicationDetailPage />}
       />
       <Route path="/agency/onboarding" element={<AgencyOnboardingPage />} />
+      <Route path="/agency/settings" element={<AgencySettingsHomePage />} />
       <Route path="/agency/settings/roles" element={<RolesOverviewPage />} />
       <Route path="/agency/settings/roles/:packId" element={<RolePermissionsDetailPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
