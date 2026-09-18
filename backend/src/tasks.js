@@ -84,7 +84,7 @@ export async function getTasksDueToday(assignedTo, now = nowIso()) {
 export async function updateTask(id, patch) {
   const task = await findOne('tasks', (t) => t.id === id)
   if (!task) return null
-  const allowed = ['title', 'notes', 'due_at', 'status', 'priority', 'assigned_to', 'contact_id', 'inquiry_id', 'opportunity_id', 'conversation_id']
+  const allowed = ['title', 'notes', 'due_at', 'status', 'priority', 'type', 'assigned_to', 'contact_id', 'inquiry_id', 'opportunity_id', 'conversation_id']
   const next = { ...task, updated_at: nowIso() }
   for (const key of allowed) {
     if (patch[key] !== undefined) next[key] = patch[key]
@@ -96,6 +96,9 @@ export async function updateTask(id, patch) {
   }
   if (patch.status && !VALID_STATUSES.includes(patch.status)) {
     throw new Error(`Invalid task status: ${patch.status}`)
+  }
+  if (patch.type && !VALID_TYPES.includes(patch.type)) {
+    throw new Error(`Invalid task type: ${patch.type}`)
   }
   await update('tasks', (t) => t.id === id, () => next)
   return await findOne('tasks', (t) => t.id === id)
