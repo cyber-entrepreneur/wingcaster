@@ -272,6 +272,8 @@ export function createGoogleRefreshWorker({
     if (!sourceTypes.length) return { area_id: areaId, source_types: 0, signals_after: 0 }
     const before = (await signalService.list({ areaId, limit: 1 })).total || 0
     await refreshArea(area, sourceTypes)
+    const refreshedAt = new Date().toISOString()
+    await areaService.update(areaId, { last_google_signals_refresh_at: refreshedAt })
     const after = (await signalService.list({ areaId, limit: 1 })).total || 0
     return {
       area_id: areaId,
