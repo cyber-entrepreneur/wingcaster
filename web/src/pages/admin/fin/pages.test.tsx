@@ -369,7 +369,9 @@ describe('admin/fin pages', () => {
   it('Overview is gated for non-admins', () => {
     authMock.isAdmin = false
     wrap(<OverviewPage />)
-    expect(screen.getByText('Platform admin required')).toBeTruthy()
+    // SHR-ERR-002 — FinAdminGate now renders the shared PermissionDenied screen.
+    expect(screen.getByText(/don't have access to this page/i)).toBeTruthy()
+    expect(screen.getByText('This area is restricted to platform admins.')).toBeTruthy()
   })
 
   it('Vendor statement detail exposes reconcile and flag anomaly actions', async () => {

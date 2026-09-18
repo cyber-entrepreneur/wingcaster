@@ -450,6 +450,25 @@ export interface ManagedAgentReview {
   updated_at: string
 }
 
+/** SHR-ERR-002 — who/what a permission-denied "Request access" targets. */
+export type AccessRequestScope = 'platform' | 'agency' | 'resource'
+
+/** SHR-ERR-002 — a recorded request for access to a restricted area. */
+export interface AccessRequest {
+  id: string
+  requester_id: string
+  requester_name: string | null
+  scope: AccessRequestScope
+  agency_id: string | null
+  resource_type: string | null
+  resource_id: string | null
+  area_label: string | null
+  reason: string | null
+  status: 'open' | 'granted' | 'denied' | 'dismissed'
+  created_at: string
+  updated_at: string
+}
+
 export interface ManagedAgentReviewsResponse {
   summary: {
     total: number
@@ -572,6 +591,23 @@ export interface ReminderPolicyInput {
   appointment_type: ReminderAppointmentType
   rules: ReminderPolicyRule[]
   is_default?: boolean
+}
+
+/** SHR-ERR-002 — payload for POST /api/access-requests. */
+export interface AccessRequestInput {
+  scope?: AccessRequestScope
+  agency_id?: string | null
+  resource_type?: string | null
+  resource_id?: string | null
+  area_label?: string | null
+  reason?: string | null
+}
+
+/** SHR-ERR-002 — receipt returned when filing an access request. */
+export interface AccessRequestResult {
+  request: AccessRequest
+  /** True when an identical open request already existed (idempotent re-file). */
+  already_requested: boolean
 }
 
 export interface DataExportRecord {
@@ -3940,6 +3976,13 @@ export const api = {
     }) as Promise<ScheduledPublication>,
   cancelScheduledPublication: (schedId: string) =>
     fetchJson(`/scheduled-publications/${schedId}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
+
+  // SHR-ERR-002 — permission-denied "Request access"
+  requestAccess: (input: AccessRequestInput): Promise<AccessRequestResult> =>
+    fetchJson('/access-requests', { method: 'POST', body: JSON.stringify(input) }),
+  getMyAccessRequests: (): Promise<{ requests: AccessRequest[] }> => fetchJson('/access-requests/mine'),
+  getAccessRequest: (id: string): Promise<{ request: AccessRequest }> =>
+    fetchJson(`/access-requests/${encodeURIComponent(id)}`),
 
   // Admin
   getAdminSubmissions: () => fetchJson('/admin/submissions'),
