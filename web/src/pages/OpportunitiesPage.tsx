@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { DollarSign, Loader2, Plus, TrendingUp, Target, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -293,7 +294,12 @@ export function OpportunitiesPage() {
                           className="group rounded-md border border-[var(--lc-border)] bg-[var(--lc-surface)] p-3 shadow-sm transition-shadow hover:shadow-md"
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium leading-snug">{contactName(o.contact_id)}</p>
+                            <Link
+                              to={`/opportunities/${o.id}`}
+                              className="text-sm font-medium leading-snug hover:underline"
+                            >
+                              {contactName(o.contact_id)}
+                            </Link>
                             <Badge variant="outline" className="shrink-0 text-[10px]">{o.probability}%</Badge>
                           </div>
                           {o.deal_value != null && (

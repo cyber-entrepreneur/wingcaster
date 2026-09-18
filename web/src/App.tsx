@@ -33,6 +33,7 @@ import { ContactDetailPage } from '@/pages/ContactDetailPage'
 import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
 import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
+import { OpportunityDetailPage } from '@/pages/agent/OpportunityDetailPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
@@ -209,6 +210,7 @@ function AppRoutes() {
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
       <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
+      <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
