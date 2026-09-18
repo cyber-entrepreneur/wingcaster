@@ -10,6 +10,7 @@ import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ImportClosedTransactionsModal } from '@/components/closed-transactions/ImportClosedTransactionsModal'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
 
 const CSV_TEMPLATE_HEADERS = [
@@ -209,7 +210,7 @@ export function HistoricalTransactionsPage() {
       </Card>
 
       {importOpen && (
-        <ImportCsvModal
+        <ImportClosedTransactionsModal
           onClose={() => setImportOpen(false)}
           onDone={() => { setImportOpen(false); load() }}
         />
@@ -232,84 +233,6 @@ function StatTile({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border bg-[var(--lc-surface)] p-3">
       <div className="text-2xl font-semibold text-slate-900">{value}</div>
       <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
-  )
-}
-
-function ImportCsvModal({
-  onClose, onDone,
-}: {
-  onClose: () => void
-  onDone: () => void
-}) {
-  const { addToast } = useToast()
-  const [csvText, setCsvText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<Awaited<ReturnType<typeof api.importClosedTransactionsCsv>> | null>(null)
-
-  async function upload() {
-    if (busy || !csvText.trim()) return
-    setBusy(true)
-    try {
-      const r = await api.importClosedTransactionsCsv(csvText)
-      setResult(r)
-      if (r.imported > 0) {
-        addToast({ title: `Imported ${r.imported} transaction${r.imported === 1 ? '' : 's'}`, variant: 'success' })
-      }
-    } catch (err: any) {
-      addToast({ title: 'Import failed', description: err?.message, variant: 'error' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
-        <div className="flex items-start justify-between border-b p-4">
-          <div>
-            <h2 className="text-lg font-semibold">Import historical transactions (CSV)</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Paste CSV content below. Required columns: <code>final_sold_price</code>, <code>closed_at</code>,
-              and either <code>listing_id</code> or <code>external_reference</code>. Everything else is optional.
-              Download the template for the full column list.
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>×</Button>
-        </div>
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          <textarea
-            value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
-            rows={18}
-            placeholder="listing_id,external_reference,transaction_type,final_sold_price,closed_at,..."
-            className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
-          />
-          {result && (
-            <div className={`rounded-md border px-3 py-2 text-xs ${result.imported ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-              Imported: {result.imported} · Skipped: {result.skipped}
-              {result.errors.length > 0 && (
-                <ul className="mt-1 list-disc pl-4">
-                  {result.errors.slice(0, 8).map((e, i) => (
-                    <li key={i}>Row {e.row}: {e.error}</li>
-                  ))}
-                  {result.errors.length > 8 && <li>… and {result.errors.length - 8} more</li>}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex justify-end gap-2 border-t p-3">
-          <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          <Button onClick={upload} disabled={busy || !csvText.trim()} className="gap-1.5">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Import
-          </Button>
-          {result && (
-            <Button variant="outline" onClick={onDone}>Done</Button>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
