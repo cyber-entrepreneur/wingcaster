@@ -143,6 +143,71 @@ export interface AgencyPricingPortfolio extends AgentPricingPortfolio {
   agents: Array<{ agent_id: string; agent_name: string } & PricingPortfolioSummary>
 }
 
+// AGN-PRC-002 — Bulk price adjustment (agency Owner/Admin).
+export type BulkAdjustmentStrategy = 'percent_up' | 'percent_down' | 'fixed_delta' | 'set_to_median'
+
+export interface BulkAdjustmentPreviewItem {
+  property_id: string
+  title: string
+  agent_id: string | null
+  agent_name: string | null
+  currency: string
+  old_price: number | null
+  new_price: number | null
+  delta: number | null
+  delta_percent: number | null
+  skipped: boolean
+  skip_reason: string | null
+}
+
+export interface BulkAdjustmentPreview {
+  items: BulkAdjustmentPreviewItem[]
+  summary: {
+    selected_count: number
+    changing_count: number
+    skipped_count: number
+    total_value_before: number
+    total_value_after: number
+    aggregate_delta_percent: number
+  }
+  safety: {
+    exceeds_cap: boolean
+    cap_reasons: string[]
+    max_listings: number
+    max_aggregate_change_percent: number
+  }
+  confirm_phrase?: string
+}
+
+export interface BulkPriceAdjustment {
+  id: string
+  agency_id: string
+  actor_id: string
+  strategy: BulkAdjustmentStrategy
+  listing_count: number
+  total_value_before: number | null
+  total_value_after: number | null
+  currency: string
+  status: 'applied' | 'reverted'
+  reversal_deadline: string | null
+  reverted_at: string | null
+  reverted_by: string | null
+  reversible: boolean
+  created_at: string
+}
+
+export interface BulkAdjustRequest {
+  property_ids: string[]
+  strategy: BulkAdjustmentStrategy
+  percent?: number
+  delta?: number
+}
+
+export interface BulkAdjustApplyRequest extends BulkAdjustRequest {
+  reversal_window_hours?: number
+  confirm_phrase: string
+}
+
 export type RecalculationJobStatus = 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'cancelled'
 
 export interface PricingRecalculationJob {

@@ -8,6 +8,8 @@ export const Collections = {
   ANALYSIS_RUNS: 'pricing_analysis_runs',
   ANALYSIS_COMPARABLE_EVIDENCE: 'analysis_comparable_evidence',
   PRICING_DECISIONS: 'pricing_decisions',
+  BULK_PRICE_ADJUSTMENTS: 'bulk_price_adjustments',
+  BULK_PRICE_ADJUSTMENT_ITEMS: 'bulk_price_adjustment_items',
   EXTERNAL_COMPARABLES: 'external_comparables',
   PRICE_TREND_SNAPSHOTS: 'price_trend_snapshots',
   CURRENCY_RATES: 'currency_rates',
