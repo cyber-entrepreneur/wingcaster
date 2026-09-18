@@ -100,6 +100,7 @@ import {
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalAuditTrailPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
@@ -326,6 +327,7 @@ function AppRoutes() {
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
+      <Route path="/admin/fin/approvals/:id/audit" element={<ApprovalAuditTrailPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
