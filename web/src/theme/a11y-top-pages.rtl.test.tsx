@@ -26,6 +26,11 @@ vi.mock('@/context/AuthContext', () => ({
 vi.mock('@/api/client', () => ({
   API_BASE: '',
   getAuthToken: () => '',
+  CONTACT_EXPORT_FIELDS: [
+    { key: 'name', label: 'Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+  ],
   api: new Proxy(
     {},
     {
