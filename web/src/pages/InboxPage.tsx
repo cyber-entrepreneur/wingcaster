@@ -44,6 +44,7 @@ import {
   type InboxFilters,
   type InboxMessage,
 } from '@/components/inbox'
+import { AssignConversationMenu } from '@/components/inbox/AssignConversationMenu'
 
 type SortMode = 'newest' | 'oldest' | 'priority'
 
@@ -915,6 +916,17 @@ export function InboxPage() {
                 selectedConversationId={selectedId}
                 onSelectChannel={handleSelect}
               />
+
+              <div className="flex items-center justify-end border-b border-[var(--lc-border)] px-4 py-2">
+                <AssignConversationMenu
+                  conversationId={activeConversation!.id}
+                  assignedAgentId={activeConversation!.assigned_agent_id}
+                  onAssigned={() => {
+                    void loadThread(activeConversation!.id)
+                    void loadConversations()
+                  }}
+                />
+              </div>
 
               <div className="flex-1 overflow-y-auto p-4" aria-live="polite" aria-label="Message thread">
                 {threadLoading && messages.length === 0 ? (
