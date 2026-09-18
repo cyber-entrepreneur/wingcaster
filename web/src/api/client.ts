@@ -1050,6 +1050,16 @@ export const api = {
       method: 'POST',
       body: '{}',
     }),
+  getAgencyPublicProfileSettings: (id: string): Promise<AgencyPublicProfileSettingsResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/public-profile-settings`),
+  updateAgencyPublicProfileSettings: (
+    id: string,
+    data: AgencyPublicProfileUpdate,
+  ): Promise<AgencyPublicProfileSettingsResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/public-profile-settings`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
   // Issue 190 — admin-enforced 2FA policy.
   getAgencyMfaPolicy: (

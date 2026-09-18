@@ -241,6 +241,10 @@ import {
   evaluateMfaPolicyForSignIn,
 } from './lib/agencies/mfa-policy-routes.js'
 import { registerAgencyBrandingRoutes } from './lib/agencies/branding-routes.js'
+import {
+  loadAgencyPublicProfileSettings,
+  registerAgencyPublicProfileSettingsRoutes,
+} from './lib/agencies/public-profile-settings-routes.js'
 import { registerApiTokenRoutes } from './lib/auth/api-tokens-routes.js'
 import {
   evaluateMfaPolicyForSignInAuto,
@@ -7875,6 +7879,7 @@ if (process.env.NODE_ENV !== 'test') {
 // The runtime write-gate is chained inside `authMiddleware` (see auth.js).
 registerAgencyMfaPolicyRoutes(app, { authMiddleware })
 registerAgencyBrandingRoutes(app, { authMiddleware })
+registerAgencyPublicProfileSettingsRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
@@ -8386,12 +8391,44 @@ app.get('/api/white-label/analytics', authMiddleware, requireAnyAgencyRole, asyn
 app.get('/api/public/agencies/:id', async (req, res) => {
   const agency = await findOne('agencies', a => a.id === req.params.id)
   if (!agency) return res.status(404).json({ error: 'Not found' })
-  const members = await Promise.all((await findAll('agency_members', m => m.agency_id === agency.id)).map(async (m) => {
+  const settings = await loadAgencyPublicProfileSettings(agency)
+  const members = await Promise.all((await findAll('agency_members', m => m.agency_id === agency.id && m.status === 'active')).map(async (m) => {
     const user = await findOne('agents', a => a.id === m.user_id)
     return { ...m, user: user ? serializeAgent(user) : null }
   }))
-  const listings = (await findAll('properties', p => p.agent_id === agency.owner_id || members.some(m => m.user_id === p.agent_id))).map(serializeProperty)
-  res.json({ ...agency, members, listings })
+  const memberIds = new Set(members.map(member => member.user_id))
+  const listings = (await findAll('properties', property =>
+    property.status !== 'deleted' &&
+    property.status !== 'draft' &&
+    (property.agency_id === agency.id || memberIds.has(property.agent_id))
+  )).map(serializeProperty)
+  const reviews = await findAll('reviews', review => memberIds.has(review.agent_id) && review.status !== 'rejected')
+  const transactions = await findAll('transactions', transaction =>
+    memberIds.has(transaction.agent_id) &&
+    ['closed', 'completed'].includes(transaction.status)
+  )
+  res.json({
+    ...agency,
+    profile_settings: settings,
+    members: settings.show_team ? members : [],
+    listings: settings.show_listings ? listings : [],
+    reviews: settings.show_reviews
+      ? reviews.map(review => ({
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          created_at: review.created_at,
+        }))
+      : [],
+    closed_transactions: settings.show_closed_transactions
+      ? transactions.map(transaction => ({
+          id: transaction.id,
+          property_id: transaction.property_id,
+          type: transaction.type,
+          closed_at: transaction.closed_at,
+        }))
+      : [],
+  })
 })
 
 app.get('/api/public/agents/:id/portfolio', async (req, res) => {
