@@ -1,27 +1,24 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
-import { FinAction, FinAdminGate, FinTable } from './shell'
+import { FinAdminGate, FinTable } from './shell'
 
 export function FacilitiesPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
-  function reload() {
+  useEffect(() => {
     void api.finGet('/facilities').then((body) => setRows((body.facilities || []) as Array<Record<string, unknown>>))
-  }
-  useEffect(() => { reload() }, [])
-  const first = rows[0]
-  function act(path: string, body: Record<string, unknown> = {}) {
-    if (!first?.id) return
-    void api.finPost(`/facilities/${String(first.id)}${path}`, body).then(() => reload())
-  }
+  }, [])
   return (
     <FinAdminGate title="Facilities">
-      <div className="mb-3 flex flex-wrap gap-2">
-        <FinAction label="Pause" onClick={() => act('/pause')} />
-        <FinAction label="Resume" onClick={() => act('/resume')} />
-        <FinAction label="Suspend" onClick={() => act('/suspend')} />
-        <FinAction label="Close" onClick={() => act('/close')} />
-      </div>
-      <FinTable columns={['id', 'currency', 'limit_minor', 'status', 'net_terms_days']} rows={rows} />
+      <p className="mb-3 text-sm text-muted-foreground">
+        Postpaid credit lines. Select a row to open facility detail and lifecycle actions.
+      </p>
+      <FinTable
+        columns={['id', 'currency', 'limit_minor', 'status', 'net_terms_days']}
+        rows={rows}
+        onRowClick={(row) => navigate(`/admin/fin/facilities/${String(row.id)}`)}
+      />
     </FinAdminGate>
   )
 }

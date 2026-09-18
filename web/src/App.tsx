@@ -100,7 +100,7 @@ import {
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  ExceptionsPage, FacilitiesPage, FacilityDetailPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
@@ -313,6 +313,7 @@ function AppRoutes() {
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />
       <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
+      <Route path="/admin/fin/facilities/:id" element={<FacilityDetailPage />} />
       <Route path="/admin/fin/contracts" element={<ContractsPage />} />
       <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
       <Route path="/admin/fin/packages" element={<PackagesPage />} />

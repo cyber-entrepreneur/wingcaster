@@ -225,6 +225,62 @@ export async function listFacilities({ environment }) {
   )
 }
 
+export async function getFacility({ environment, id }) {
+  const header = (await query(
+    `SELECT f.*,
+            t.public_tenant_id AS tenant_public_id
+       FROM fin.credit_facilities f
+       JOIN fin.tenants t ON t.id = f.tenant_id AND t.environment = f.environment
+      WHERE f.environment = $1 AND f.id = $2`,
+    [environment, id],
+  ))[0]
+  if (!header) return null
+
+  const drawRow = (await query(
+    `SELECT COALESCE(SUM(reserved_minor), 0)::bigint AS current_draw_minor,
+            COUNT(*) FILTER (WHERE status = 'OPEN')::bigint AS open_reservation_count
+       FROM fin.facility_reservations
+      WHERE facility_id = $1 AND environment = $2`,
+    [id, environment],
+  ))[0]
+
+  const reservations = await query(
+    `SELECT id, reserved_minor, currency, status, hold_id,
+            expires_at, captured_at, released_at, expired_at, created_at
+       FROM fin.facility_reservations
+      WHERE facility_id = $1 AND environment = $2
+      ORDER BY created_at DESC
+      LIMIT 50`,
+    [id, environment],
+  )
+
+  const auditEvents = await query(
+    `SELECT id, action, reason_code, actor_email_snapshot, created_at
+       FROM fin.financial_audit_events
+      WHERE environment = $1
+        AND target_type = 'CREDIT_FACILITY'
+        AND target_id = $2
+      ORDER BY created_at DESC
+      LIMIT 20`,
+    [environment, id],
+  )
+
+  const currentDrawMinor = Number(drawRow?.current_draw_minor || 0)
+  const limitMinor = Number(header.limit_minor || 0)
+  const utilizationPct = limitMinor > 0
+    ? Math.min(100, Math.round((currentDrawMinor / limitMinor) * 100))
+    : 0
+
+  return {
+    ...header,
+    current_draw_minor: currentDrawMinor,
+    open_reservation_count: Number(drawRow?.open_reservation_count || 0),
+    utilization_pct: utilizationPct,
+    reservations,
+    audit_events: auditEvents,
+  }
+}
+
 export async function listContracts({ environment }) {
   return query(
     `SELECT id, tenant_id, billing_account_id, contract_number, status,

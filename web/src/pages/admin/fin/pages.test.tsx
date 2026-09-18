@@ -2,10 +2,10 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  ExceptionsPage, FacilitiesPage, FacilityDetailPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
   TenantsPage, UsagePage, VendorCostsPage,
@@ -28,6 +28,23 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).match(/\/facilities\/.+/)) {
+      return {
+        id: 'f1',
+        tenant_id: 'tenant-1',
+        tenant_public_id: 'tenant-public-1',
+        billing_account_id: 'ba-1',
+        currency: 'GBP',
+        limit_minor: 10000,
+        current_draw_minor: 2500,
+        utilization_pct: 25,
+        open_reservation_count: 1,
+        net_terms_days: 30,
+        status: 'ACTIVE',
+        reservations: [{ id: 'r1', reserved_minor: 2500, currency: 'GBP', status: 'OPEN', created_at: '2026-01-01' }],
+        audit_events: [{ id: 'a1', action: 'FACILITY_STATUS', created_at: '2026-01-01' }],
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -124,5 +141,19 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Facility detail renders exposure and lifecycle actions', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/facilities/f1']}>
+        <Routes>
+          <Route path="/admin/fin/facilities/:id" element={<FacilityDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: 'Facility detail' })).toBeTruthy()
+    expect(screen.getByText('Exposure')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Adjust limit' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close facility' })).toBeTruthy()
   })
 })

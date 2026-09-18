@@ -13,7 +13,7 @@ import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment }
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getFacility, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -33,6 +33,7 @@ import { approveCreditNote, draftCreditNote, issueCreditNote } from '../billing/
 import { approveDebitNote, draftDebitNote, issueDebitNote } from '../billing/debit-note.js'
 import { applyPayment, recordPayment, reversePayment } from '../billing/payment-allocation.js'
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
+import { facilityActionSchema, facilityLimitSchema } from './facility-schemas.js'
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval } from './approvals/execute.js'
@@ -183,6 +184,12 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json({ facilities })
   }))
 
+  app.get('/api/admin/fin/facilities/:id', readGuards, wrap(async (req, res) => {
+    const facility = await getFacility({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!facility) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json(facility)
+  }))
+
   app.get('/api/admin/fin/contracts', readGuards, wrap(async (req, res) => {
     const contracts = await listContracts({ environment: sessionEnvironment(req) })
     return res.status(200).json({ contracts })
@@ -297,7 +304,15 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/facilities/:id/limit', writeGuards, wrap(async (req, res) => {
-    const result = await amendFacilityLimit(input(req, { facilityId: req.params.id }))
+    const parsed = facilityLimitSchema.safeParse(req.body || {})
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', issues: parsed.error.issues })
+    }
+    const result = await amendFacilityLimit(input(req, {
+      facilityId: req.params.id,
+      limitMinor: parsed.data.limit_minor,
+      approvalRequestId: parsed.data.approval_request_id,
+    }))
     if (result.version != null) setETag(res, result.version)
     return res.status(200).json(result)
   }))
