@@ -226,6 +226,68 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// PA-INS-002 — Inspection submit form.
+export type InspectorAssignmentStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
+
+export interface InspectorAssignment {
+  id: string
+  agent_id: string
+  area_id: string
+  assigned_by?: string | null
+  assigned_at: string
+  due_at?: string | null
+  completed_at?: string | null
+  notes?: string | null
+  status: InspectorAssignmentStatus
+}
+
+export interface InspectorArea {
+  id: string
+  name: string
+  slug?: string
+}
+
+export interface InspectorDimension {
+  id: string
+  name: string
+  slug: string
+}
+
+export interface InspectorAssignmentDetail {
+  assignment: InspectorAssignment
+  area: InspectorArea | null
+  dimensions: InspectorDimension[]
+}
+
+export interface InspectionSubmissionInput {
+  assignment_id: string
+  area_id: string
+  gps_latitude: number
+  gps_longitude: number
+  dimension_scores: Record<string, number>
+  photo_urls?: string[]
+  notes?: string | null
+  signature?: string | null
+}
+
+export interface InspectionSubmission {
+  id: string
+  assignment_id: string
+  agent_id: string
+  area_id: string
+  gps_latitude: number | null
+  gps_longitude: number | null
+  photo_urls: string[]
+  dimension_scores: Record<string, number>
+  notes: string | null
+  signature: string | null
+  status: 'pending_review' | 'approved' | 'rejected'
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_notes: string | null
+  submitted_at: string
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -2200,13 +2262,15 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/inspector/assignments${qs}`)
   },
+  getInspectorAssignment: (id: string): Promise<InspectorAssignmentDetail> =>
+    fetchJson(`/inspector/assignments/${encodeURIComponent(id)}`),
   startInspectorAssignment: (id: string) =>
     fetchJson(`/inspector/assignments/${id}/start`, { method: 'POST', body: '{}' }),
   getInspectorSubmissions: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/inspector/submissions${qs}`)
   },
-  createInspectorSubmission: (data: Record<string, unknown>) =>
+  createInspectorSubmission: (data: InspectionSubmissionInput): Promise<InspectionSubmission> =>
     fetchJson('/inspector/submissions', { method: 'POST', body: JSON.stringify(data) }),
 
   // Area Intelligence (admin)

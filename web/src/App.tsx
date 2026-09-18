@@ -104,6 +104,7 @@ import {
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
+import { InspectorSubmitPage } from '@/pages/inspector/InspectorSubmitPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { PublicAgencyPage } from '@/pages/PublicAgencyPage'
 import { PublicAgentPortfolioPage } from '@/pages/PublicAgentPortfolioPage'
@@ -319,6 +320,7 @@ function AppRoutes() {
       {whatsappIntakeRoutes}
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
+      <Route path="/inspector/:id/submit" element={<InspectorSubmitPage />} />
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
       <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
