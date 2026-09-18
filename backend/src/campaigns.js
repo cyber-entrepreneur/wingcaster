@@ -315,6 +315,144 @@ export async function getCampaignMessages({ enrollmentId, campaignId, contactId 
   return rows
 }
 
+const MESSAGE_STATUS_KEYS = ['sent', 'delivered', 'failed', 'skipped', 'deferred', 'pending']
+
+/**
+ * Aggregate live performance for a single campaign (AGT-CMP-004). Read-only over
+ * the existing campaign_* tables plus conversations/opportunities for truthful
+ * engagement signals. Returns null when the campaign does not exist so the route
+ * can render a leak-safe 404.
+ *
+ *   - Enrollment lifecycle counts (active / completed / paused / cancelled)
+ *   - Message delivery funnel (sent / delivered / failed / skipped …) with
+ *     per-channel and per-step breakdowns
+ *   - Replied: distinct enrolled contacts with an inbound conversation message
+ *     dated at/after their enrollment start
+ *   - Converted: distinct enrolled contacts with a closed_won opportunity
+ */
+export async function getCampaignStats(campaignId) {
+  const campaign = await findOne('campaigns', (c) => c.id === campaignId)
+  if (!campaign) return null
+
+  const enrollments = await findAll('campaign_enrollments', (e) => e.campaign_id === campaignId)
+  const messages = await findAll('campaign_messages', (m) => m.campaign_id === campaignId)
+
+  const enrollmentCounts = { total: enrollments.length, active: 0, completed: 0, paused: 0, cancelled: 0 }
+  for (const e of enrollments) {
+    if (enrollmentCounts[e.status] !== undefined) enrollmentCounts[e.status]++
+  }
+
+  const stepMeta = new Map((campaign.steps || []).map((s) => [s.step_index, s]))
+  const messageCounts = { total: messages.length, sent: 0, delivered: 0, failed: 0, skipped: 0, deferred: 0, pending: 0 }
+  const channelMap = new Map()
+  const stepMap = new Map()
+
+  for (const m of messages) {
+    const status = MESSAGE_STATUS_KEYS.includes(m.status) ? m.status : 'pending'
+    messageCounts[status]++
+
+    const channel = m.channel || stepMeta.get(m.step_index)?.channel || campaign.target_channel || 'unknown'
+    if (!channelMap.has(channel)) {
+      channelMap.set(channel, { channel, total: 0, sent: 0, delivered: 0, failed: 0, skipped: 0 })
+    }
+    const channelBucket = channelMap.get(channel)
+    channelBucket.total++
+    if (channelBucket[status] !== undefined) channelBucket[status]++
+
+    const stepIndex = Number.isInteger(m.step_index) ? m.step_index : -1
+    if (!stepMap.has(stepIndex)) {
+      stepMap.set(stepIndex, { step_index: stepIndex, channel, total: 0, sent: 0, delivered: 0, failed: 0, skipped: 0 })
+    }
+    const stepBucket = stepMap.get(stepIndex)
+    stepBucket.total++
+    if (stepBucket[status] !== undefined) stepBucket[status]++
+  }
+
+  const contactIds = new Set(enrollments.map((e) => e.contact_id).filter(Boolean))
+  const startByContact = new Map()
+  for (const e of enrollments) {
+    if (!e.contact_id) continue
+    const start = e.started_at || e.created_at || null
+    const prev = startByContact.get(e.contact_id)
+    if (prev === undefined || (start && (!prev || start < prev))) startByContact.set(e.contact_id, start)
+  }
+
+  let replied = 0
+  let converted = 0
+  const contacts = contactIds.size > 0 ? await findAll('contacts', (c) => contactIds.has(c.id)) : []
+
+  if (contactIds.size > 0) {
+    const conversations = await findAll('conversations', (c) => contactIds.has(c.contact_id))
+    const convToContact = new Map(conversations.map((c) => [c.id, c.contact_id]))
+    if (convToContact.size > 0) {
+      const inbound = await findAll(
+        'conversation_messages',
+        (m) => m.direction === 'inbound' && convToContact.has(m.conversation_id),
+      )
+      const repliedContacts = new Set()
+      for (const m of inbound) {
+        const contactId = convToContact.get(m.conversation_id)
+        const ts = m.sent_at || m.created_at || null
+        const start = startByContact.get(contactId)
+        if (!start || (ts && ts >= start)) repliedContacts.add(contactId)
+      }
+      replied = repliedContacts.size
+    }
+
+    const wonOpps = await findAll(
+      'opportunities',
+      (o) => contactIds.has(o.contact_id) && o.stage === 'closed_won',
+    )
+    const convertedContacts = new Set()
+    for (const o of wonOpps) {
+      const ts = o.closed_at || o.updated_at || null
+      const start = startByContact.get(o.contact_id)
+      if (!start || !ts || ts >= start) convertedContacts.add(o.contact_id)
+    }
+    converted = convertedContacts.size
+  }
+
+  const contactName = new Map(contacts.map((c) => [c.id, c.name || c.email || 'Unknown contact']))
+  const enrollmentRows = enrollments
+    .map((e) => ({
+      id: e.id,
+      contact_id: e.contact_id || null,
+      contact_name: e.contact_id ? contactName.get(e.contact_id) || 'Unknown contact' : 'Unknown contact',
+      status: e.status,
+      current_step_index: Number.isInteger(e.current_step_index) ? e.current_step_index : 0,
+      started_at: e.started_at || e.created_at || null,
+      last_sent_at: e.last_sent_at || null,
+      next_run_at: e.next_run_at || null,
+      completed_at: e.completed_at || null,
+    }))
+    .sort((a, b) => String(b.started_at || '').localeCompare(String(a.started_at || '')))
+
+  return {
+    campaign_id: campaignId,
+    step_count: (campaign.steps || []).length,
+    totals: {
+      enrolled: enrollmentCounts.total,
+      active: enrollmentCounts.active,
+      completed: enrollmentCounts.completed,
+      paused: enrollmentCounts.paused,
+      cancelled: enrollmentCounts.cancelled,
+      messages_total: messageCounts.total,
+      sent: messageCounts.sent + messageCounts.delivered,
+      delivered: messageCounts.delivered,
+      failed: messageCounts.failed,
+      skipped: messageCounts.skipped,
+      pending: messageCounts.pending + messageCounts.deferred,
+      replied,
+      converted,
+    },
+    channels: [...channelMap.values()].sort((a, b) => b.total - a.total),
+    steps: [...stepMap.values()]
+      .sort((a, b) => a.step_index - b.step_index)
+      .map((s) => ({ ...s, delay_hours: stepMeta.get(s.step_index)?.delay_hours ?? null })),
+    enrollments: enrollmentRows,
+  }
+}
+
 async function advanceEnrollment(enrollment, campaign) {
   const nextStepIndex = enrollment.current_step_index + 1
   const nextStep = campaign.steps[nextStepIndex]

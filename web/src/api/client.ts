@@ -226,6 +226,66 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// AGT-CMP-004 — Campaign detail + performance
+export type CampaignEnrollmentStatus = 'active' | 'completed' | 'paused' | 'cancelled'
+
+export interface CampaignStatsTotals {
+  enrolled: number
+  active: number
+  completed: number
+  paused: number
+  cancelled: number
+  messages_total: number
+  sent: number
+  delivered: number
+  failed: number
+  skipped: number
+  pending: number
+  replied: number
+  converted: number
+}
+
+export interface CampaignChannelStat {
+  channel: string
+  total: number
+  sent: number
+  delivered: number
+  failed: number
+  skipped: number
+}
+
+export interface CampaignStepStat {
+  step_index: number
+  channel: string
+  delay_hours: number | null
+  total: number
+  sent: number
+  delivered: number
+  failed: number
+  skipped: number
+}
+
+export interface CampaignEnrollmentRow {
+  id: string
+  contact_id: string | null
+  contact_name: string
+  status: CampaignEnrollmentStatus
+  current_step_index: number
+  started_at: string | null
+  last_sent_at: string | null
+  next_run_at: string | null
+  completed_at: string | null
+}
+
+export interface CampaignStats {
+  campaign_id: string
+  step_count: number
+  totals: CampaignStatsTotals
+  channels: CampaignChannelStat[]
+  steps: CampaignStepStat[]
+  enrollments: CampaignEnrollmentRow[]
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -2085,6 +2145,7 @@ export const api = {
   autoEnrollCampaign: (id: string, maxContacts?: number) =>
     fetchJson(`/campaigns/${id}/auto-enroll`, { method: 'POST', body: JSON.stringify({ max_contacts: maxContacts }) }),
   getCampaignEnrollments: (id: string) => fetchJson(`/campaigns/${id}/enrollments`),
+  getCampaignStats: (id: string) => fetchJson(`/campaigns/${id}/stats`) as Promise<CampaignStats>,
   getEnrollments: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/enrollments${qs}`)
