@@ -35,15 +35,33 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Capacitor generated native projects (keep out of git until you commit them)
-mobile/android/app/build/
-mobile/android/.gradle/
-mobile/android/local.properties
-mobile/ios/App/Pods/
-mobile/ios/App/build/
-mobile/ios/App/App.xcworkspace/xcuserdata/
-mobile/ios/App/App.xcodeproj/xcuserdata/
-mobile/.capacitor/
+# Capacitor — the native project SOURCES under web/android and web/ios ARE
+# checked in (they are the store-build source of truth once we sign the
+# apps). The generated build artifacts inside them are not.
+web/android/app/build/
+web/android/build/
+web/android/.gradle/
+web/android/local.properties
+web/android/captures/
+web/android/app/release/
+web/android/app/debug/
+web/android/**/.cxx/
+# Copied at `cap sync` from web/dist — never source of truth here.
+web/android/app/src/main/assets/public/
+web/android/app/src/main/assets/capacitor.config.json
+web/android/app/src/main/assets/capacitor.plugins.json
+web/ios/App/Pods/
+web/ios/App/build/
+web/ios/App/DerivedData/
+web/ios/App/App.xcworkspace/xcuserdata/
+web/ios/App/App.xcodeproj/xcuserdata/
+web/ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+web/ios/App/Podfile.lock
+web/.capacitor/
+
+# Legacy `mobile/` layout from an earlier scaffold attempt — root-only so
+# it does not swallow docs/mobile/.
+/mobile/
 
 # TypeScript build info
 *.tsbuildinfo
