@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock, Loader2, Mail, MessageSquare, Phone, Plus, Sparkles, Tag, User, type LucideIcon } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Check, Clock, GitMerge, Loader2, Mail, MessageSquare, Phone, Plus, Sparkles, Tag, User, type LucideIcon } from 'lucide-react'
+import { MergeContactsDialog } from '@/components/contacts/MergeContactsDialog'
 import { Contact360Panel } from '@/components/contact-360/Contact360Panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,10 +98,13 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { agent } = useAuth()
   const { addToast } = useToast()
   usePageTitle('Contact')
   const [contact, setContact] = useState<Contact | null>(null)
+  const [allContacts, setAllContacts] = useState<Contact[]>([])
+  const [mergeOpen, setMergeOpen] = useState(false)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [notes, setNotes] = useState<ContactNote[]>([])
   const [tasks, setTasks] = useState<ContactTask[]>([])
@@ -136,6 +140,13 @@ export function ContactDetailPage() {
     setLoading(true)
     loadAll().then(() => setLoading(false))
   }, [agent, id])
+
+  useEffect(() => {
+    if (!agent) return
+    api.getContacts()
+      .then((rows) => setAllContacts(rows as Contact[]))
+      .catch(() => setAllContacts([]))
+  }, [agent])
 
   const handleAddNote = async () => {
     if (!id || !noteContent.trim()) return
@@ -210,6 +221,10 @@ export function ContactDetailPage() {
             <p className="text-sm text-muted-foreground">Source: {contact.source || contact.first_touch_channel}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="inline-flex items-center gap-2" onClick={() => setMergeOpen(true)}>
+              <GitMerge className="h-4 w-4" aria-hidden="true" />
+              Merge duplicate
+            </Button>
             <Link to={`/contacts/${contact.id}/relationships`}>
               <Button variant="outline">Relationships</Button>
             </Link>
@@ -407,6 +422,14 @@ export function ContactDetailPage() {
           </Tabs>
         </div>
       </div>
+
+      <MergeContactsDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        sourceContact={contact}
+        contacts={allContacts}
+        onMerged={(merged) => navigate(`/contacts/${merged.id}`, { replace: true })}
+      />
     </div>
   )
 }

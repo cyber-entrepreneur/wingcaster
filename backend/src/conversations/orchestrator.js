@@ -888,7 +888,23 @@ export async function archiveConversation(conversationId) {
   return await findOne('conversations', (c) => c.id === conversationId)
 }
 
-export async function mergeContacts(sourceContactId, targetContactId) {
+function pickMergedField(source, target, field, selections = {}) {
+  const side = selections[field] || 'source'
+  const primary = side === 'target' ? target : source
+  const fallback = side === 'target' ? source : target
+  const value = primary?.[field]
+  if (value != null && value !== '') return value
+  const alt = fallback?.[field]
+  return alt != null && alt !== '' ? alt : value
+}
+
+function pickMergedStatus(source, target, selections = {}) {
+  const chosen = pickMergedField(source, target, 'status', selections)
+  if (source.status === 'client' || target.status === 'client') return 'client'
+  return chosen || source.status || target.status
+}
+
+export async function mergeContacts(sourceContactId, targetContactId, fieldSelections = {}) {
   const source = await findOne('contacts', (c) => c.id === sourceContactId)
   const target = await findOne('contacts', (c) => c.id === targetContactId)
   if (!source || !target) throw new Error('Source or target contact not found')
@@ -901,16 +917,17 @@ export async function mergeContacts(sourceContactId, targetContactId) {
   }
   await update('conversations', (c) => c.contact_id === target.id, (c) => ({ ...c, contact_id: source.id, updated_at: now }))
 
-  // Merge fields into source
+  // Merge fields into source (source row survives; target is removed)
   await update('contacts', (c) => c.id === source.id, (c) => ({
     ...c,
-    email: c.email || target.email,
-    phone: c.phone || target.phone,
-    name: c.name || target.name,
+    email: pickMergedField(source, target, 'email', fieldSelections),
+    phone: pickMergedField(source, target, 'phone', fieldSelections),
+    name: pickMergedField(source, target, 'name', fieldSelections),
+    source: pickMergedField(source, target, 'source', fieldSelections),
     assigned_agent_id: c.assigned_agent_id || target.assigned_agent_id,
     agency_id: c.agency_id || target.agency_id,
     tags: Array.from(new Set([...(c.tags || []), ...(target.tags || [])])),
-    status: c.status === 'client' ? 'client' : (target.status === 'client' ? 'client' : (c.status || target.status)),
+    status: pickMergedStatus(source, target, fieldSelections),
     last_activity_at: now,
     updated_at: now,
   }))

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Mail, Phone, Search, Users, UserCheck, UserPlus, Activity } from 'lucide-react'
+import { GitMerge, Loader2, Mail, Phone, Search, Users, UserCheck, UserPlus, Activity } from 'lucide-react'
+import { MergeContactsDialog } from '@/components/contacts/MergeContactsDialog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -64,6 +66,9 @@ export function ContactsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [mergeOpen, setMergeOpen] = useState(false)
 
   useEffect(() => {
     if (!agent) return
@@ -141,7 +146,25 @@ export function ContactsPage() {
             </button>
           ))}
         </div>
-        <span className="ml-auto text-xs text-muted-foreground">{filtered.length} contacts</span>
+        <div className="ms-auto flex items-center gap-2">
+          {selectMode && selectedIds.length === 2 && (
+            <Button size="sm" className="inline-flex items-center gap-1" onClick={() => setMergeOpen(true)}>
+              <GitMerge className="h-3.5 w-3.5" aria-hidden="true" />
+              Merge selected
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={selectMode ? 'default' : 'outline'}
+            onClick={() => {
+              setSelectMode((v) => !v)
+              setSelectedIds([])
+            }}
+          >
+            {selectMode ? 'Cancel select' : 'Select to merge'}
+          </Button>
+          <span className="text-xs text-muted-foreground">{filtered.length} contacts</span>
+        </div>
       </div>
 
       {/* Contact list */}
@@ -159,11 +182,29 @@ export function ContactsPage() {
         ) : (
           <div className="divide-y divide-[var(--lc-border)]">
             {filtered.map((c) => (
-              <Link
+              <div
                 key={c.id}
-                to={`/contacts/${c.id}`}
                 className="flex items-center gap-4 bg-[var(--lc-surface)] px-6 py-3.5 transition-colors hover:bg-[var(--lc-bg-page)]"
               >
+                {selectMode && (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${c.name || 'contact'}`}
+                    checked={selectedIds.includes(c.id)}
+                    onChange={() => {
+                      setSelectedIds((prev) => {
+                        if (prev.includes(c.id)) return prev.filter((id) => id !== c.id)
+                        if (prev.length >= 2) return [prev[1], c.id]
+                        return [...prev, c.id]
+                      })
+                    }}
+                    className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                  />
+                )}
+                <Link
+                  to={`/contacts/${c.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-4"
+                >
                 <Avatar className="h-9 w-9 shrink-0">
                   <AvatarFallback className="bg-[var(--lc-surface-sunken)] text-[var(--lc-text-primary)] text-xs font-semibold">
                     {initials(c.name)}
@@ -211,11 +252,29 @@ export function ContactsPage() {
                 <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
                   {relativeTime(c.last_activity_at || c.created_at)}
                 </span>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
         )}
       </div>
+      {selectedIds.length === 2 && (
+        <MergeContactsDialog
+          open={mergeOpen}
+          onOpenChange={setMergeOpen}
+          sourceContact={contacts.find((c) => c.id === selectedIds[0])!}
+          presetTarget={contacts.find((c) => c.id === selectedIds[1]) || null}
+          contacts={contacts}
+          onMerged={() => {
+            setMergeOpen(false)
+            setSelectMode(false)
+            setSelectedIds([])
+            api.getContacts()
+              .then(setContacts)
+              .catch((e: any) => addToast({ title: 'Failed to refresh contacts', description: e.message, variant: 'error' }))
+          }}
+        />
+      )}
     </CrmShell>
   )
 }
