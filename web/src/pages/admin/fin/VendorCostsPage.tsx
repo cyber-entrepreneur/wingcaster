@@ -50,7 +50,7 @@ export function VendorCostsPage() {
         </Card>
       ) : (
         <>
-          <div className="mb-3">
+          <div className="mb-3 flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -61,6 +61,15 @@ export function VendorCostsPage() {
             >
               Add rate
             </Button>
+            {vendors.length ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { void openLatestStatement(String(vendors[0]?.id || '')) }}
+              >
+                View latest statement
+              </Button>
+            ) : null}
           </div>
           <AddVendorRateDialog
             open={rateOpen}
@@ -69,35 +78,16 @@ export function VendorCostsPage() {
             initialVendorId={selectedVendorId}
             onApplied={reload}
           />
-          <FinTable
-            columns={['name', 'code', 'currency', 'mtd_units', 'mtd_cost_micro_usd', 'active_rate_versions']}
-            rows={vendors}
-            onRowClick={(row) => {
-              setSelectedVendorId(String(row.id || ''))
-              setRateOpen(true)
-            }}
-          />
           <p className="mb-3 text-sm text-muted-foreground">
-            Select a vendor to open its latest statement detail.
+            Select a vendor to open its detail — rates, statements, and §106 margin.
           </p>
           <FinTable
             columns={['name', 'code', 'currency', 'mtd_units', 'mtd_cost_micro_usd', 'active_rate_versions']}
             rows={vendors}
-            onRowClick={(row) => { void openLatestStatement(String(row.id || '')) }}
+            onRowClick={(row) => navigate(`/admin/fin/vendors/${String(row.id)}`)}
           />
           {loadingStatements ? (
             <p className="mt-2 text-sm text-muted-foreground" role="status">Loading statements…</p>
-          ) : null}
-          {vendors.length ? (
-            <div className="mt-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => { void openLatestStatement(String(vendors[0]?.id || '')) }}
-              >
-                View latest statement
-              </Button>
-            </div>
           ) : null}
         </>
       )}
