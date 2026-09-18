@@ -407,6 +407,30 @@ export interface AgencyRoutingRulesListResponse {
   rules: AgencyRoutingRule[]
 }
 
+/** AGN-TPL-001 — agency-scoped message template row. */
+export interface AgencyMessageTemplate {
+  id: string
+  agency_id: string
+  name: string
+  channel: 'whatsapp' | 'sms' | 'email'
+  category: 'greeting' | 'follow_up' | 'viewing' | 'offer' | 'general'
+  subject: string | null
+  body: string
+  variables: string[]
+  language: string
+  approval_status: 'draft' | 'pending' | 'approved' | 'rejected'
+  usage_count: number
+  agents_using_count: number
+  is_default: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AgencyMessageTemplatesListResponse {
+  templates: AgencyMessageTemplate[]
+}
+
 /** Issue 190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
@@ -1374,6 +1398,24 @@ export const api = {
   /** AGN-ROU-002 — delete a routing rule. */
   deleteAgencyRoutingRule: (ruleId: string): Promise<{ success: boolean }> =>
     fetchJson(`/agency/routing/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' }),
+  /** AGN-TPL-001 — list agency-authored message templates. */
+  listAgencyMessageTemplates: (params?: {
+    channel?: string
+    category?: string
+    status?: string
+  }): Promise<AgencyMessageTemplatesListResponse> => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/agency/templates${qs}`)
+  },
+  /** AGN-TPL-001 — fetch one agency template. */
+  getAgencyMessageTemplate: (templateId: string): Promise<AgencyMessageTemplate> =>
+    fetchJson(`/agency/templates/${encodeURIComponent(templateId)}`),
+  /** AGN-TPL-001 — create an agency template draft. */
+  createAgencyMessageTemplate: (data: Partial<AgencyMessageTemplate>): Promise<AgencyMessageTemplate> =>
+    fetchJson('/agency/templates', { method: 'POST', body: JSON.stringify(data) }),
+  /** AGN-TPL-001 — publish template to agents. */
+  publishAgencyMessageTemplate: (templateId: string): Promise<AgencyMessageTemplate> =>
+    fetchJson(`/agency/templates/${encodeURIComponent(templateId)}/publish`, { method: 'POST', body: '{}' }),
   /** AGN-ROL-001 — capability-pack list with member counts + agency owner meta. */
   listAgencyCapabilityPacks: () => fetchJson('/agency/capability-packs'),
   /** AGN-ROL-002 — one pack's full capability matrix (domains) + members preview. */
