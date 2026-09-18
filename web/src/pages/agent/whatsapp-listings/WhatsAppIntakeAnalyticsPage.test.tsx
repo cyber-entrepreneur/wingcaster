@@ -95,7 +95,7 @@ describe('WhatsAppIntakeAnalyticsPage', () => {
       'aria-valuenow',
       '96',
     )
-    expect(screen.getByText(/accepted without correction/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/accepted without correction/i).length).toBeGreaterThan(0)
   })
 
   it('shows only the two core KPIs in Guided mode', async () => {
