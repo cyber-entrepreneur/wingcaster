@@ -262,6 +262,7 @@ import { registerRevenueAttributionRoutes } from './analytics/revenue-attributio
 import { registerAgencyRoutingRuleRoutes } from './lib/routing/agency-routing-rules-routes.js'
 import { registerAgencyMessageTemplateRoutes } from './lib/templates/agency-message-templates-routes.js'
 import { registerAgencySiteConfigRoutes } from './lib/white-label/agency-site-config-routes.js'
+import { registerWhiteLabelAnalyticsRoutes } from './white-label/analytics-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
@@ -7894,6 +7895,7 @@ registerAgencyReportsHomeRoutes(app, { authMiddleware })
 registerListingsPerformanceRoutes(app, { authMiddleware })
 registerAgentLeaderboardRoutes(app, { authMiddleware })
 registerCampaignPerformanceRoutes(app, { authMiddleware })
+registerWhiteLabelAnalyticsRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
@@ -8383,9 +8385,23 @@ app.get('/api/public/widgets/:id.js', async (req, res) => {
   res.send(script)
 })
 
-// Analytics
+// Analytics — legacy ingest + summary (AGN-WLB-005 screen uses /api/agency/white-label/analytics).
 app.post('/api/white-label/analytics', authMiddleware, requireAnyAgencyRole, async (req, res) => {
-  const event = { id: uuidv4(), agency_id: req.agencyId, ...req.body, created_at: new Date().toISOString() }
+  const body = req.body || {}
+  const meta = body.meta && typeof body.meta === 'object' ? body.meta : {}
+  const event = {
+    id: uuidv4(),
+    agency_id: req.agencyId,
+    site_id: body.site_id || null,
+    page: body.page || 'home',
+    device: body.device || 'unknown',
+    event_type: body.event_type || meta.event_type || 'pageview',
+    referrer: body.referrer || meta.referrer || meta.source || null,
+    property_id: body.property_id || meta.property_id || null,
+    session_id: body.session_id || meta.session_id || null,
+    meta,
+    created_at: new Date().toISOString(),
+  }
   await insert('website_analytics', event)
   res.json({ success: true })
 })
@@ -8505,13 +8521,19 @@ app.get('/api/public/sites/by-subdomain/:subdomain/properties/:propertyId', asyn
 app.post('/api/public/sites/by-subdomain/:subdomain/events', async (req, res) => {
   const site = await findOne('white_label_sites', s => s.subdomain === req.params.subdomain && s.status === 'active')
   if (!site) return res.status(404).json({ error: 'Site not found' })
+  const body = req.body || {}
+  const meta = body.meta && typeof body.meta === 'object' ? body.meta : {}
   const event = {
     id: uuidv4(),
     agency_id: site.agency_id,
     site_id: site.id,
-    page: req.body.page || 'home',
-    device: req.body.device || 'unknown',
-    meta: req.body.meta || {},
+    page: body.page || 'home',
+    device: body.device || 'unknown',
+    event_type: body.event_type || meta.event_type || 'pageview',
+    referrer: body.referrer || meta.referrer || meta.source || null,
+    property_id: body.property_id || meta.property_id || null,
+    session_id: body.session_id || meta.session_id || null,
+    meta,
     created_at: new Date().toISOString(),
   }
   await insert('website_analytics', event)

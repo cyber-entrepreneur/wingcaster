@@ -326,6 +326,11 @@ const TABLE_MAP = {
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
+  website_analytics: {
+    schema: 'public',
+    table: 'website_analytics',
+    columns: ['agency_id', 'site_id', 'page', 'device', 'event_type', 'referrer', 'property_id', 'session_id', 'meta'],
+  },
 
   // Notifications
   notifications: { schema: 'public', table: 'notifications', columns: ['user_id', 'type', 'title', 'body', 'metadata', 'read'] },

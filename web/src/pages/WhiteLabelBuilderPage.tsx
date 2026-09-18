@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Plus, Loader2, Check, X, ExternalLink, Palette, Type, Image, Layout, Trash2, Edit3 } from 'lucide-react'
+import { BarChart3, Globe, Plus, Loader2, Check, X, ExternalLink, Palette, Type, Image, Layout, Trash2, Edit3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -201,7 +201,15 @@ export function WhiteLabelBuilderPage() {
               <h1 className="text-2xl font-bold">White-Label Websites</h1>
               <p className="text-sm text-muted-foreground">Build branded websites for {agency.name}</p>
             </div>
-            <Button onClick={() => setShowCreate(true)} className="gap-2"><Plus className="h-4 w-4" />New Website</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link to="/agency/white-label/analytics">
+                  <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                  Analytics
+                </Link>
+              </Button>
+              <Button onClick={() => setShowCreate(true)} className="gap-2"><Plus className="h-4 w-4" />New Website</Button>
+            </div>
           </div>
         </div>
       </div>

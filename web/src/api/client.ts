@@ -67,6 +67,46 @@ export interface AuditLogSearchFilters {
 
 export type WhatsAppIntakeAnalyticsRange = '7d' | '30d' | '90d'
 
+export interface AgencyWhiteLabelAnalyticsKpis {
+  visitors: number
+  inquiries: number
+  conversions: number
+  conversion_rate: number
+  bazaar_referral_share: number
+  pageviews: number
+}
+
+export interface AgencyWhiteLabelAnalyticsRow {
+  key: string
+  value: number
+}
+
+export interface AgencyWhiteLabelAnalyticsListing {
+  property_id: string
+  title: string
+  views: number
+}
+
+export interface AgencyWhiteLabelAnalyticsTrendPoint {
+  date: string
+  pageviews: number
+  inquiries: number
+  visitors: number
+}
+
+export interface AgencyWhiteLabelAnalyticsResponse {
+  agency_id: string
+  start_date: string
+  end_date: string
+  kpis: AgencyWhiteLabelAnalyticsKpis
+  top_pages: AgencyWhiteLabelAnalyticsRow[]
+  traffic_sources: AgencyWhiteLabelAnalyticsRow[]
+  devices: AgencyWhiteLabelAnalyticsRow[]
+  top_listings: AgencyWhiteLabelAnalyticsListing[]
+  trend: AgencyWhiteLabelAnalyticsTrendPoint[]
+  total_events: number
+}
+
 export interface WhatsAppIntakeAnalytics {
   range: {
     key: WhatsAppIntakeAnalyticsRange
@@ -3114,6 +3154,12 @@ export const api = {
   trackEvent: (data: Record<string, unknown>) =>
     fetchJson('/white-label/analytics', { method: 'POST', body: JSON.stringify(data) }),
   getAnalytics: () => fetchJson('/white-label/analytics'),
+  getAgencyWhiteLabelAnalytics: (params?: { start_date?: string; end_date?: string }) => {
+    const query = params ? new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value != null && value !== '') as [string, string][],
+    ).toString() : ''
+    return fetchJson(`/agency/white-label/analytics${query ? `?${query}` : ''}`) as Promise<AgencyWhiteLabelAnalyticsResponse>
+  },
 
   // Public pages
   getPublicAgency: (id: string) => fetchJson(`/public/agencies/${id}`),
