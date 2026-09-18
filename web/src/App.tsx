@@ -36,6 +36,7 @@ import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
+import { CampaignDetailPage } from '@/pages/CampaignDetailPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
@@ -208,6 +209,7 @@ function AppRoutes() {
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+      <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
       {mfaRoutes}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
