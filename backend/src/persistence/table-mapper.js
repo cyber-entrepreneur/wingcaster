@@ -284,6 +284,7 @@ const TABLE_MAP = {
 
   // Audit / activity
   audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'tenant_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
+  google_maps_budget_config: { schema: 'public', table: 'google_maps_budget_config', columns: ['budget_usd_monthly', 'alert_threshold_pct', 'updated_by'] },
   activity_log: { schema: 'public', table: 'activity_log', columns: ['agent_id', 'contact_id', 'property_id', 'inquiry_id', 'opportunity_id', 'viewing_id', 'type', 'meta'] },
 
   // Templates / entitlements / credits

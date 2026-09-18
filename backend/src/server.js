@@ -256,6 +256,7 @@ import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-off
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
+import { registerRoutes as registerGoogleUsageRoutes } from './lib/google/usage-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -827,6 +828,7 @@ registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
+registerGoogleUsageRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({

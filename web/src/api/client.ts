@@ -226,6 +226,62 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// PA-GOO-001 — Google Maps usage dashboard.
+export interface GoogleUsageBreakdownOp {
+  operation: string
+  requests: number
+  cost: number
+}
+
+export interface GoogleUsageTopConsumer {
+  area_id: string
+  requests: number
+  cost: number
+}
+
+export interface GoogleUsageDailyPoint {
+  date: string
+  cost: number
+  requests: number
+}
+
+export interface GoogleUsageSummary {
+  mtd_spend_usd: number
+  mtd_requests: number
+  budget_usd_monthly: number
+  alert_threshold_pct: number
+  projected_month_end_usd: number
+  headroom_usd: number
+  pct_consumed: number
+  over_budget: boolean
+  near_threshold: boolean
+  by_operation: GoogleUsageBreakdownOp[]
+  top_consumers: GoogleUsageTopConsumer[]
+  daily: GoogleUsageDailyPoint[]
+  updated_at: string | null
+}
+
+export interface GoogleBudgetConfig {
+  budget_usd_monthly: number
+  alert_threshold_pct: number
+  updated_by: string | null
+  updated_at: string | null
+}
+
+export interface GoogleBudgetResponse {
+  config: GoogleBudgetConfig
+  constraints: {
+    max_budget_usd_monthly: number
+    min_alert_threshold_pct: number
+    max_alert_threshold_pct: number
+  }
+}
+
+export interface GoogleBudgetInput {
+  budget_usd_monthly: number
+  alert_threshold_pct: number
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -2273,6 +2329,16 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/google-usage${qs}`)
   },
+  getGoogleUsageSummary: (params?: { days?: number; top?: number }): Promise<{ summary: GoogleUsageSummary }> => {
+    const qs = new URLSearchParams()
+    if (params?.days) qs.set('days', String(params.days))
+    if (params?.top) qs.set('top', String(params.top))
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return fetchJson(`/admin/google-usage/summary${suffix}`)
+  },
+  getGoogleBudget: (): Promise<GoogleBudgetResponse> => fetchJson('/admin/google-usage/budget'),
+  updateGoogleBudget: (body: GoogleBudgetInput): Promise<{ config: GoogleBudgetConfig }> =>
+    fetchJson('/admin/google-usage/budget', { method: 'PUT', body: JSON.stringify(body) }),
 
   // Market Pricing (public)
   getPricingAnalysis: (propertyId: string, params?: Record<string, string>): Promise<PricingAnalysis> => {

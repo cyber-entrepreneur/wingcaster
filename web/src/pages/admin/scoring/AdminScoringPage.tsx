@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -312,6 +313,12 @@ export function AdminScoringPage() {
                 <div>Monthly spend: <strong>${usage?.monthly_spend_usd?.toFixed?.(4) ?? usage?.monthly_spend_usd ?? '—'}</strong></div>
                 <div>Budget: <strong>${usage?.budget_usd_monthly ?? '—'}</strong></div>
                 <div className="mt-2 text-muted-foreground">{usage?.items?.length ?? 0} usage records</div>
+                <Link
+                  to="/admin/google-usage"
+                  className="mt-3 inline-block text-[var(--lc-action-primary)] underline underline-offset-2"
+                >
+                  Open full usage &amp; budget dashboard →
+                </Link>
               </div>
             </CardContent>
           </Card>
