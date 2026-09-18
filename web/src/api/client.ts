@@ -21,6 +21,7 @@ import type {
   PricingTrendSnapshot,
 } from '@/types/marketPricing'
 import type { InboxNotificationsResponse } from '@/types/inboxNotifications'
+import type { AgencySettingsOverview } from '@/types/agencySettings'
 import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
 import type { Territory } from '@/types/territory'
 import type {
@@ -4961,6 +4962,9 @@ export const api = {
     const query = params.toString()
     return fetchJson(`/agency/pricing/comparables${query ? `?${query}` : ''}`)
   },
+
+  // AGN-SET-001 — Agency settings home overview.
+  getAgencySettingsOverview: (): Promise<AgencySettingsOverview> => fetchJson('/agency/settings/overview'),
   keepAgentListingPrice: (propertyId: string, reason?: string): Promise<PricingDecision> =>
     fetchJson(`/agent/pricing/properties/${propertyId}/keep-price`, { method: 'POST', body: JSON.stringify({ reason }) }),
   adjustAgentListingPrice: (propertyId: string, newPrice: number, reason?: string) =>

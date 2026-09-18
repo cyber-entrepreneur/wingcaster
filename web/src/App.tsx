@@ -87,6 +87,7 @@ import { AgencyOwnershipTransferInitiatorPage } from '@/pages/agency/AgencyOwner
 import { AgencyOwnershipTransferAcceptPage } from '@/pages/agency/AgencyOwnershipTransferAcceptPage'
 import { AgencyPublicProfileSettingsPage } from '@/pages/agency/AgencyPublicProfileSettingsPage'
 import { OwnershipTransferOutcomePage } from '@/pages/agent/OwnershipTransferOutcomePage'
+import { AgencySettingsHomePage } from '@/pages/agency/settings/AgencySettingsHomePage'
 import { RolesOverviewPage } from '@/pages/agency/settings/RolesOverviewPage'
 import { RolePermissionsDetailPage } from '@/pages/agency/settings/RolePermissionsDetailPage'
 import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
@@ -321,6 +322,7 @@ function AppRoutes() {
       />
       <Route path="/agency/onboarding" element={<AgencyOnboardingPage />} />
       <Route path="/agency/public-profile" element={<AgencyPublicProfileSettingsPage />} />
+      <Route path="/agency/settings" element={<AgencySettingsHomePage />} />
       <Route path="/agency/settings/roles" element={<RolesOverviewPage />} />
       <Route path="/agency/settings/roles/:packId" element={<RolePermissionsDetailPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
