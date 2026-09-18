@@ -3,6 +3,7 @@
  * Agent-owned accounts, exclusive affiliation, canonical listings, syndication flags.
  */
 
+import { randomUUID } from 'node:crypto'
 import { findAll, findOne, update, insert } from './db.js'
 import {
   endAgencyMembership,
@@ -113,6 +114,76 @@ export async function endAffiliation(memberId, agencyId, { endedBy, reason } = {
     return { ...result, member_id: memberId }
   } catch (err) {
     return { ok: false, error: err.message }
+  }
+}
+
+/**
+ * AGN-MEM-008 — pause a member (temporary, reversible suspension).
+ *
+ * Writes both the legacy roster row (`agency_members.status = 'paused'` +
+ * pause_reason/paused_at/paused_by) and the canonical tenant membership
+ * (`tenant_memberships.status = 'suspended'`), so active-only access and
+ * lead-routing queries stop counting the member until they are resumed.
+ * Owners cannot be paused, and an actor cannot pause themselves.
+ */
+export async function pauseAffiliation(memberId, agencyId, { pausedBy, reason } = {}) {
+  const member = await findOne('agency_members', (m) => m.id === memberId && m.agency_id === agencyId)
+  if (!member) return { ok: false, notFound: true, error: 'Membership not found' }
+  if (member.role === 'owner') return { ok: false, error: 'The owner cannot be paused' }
+  if (member.user_id && member.user_id === pausedBy) return { ok: false, error: 'You cannot pause yourself' }
+  if (member.status !== 'active') return { ok: false, error: 'Only an active member can be paused' }
+  const trimmedReason = String(reason || '').trim()
+  if (trimmedReason.length < 3) return { ok: false, error: 'A pause reason is required' }
+
+  const canonical = await getAgencyMembership(agencyId, member.user_id)
+  if (!canonical) return { ok: false, error: 'Canonical tenant membership not found' }
+
+  const now = new Date().toISOString()
+  await update('tenant_memberships', (m) => m.id === canonical.id, (m) => ({
+    ...m, status: 'suspended', updated_at: now,
+  }))
+  const updated = await update('agency_members', (m) => m.id === memberId, (m) => ({
+    ...m, status: 'paused', pause_reason: trimmedReason, paused_at: now, paused_by: pausedBy || null, updated_at: now,
+  }))
+  await writeMemberPauseAudit({ agencyId, memberId, actorId: pausedBy, action: 'agency_member_pause', reason: trimmedReason })
+  return { ok: true, member_id: memberId, member: updated }
+}
+
+/** AGN-MEM-008 — resume a paused member (restore active access). */
+export async function resumeAffiliation(memberId, agencyId, { resumedBy } = {}) {
+  const member = await findOne('agency_members', (m) => m.id === memberId && m.agency_id === agencyId)
+  if (!member) return { ok: false, notFound: true, error: 'Membership not found' }
+  if (member.status !== 'paused') return { ok: false, error: 'Only a paused member can be resumed' }
+
+  const canonical = await getAgencyMembership(agencyId, member.user_id, { statuses: ['suspended', 'active'] })
+  if (!canonical) return { ok: false, error: 'Canonical tenant membership not found' }
+
+  const now = new Date().toISOString()
+  await update('tenant_memberships', (m) => m.id === canonical.id, (m) => ({
+    ...m, status: 'active', updated_at: now,
+  }))
+  const updated = await update('agency_members', (m) => m.id === memberId, (m) => ({
+    ...m, status: 'active', pause_reason: null, paused_at: null, paused_by: null, updated_at: now,
+  }))
+  await writeMemberPauseAudit({ agencyId, memberId, actorId: resumedBy, action: 'agency_member_resume', reason: null })
+  return { ok: true, member_id: memberId, member: updated }
+}
+
+async function writeMemberPauseAudit({ agencyId, memberId, actorId, action, reason }) {
+  try {
+    await insert('audit_log', {
+      id: randomUUID(),
+      agent_id: actorId || null,
+      agency_id: agencyId,
+      type: action,
+      action,
+      entity_type: 'agency_member',
+      entity_id: memberId,
+      metadata: reason ? { reason } : {},
+      created_at: new Date().toISOString(),
+    })
+  } catch {
+    // Audit is best-effort; never block the membership state change on it.
   }
 }
 
