@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Numeric } from '@/components/ui/numeric'
-import { Textarea } from '@/components/ui/textarea'
 import { apiErrorMessage, isNotFound } from '@/lib/http-status'
 import { usePageTitle } from '@/lib/usePageTitle'
 
@@ -327,13 +326,13 @@ export function PropertyDispositionPage() {
                 </div>
                 <div className="mt-5">
                   <Label htmlFor="disposition-notes">Notes for the other party</Label>
-                  <Textarea
+                  <textarea
                     id="disposition-notes"
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     maxLength={2000}
                     rows={4}
-                    className="mt-2"
+                    className="mt-2 w-full resize-y rounded-[var(--lc-radius-md)] border border-[var(--lc-border-strong)] bg-[var(--lc-surface)] px-3 py-2 text-sm text-[var(--lc-text-primary)] placeholder:text-[var(--lc-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lc-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60"
                     placeholder="Explain the mandate, client relationship, or reason for this recommendation."
                   />
                   <p className="mt-1 text-end text-xs text-[var(--lc-text-muted)]">
