@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Phone,
   ChevronRight,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -107,11 +108,18 @@ export function CampaignsPage() {
         title="Campaigns"
         subtitle="Drip sequences and nurture journeys"
         actions={
-          <Link to="/campaigns/new">
-            <Button size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" /> New campaign
-            </Button>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/settings/saved-searches">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Search className="h-4 w-4" /> Saved searches
+              </Button>
+            </Link>
+            <Link to="/campaigns/new">
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" /> New campaign
+              </Button>
+            </Link>
+          </div>
         }
       />
 

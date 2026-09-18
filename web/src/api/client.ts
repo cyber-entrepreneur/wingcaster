@@ -55,6 +55,38 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
+export type SavedSearchAlertChannel = 'email' | 'whatsapp' | 'inapp'
+export type SavedSearchAlertFrequency = 'instant' | 'daily' | 'weekly'
+
+export interface SavedSearch {
+  id: string
+  user_id: string
+  name: string
+  filters: Record<string, unknown>
+  alert_enabled: boolean
+  alert_channel: SavedSearchAlertChannel
+  alert_frequency: SavedSearchAlertFrequency
+  last_alert_run_at: string | null
+  last_match_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SavedSearchInput {
+  name: string
+  filters?: Record<string, unknown>
+  alert_enabled?: boolean
+  alert_channel?: SavedSearchAlertChannel
+  alert_frequency?: SavedSearchAlertFrequency
+}
+
+export interface SavedSearchAlertsRunResult {
+  ran_at: string
+  searches_processed: number
+  total_matches: number
+  results: Array<Record<string, unknown>>
+}
+
 /** Issue 192b — self-serve data-export job shape. */
 export type ScheduledPublicationStatus =
   | 'pending'
@@ -1334,7 +1366,7 @@ export const api = {
   getListingReport: (id: string) => fetchJson(`/properties/${id}/report`),
 
   // Saved searches
-  getSavedSearches: () => fetchJson('/saved-searches'),
+  getSavedSearches: () => fetchJson('/saved-searches') as Promise<SavedSearch[]>,
   createSavedSearch: (name: string, filters: Record<string, unknown>) =>
     fetchJson('/saved-searches', {
       method: 'POST',
@@ -1345,17 +1377,13 @@ export const api = {
         alert_channel: 'inapp',
         alert_frequency: 'daily',
       }),
-    }),
-  createSavedSearchWithAlerts: (data: {
-    name: string
-    filters: Record<string, unknown>
-    alert_enabled?: boolean
-    alert_channel?: 'email' | 'whatsapp' | 'inapp'
-    alert_frequency?: 'instant' | 'daily' | 'weekly'
-  }) => fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }),
-  updateSavedSearch: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  runSavedSearchAlerts: () => fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }),
+    }) as Promise<SavedSearch>,
+  createSavedSearchWithAlerts: (data: SavedSearchInput) =>
+    fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  updateSavedSearch: (id: string, data: Partial<SavedSearchInput>) =>
+    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  runSavedSearchAlerts: () =>
+    fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }) as Promise<SavedSearchAlertsRunResult>,
   deleteSavedSearch: (id: string) =>
     fetchJson(`/saved-searches/${id}`, { method: 'DELETE' }),
 
