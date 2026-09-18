@@ -29,6 +29,7 @@ import { MarketContextCard } from '@/components/market-pricing/MarketContextCard
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
 import { ListingFormModal } from '@/components/ListingFormModal'
+import { GenerateDescriptionModal } from '@/components/listings/GenerateDescriptionModal'
 import type { Property } from '@/types'
 import type {
   PricingAnalysis,
@@ -541,11 +542,41 @@ export function ListingProfilePage() {
       )}
 
       {aiOpen && (
-        <AiDescribeModal
-          property={property}
+        <GenerateDescriptionModal
+          open={aiOpen}
           onClose={() => setAiOpen(false)}
-          onApplied={(updated) => {
-            setProperty(updated)
+          input={{
+            photoUrls: property.photos || [],
+            hints: {
+              city: property.city || undefined,
+              neighborhood: property.neighborhood || undefined,
+              type: (property.type === 'sale' || property.type === 'rent') ? property.type : undefined,
+              property_type: property.property_type || undefined,
+              price: typeof property.price === 'number' && property.price > 0 ? property.price : undefined,
+              currency: property.price_unit || undefined,
+            },
+            intent: 'update',
+            existingListing: {
+              title: property.title,
+              description: property.description,
+              property_type: property.property_type,
+              bedrooms: property.bedrooms,
+              bathrooms: property.bathrooms,
+              area: property.area,
+            },
+          }}
+          onApply={async ({ title, description }) => {
+            const updated = await api.updateProperty(property.id, {
+              title: title.trim() || property.title,
+              description: description.trim() || property.description,
+            })
+            addToast({ title: 'Applied to listing', variant: 'success' })
+            setProperty({
+              ...property,
+              ...updated,
+              title: title.trim() || property.title,
+              description: description.trim() || property.description,
+            })
             setAiOpen(false)
           }}
         />
@@ -1056,187 +1087,6 @@ function PublishSocialTab({ property }: { property: Property }) {
           </CardContent>
         </Card>
       )}
-    </div>
-  )
-}
-
-function AiDescribeModal({
-  property, onClose, onApplied,
-}: {
-  property: Property
-  onClose: () => void
-  onApplied: (updated: Property) => void
-}) {
-  const { addToast } = useToast()
-  const [busy, setBusy] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [result, setResult] = useState<Awaited<ReturnType<typeof api.describeListingFromPhotos>> | null>(null)
-  const [draftTitle, setDraftTitle] = useState('')
-  const [draftDescription, setDraftDescription] = useState('')
-
-  const generate = useCallback(async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const r = await api.describeListingFromPhotos({
-        photo_urls: property.photos || [],
-        hints: {
-          city: property.city || undefined,
-          neighborhood: property.neighborhood || undefined,
-          type: (property.type === 'sale' || property.type === 'rent') ? property.type : undefined,
-          property_type: property.property_type || undefined,
-          price: typeof property.price === 'number' && property.price > 0 ? property.price : undefined,
-          currency: property.price_unit || undefined,
-        },
-        intent: 'update',
-        existing_listing: {
-          title: property.title,
-          description: property.description,
-          property_type: property.property_type,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          area: property.area,
-        },
-      })
-      setResult(r)
-      setDraftTitle(r.property.title || property.title || '')
-      setDraftDescription(r.property.description || '')
-    } catch (err: unknown) {
-      addToast({ title: 'AI draft failed', description: apiErrorMessage(err), variant: 'error' })
-    } finally {
-      setBusy(false)
-    }
-  }, [busy, property, addToast])
-
-  useEffect(() => { generate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function apply() {
-    if (applying) return
-    setApplying(true)
-    try {
-      const updated = await api.updateProperty(property.id, {
-        title: draftTitle.trim() || property.title,
-        description: draftDescription.trim() || property.description,
-      })
-      addToast({ title: 'Applied to listing', variant: 'success' })
-      onApplied({ ...property, ...updated, title: draftTitle.trim() || property.title, description: draftDescription.trim() || property.description })
-    } catch (err: unknown) {
-      addToast({ title: 'Could not apply', description: apiErrorMessage(err), variant: 'error' })
-    } finally {
-      setApplying(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
-      <div className="w-full max-w-2xl rounded-lg bg-[var(--lc-surface)] shadow-xl">
-        <div className="flex items-center justify-between border-b p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-amber-500" />
-            <h2 className="text-lg font-semibold">AI-drafted description</h2>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-muted">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="max-h-[70vh] overflow-y-auto p-4 space-y-4">
-          {busy && (
-            <div className="flex items-center gap-3 rounded-md border bg-slate-50 px-4 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Reading {property.photos?.length || 0} photos and drafting a description…
-            </div>
-          )}
-
-          {!busy && result && (
-            <>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">via {result.provider}</Badge>
-                {typeof result.property.confidence === 'number' && (
-                  <Badge variant="outline">
-                    confidence {Math.round((result.property.confidence || 0) * 100)}%
-                  </Badge>
-                )}
-              </div>
-
-              <div>
-                <Label className="text-xs">Title</Label>
-                <Input
-                  value={draftTitle}
-                  onChange={(e) => setDraftTitle(e.target.value)}
-                  className="mt-0.5"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs">Description</Label>
-                <textarea
-                  rows={10}
-                  value={draftDescription}
-                  onChange={(e) => setDraftDescription(e.target.value)}
-                  className="mt-0.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed"
-                />
-              </div>
-
-              <ExtractedFieldsPreview extracted={result.property} current={property} />
-            </>
-          )}
-
-          {!busy && !result && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              AI draft failed. Check that at least one AI provider key is set on the backend
-              (WHATSAPP_LISTINGS_CLAUDE_API_KEY, WHATSAPP_LISTINGS_OPENAI_API_KEY, or one of the
-              other provider vars).
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-2 border-t p-4">
-          <Button variant="outline" onClick={generate} disabled={busy || applying} className="gap-1.5">
-            <Sparkles className="h-4 w-4" />
-            Regenerate
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={applying}>Discard</Button>
-            <Button
-              onClick={apply}
-              disabled={busy || applying || !result || (!draftTitle.trim() && !draftDescription.trim())}
-              className="gap-1.5"
-            >
-              {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Apply to listing
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ExtractedFieldsPreview({
-  extracted, current,
-}: { extracted: Awaited<ReturnType<typeof api.describeListingFromPhotos>>['property']; current: Property }) {
-  const rows: Array<[string, string | number | null | undefined, string | number | null | undefined]> = [
-    ['Property type', extracted.property_type, current.property_type],
-    ['Bedrooms', extracted.bedrooms, current.bedrooms],
-    ['Bathrooms', extracted.bathrooms, current.bathrooms],
-    ['Area', extracted.area && extracted.area_unit ? `${extracted.area} ${extracted.area_unit}` : extracted.area, current.area],
-    ['Furnished', extracted.furnished === null ? '—' : extracted.furnished ? 'Yes' : 'No', current.furnished ? 'Yes' : 'No'],
-    ['Amenities', extracted.amenities?.length ? extracted.amenities.join(', ') : '—', current.amenities?.length ? current.amenities.join(', ') : '—'],
-  ]
-  const changed = rows.filter(([, e, c]) => String(e ?? '') && String(e ?? '').toLowerCase() !== String(c ?? '').toLowerCase())
-  if (!changed.length) return null
-  return (
-    <div className="rounded-md border bg-slate-50 p-3 text-xs">
-      <div className="mb-2 font-medium text-slate-700">Other fields the AI extracted (not applied — edit the listing to use these):</div>
-      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-        {changed.map(([label, e]) => (
-          <div key={label} className="flex justify-between border-b border-dashed border-slate-200 py-1">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="max-w-[60%] truncate font-medium" title={String(e)}>{String(e)}</dd>
-          </div>
-        ))}
-      </dl>
     </div>
   )
 }

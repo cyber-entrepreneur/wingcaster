@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/api/client'
+import { GenerateDescriptionModal } from '@/components/listings/GenerateDescriptionModal'
 import type { Property } from '@/types'
 import {
   AMENITY_CATEGORIES,
@@ -156,59 +157,33 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
   const [dragOver, setDragOver] = useState(false)
   const [geoBusy, setGeoBusy] = useState(false)
   const [amenityQuery, setAmenityQuery] = useState('')
-  const [aiBusy, setAiBusy] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
 
-  async function handleAiDraft() {
-    if (aiBusy) return
-    const photoUrls = form.media
-      .filter((m) => (m.media_type || 'image') === 'image' && !!m.url?.trim())
-      .map((m) => m.url.trim())
-    if (photoUrls.length === 0) {
-      setAiMessage('Add at least one photo before running AI describe.')
-      return
-    }
-    setAiBusy(true)
-    setAiMessage('')
-    try {
-      const r = await api.describeListingFromPhotos({
-        photo_urls: photoUrls,
-        hints: {
-          city: form.city || undefined,
-          neighborhood: form.neighborhood || undefined,
-          type: form.type,
-          property_type: form.property_type || undefined,
-          price: form.price ? Number(form.price) : undefined,
-          currency: form.price_unit || undefined,
-        },
-        intent: 'create',
-      })
-      const p = r.property
-      setForm((prev) => ({
-        ...prev,
-        // Prefer AI value only when the field is empty — never overwrite user edits.
-        title: prev.title || p.title || '',
-        description: prev.description || p.description || '',
-        property_type: prev.property_type || p.property_type || '',
-        bedrooms: prev.bedrooms || (p.bedrooms != null ? String(p.bedrooms) : ''),
-        bathrooms: prev.bathrooms || (p.bathrooms != null ? String(p.bathrooms) : ''),
-        area: prev.area || (p.area != null ? String(p.area) : ''),
-        area_unit: prev.area_unit || p.area_unit || '',
-        city: prev.city || p.city || '',
-        neighborhood: prev.neighborhood || p.neighborhood || '',
-        location: prev.location || p.location || '',
-        address: prev.address || p.address || '',
-        amenities:
-          Array.isArray(prev.amenities) && prev.amenities.length > 0
-            ? prev.amenities
-            : (p.amenities || []),
-      }))
-      setAiMessage(`Drafted via ${r.provider} (confidence ${Math.round((p.confidence || 0) * 100)}%). Review and edit as needed.`)
-    } catch (err: any) {
-      setAiMessage(err?.message || 'AI draft failed.')
-    } finally {
-      setAiBusy(false)
-    }
+  const aiPhotoUrls = form.media
+    .filter((m) => (m.media_type || 'image') === 'image' && !!m.url?.trim())
+    .map((m) => m.url.trim())
+
+  function applyAiDraft(p: Awaited<ReturnType<typeof api.describeListingFromPhotos>>['property'], provider: string) {
+    setForm((prev) => ({
+      ...prev,
+      title: prev.title || p.title || '',
+      description: prev.description || p.description || '',
+      property_type: prev.property_type || p.property_type || '',
+      bedrooms: prev.bedrooms || (p.bedrooms != null ? String(p.bedrooms) : ''),
+      bathrooms: prev.bathrooms || (p.bathrooms != null ? String(p.bathrooms) : ''),
+      area: prev.area || (p.area != null ? String(p.area) : ''),
+      area_unit: prev.area_unit || p.area_unit || '',
+      city: prev.city || p.city || '',
+      neighborhood: prev.neighborhood || p.neighborhood || '',
+      location: prev.location || p.location || '',
+      address: prev.address || p.address || '',
+      amenities:
+        Array.isArray(prev.amenities) && prev.amenities.length > 0
+          ? prev.amenities
+          : (p.amenities || []),
+    }))
+    setAiMessage(`Drafted via ${provider} (confidence ${Math.round((p.confidence || 0) * 100)}%). Review and edit as needed.`)
   }
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -433,12 +408,12 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
               variant="outline"
               size="sm"
               className="gap-1.5"
-              disabled={aiBusy || form.media.length === 0}
-              onClick={handleAiDraft}
-              title={form.media.length === 0 ? 'Add photos first' : 'Draft listing from uploaded photos'}
+              disabled={aiPhotoUrls.length === 0}
+              onClick={() => setAiOpen(true)}
+              title={aiPhotoUrls.length === 0 ? 'Add photos first' : 'Generate description with AI'}
             >
-              {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {aiBusy ? 'Drafting…' : 'Draft with AI'}
+              <Sparkles className="h-4 w-4" />
+              Generate with AI
             </Button>
           </div>
 
@@ -866,6 +841,38 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
           </div>
         </form>
       </div>
+
+      {aiOpen && (
+        <GenerateDescriptionModal
+          open={aiOpen}
+          onClose={() => setAiOpen(false)}
+          input={{
+            photoUrls: aiPhotoUrls,
+            hints: {
+              city: form.city || undefined,
+              neighborhood: form.neighborhood || undefined,
+              type: form.type,
+              property_type: form.property_type || undefined,
+              price: form.price ? Number(form.price) : undefined,
+              currency: form.price_unit || undefined,
+            },
+            intent: property ? 'update' : 'create',
+            existingListing: property
+              ? {
+                  title: form.title,
+                  description: form.description,
+                  property_type: form.property_type,
+                  bedrooms: form.bedrooms ? Number(form.bedrooms) : undefined,
+                  bathrooms: form.bathrooms ? Number(form.bathrooms) : undefined,
+                  area: form.area ? Number(form.area) : undefined,
+                }
+              : undefined,
+          }}
+          onApply={async ({ title, description, property: p, provider }) => {
+            applyAiDraft({ ...p, title: title || p.title, description: description || p.description }, provider)
+          }}
+        />
+      )}
     </div>
   )
 }
