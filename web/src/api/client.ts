@@ -730,6 +730,38 @@ export interface AgencyCampaignPerformanceResponse {
   }
 }
 
+/** AGN-CRD-004 — standing credit allocation rules for an agency wallet. */
+export type AgencyCreditAllocationMode =
+  | 'manual'
+  | 'percentage'
+  | 'cap_per_agent'
+  | 'hybrid'
+
+export interface AgencyCreditAllocationOverride {
+  agent_user_id: string
+  agent_name: string
+  percentage: number | null
+  cap_usd: number | null
+}
+
+export interface AgencyCreditAllocationRules {
+  agency_id: string
+  mode: AgencyCreditAllocationMode
+  overrides: AgencyCreditAllocationOverride[]
+  percentage_total: number
+  shared_pool_percentage: number
+  updated_by: string | null
+  updated_at: string | null
+  created_at: string | null
+  is_default: boolean
+}
+
+export interface AgencyCreditAllocationAgent {
+  user_id: string
+  name: string
+  role: string
+}
+
 /** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
@@ -3307,6 +3339,22 @@ export const api = {
     fetchJson('/agency/credits/top-up', { method: 'POST', body: JSON.stringify({ amount_usd: amountUsd, stripe_payment_intent_id: paymentIntentId }) }),
   allocateAgencyWhatsAppListingsCredits: (agentId: string, amountUsd: number) =>
     fetchJson('/agency/credits/allocate', { method: 'POST', body: JSON.stringify({ agent_id: agentId, amount_usd: amountUsd }) }),
+  getAgencyCreditAllocationRules: (): Promise<{
+    rules: AgencyCreditAllocationRules
+    agents: AgencyCreditAllocationAgent[]
+  }> => fetchJson('/agency/credits/allocation-rules'),
+  updateAgencyCreditAllocationRules: (payload: {
+    mode: AgencyCreditAllocationMode
+    overrides: Array<{
+      agent_user_id: string
+      percentage?: number | null
+      cap_usd?: number | null
+    }>
+  }): Promise<{ rules: AgencyCreditAllocationRules }> =>
+    fetchJson('/agency/credits/allocation-rules', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
 
   // Reminder policies
   getReminderPolicies: (params?: Record<string, string>) => {
