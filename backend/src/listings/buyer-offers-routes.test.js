@@ -127,6 +127,34 @@ describe('POST /api/properties/:id/buyer-offers', () => {
     expect(res.status).toBe(400)
   })
 
+  it('persists financing type, expiry, and conditions', async () => {
+    const app = await createApp()
+    const res = await request(app).post('/api/properties/prop-1/buyer-offers').send({
+      offeror_name: 'Cash Buyer',
+      amount: 460000,
+      financing_type: 'cash',
+      expiry_date: '2026-10-01',
+      conditions: 'Subject to survey',
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.financing_type).toBe('cash')
+    expect(res.body.expiry_date).toBe('2026-10-01')
+    expect(res.body.conditions).toBe('Subject to survey')
+    expect(db.insert).toHaveBeenCalledWith(
+      'property_offers',
+      expect.objectContaining({ financing_type: 'cash', expiry_date: '2026-10-01', conditions: 'Subject to survey' }),
+    )
+  })
+
+  it('rejects an unknown financing type', async () => {
+    const app = await createApp()
+    const res = await request(app)
+      .post('/api/properties/prop-1/buyer-offers')
+      .send({ offeror_name: 'X', amount: 10, financing_type: 'crypto' })
+    expect(res.status).toBe(400)
+    expect(db.insert).not.toHaveBeenCalled()
+  })
+
   it('rejects a linked contact that does not exist', async () => {
     db.findOne.mockResolvedValue(null)
     const app = await createApp()

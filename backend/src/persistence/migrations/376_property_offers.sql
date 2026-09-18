@@ -21,7 +21,10 @@ CREATE TABLE IF NOT EXISTS property_offers (
   amount NUMERIC(14,2) NOT NULL,
   currency TEXT NOT NULL DEFAULT 'USD',
   offer_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  terms TEXT,                      -- free-text conditions (financing, closing date, contingencies)
+  terms TEXT,                      -- free-text terms (closing date, deposit, misc.)
+  financing_type TEXT,             -- cash | mortgage | mixed | NULL(unspecified) — how the buyer funds it; the strongest signal of offer strength
+  expiry_date DATE,                -- when the offer lapses if not accepted; NULL = open-ended
+  conditions TEXT,                 -- contingencies (subject to survey / financing / sale of buyer's property / chain)
   status TEXT NOT NULL DEFAULT 'received',
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -29,6 +32,8 @@ CREATE TABLE IF NOT EXISTS property_offers (
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
   CONSTRAINT property_offers_status_check
     CHECK (status IN ('received', 'countered', 'accepted', 'rejected', 'withdrawn')),
+  CONSTRAINT property_offers_financing_check
+    CHECK (financing_type IS NULL OR financing_type IN ('cash', 'mortgage', 'mixed')),
   CONSTRAINT property_offers_amount_positive
     CHECK (amount > 0)
 );

@@ -159,6 +159,7 @@ export interface PerformanceMetricBlock {
 }
 
 export type BuyerOfferStatus = 'received' | 'countered' | 'accepted' | 'rejected' | 'withdrawn'
+export type BuyerOfferFinancing = 'cash' | 'mortgage' | 'mixed'
 
 export interface BuyerOffer {
   id: string
@@ -170,6 +171,9 @@ export interface BuyerOffer {
   currency: string
   offer_date: string
   terms: string | null
+  financing_type: BuyerOfferFinancing | null
+  expiry_date: string | null
+  conditions: string | null
   status: BuyerOfferStatus
   notes: string | null
   created_at: string
@@ -183,6 +187,9 @@ export interface BuyerOfferInput {
   currency?: string
   offer_date?: string
   terms?: string | null
+  financing_type?: BuyerOfferFinancing | null
+  expiry_date?: string | null
+  conditions?: string | null
   status?: BuyerOfferStatus
   notes?: string | null
 }

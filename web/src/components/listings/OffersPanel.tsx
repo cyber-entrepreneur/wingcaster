@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, HandCoins, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { api, type BuyerOffer, type BuyerOfferInput, type BuyerOfferStatus } from '@/api/client'
+import {
+  api,
+  type BuyerOffer,
+  type BuyerOfferFinancing,
+  type BuyerOfferInput,
+  type BuyerOfferStatus,
+} from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -207,10 +213,21 @@ export function OffersPanel({
                       {STATUS_LABELS[offer.status]}
                     </Badge>
                   </div>
-                  <div className="mt-0.5 text-sm text-muted-foreground">
-                    {formatMoney(offer.amount, offer.currency)} · {offer.offer_date}
-                    {offer.terms ? <> · {offer.terms}</> : null}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+                    <span>
+                      {formatMoney(offer.amount, offer.currency)} · {offer.offer_date}
+                    </span>
+                    {offer.financing_type ? (
+                      <Badge variant="outline" className="border-[var(--lc-border)] text-[10px] capitalize">
+                        {offer.financing_type}
+                      </Badge>
+                    ) : null}
+                    {offer.expiry_date ? <span>· valid until {offer.expiry_date}</span> : null}
+                    {offer.terms ? <span>· {offer.terms}</span> : null}
                   </div>
+                  {offer.conditions ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Conditions: {offer.conditions}</p>
+                  ) : null}
                   {offer.notes ? (
                     <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{offer.notes}</p>
                   ) : null}
@@ -301,6 +318,9 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
     amount: existing?.amount != null ? String(existing.amount) : '',
     currency: existing?.currency ?? defaultCurrency,
     offer_date: existing?.offer_date ?? new Date().toISOString().split('T')[0],
+    financing_type: existing?.financing_type ?? ('' as '' | BuyerOfferFinancing),
+    expiry_date: existing?.expiry_date ?? '',
+    conditions: existing?.conditions ?? '',
     terms: existing?.terms ?? '',
     status: existing?.status ?? ('received' as BuyerOfferStatus),
     notes: existing?.notes ?? '',
@@ -358,6 +378,9 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
         amount: amountNum,
         currency: form.currency.trim() || defaultCurrency,
         offer_date: form.offer_date,
+        financing_type: form.financing_type || null,
+        expiry_date: form.expiry_date || null,
+        conditions: form.conditions.trim() || null,
         terms: form.terms.trim() || null,
         status: form.status,
         notes: form.notes.trim() || null,
@@ -474,11 +497,30 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
               <Input value={form.currency} onChange={(e) => setField('currency', e.target.value)} maxLength={5} />
             </label>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block">
+              <Label className="text-xs">Financing</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={form.financing_type}
+                onChange={(e) => setField('financing_type', e.target.value as '' | BuyerOfferFinancing)}
+              >
+                <option value="">Unspecified</option>
+                <option value="cash">Cash</option>
+                <option value="mortgage">Mortgage</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </label>
             <label className="block">
               <Label className="text-xs">Offer date</Label>
               <Input type="date" value={form.offer_date} onChange={(e) => setField('offer_date', e.target.value)} />
             </label>
+            <label className="block">
+              <Label className="text-xs">Valid until</Label>
+              <Input type="date" value={form.expiry_date} onChange={(e) => setField('expiry_date', e.target.value)} />
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <Label className="text-xs">Status</Label>
               <select
@@ -495,11 +537,20 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
             </label>
           </div>
           <label className="block">
+            <Label className="text-xs">Conditions / contingencies</Label>
+            <Input
+              value={form.conditions}
+              onChange={(e) => setField('conditions', e.target.value)}
+              placeholder="Subject to survey, financing, sale of buyer's property…"
+              maxLength={4000}
+            />
+          </label>
+          <label className="block">
             <Label className="text-xs">Terms</Label>
             <Input
               value={form.terms}
               onChange={(e) => setField('terms', e.target.value)}
-              placeholder="Financing, closing date, contingencies…"
+              placeholder="Closing date, deposit, other terms…"
               maxLength={4000}
             />
           </label>

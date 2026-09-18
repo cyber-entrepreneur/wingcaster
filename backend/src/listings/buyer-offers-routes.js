@@ -21,6 +21,8 @@ import { findAll, findOne, insert, update, remove } from '../db.js'
 import { assertOwnsProperty } from '../lib/authz.js'
 
 const STATUSES = ['received', 'countered', 'accepted', 'rejected', 'withdrawn']
+const FINANCING_TYPES = ['cash', 'mortgage', 'mixed']
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const createSchema = z
   .object({
@@ -28,11 +30,11 @@ const createSchema = z
     offeror_name: z.string().trim().min(1).max(200),
     amount: z.number().positive().finite(),
     currency: z.string().trim().min(1).max(8).default('USD'),
-    offer_date: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'offer_date must be YYYY-MM-DD')
-      .optional(),
+    offer_date: z.string().regex(DATE_RE, 'offer_date must be YYYY-MM-DD').optional(),
     terms: z.string().max(4000).nullish(),
+    financing_type: z.enum(FINANCING_TYPES).nullish(),
+    expiry_date: z.string().regex(DATE_RE, 'expiry_date must be YYYY-MM-DD').nullish(),
+    conditions: z.string().max(4000).nullish(),
     status: z.enum(STATUSES).default('received'),
     notes: z.string().max(4000).nullish(),
   })
@@ -44,11 +46,11 @@ const updateSchema = z
     offeror_name: z.string().trim().min(1).max(200).optional(),
     amount: z.number().positive().finite().optional(),
     currency: z.string().trim().min(1).max(8).optional(),
-    offer_date: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'offer_date must be YYYY-MM-DD')
-      .optional(),
+    offer_date: z.string().regex(DATE_RE, 'offer_date must be YYYY-MM-DD').optional(),
     terms: z.string().max(4000).nullish(),
+    financing_type: z.enum(FINANCING_TYPES).nullish(),
+    expiry_date: z.string().regex(DATE_RE, 'expiry_date must be YYYY-MM-DD').nullish(),
+    conditions: z.string().max(4000).nullish(),
     status: z.enum(STATUSES).optional(),
     notes: z.string().max(4000).nullish(),
   })
@@ -65,6 +67,9 @@ function serializeOffer(row) {
     currency: row.currency || 'USD',
     offer_date: row.offer_date,
     terms: row.terms ?? null,
+    financing_type: row.financing_type ?? null,
+    expiry_date: row.expiry_date ?? null,
+    conditions: row.conditions ?? null,
     status: row.status,
     notes: row.notes ?? null,
     created_at: row.created_at,
@@ -121,6 +126,9 @@ export function registerRoutes(app, { authMiddleware }) {
       currency: body.currency,
       offer_date: body.offer_date || now.split('T')[0],
       terms: body.terms ?? null,
+      financing_type: body.financing_type ?? null,
+      expiry_date: body.expiry_date ?? null,
+      conditions: body.conditions ?? null,
       status: body.status,
       notes: body.notes ?? null,
       created_at: now,
