@@ -21,6 +21,7 @@ import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
+import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer'
 
 interface Task {
   id: string
@@ -61,6 +62,7 @@ export function TasksPage() {
   const [form, setForm] = useState({ title: '', due_at: '', priority: 'normal', type: 'follow_up', notes: '' })
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('pending')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
   const loadTasks = async () => {
     try {
@@ -314,8 +316,13 @@ export function TasksPage() {
                   {/* Priority dot */}
                   <span className={cn('mt-2 h-2 w-2 shrink-0 rounded-full', PRIORITY_DOT[t.priority])} />
 
-                  {/* Content */}
-                  <div className="min-w-0 flex-1">
+                  {/* Content — opens the detail/edit modal */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenTaskId(t.id)}
+                    className="min-w-0 flex-1 text-start"
+                    aria-label={`Open task ${t.title}`}
+                  >
                     <p className={cn('text-sm font-medium', t.status === 'completed' && 'line-through text-muted-foreground')}>
                       {t.title}
                     </p>
@@ -335,7 +342,7 @@ export function TasksPage() {
                       )}
                     </div>
                     {t.notes && <p className="mt-1 text-xs text-muted-foreground">{t.notes}</p>}
-                  </div>
+                  </button>
 
                   {/* Actions — visible on hover */}
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -359,6 +366,8 @@ export function TasksPage() {
           </div>
         )}
       </div>
+
+      <TaskDetailDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} onChanged={loadTasks} />
     </CrmShell>
   )
 }
