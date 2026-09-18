@@ -27,6 +27,7 @@ import { AgencyComparablesPage } from '@/pages/agency/pricing/AgencyComparablesP
 import { AgencyCreditsLayout } from '@/pages/agency/credits/AgencyCreditsLayout'
 import { AgencyCreditsWalletPage } from '@/pages/agency/credits/AgencyCreditsWalletPage'
 import { AgencyFeatureQuotasPage } from '@/pages/agency/credits/AgencyFeatureQuotasPage'
+import { AgencyBulkPriceAdjustPage } from '@/pages/agency/pricing/AgencyBulkPriceAdjustPage'
 import {
   BadComparableReportPage,
   PriceReportPage,
@@ -340,6 +341,7 @@ function AppRoutes() {
       <Route path="/agency/settings/delete-agency" element={<AgencyDeleteAgencyPage />} />
       <Route path="/agency/credits/allocation-rules" element={<AgencyCreditAllocationRulesPage />} />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
+      <Route path="/agency/pricing/bulk-adjust" element={<AgencyBulkPriceAdjustPage />} />
       <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
       <Route path="/agency/reports/leads" element={<LeadConversionFunnelPage />} />
       <Route path="/agency/reports/revenue" element={<RevenueAttributionReportPage />} />

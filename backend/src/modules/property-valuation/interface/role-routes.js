@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { Collections } from '../infrastructure/db.js'
 import { listAgencyMemberships, listUserAgencyMemberships } from '../../../tenant-authorization.js'
+import { registerBulkPriceAdjustmentRoutes } from './bulk-price-adjustment-routes.js'
 
 export const agencyComparablesQuerySchema = z.object({
   city: z.string().trim().max(100).optional(),
@@ -134,6 +135,13 @@ export function registerRoleRoutes(app, services) {
       })
       res.status(201).json(decision)
     } catch (err) { next(err) }
+  })
+
+  registerBulkPriceAdjustmentRoutes(app, {
+    dal,
+    analysisService,
+    recalculationJobService,
+    logger,
   })
 
   app.post('/api/agent/pricing/properties/:propertyId/adjust-price', authMiddleware, async (req, res, next) => {
