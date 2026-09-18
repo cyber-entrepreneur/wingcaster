@@ -289,6 +289,7 @@ skipIfNoPostgres()('WhatsApp Listing pipeline integration', () => {
     expect(draft).toBeTruthy()
     expect(draft.status).toBe('awaiting_approval')
     expect(draft.extracted_property.title).toBe('Integration Test Apartment')
+    expect(draft.original_extracted_property).toEqual(draft.extracted_property)
     expect(draft.captions.instagram.caption).toBe('Sunny Hamra 2-bed. #Beirut #RealEstate')
     expect(createAiPostMock).toHaveBeenCalledTimes(1)
     const postArgs = createAiPostMock.mock.calls[0][0]

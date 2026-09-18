@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -160,7 +161,12 @@ export function AgentWhatsAppListingsPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Usage</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Usage</CardTitle>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/agent/whatsapp-listings/analytics">View analytics</Link>
+          </Button>
+        </CardHeader>
         <CardContent><UsageChart data={chartData} title="Draft activity" /></CardContent>
       </Card>
 

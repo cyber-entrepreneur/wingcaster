@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { StepUpProvider } from '@/context/StepUpContext'
@@ -128,6 +129,10 @@ import { settingsRoutes } from '@/pages/settings/routes'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { onboardingRoutes } from '@/pages/agent/onboarding/routes'
 import { activationRoutes } from '@/pages/agent/activation/routes'
+
+const WhatsAppIntakeAnalyticsPage = lazy(
+  () => import('@/pages/agent/whatsapp-listings/WhatsAppIntakeAnalyticsPage'),
+)
 
 /** Auth / marketing surfaces that own their own chrome (no app shell / Navbar). */
 const BARE_CHROME_PREFIXES = [
@@ -324,6 +329,23 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
+      <Route
+        path="/agent/whatsapp-listings/analytics"
+        element={
+          <Suspense
+            fallback={
+              <div
+                className="flex min-h-[50vh] items-center justify-center text-[var(--lc-text-muted)]"
+                role="status"
+              >
+                Loading analytics…
+              </div>
+            }
+          >
+            <WhatsAppIntakeAnalyticsPage />
+          </Suspense>
+        }
+      />
       {whatsappIntakeRoutes}
       <Route path="/areas/:slug" element={<AreaProfilePage />} />
       <Route path="/inspector" element={<InspectorPage />} />
