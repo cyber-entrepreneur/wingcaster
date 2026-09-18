@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useLocale } from '@/hooks/useLocale'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useToast } from '@/components/ui/toast'
+import { readLcColor } from '@/theme/css'
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden'
 
@@ -73,7 +74,7 @@ export function AgencyTemplateEditorPage() {
   const [previewVariables, setPreviewVariables] = useState<Record<string, string>>({
     agency_name: 'Elite Realty',
     agency_logo_url: 'https://example.com/logo.png',
-    primary_color: '#1d4ed8',
+    primary_color: readLcColor('--lc-action-primary'),
     client_name: 'Sara Ahmed',
     agent_name: agent?.name || 'Agent',
     property_title: 'Marina apartment',
