@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PermissionDenied } from '@/components/errors/PermissionDenied'
 
 export const FIN_NAV = [
   { path: '/admin/fin/overview', label: 'Overview' },
@@ -29,14 +30,11 @@ export function FinAdminGate({ title, children }: { title: string; children: Rea
   const { isAdmin } = useAuth()
   if (!isAdmin) {
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-8">
-        <Card>
-          <CardHeader><CardTitle>Platform admin required</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {title} is restricted to platform admins.
-          </CardContent>
-        </Card>
-      </div>
+      <PermissionDenied
+        reason="This area is restricted to platform admins."
+        homeHref="/dashboard"
+        requestAccess={{ scope: 'platform', resource_type: 'admin_fin', area_label: title }}
+      />
     )
   }
   return (
