@@ -6,7 +6,7 @@
  * become resolvable; disagreement remains visible as a disputed case.
  */
 import { z } from 'zod'
-import { findAll, findOne, update } from '../../db.js'
+import { findAll, findOne, query, transaction, update } from '../../db.js'
 
 const dispositionSchema = z.enum(['agency_retains', 'agent_retains', 'archive'])
 const decisionSchema = z.object({
@@ -139,6 +139,19 @@ function leakSafeNotFound(res) {
   return res.status(404).json({ error: 'Disposition case not found' })
 }
 
+async function lockDispositionCase(propertyId) {
+  await query(
+    `SELECT id
+       FROM public.property_disposition_cases
+      WHERE property_id = $1
+      ORDER BY CASE WHEN status IN ('pending', 'agreed', 'disputed') THEN 0 ELSE 1 END,
+               created_at DESC
+      LIMIT 1
+      FOR UPDATE`,
+    [propertyId],
+  )
+}
+
 export function registerRoutes(app, { authMiddleware }) {
   if (!authMiddleware) throw new Error('registerRoutes requires authMiddleware')
 
@@ -158,33 +171,41 @@ export function registerRoutes(app, { authMiddleware }) {
       if (!parsed.success) {
         return res.status(400).json({ error: 'Invalid disposition decision', details: parsed.error.flatten() })
       }
-      const context = await loadContext(req.params.id, req.user.id)
-      if (!context) return leakSafeNotFound(res)
-      if (['completed', 'cancelled'].includes(context.dispositionCase.status)) {
+      const result = await transaction(async () => {
+        await lockDispositionCase(req.params.id)
+        const context = await loadContext(req.params.id, req.user.id)
+        if (!context) return { kind: 'not_found' }
+        if (['completed', 'cancelled'].includes(context.dispositionCase.status)) {
+          return { kind: 'closed' }
+        }
+
+        const proposalField = `${context.viewerRole}_proposed_disposition`
+        const notesField = `${context.viewerRole}_notes`
+        const nextRow = {
+          ...context.dispositionCase,
+          [proposalField]: parsed.data.disposition,
+          [notesField]: parsed.data.notes ?? null,
+          updated_at: new Date().toISOString(),
+        }
+        const agencyProposal = legacyProposal(nextRow, 'agency')
+        const agentProposal = legacyProposal(nextRow, 'agent')
+        nextRow.status = agencyProposal && agentProposal
+          ? (agencyProposal === agentProposal ? 'agreed' : 'disputed')
+          : 'pending'
+
+        await update(
+          'property_disposition_cases',
+          (row) => row.id === context.dispositionCase.id,
+          () => nextRow,
+        )
+        context.dispositionCase = nextRow
+        return { kind: 'ok', context }
+      })
+      if (result.kind === 'not_found') return leakSafeNotFound(res)
+      if (result.kind === 'closed') {
         return res.status(409).json({ error: 'This disposition case is closed', code: 'CASE_CLOSED' })
       }
-
-      const proposalField = `${context.viewerRole}_proposed_disposition`
-      const notesField = `${context.viewerRole}_notes`
-      const updatedAt = new Date().toISOString()
-      const nextRow = {
-        ...context.dispositionCase,
-        [proposalField]: parsed.data.disposition,
-        [notesField]: parsed.data.notes ?? null,
-        updated_at: updatedAt,
-      }
-      const agencyProposal = legacyProposal(nextRow, 'agency')
-      const agentProposal = legacyProposal(nextRow, 'agent')
-      nextRow.status = agencyProposal && agentProposal
-        ? (agencyProposal === agentProposal ? 'agreed' : 'disputed')
-        : 'pending'
-
-      await update(
-        'property_disposition_cases',
-        (row) => row.id === context.dispositionCase.id,
-        () => nextRow,
-      )
-      context.dispositionCase = nextRow
+      const context = result.context
       return res.json(await serialize(context))
     } catch (error) {
       return next(error)
@@ -197,54 +218,63 @@ export function registerRoutes(app, { authMiddleware }) {
       if (!parsed.success) {
         return res.status(400).json({ error: 'Invalid resolve request', details: parsed.error.flatten() })
       }
-      const context = await loadContext(req.params.id, req.user.id)
-      if (!context) return leakSafeNotFound(res)
+      const result = await transaction(async () => {
+        await lockDispositionCase(req.params.id)
+        const context = await loadContext(req.params.id, req.user.id)
+        if (!context) return { kind: 'not_found' }
 
-      const agencyProposal = legacyProposal(context.dispositionCase, 'agency')
-      const agentProposal = legacyProposal(context.dispositionCase, 'agent')
-      if (
-        context.dispositionCase.status !== 'agreed'
-        || !agencyProposal
-        || agencyProposal !== agentProposal
-      ) {
+        const agencyProposal = legacyProposal(context.dispositionCase, 'agency')
+        const agentProposal = legacyProposal(context.dispositionCase, 'agent')
+        if (
+          context.dispositionCase.status !== 'agreed'
+          || !agencyProposal
+          || agencyProposal !== agentProposal
+        ) {
+          return { kind: 'not_agreed' }
+        }
+
+        const propertyPatch = agencyProposal === 'agency_retains'
+          ? {
+            tenant_id: context.dispositionCase.agency_tenant_id,
+            custody_tenant_id: context.dispositionCase.agency_tenant_id,
+            ownership_type: 'agency',
+            exit_disposition: 'agency_retains',
+          }
+          : agencyProposal === 'agent_retains'
+            ? {
+              tenant_id: context.dispositionCase.personal_tenant_id,
+              custody_tenant_id: context.dispositionCase.personal_tenant_id,
+              ownership_type: 'personal',
+              agency_id: null,
+              exit_disposition: 'agent_retains',
+            }
+            : { status: 'archived', exit_disposition: 'case_review' }
+
+        const now = new Date().toISOString()
+        const nextProperty = { ...context.property, ...propertyPatch, updated_at: now }
+        const nextCase = {
+          ...context.dispositionCase,
+          status: 'completed',
+          proposed_disposition: agencyProposal,
+          resolved_by: req.user.id,
+          resolved_at: now,
+          updated_at: now,
+        }
+        await update('properties', (row) => row.id === context.property.id, () => nextProperty)
+        await update(
+          'property_disposition_cases',
+          (row) => row.id === context.dispositionCase.id,
+          () => nextCase,
+        )
+        context.property = nextProperty
+        context.dispositionCase = nextCase
+        return { kind: 'ok', context }
+      })
+      if (result.kind === 'not_found') return leakSafeNotFound(res)
+      if (result.kind === 'not_agreed') {
         return res.status(409).json({ error: 'Both parties must agree before resolution', code: 'NOT_AGREED' })
       }
-
-      const propertyPatch = agencyProposal === 'agency_retains'
-        ? {
-          tenant_id: context.dispositionCase.agency_tenant_id,
-          custody_tenant_id: context.dispositionCase.agency_tenant_id,
-          ownership_type: 'agency',
-          exit_disposition: 'agency_retains',
-        }
-        : agencyProposal === 'agent_retains'
-          ? {
-            tenant_id: context.dispositionCase.personal_tenant_id,
-            custody_tenant_id: context.dispositionCase.personal_tenant_id,
-            ownership_type: 'personal',
-            agency_id: null,
-            exit_disposition: 'agent_retains',
-          }
-          : { status: 'archived', exit_disposition: 'case_review' }
-
-      const now = new Date().toISOString()
-      const nextProperty = { ...context.property, ...propertyPatch, updated_at: now }
-      const nextCase = {
-        ...context.dispositionCase,
-        status: 'completed',
-        proposed_disposition: agencyProposal,
-        resolved_by: req.user.id,
-        resolved_at: now,
-        updated_at: now,
-      }
-      await update('properties', (row) => row.id === context.property.id, () => nextProperty)
-      await update(
-        'property_disposition_cases',
-        (row) => row.id === context.dispositionCase.id,
-        () => nextCase,
-      )
-      context.property = nextProperty
-      context.dispositionCase = nextCase
+      const context = result.context
       return res.json(await serialize(context))
     } catch (error) {
       return next(error)
