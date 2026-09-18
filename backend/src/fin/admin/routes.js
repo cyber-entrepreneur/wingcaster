@@ -365,7 +365,8 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
 
   app.post('/api/admin/fin/facilities', writeGuards, wrap(async (req, res) => {
-    const parsed = createFacilityBodySchema.safeParse(commandBody(req))
+    // Validate the raw body so strict() rejects injected environment/now (DL-164).
+    const parsed = createFacilityBodySchema.safeParse(req.body ?? {})
     if (!parsed.success) {
       return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
     }

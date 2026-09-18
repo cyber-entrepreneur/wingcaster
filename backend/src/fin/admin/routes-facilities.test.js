@@ -50,7 +50,7 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
         billing_account_id: world().tenantA.billingAccountId,
         currency: 'CAD',
         limit_minor: 1000,
-        net_terms_days: 15,
+        net_terms_days: 14,
         valid_from: new Date(Date.parse(NOW) - 5000).toISOString(),
       })
     expect(created.status).toBe(200)
