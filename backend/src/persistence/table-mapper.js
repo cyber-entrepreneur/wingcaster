@@ -89,7 +89,7 @@ const TABLE_MAP = {
   agency_members: {
     schema: 'public',
     table: 'agency_members',
-    columns: ['agency_id', 'user_id', 'agent_id', 'role', 'status', 'joined_at', 'ended_at', 'end_reason'],
+    columns: ['agency_id', 'user_id', 'agent_id', 'role', 'status', 'joined_at', 'ended_at', 'end_reason', 'pause_reason', 'paused_at', 'paused_by'],
   },
   tenants: {
     schema: 'public',

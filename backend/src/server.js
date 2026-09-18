@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { randomBytes, createHash, randomInt, timingSafeEqual } from 'crypto'
 import http from 'http'
 import express from 'express'
+import { z } from 'zod'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -446,6 +447,8 @@ import {
   getActiveAffiliation,
   assertCanJoinAgency,
   endAffiliation,
+  pauseAffiliation,
+  resumeAffiliation,
   reassignAgencyTiedListing,
   resolveListingAffiliation,
   isMarketplaceVisible,
@@ -8017,6 +8020,30 @@ app.post('/api/agencies/:agencyId/members/:memberId/end', authMiddleware, requir
     reason: req.body.reason || 'departure',
   })
   if (!result.ok) return res.status(result.requires_reassignment ? 409 : 400).json(result)
+  res.json(result)
+})
+
+// AGN-MEM-008 — pause / resume a member (temporary, reversible suspension).
+const memberPauseSchema = z.object({ reason: z.string().trim().min(3).max(500) }).strict()
+
+app.post('/api/agencies/:agencyId/members/:memberId/pause', authMiddleware, requireRole(['owner', 'admin']), async (req, res) => {
+  const parsed = memberPauseSchema.safeParse(req.body || {})
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'A pause reason is required', code: 'INVALID_BODY' })
+  }
+  const result = await pauseAffiliation(req.params.memberId, req.params.agencyId, {
+    pausedBy: req.user.id,
+    reason: parsed.data.reason,
+  })
+  if (!result.ok) return res.status(result.notFound ? 404 : 400).json(result)
+  res.json(result)
+})
+
+app.post('/api/agencies/:agencyId/members/:memberId/resume', authMiddleware, requireRole(['owner', 'admin']), async (req, res) => {
+  const result = await resumeAffiliation(req.params.memberId, req.params.agencyId, {
+    resumedBy: req.user.id,
+  })
+  if (!result.ok) return res.status(result.notFound ? 404 : 400).json(result)
   res.json(result)
 })
 

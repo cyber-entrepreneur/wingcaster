@@ -1026,6 +1026,11 @@ export const api = {
     fetchJson(`/agencies/${agencyId}/members/${memberId}`, { method: 'DELETE' }),
   endAgencyMembership: (agencyId: string, memberId: string, data?: Record<string, unknown>) =>
     fetchJson(`/agencies/${agencyId}/members/${memberId}/end`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  // AGN-MEM-008 — pause / resume a member (temporary suspension).
+  pauseMember: (agencyId: string, memberId: string, reason: string) =>
+    fetchJson(`/agencies/${agencyId}/members/${memberId}/pause`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  resumeMember: (agencyId: string, memberId: string) =>
+    fetchJson(`/agencies/${agencyId}/members/${memberId}/resume`, { method: 'POST', body: JSON.stringify({}) }),
   getTiedListings: (agencyId: string, memberId: string) =>
     fetchJson(`/agencies/${agencyId}/members/${memberId}/tied-listings`),
   reassignAgencyListing: (agencyId: string, propertyId: string, data: Record<string, unknown>) =>

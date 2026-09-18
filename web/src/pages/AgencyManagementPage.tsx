@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, Users, Plus, Settings, Mail, Shield, UserMinus, Loader2, Check, X, Crown, UserCog, User, Eye, DollarSign, AlertTriangle } from 'lucide-react'
+import { Building2, Users, Plus, Settings, Mail, Shield, UserMinus, Loader2, Check, X, Crown, UserCog, User, Eye, DollarSign, AlertTriangle, PauseCircle, PlayCircle } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ type AgencyMember = {
   user?: AgencyMemberUser
   role: string
   status?: string
+  pause_reason?: string | null
 }
 
 type AgencyTiedListing = {
@@ -84,6 +85,10 @@ export function AgencyManagementPage() {
     saving: boolean
     error: string
   }>(null)
+  const [pauseTarget, setPauseTarget] = useState<null | { memberId: string; name: string }>(null)
+  const [pauseReason, setPauseReason] = useState('')
+  const [pauseSaving, setPauseSaving] = useState(false)
+  const [resumingId, setResumingId] = useState('')
 
   const loadAgency = useCallback(() => {
     setLoading(true)
@@ -183,6 +188,36 @@ export function AgencyManagementPage() {
     if (!agency) return
     await api.updateMember(agency.id, memberId, { role: newRole })
     loadAgency()
+  }
+
+  const submitPause = async () => {
+    if (!agency || !pauseTarget) return
+    setPauseSaving(true)
+    try {
+      await api.pauseMember(agency.id, pauseTarget.memberId, pauseReason.trim())
+      addToast({ title: 'Member paused', description: `${pauseTarget.name} is temporarily suspended.`, variant: 'success' })
+      setPauseTarget(null)
+      setPauseReason('')
+      loadAgency()
+    } catch (e) {
+      addToast({ title: 'Could not pause member', description: apiErrorMessage(e, 'Please try again'), variant: 'error' })
+    } finally {
+      setPauseSaving(false)
+    }
+  }
+
+  const handleResume = async (memberId: string, name?: string) => {
+    if (!agency) return
+    setResumingId(memberId)
+    try {
+      await api.resumeMember(agency.id, memberId)
+      addToast({ title: 'Member resumed', description: `${name || 'The member'} has full access again.`, variant: 'success' })
+      loadAgency()
+    } catch (e) {
+      addToast({ title: 'Could not resume member', description: apiErrorMessage(e, 'Please try again'), variant: 'error' })
+    } finally {
+      setResumingId('')
+    }
   }
 
   if (authLoading) {
@@ -370,6 +405,8 @@ export function AgencyManagementPage() {
                     const meta = ROLE_META[member.role] || ROLE_META.readonly
                     const Icon = meta.icon
                     const isMe = member.user_id === agent.id
+                    const isPaused = member.status === 'paused'
+                    const isOwnerRow = member.role === 'owner'
                     return (
                       <div key={member.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center">
                         <Avatar className="h-10 w-10">
@@ -377,18 +414,23 @@ export function AgencyManagementPage() {
                           <AvatarFallback>{member.user?.name?.split(' ').map((n) => n[0]).join('')}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium">{member.user?.name || 'Unknown'}</p>
                             {isMe && <Badge variant="outline" className="text-xs">You</Badge>}
+                            {isPaused && <Badge className="border-amber-200 bg-amber-100 text-amber-800 text-xs">Paused</Badge>}
                           </div>
                           <p className="text-xs text-muted-foreground">{member.user?.email}</p>
+                          {isPaused && member.pause_reason && (
+                            <p className="mt-1 text-xs text-amber-700">Paused: {member.pause_reason}</p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           {canManageMembers && !isMe ? (
                             <select
                               value={member.role}
                               onChange={e => handleUpdateRole(member.id, e.target.value)}
                               className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                              disabled={isPaused}
                             >
                               {Object.entries(ROLE_META).map(([key, meta]) => (
                                 <option key={key} value={key}>{meta.label}</option>
@@ -397,11 +439,36 @@ export function AgencyManagementPage() {
                           ) : (
                             <Badge className={meta.color}>{meta.label}</Badge>
                           )}
+                          {canManageMembers && !isMe && !isOwnerRow && (
+                            isPaused ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                disabled={resumingId === member.id}
+                                onClick={() => handleResume(member.id, member.user?.name)}
+                              >
+                                {resumingId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                                Resume
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-1"
+                                aria-label={`Pause ${member.user?.name || 'member'}`}
+                                onClick={() => { setPauseTarget({ memberId: member.id, name: member.user?.name || 'this member' }); setPauseReason('') }}
+                              >
+                                <PauseCircle className="h-4 w-4" />
+                              </Button>
+                            )
+                          )}
                           {canManageMembers && !isMe && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-destructive"
+                              aria-label={`End affiliation for ${member.user?.name || 'member'}`}
                               onClick={() => openDeparture(member.id, member.user_id || member.user?.id, member.user?.name)}
                             >
                               <UserMinus className="h-4 w-4" />
@@ -500,6 +567,36 @@ export function AgencyManagementPage() {
               <Button onClick={completeDeparture} disabled={departure.saving} className="gap-2">
                 {departure.saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Reassign & end affiliation
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pauseTarget && (
+        <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4" role="dialog" aria-modal="true" aria-label={`Pause ${pauseTarget.name}`}>
+          <div className="w-full max-w-md rounded-xl bg-[var(--lc-surface)] p-6 shadow-xl">
+            <h3 className="text-lg font-bold">Pause {pauseTarget.name}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Paused members keep their account but lose agency access and stop receiving routed leads until you resume them.
+            </p>
+            <div className="mt-4">
+              <Label htmlFor="pause-reason">Reason</Label>
+              <textarea
+                id="pause-reason"
+                rows={3}
+                value={pauseReason}
+                onChange={(e) => setPauseReason(e.target.value)}
+                placeholder="e.g. On leave until August, under review"
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Shown on the member’s row and recorded in the audit log.</p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setPauseTarget(null); setPauseReason('') }} disabled={pauseSaving}>Cancel</Button>
+              <Button onClick={submitPause} disabled={pauseSaving || pauseReason.trim().length < 3} className="gap-2">
+                {pauseSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Pause member
               </Button>
             </div>
           </div>
