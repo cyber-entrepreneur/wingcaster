@@ -431,6 +431,12 @@ export interface AgencyMessageTemplatesListResponse {
   templates: AgencyMessageTemplate[]
 }
 
+export interface AgencyMessageTemplateRenderResult {
+  body: string
+  subject: string | null
+  missing_variables: string[]
+}
+
 /** Issue 190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
@@ -1416,6 +1422,24 @@ export const api = {
   /** AGN-TPL-001 — publish template to agents. */
   publishAgencyMessageTemplate: (templateId: string): Promise<AgencyMessageTemplate> =>
     fetchJson(`/agency/templates/${encodeURIComponent(templateId)}/publish`, { method: 'POST', body: '{}' }),
+  /** AGN-TPL-002 — update an agency template. */
+  updateAgencyMessageTemplate: (templateId: string, data: Partial<AgencyMessageTemplate>): Promise<AgencyMessageTemplate> =>
+    fetchJson(`/agency/templates/${encodeURIComponent(templateId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  /** AGN-TPL-002 — delete an agency template. */
+  deleteAgencyMessageTemplate: (templateId: string): Promise<{ success: boolean }> =>
+    fetchJson(`/agency/templates/${encodeURIComponent(templateId)}`, { method: 'DELETE' }),
+  /** AGN-TPL-002 — render a test preview. */
+  renderAgencyMessageTemplate: (
+    templateId: string,
+    variables: Record<string, string>,
+  ): Promise<AgencyMessageTemplateRenderResult> =>
+    fetchJson(`/agency/templates/${encodeURIComponent(templateId)}/render`, {
+      method: 'POST',
+      body: JSON.stringify({ variables }),
+    }),
   /** AGN-ROL-001 — capability-pack list with member counts + agency owner meta. */
   listAgencyCapabilityPacks: () => fetchJson('/agency/capability-packs'),
   /** AGN-ROL-002 — one pack's full capability matrix (domains) + members preview. */

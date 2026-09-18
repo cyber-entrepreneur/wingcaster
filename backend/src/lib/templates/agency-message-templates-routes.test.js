@@ -7,10 +7,12 @@ const tenantAuth = vi.hoisted(() => ({
 }))
 
 const templates = vi.hoisted(() => ({
-  listAgencyMessageTemplates: vi.fn(),
   getAgencyMessageTemplate: vi.fn(),
   createAgencyMessageTemplate: vi.fn(),
+  updateAgencyMessageTemplate: vi.fn(),
+  deleteAgencyMessageTemplate: vi.fn(),
   publishAgencyMessageTemplate: vi.fn(),
+  renderAgencyMessageTemplate: vi.fn(),
 }))
 
 const db = vi.hoisted(() => ({
@@ -38,10 +40,7 @@ async function createApp(userId = 'usr_owner') {
 beforeEach(async () => {
   vi.resetModules()
   tenantAuth.listUserAgencyMemberships.mockReset()
-  templates.listAgencyMessageTemplates.mockReset()
-  templates.getAgencyMessageTemplate.mockReset()
-  templates.createAgencyMessageTemplate.mockReset()
-  templates.publishAgencyMessageTemplate.mockReset()
+  Object.values(templates).forEach((fn) => fn.mockReset())
   db.findOne.mockReset()
 
   tenantAuth.listUserAgencyMemberships.mockImplementation(async (userId) => {
@@ -50,10 +49,10 @@ beforeEach(async () => {
     }
     return [{ agency_id: 'agc_1', tenant_id: 'agency:agc_1', role: 'member', affiliation_mode: 'exclusive' }]
   })
-  db.findOne.mockResolvedValue({ id: 'agc_1', name: 'Test Agency' })
-  templates.listAgencyMessageTemplates.mockResolvedValue([])
-  templates.createAgencyMessageTemplate.mockResolvedValue({ id: 'tpl_1', name: 'Welcome' })
-  templates.publishAgencyMessageTemplate.mockResolvedValue({ id: 'tpl_1', approval_status: 'approved' })
+  db.findOne.mockResolvedValue({ id: 'agc_1', name: 'Elite Realty' })
+  templates.getAgencyMessageTemplate.mockResolvedValue({ id: 'tpl_1', name: 'Welcome' })
+  templates.updateAgencyMessageTemplate.mockResolvedValue({ id: 'tpl_1', name: 'Updated' })
+  templates.renderAgencyMessageTemplate.mockResolvedValue({ body: 'Hi Sara', subject: null, missing_variables: [] })
 
   ;({ registerAgencyMessageTemplateRoutes } = await import('./agency-message-templates-routes.js'))
 })
@@ -62,42 +61,33 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('agency message template routes', () => {
-  it('lists templates for agency admins', async () => {
+describe('agency message template editor routes', () => {
+  it('loads a template for agency admins', async () => {
     const app = await createApp()
-    const res = await request(app).get('/api/agency/templates')
+    const res = await request(app).get('/api/agency/templates/tpl_1')
     expect(res.status).toBe(200)
-    expect(templates.listAgencyMessageTemplates).toHaveBeenCalledWith('agc_1', {})
+    expect(templates.getAgencyMessageTemplate).toHaveBeenCalledWith('agc_1', 'tpl_1')
   })
 
   it('rejects non-admin members', async () => {
     const app = await createApp('usr_member')
-    const res = await request(app).get('/api/agency/templates')
+    const res = await request(app).get('/api/agency/templates/tpl_1')
     expect(res.status).toBe(403)
   })
 
-  it('validates create payload', async () => {
+  it('updates a template', async () => {
     const app = await createApp()
-    const res = await request(app).post('/api/agency/templates').send({ name: '' })
-    expect(res.status).toBe(400)
-    expect(templates.createAgencyMessageTemplate).not.toHaveBeenCalled()
-  })
-
-  it('creates a template', async () => {
-    const app = await createApp()
-    const res = await request(app).post('/api/agency/templates').send({
-      name: 'Follow-up',
-      channel: 'whatsapp',
-      body: 'Hi {{client_name}}',
-    })
-    expect(res.status).toBe(201)
-    expect(templates.createAgencyMessageTemplate).toHaveBeenCalled()
-  })
-
-  it('publishes a template', async () => {
-    const app = await createApp()
-    const res = await request(app).post('/api/agency/templates/tpl_1/publish')
+    const res = await request(app).put('/api/agency/templates/tpl_1').send({ name: 'Updated' })
     expect(res.status).toBe(200)
-    expect(templates.publishAgencyMessageTemplate).toHaveBeenCalledWith('agc_1', 'tpl_1')
+    expect(templates.updateAgencyMessageTemplate).toHaveBeenCalled()
+  })
+
+  it('renders a test preview', async () => {
+    const app = await createApp()
+    const res = await request(app).post('/api/agency/templates/tpl_1/render').send({
+      variables: { client_name: 'Sara' },
+    })
+    expect(res.status).toBe(200)
+    expect(templates.renderAgencyMessageTemplate).toHaveBeenCalledWith('agc_1', 'tpl_1', { client_name: 'Sara' })
   })
 })
