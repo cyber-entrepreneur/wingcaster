@@ -116,7 +116,7 @@ import {
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
@@ -343,6 +343,7 @@ function AppRoutes() {
       <Route path="/admin/fin/contracts/:id" element={<ContractDetailPage />} />
       <Route path="/admin/fin/contracts/:contractId/versions/new" element={<ContractVersionEditorPage />} />
       <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
+      <Route path="/admin/fin/pricing/:id" element={<PriceDetailPage />} />
       <Route path="/admin/fin/packages" element={<PackagesPage />} />
       <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
       <Route path="/admin/fin/packages/:id/versions/:vid" element={<PackageVersionEditor />} />

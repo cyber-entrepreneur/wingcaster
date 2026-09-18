@@ -3512,12 +3512,16 @@ export const api = {
   finGet: (path: string): Promise<Record<string, unknown>> =>
     fetchJson(`/admin/fin${path}`),
 
-  finPost: (path: string, body: Record<string, unknown> = {}): Promise<Record<string, unknown>> =>
+  finPost: (
+    path: string,
+    body: Record<string, unknown> = {},
+    opts?: { ifMatch?: number | string },
+  ): Promise<Record<string, unknown>> =>
     fetchJson(`/admin/fin${path}`, {
       method: 'POST',
       body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
       headers: {
-        'If-Match': '"1"',
+        'If-Match': `"${opts?.ifMatch ?? 1}"`,
         'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
       },
     }),
