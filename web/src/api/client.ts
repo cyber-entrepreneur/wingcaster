@@ -574,6 +574,44 @@ export interface AgencyListingsPerformanceResponse {
   }
 }
 
+/** AGN-REP-004 — agent leaderboard ranking metric. */
+export type AgencyLeaderboardMetric = 'revenue' | 'closings' | 'response_time' | 'conversion_rate'
+
+/** AGN-REP-004 — agent leaderboard row. */
+export interface AgencyAgentLeaderboardRow {
+  rank: number
+  medal: 'gold' | 'silver' | 'bronze' | null
+  agent_id: string
+  agent_name: string
+  role: string | null
+  revenue: number
+  closings: number
+  conversion_rate: number | null
+  median_response_minutes: number | null
+  inquiries: number
+  active_listings: number
+  response_samples: number
+  trend: 'up' | 'down' | 'flat'
+  metric_value: number | null
+  previous_metric_value: number | null
+  member_href: string
+}
+
+/** AGN-REP-004 — agent leaderboard payload. */
+export interface AgencyAgentLeaderboardResponse {
+  generated_at: string
+  agency_id: string
+  metric: AgencyLeaderboardMetric
+  available_metrics: AgencyLeaderboardMetric[]
+  filters: { start_date: string; end_date: string }
+  leaderboard: AgencyAgentLeaderboardRow[]
+  summary: {
+    agents_ranked: number
+    total_revenue: number
+    total_closings: number
+  }
+}
+
 /** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
@@ -2962,6 +3000,14 @@ export const api = {
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/crm${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getAgencyAgentLeaderboard: (params?: {
+    start_date?: string
+    end_date?: string
+    metric?: AgencyLeaderboardMetric
+  }) =>
+    fetchJson(
+      `/agency/analytics/agent-leaderboard${params ? '?' + new URLSearchParams(params).toString() : ''}`,
+    ) as Promise<AgencyAgentLeaderboardResponse>,
   getAgencyListingsPerformance: (params?: {
     start_date?: string
     end_date?: string
