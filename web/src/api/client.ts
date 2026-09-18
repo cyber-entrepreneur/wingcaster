@@ -610,6 +610,27 @@ export interface AccessRequestResult {
   already_requested: boolean
 }
 
+/** SHR-INT-002 — one lead-source row in the source-performance breakdown. */
+export interface SourcePerformanceRow {
+  source: string
+  conversations: number
+  inquiries: number
+  deals: number
+  won: number
+  won_value: number
+  lead_share: number
+}
+
+/** SHR-INT-002 — lead-source performance (GET /api/analytics/source-performance). */
+export interface SourcePerformanceResponse {
+  generated_at: string
+  scope: { agent_id: string | null; agency_id: string | null; start_date: string | null; end_date: string | null }
+  totals: { conversations: number; inquiries: number; deals: number; won: number; won_value: number }
+  sources: SourcePerformanceRow[]
+  /** The Bazaar row, always present (zeros when there's no syndication yet). */
+  bazaar: SourcePerformanceRow
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -4274,6 +4295,8 @@ export const api = {
       : ''
     return fetchJson(`/agency/analytics/revenue-attribution${qs}`) as Promise<AgencyRevenueAttributionResponse>
   },
+  getSourcePerformance: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }): Promise<SourcePerformanceResponse> =>
+    fetchJson(`/analytics/source-performance${params ? '?' + new URLSearchParams(params).toString() : ''}`),
   trackEvent: (data: Record<string, unknown>) =>
     fetchJson('/white-label/analytics', { method: 'POST', body: JSON.stringify(data) }),
   getAnalytics: () => fetchJson('/white-label/analytics'),
