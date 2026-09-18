@@ -616,6 +616,12 @@ export const api = {
   patchMe: (data: Record<string, unknown>) =>
     fetchJson('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
   getSettingsIndex: (): Promise<SettingsIndexResponse> => fetchJson('/settings/index'),
+  getAgencySettingsIndex: (): Promise<{
+    agency_id: string
+    role: string
+    groups: SettingsIndexGroup[]
+    capabilities: { can_manage_team: boolean; can_transfer_ownership: boolean }
+  }> => fetchJson('/agency/settings/index'),
   getAuthSessions: (): Promise<{ sessions: AuthSessionRow[] }> => fetchJson('/auth/sessions'),
   deleteAuthSession: (sessionId: string) =>
     fetchJson(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),

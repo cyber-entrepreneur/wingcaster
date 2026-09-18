@@ -74,7 +74,7 @@ export function RolesOverviewPage() {
           className="flex flex-wrap items-center gap-1 text-[var(--lc-text-muted)]"
           style={{ font: 'var(--lc-type-body-sm)' }}
         >
-          <Link to="/agency" className="hover:underline">
+          <Link to="/agency/settings" className="hover:underline">
             {tRoles('breadcrumb.settings', uiLocale)}
           </Link>
           <ChevronRight className="h-3 w-3 rtl:rotate-180" aria-hidden="true" />
