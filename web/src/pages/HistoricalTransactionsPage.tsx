@@ -7,10 +7,13 @@ import { api, type ClosedTransaction } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
+import { useUiMode } from '@/hooks/useUiMode'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Numeric } from '@/components/ui/numeric'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
+import { ImportClosedTransactionsModal } from '@/components/closed-transactions/ImportClosedTransactionsModal'
 
 const CSV_TEMPLATE_HEADERS = [
   'listing_id', 'external_reference', 'transaction_type',
@@ -22,9 +25,14 @@ const CSV_TEMPLATE_HEADERS = [
   'close_reason', 'attribution_source', 'agent_notes',
 ]
 
+/**
+ * AGT-HTX-001 — Closed transactions list.
+ * AGT-HTX-003 — Import CSV (Pro modal).
+ */
 export function HistoricalTransactionsPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  const { effectiveMode } = useUiMode()
   usePageTitle('Historical Transactions')
 
   const [rows, setRows] = useState<ClosedTransaction[]>([])
@@ -32,13 +40,16 @@ export function HistoricalTransactionsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
 
+  const isPro = effectiveMode === 'pro'
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const r = await api.listClosedTransactions({ limit: 500 })
       setRows(r.transactions)
-    } catch (err: any) {
-      addToast({ title: 'Failed to load', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      addToast({ title: 'Failed to load', description: message, variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -51,8 +62,9 @@ export function HistoricalTransactionsPage() {
     try {
       await api.deleteClosedTransaction(id)
       setRows((prev) => prev.filter((r) => r.id !== id))
-    } catch (err: any) {
-      addToast({ title: 'Delete failed', description: err?.message, variant: 'error' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      addToast({ title: 'Delete failed', description: message, variant: 'error' })
     }
   }
 
@@ -94,7 +106,7 @@ export function HistoricalTransactionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8" data-screen="AGT-HTX-001">
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Link to="/dashboard" className="inline-flex items-center gap-1 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Dashboard
@@ -113,14 +125,18 @@ export function HistoricalTransactionsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={downloadCsvTemplate}>
-            <Download className="h-4 w-4" />
-            CSV template
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4" />
-            Import CSV
-          </Button>
+          {isPro && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={downloadCsvTemplate}>
+              <Download className="h-4 w-4" />
+              CSV template
+            </Button>
+          )}
+          {isPro && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)} data-action="import-csv">
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </Button>
+          )}
           <Button size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
             <Plus className="h-4 w-4" />
             Add manually
@@ -129,9 +145,9 @@ export function HistoricalTransactionsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile label="Total recorded" value={totals.count.toLocaleString()} />
-        <StatTile label="Backfilled" value={totals.backfilled.toLocaleString()} />
-        <StatTile label="From platform" value={(totals.count - totals.backfilled).toLocaleString()} />
+        <StatTile label="Total recorded" value={totals.count} />
+        <StatTile label="Backfilled" value={totals.backfilled} />
+        <StatTile label="From platform" value={totals.count - totals.backfilled} />
         <StatTile
           label="Gross closed volume"
           value={totals.sold_gross ? `${totals.currency} ${Math.round(totals.sold_gross).toLocaleString()}` : '—'}
@@ -146,12 +162,12 @@ export function HistoricalTransactionsPage() {
           {rows.length === 0 ? (
             <div className="rounded-md border border-dashed bg-slate-50 p-8 text-center text-sm text-muted-foreground">
               <FileText className="mx-auto mb-2 h-6 w-6" />
-              No transactions recorded yet. Add manually or import a CSV to seed your history.
+              No transactions recorded yet. Add manually{isPro ? ' or import a CSV' : ''} to seed your history.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <thead className="bg-slate-50 text-start text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2">Closed</th>
                     <th className="px-3 py-2">Type</th>
@@ -193,7 +209,7 @@ export function HistoricalTransactionsPage() {
                         <td className="px-3 py-2 text-xs capitalize">{r.buyer_type.replace(/_/g, ' ')}</td>
                         <td className="px-3 py-2 text-xs capitalize">{r.payment_method.replace(/_/g, ' ')}</td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{r.days_on_market ?? '—'}</td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-end">
                           <button type="button" onClick={() => handleDelete(r.id)} className="text-rose-600 hover:text-rose-800">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -209,7 +225,7 @@ export function HistoricalTransactionsPage() {
       </Card>
 
       {importOpen && (
-        <ImportCsvModal
+        <ImportClosedTransactionsModal
           onClose={() => setImportOpen(false)}
           onDone={() => { setImportOpen(false); load() }}
         />
@@ -227,89 +243,12 @@ export function HistoricalTransactionsPage() {
   )
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatTile({ label, value }: { label: string; value: number | string }) {
+  const display = typeof value === 'number' ? value.toLocaleString() : value
   return (
     <div className="rounded-lg border bg-[var(--lc-surface)] p-3">
-      <div className="text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="text-2xl font-semibold text-slate-900"><Numeric>{display}</Numeric></div>
       <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
-  )
-}
-
-function ImportCsvModal({
-  onClose, onDone,
-}: {
-  onClose: () => void
-  onDone: () => void
-}) {
-  const { addToast } = useToast()
-  const [csvText, setCsvText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<Awaited<ReturnType<typeof api.importClosedTransactionsCsv>> | null>(null)
-
-  async function upload() {
-    if (busy || !csvText.trim()) return
-    setBusy(true)
-    try {
-      const r = await api.importClosedTransactionsCsv(csvText)
-      setResult(r)
-      if (r.imported > 0) {
-        addToast({ title: `Imported ${r.imported} transaction${r.imported === 1 ? '' : 's'}`, variant: 'success' })
-      }
-    } catch (err: any) {
-      addToast({ title: 'Import failed', description: err?.message, variant: 'error' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl">
-        <div className="flex items-start justify-between border-b p-4">
-          <div>
-            <h2 className="text-lg font-semibold">Import historical transactions (CSV)</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Paste CSV content below. Required columns: <code>final_sold_price</code>, <code>closed_at</code>,
-              and either <code>listing_id</code> or <code>external_reference</code>. Everything else is optional.
-              Download the template for the full column list.
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>×</Button>
-        </div>
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          <textarea
-            value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
-            rows={18}
-            placeholder="listing_id,external_reference,transaction_type,final_sold_price,closed_at,..."
-            className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
-          />
-          {result && (
-            <div className={`rounded-md border px-3 py-2 text-xs ${result.imported ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-              Imported: {result.imported} · Skipped: {result.skipped}
-              {result.errors.length > 0 && (
-                <ul className="mt-1 list-disc pl-4">
-                  {result.errors.slice(0, 8).map((e, i) => (
-                    <li key={i}>Row {e.row}: {e.error}</li>
-                  ))}
-                  {result.errors.length > 8 && <li>… and {result.errors.length - 8} more</li>}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex justify-end gap-2 border-t p-3">
-          <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          <Button onClick={upload} disabled={busy || !csvText.trim()} className="gap-1.5">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Import
-          </Button>
-          {result && (
-            <Button variant="outline" onClick={onDone}>Done</Button>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
