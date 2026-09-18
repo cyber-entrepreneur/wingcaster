@@ -71,11 +71,12 @@ interface AreaDetailResponse {
   scores: Array<{ score: number | null }>
 }
 
-type TabKey = 'overview' | 'publications' | 'comms' | 'comments' | 'email' | 'viewings' | 'area' | 'performance'
+type TabKey = 'overview' | 'publications' | 'comms' | 'comments' | 'email' | 'viewings' | 'area' | 'analytics'
 
-const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'comments', 'email', 'viewings', 'area', 'performance']
+const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'comments', 'email', 'viewings', 'area', 'analytics']
 
 function parseTabParam(value: string | null): TabKey {
+  if (value === 'performance') return 'analytics'
   if (value && TAB_KEYS.includes(value as TabKey)) return value as TabKey
   return 'overview'
 }
@@ -431,7 +432,7 @@ export function ListingProfilePage() {
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="viewings">Viewings</TabsTrigger>
           <TabsTrigger value="area">Property Score</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -575,8 +576,16 @@ export function ListingProfilePage() {
           <PropertyScorePanel listingId={property.id} />
         </TabsContent>
 
-        <TabsContent value="performance">
-          <PerformanceTab listingId={property.id} />
+        <TabsContent value="analytics">
+          <PerformanceTab
+            listingId={property.id}
+            listingTitle={property.title}
+            askingPrice={property.price ?? null}
+            currency={property.price_unit || 'USD'}
+            listingType={property.type === 'rent' ? 'rent' : 'sale'}
+            pricingAnalysis={pricingAnalysis}
+            priceTrends={pricingTrends}
+          />
         </TabsContent>
       </Tabs>
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  BarChart3, Building2, Eye, Facebook, Heart, Instagram, Linkedin, Loader2,
+  BarChart3, Building2, Eye, Facebook, FileDown, Heart, Instagram, Linkedin, Loader2,
   MessageCircle, MessageSquare, MousePointerClick, Sparkles, TrendingUp, Twitter,
   Users, Video,
 } from 'lucide-react'
@@ -9,6 +9,11 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Numeric } from '@/components/ui/numeric'
+import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
+import { useUiMode } from '@/hooks/useUiMode'
+import { formatPrice } from '@/lib/format'
+import type { PricingAnalysis, PricingTrendSnapshot } from '@/types/marketPricing'
 import { lcChannelColor, lcChannelTextClass } from '@/theme/channel'
 
 const PLATFORM_META: Record<string, { label: string; icon: any; color: string; band: string }> = {
@@ -25,8 +30,33 @@ const PLATFORM_ORDER = ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'wha
 const RANGES = [7, 30, 90] as const
 type DaysRange = typeof RANGES[number]
 
-export function PerformanceTab({ listingId }: { listingId: string }) {
+export interface PerformanceTabProps {
+  listingId: string
+  listingTitle?: string
+  askingPrice?: number | null
+  currency?: string
+  listingType?: 'sale' | 'rent'
+  pricingAnalysis?: PricingAnalysis | null
+  priceTrends?: PricingTrendSnapshot[]
+}
+
+function conversionPct(inquiries: number, impressions: number): number | null {
+  if (impressions <= 0) return null
+  return Math.round((inquiries / impressions) * 1000) / 10
+}
+
+export function PerformanceTab({
+  listingId,
+  listingTitle,
+  askingPrice,
+  currency = 'USD',
+  listingType = 'sale',
+  pricingAnalysis,
+  priceTrends = [],
+}: PerformanceTabProps) {
   const { addToast } = useToast()
+  const { shouldRenderPro } = useUiMode()
+  const printRef = useRef<HTMLDivElement>(null)
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getListingPerformance>> | null>(null)
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState<DaysRange>(30)
@@ -54,11 +84,27 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
   }
   if (!data) return null
 
+  const conversion = conversionPct(data.all_channels.inquiries, data.all_channels.impressions)
+  const medianComparable = pricingAnalysis?.median_price ?? null
+  const priceDeltaPct = askingPrice && medianComparable
+    ? Math.round(((askingPrice - medianComparable) / medianComparable) * 1000) / 10
+    : null
+
+  const exportPdf = () => {
+    if (!shouldRenderPro) {
+      addToast({ title: 'Export PDF is available in Pro mode', variant: 'error' })
+      return
+    }
+    window.print()
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header + range selector */}
+    <div ref={printRef} className="space-y-6" data-screen="AGT-LST-006">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
+          {listingTitle ? (
+            <h2 className="text-lg font-semibold text-[var(--lc-text-heading)]">{listingTitle}</h2>
+          ) : null}
           <p className="text-sm text-muted-foreground">
             {data.counts.published_posts} published post{data.counts.published_posts === 1 ? '' : 's'}
             {' · '}{data.counts.channels} channel{data.counts.channels === 1 ? '' : 's'}
@@ -80,6 +126,12 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
               </button>
             ))}
           </div>
+          {shouldRenderPro ? (
+            <Button size="sm" variant="outline" onClick={exportPdf} className="gap-1.5">
+              <FileDown className="h-4 w-4" />
+              Export PDF
+            </Button>
+          ) : null}
           <Button size="sm" variant="ghost" onClick={load} disabled={loading} className="gap-1.5">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Refresh
@@ -87,31 +139,77 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
         </div>
       </div>
 
-      {/* ===== All-channel aggregate ===== */}
+      {(askingPrice != null || medianComparable != null || priceTrends.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Pricing context</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {askingPrice != null ? (
+                <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-3">
+                  <div className="text-xs text-muted-foreground">Asking price</div>
+                  <div className="text-xl font-semibold">
+                    <Numeric>{formatPrice(askingPrice, listingType, currency)}</Numeric>
+                  </div>
+                </div>
+              ) : null}
+              {medianComparable != null ? (
+                <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-3">
+                  <div className="text-xs text-muted-foreground">Median comparable</div>
+                  <div className="text-xl font-semibold">
+                    <Numeric>{formatPrice(medianComparable, listingType, currency)}</Numeric>
+                  </div>
+                </div>
+              ) : null}
+              {priceDeltaPct != null ? (
+                <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-3">
+                  <div className="text-xs text-muted-foreground">Vs median</div>
+                  <div className={`text-xl font-semibold ${priceDeltaPct > 0 ? 'text-amber-800' : priceDeltaPct < 0 ? 'text-emerald-800' : ''}`}>
+                    <Numeric>{priceDeltaPct > 0 ? '+' : ''}{priceDeltaPct}%</Numeric>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            {priceTrends.length > 0 ? (
+              <div>
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Area price history</div>
+                <TrendMiniChart snapshots={priceTrends} />
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">All channels — aggregate</CardTitle>
+            <CardTitle className="text-lg">{shouldRenderPro ? 'All channels — aggregate' : 'Performance snapshot'}</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <StatTile label="Impressions" value={data.all_channels.impressions} icon={Eye} tone="blue" />
+          <div className={`grid grid-cols-2 gap-3 ${shouldRenderPro ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-3'}`}>
             <StatTile label="Views" value={data.all_channels.impressions} icon={Eye} tone="blue"
-              sublabel={`Avg ${data.all_channels.avg_views_per_post.toLocaleString()} per post`} />
-            <StatTile label="Clicks" value={data.all_channels.clicks} icon={MousePointerClick} tone="amber" />
-            <StatTile label="Engagements" value={data.all_channels.engagements} icon={Heart} tone="rose"
-              sublabel={`${data.all_channels.likes.toLocaleString()} likes · ${data.all_channels.comments.toLocaleString()} comments · ${data.all_channels.shares.toLocaleString()} shares`} />
-            <StatTile label="Contacts reached" value={data.all_channels.contacts} icon={Users} tone="purple" />
-            <StatTile label="Messages" value={data.all_channels.messages} icon={MessageSquare} tone="green"
-              sublabel={`${data.all_channels.inquiries} inquiries · ${data.all_channels.viewings_scheduled} viewings`} />
+              sublabel={shouldRenderPro ? `Avg ${data.all_channels.avg_views_per_post.toLocaleString()} per post` : undefined} />
+            <StatTile label="Saves" value={data.all_channels.saves} icon={Heart} tone="rose" />
+            <StatTile label="Inquiries" value={data.all_channels.inquiries} icon={MessageSquare} tone="green" />
+            <StatTile label="Viewings" value={data.all_channels.viewings_scheduled} icon={Users} tone="purple" />
+            {conversion != null ? (
+              <StatTile label="Conversion" value={conversion} icon={TrendingUp} tone="amber" suffix="%" />
+            ) : null}
+            {shouldRenderPro ? (
+              <>
+                <StatTile label="Clicks" value={data.all_channels.clicks} icon={MousePointerClick} tone="amber" />
+                <StatTile label="Engagements" value={data.all_channels.engagements} icon={Heart} tone="rose"
+                  sublabel={`${data.all_channels.likes.toLocaleString()} likes · ${data.all_channels.comments.toLocaleString()} comments`} />
+              </>
+            ) : null}
           </div>
         </CardContent>
       </Card>
 
-      {/* ===== Per channel breakdown ===== */}
-      {data.per_channel.length > 0 && (
+      {shouldRenderPro && data.per_channel.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -162,8 +260,7 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
         </Card>
       )}
 
-      {/* ===== Channel comparison bars ===== */}
-      {data.per_channel.length > 1 && (
+      {shouldRenderPro && data.per_channel.length > 1 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Channel comparison</CardTitle>
@@ -188,7 +285,7 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
         </Card>
       )}
 
-      {/* ===== Funnel per channel ===== */}
+      {shouldRenderPro ? (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Funnel per channel</CardTitle>
@@ -237,9 +334,9 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
-      {/* ===== Time-series line chart ===== */}
-      {Object.keys(data.time_series.channels).length > 0 && (
+      {shouldRenderPro && Object.keys(data.time_series.channels).length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Trend over last {data.time_series.days} days</CardTitle>
@@ -266,11 +363,12 @@ export function PerformanceTab({ listingId }: { listingId: string }) {
 /* -------------------------------- pieces ------------------------------- */
 
 function StatTile({
-  label, value, icon: Icon, tone, sublabel,
+  label, value, icon: Icon, tone, sublabel, suffix,
 }: {
   label: string; value: number; icon: any
   tone: 'blue' | 'rose' | 'amber' | 'green' | 'purple'
   sublabel?: string
+  suffix?: string
 }) {
   const toneMap = {
     blue: 'text-blue-700 bg-blue-50 border-blue-200',
@@ -283,7 +381,7 @@ function StatTile({
     <div className={`rounded-lg border p-3 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between">
         <Icon className="h-4 w-4 opacity-70" />
-        <span className="text-2xl font-semibold">{value.toLocaleString()}</span>
+        <span className="text-2xl font-semibold"><Numeric>{value.toLocaleString()}{suffix ?? ''}</Numeric></span>
       </div>
       <div className="mt-1 text-xs font-medium opacity-80">{label}</div>
       {sublabel && <div className="mt-0.5 text-[10px] opacity-70">{sublabel}</div>}
