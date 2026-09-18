@@ -267,6 +267,10 @@ import {
   registerRoutes as registerPersonalConnectionRoutes,
 } from './lib/social/personal-connections-routes.js'
 import { registerRoutes as registerCanonicalPropertyRoutes } from './lib/listings/canonical-property-routes.js'
+import {
+  registerRoutes as registerAgentReviewRoutes,
+  serializePublicReview,
+} from './lib/reviews/agent-review-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -854,6 +858,7 @@ registerAssignableAgentsRoutes(app, { authMiddleware })
 registerPropertyDispositionRoutes(app, { authMiddleware })
 registerPersonalConnectionRoutes(app, { authMiddleware })
 registerCanonicalPropertyRoutes(app, { authMiddleware })
+registerAgentReviewRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
@@ -2371,7 +2376,8 @@ app.get('/api/agents/:id/transactions', async (req, res) => {
 app.get('/api/agents/:id/reviews', async (req, res) => {
   const agent = await findOne('agents', a => a.id === req.params.id) || await findOne('agents', a => a.slug === req.params.id)
   if (!agent) return res.status(404).json({ error: 'Not found' })
-  res.json(await findAll('reviews', r => r.agent_id === agent.id))
+  const reviews = await findAll('reviews', r => r.agent_id === agent.id && r.status === 'published')
+  res.json(await Promise.all(reviews.map(serializePublicReview)))
 })
 
 app.post('/api/agents/:id/reviews', authMiddleware, async (req, res) => {
@@ -8439,7 +8445,8 @@ app.get('/api/public/agents/:id/portfolio', async (req, res) => {
   const membership = await findOne('agency_members', m => m.user_id === agent.id && m.status === 'active')
   const agency = membership ? await findOne('agencies', a => a.id === membership.agency_id) : null
   const listings = (await findAll('properties', p => p.agent_id === req.params.id)).map(serializeProperty)
-  const reviews = await findAll('reviews', r => r.agent_id === req.params.id)
+  const reviewRows = await findAll('reviews', r => r.agent_id === req.params.id && r.status === 'published')
+  const reviews = await Promise.all(reviewRows.map(serializePublicReview))
   const transactions = await findAll('transactions', t => t.agent_id === req.params.id)
   res.json({
     agent: serializeAgent(agent),

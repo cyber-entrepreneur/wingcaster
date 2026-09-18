@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Numeric } from '@/components/ui/numeric'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth, type Agent } from '@/context/AuthContext'
 import { useLocale } from '@/hooks/useLocale'
@@ -751,12 +752,18 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                 </div>
                 <h1 className="text-2xl font-bold">{agent.name}</h1>
                 <p className="text-sm text-muted-foreground">{agent.agency_name} &bull; License {agent.license_number}</p>
-                <div className="mt-1 flex items-center gap-2">
+                <Link
+                  to="/agent/reviews"
+                  className="mt-1 flex items-center gap-2 rounded-[var(--lc-radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lc-focus-ring)]"
+                  aria-label={`Open ${agent.review_count || 0} reviews`}
+                >
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span className="text-sm font-medium">{agent.rating}</span>
-                  <span className="text-sm text-muted-foreground">({agent.review_count} reviews)</span>
+                  <Numeric className="text-sm font-medium">{agent.rating || 0}</Numeric>
+                  <span className="text-sm text-muted-foreground">
+                    (<Numeric>{agent.review_count || 0}</Numeric> reviews)
+                  </span>
                   <Badge variant="outline" className="text-xs">Verified</Badge>
-                </div>
+                </Link>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

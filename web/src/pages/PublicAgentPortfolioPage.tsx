@@ -205,6 +205,12 @@ export function PublicAgentPortfolioPage() {
                     </div>
                     <p className="text-sm text-muted-foreground">&ldquo;{review.comment}&rdquo;</p>
                     <p className="mt-2 text-xs font-medium">— {review.reviewer_name}</p>
+                    {review.agent_response && (
+                      <div className="mt-3 border-s-2 border-[var(--lc-action-primary)] ps-3">
+                        <p className="text-xs font-semibold text-[var(--lc-text-muted)]">Agent response</p>
+                        <p className="mt-1 text-sm text-[var(--lc-text-primary)]">{review.agent_response}</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

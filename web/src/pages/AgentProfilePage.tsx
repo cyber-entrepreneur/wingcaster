@@ -27,6 +27,7 @@ interface AgentReview {
   verified_transaction?: boolean | number
   rating: number
   comment: string
+  agent_response?: string | null
 }
 
 export function AgentProfilePage() {
@@ -170,6 +171,12 @@ export function AgentProfilePage() {
                         <div className="flex items-center gap-1"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /><span className="font-medium">{r.rating}</span></div>
                       </div>
                       <p className="mt-2 text-sm text-muted-foreground">"{r.comment}"</p>
+                      {r.agent_response && (
+                        <div className="mt-3 border-s-2 border-[var(--lc-action-primary)] ps-3">
+                          <p className="text-xs font-semibold text-[var(--lc-text-muted)]">Agent response</p>
+                          <p className="mt-1 text-sm text-[var(--lc-text-primary)]">{r.agent_response}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

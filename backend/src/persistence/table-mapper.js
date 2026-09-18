@@ -405,7 +405,14 @@ const TABLE_MAP = {
   // Profile / reviews
   profile_followers: { schema: 'public', table: 'profile_followers', columns: ['follower_id', 'following_id'] },
   profile_views: { schema: 'public', table: 'profile_views', columns: ['viewer_id', 'viewed_id', 'viewed_at'] },
-  reviews: { schema: 'public', table: 'reviews', columns: ['agent_id', 'author_id', 'rating', 'comment', 'status'] },
+  reviews: {
+    schema: 'public',
+    table: 'reviews',
+    columns: [
+      'agent_id', 'author_id', 'rating', 'comment', 'status', 'agent_response', 'responded_at',
+      'flag_status', 'flag_reason', 'flag_details', 'flagged_at', 'flagged_by',
+    ],
+  },
   transactions: { schema: 'public', table: 'transactions', columns: ['agent_id', 'property_id', 'type', 'amount', 'currency', 'status', 'closed_at'] },
 
   // Templates legacy alias
