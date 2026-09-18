@@ -72,6 +72,7 @@ import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
+import { AdminAreaDetailPage } from '@/pages/admin/areas/AdminAreaDetailPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
@@ -263,6 +264,8 @@ function AppRoutes() {
       <Route path="/admin/message-templates/new" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/areas" element={<AdminAreasPage />} />
+      <Route path="/admin/areas/new" element={<AdminAreaDetailPage mode="create" />} />
+      <Route path="/admin/areas/:id" element={<AdminAreaDetailPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
