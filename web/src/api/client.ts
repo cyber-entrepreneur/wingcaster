@@ -226,6 +226,30 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// AGT-TSK-002 — Task detail / edit.
+export type TaskType = 'call' | 'email' | 'follow_up' | 'viewing' | 'meeting'
+export type TaskStatus = 'pending' | 'completed' | 'cancelled' | 'snoozed'
+export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
+
+export interface TaskRecord {
+  id: string
+  title: string
+  notes: string
+  type: TaskType
+  status: TaskStatus
+  priority: TaskPriority
+  due_at: string
+  completed_at?: string | null
+  assigned_to?: string | null
+  contact_id: string | null
+  inquiry_id: string | null
+  opportunity_id: string | null
+  viewing_id?: string | null
+  conversation_id: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -1708,6 +1732,7 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/tasks${qs}`)
   },
+  getTask: (id: string): Promise<TaskRecord> => fetchJson(`/tasks/${id}`),
   createTask: (data: Record<string, unknown>) => fetchJson('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
