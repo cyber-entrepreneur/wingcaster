@@ -76,4 +76,22 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
     expect(paused.status).toBe(200)
     expect(paused.body.status).toBe('PAUSED')
   })
+
+  it('rejects create body with unknown fields', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const res = await request(app)
+      .post('/api/admin/fin/facilities')
+      .set(writeHeaders(elevate(), { idempotencyKey: `FACILITY:${randomUUID()}` }))
+      .send({
+        reason_code: 'TEST',
+        tenant_id: world().tenantA.tenantId,
+        billing_account_id: world().tenantA.billingAccountId,
+        currency: 'USD',
+        limit_minor: 1000,
+        net_terms_days: 30,
+        environment: 'LIVE',
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('VALIDATION')
+  })
 })

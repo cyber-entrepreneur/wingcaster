@@ -1,27 +1,63 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import { FinAction, FinAdminGate, FinTable } from './shell'
+import { Button } from '@/components/ui/button'
+import { FinAdminGate, FinTable } from './shell'
+import { CreateFacilityDialog } from './CreateFacilityDialog'
 
 export function FacilitiesPage() {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [successId, setSuccessId] = useState<string | null>(null)
+
   function reload() {
-    void api.finGet('/facilities').then((body) => setRows((body.facilities || []) as Array<Record<string, unknown>>))
+    setLoading(true)
+    setError(null)
+    void api.finGet('/facilities')
+      .then((body) => setRows((body.facilities || []) as Array<Record<string, unknown>>))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load facilities')
+        setRows([])
+      })
+      .finally(() => setLoading(false))
   }
+
   useEffect(() => { reload() }, [])
-  const first = rows[0]
-  function act(path: string, body: Record<string, unknown> = {}) {
-    if (!first?.id) return
-    void api.finPost(`/facilities/${String(first.id)}${path}`, body).then(() => reload())
-  }
+
   return (
     <FinAdminGate title="Facilities">
-      <div className="mb-3 flex flex-wrap gap-2">
-        <FinAction label="Pause" onClick={() => act('/pause')} />
-        <FinAction label="Resume" onClick={() => act('/resume')} />
-        <FinAction label="Suspend" onClick={() => act('/suspend')} />
-        <FinAction label="Close" onClick={() => act('/close')} />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={() => setCreateOpen(true)}>Create facility</Button>
+        <Button size="sm" variant="outline" onClick={() => reload()}>Refresh</Button>
       </div>
-      <FinTable columns={['id', 'currency', 'limit_minor', 'status', 'net_terms_days']} rows={rows} />
+
+      {successId && (
+        <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Facility <span className="font-mono text-xs">{successId}</span> created (PENDING). Activation follows WF-18 when required.
+        </p>
+      )}
+
+      {loading && <p className="text-sm text-muted-foreground">Loading facilities…</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!loading && !error && !rows.length && (
+        <p className="text-sm text-muted-foreground">No credit facilities yet. Create one to get started.</p>
+      )}
+      {!loading && !error && rows.length > 0 && (
+        <FinTable
+          columns={['tenant_id', 'id', 'currency', 'limit_minor', 'status', 'net_terms_days', 'valid_from']}
+          rows={rows}
+        />
+      )}
+
+      <CreateFacilityDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(facilityId) => {
+          setSuccessId(facilityId)
+          reload()
+        }}
+      />
     </FinAdminGate>
   )
 }

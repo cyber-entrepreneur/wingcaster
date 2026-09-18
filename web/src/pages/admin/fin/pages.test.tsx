@@ -17,6 +17,11 @@ const apiMock = vi.hoisted(() => ({
     if (String(path).includes('metered-features')) {
       return { features: [{ id: 'f1', code: 'publishing.social.instagram', display_name: 'Instagram', category: 'publishing.social', meter_unit: 'post' }] }
     }
+    if (String(path).includes('/tenants/') && !String(path).includes('?')) {
+      return {
+        id: 't1', public_tenant_id: 'tenant-a', billing_account_id: 'ba-1', holder_id: 'h1',
+      }
+    }
     if (String(path).includes('/versions/')) {
       return {
         id: 'v1', state: 'DRAFT', package_display_name: 'Starter', version_number: 1,
@@ -184,6 +189,11 @@ describe('admin/fin pages', () => {
   it('Package detail exposes compose CTA', () => {
     wrap(<PackageDetailPage />)
     expect(screen.getByRole('button', { name: 'Compose new version' })).toBeTruthy()
+  })
+
+  it('Facilities page exposes create CTA', () => {
+    wrap(<FacilitiesPage />)
+    expect(screen.getByRole('button', { name: 'Create facility' })).toBeTruthy()
   })
 
   it('Subscription detail exposes pause and change-plan CTAs', () => {
