@@ -766,4 +766,134 @@ describe('Agent and Agency Pricing Routes', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Active agency membership required' })
     expect(listUserAgencyMemberships).toHaveBeenCalledWith('agent-1')
   })
+
+  it('browses filtered agency comparables without leaking private row data', async () => {
+    const { app, routes } = fakeExpress()
+    vi.mocked(listUserAgencyMemberships).mockResolvedValueOnce([
+      { agency_id: 'agency-1', user_id: 'agent-1', role: 'admin', affiliation_mode: 'exclusive' },
+    ])
+    vi.mocked(listAgencyMemberships).mockResolvedValueOnce([
+      { agency_id: 'agency-1', user_id: 'agent-1' },
+      { agency_id: 'agency-1', user_id: 'agent-2' },
+    ])
+    const rows = {
+      properties: [{
+        id: 'property-1',
+        agency_id: 'agency-1',
+        agent_id: 'agent-2',
+        status: 'active',
+        title: 'Agency apartment',
+        city: 'Dubai',
+        neighborhood: 'Downtown',
+        property_type: 'apartment',
+        price: 1200000,
+        created_at: '2026-08-01T00:00:00.000Z',
+        data: { private_note: 'never serialize' },
+      }],
+      external_comparables: [{
+        id: 'external-1',
+        status: 'sold',
+        source: 'registry',
+        title: 'Registry apartment',
+        location_text: 'Downtown, Dubai',
+        property_type: 'apartment',
+        price: 1300000,
+        currency: 'AED',
+        sold_date: '2026-08-05',
+        source_url: 'javascript:alert(1)',
+        data: { import_secret: 'never serialize' },
+      }],
+      agent_price_reports: [{
+        id: 'report-1',
+        reporter_id: 'agent-2',
+        status: 'verified',
+        external_property_title: 'Verified apartment',
+        external_property_location: 'Downtown, Dubai',
+        property_type: 'apartment',
+        sold_price: 1250000,
+        currency: 'AED',
+        sold_date: '2026-08-10',
+        data: { reviewer_note: 'never serialize' },
+      }],
+    }
+    const services = {
+      dal: {
+        findAll: vi.fn().mockImplementation((collection, filter) =>
+          Promise.resolve((rows[collection] || []).filter(filter))),
+      },
+      analysisService: {},
+      recalculationJobService: {},
+      logger,
+    }
+    registerRoleRoutes(app, services)
+    const route = routes.find((item) => item.path === '/api/agency/pricing/comparables')
+    const req = {
+      user: { id: 'agent-1' },
+      query: { source: 'agent_report', property_type: 'apartment', date_from: '2026-08-01' },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+
+    expect(res.json).toHaveBeenCalledWith({
+      agency_id: 'agency-1',
+      total: 1,
+      coordinates_available: 0,
+      items: [expect.objectContaining({
+        id: 'report-1',
+        source: 'agent_report',
+        source_label: 'Verified agency report',
+        strength: 'strong',
+      })],
+    })
+    const payload = res.json.mock.calls[0][0]
+    expect(JSON.stringify(payload)).not.toContain('reviewer_note')
+    expect(JSON.stringify(payload)).not.toContain('private_note')
+  })
+
+  it('strictly validates agency comparable query filters', async () => {
+    const { app, routes } = fakeExpress()
+    const services = {
+      dal: { findAll: vi.fn().mockResolvedValue([]) },
+      analysisService: {},
+      recalculationJobService: {},
+      logger,
+    }
+    registerRoleRoutes(app, services)
+    const route = routes.find((item) => item.path === '/api/agency/pricing/comparables')
+    const req = {
+      user: { id: 'agent-1' },
+      query: { date_from: '2026-09-20', date_to: '2026-09-10', unexpected: 'value' },
+    }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      error: 'Invalid query parameters',
+      issues: expect.arrayContaining([
+        expect.objectContaining({ path: expect.stringMatching(/date_to|unexpected/) }),
+      ]),
+    }))
+    expect(listUserAgencyMemberships).not.toHaveBeenCalled()
+  })
+
+  it('rejects comparable browser access without an active agency membership', async () => {
+    const { app, routes } = fakeExpress()
+    vi.mocked(listUserAgencyMemberships).mockResolvedValueOnce([])
+    const services = {
+      dal: { findAll: vi.fn().mockResolvedValue([]) },
+      analysisService: {},
+      recalculationJobService: {},
+      logger,
+    }
+    registerRoleRoutes(app, services)
+    const route = routes.find((item) => item.path === '/api/agency/pricing/comparables')
+    const req = { user: { id: 'agent-1' }, query: {} }
+    const res = mockRes()
+    await route.handlers[route.handlers.length - 1](req, res, () => {})
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith({ error: 'Active agency membership required' })
+    expect(services.dal.findAll).not.toHaveBeenCalled()
+  })
 })

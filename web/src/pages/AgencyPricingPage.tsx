@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, BarChart3, Building2, Loader2, RefreshCw, Users } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BarChart3, Building2, Database, Loader2, RefreshCw, Users } from 'lucide-react'
 import { api } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -91,7 +91,15 @@ export function AgencyPricingPage() {
             <h1 className="text-3xl font-bold">Agency Price Health</h1>
             <p className="text-muted-foreground">Portfolio distribution, team drill-down, evidence status, and area trends.</p>
           </div>
-          <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="h-4 w-4" />Refresh</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link to="/agency/pricing/comparables">
+                <Database className="me-2 h-4 w-4" aria-hidden="true" />
+                Browse comparables
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="h-4 w-4" />Refresh</Button>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
