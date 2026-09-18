@@ -78,6 +78,7 @@ finPostgresSuite('e2e/admin-fin-traversal', {}, ({ url, pool }) => {
       '/api/admin/fin/payments',
       '/api/admin/fin/reconciliation/runs',
       '/api/admin/fin/exceptions',
+      '/api/admin/fin/exceptions/items',
       '/api/admin/fin/approvals',
       '/api/admin/fin/audit',
       '/api/admin/fin/configuration',
