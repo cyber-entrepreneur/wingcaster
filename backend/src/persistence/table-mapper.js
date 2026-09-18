@@ -144,7 +144,8 @@ const TABLE_MAP = {
     columns: [
       'property_id', 'membership_id', 'agency_tenant_id', 'personal_tenant_id', 'proposed_disposition',
       'agency_decision', 'agent_decision', 'status', 'initiated_by', 'resolved_by', 'resolution_notes',
-      'resolved_at',
+      'resolved_at', 'agency_proposed_disposition', 'agent_proposed_disposition', 'agency_notes',
+      'agent_notes',
     ],
   },
 

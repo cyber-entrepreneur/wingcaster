@@ -141,6 +141,47 @@ export interface AssignableAgent {
   is_self: boolean
 }
 
+export type PropertyDisposition = 'agency_retains' | 'agent_retains' | 'archive'
+export type PropertyDispositionStatus =
+  | 'pending'
+  | 'agreed'
+  | 'disputed'
+  | 'completed'
+  | 'cancelled'
+
+export interface PropertyDispositionResponse {
+  case: {
+    id: string
+    property_id: string
+    proposed_disposition: PropertyDisposition
+    agency_proposed_disposition: PropertyDisposition | null
+    agent_proposed_disposition: PropertyDisposition | null
+    agency_notes: string | null
+    agent_notes: string | null
+    status: PropertyDispositionStatus
+    initiated_by: string
+    resolved_by: string | null
+    resolution_notes: string | null
+    created_at: string
+    updated_at: string
+    resolved_at: string | null
+  }
+  property: {
+    id: string
+    title: string
+    reference: string | null
+    status: string
+    price: number | null
+    price_unit: string | null
+    city: string | null
+    neighborhood: string | null
+    photo: string | null
+  }
+  parties: { agency: string; agent: string }
+  viewer_role: 'agent' | 'agency'
+  can_resolve: boolean
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -1226,6 +1267,23 @@ export const api = {
     fetchJson(`/properties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProperty: (id: string) =>
     fetchJson(`/properties/${id}`, { method: 'DELETE' }),
+
+  // AGT-LST-013 — two-party property disposition case
+  getPropertyDispositionCase: (propertyId: string): Promise<PropertyDispositionResponse> =>
+    fetchJson(`/properties/${propertyId}/disposition-case`),
+  updatePropertyDispositionDecision: (
+    propertyId: string,
+    input: { disposition: PropertyDisposition; notes?: string | null },
+  ): Promise<PropertyDispositionResponse> =>
+    fetchJson(`/properties/${propertyId}/disposition-case/decision`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  resolvePropertyDispositionCase: (propertyId: string): Promise<PropertyDispositionResponse> =>
+    fetchJson(`/properties/${propertyId}/disposition-case/resolve`, {
+      method: 'POST',
+      body: '{}',
+    }),
 
   // AGT-LST-010 — buyer offers on a listing
   listBuyerOffers: (propertyId: string) =>

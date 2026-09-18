@@ -256,6 +256,7 @@ import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { registerRoutes as registerAssignableAgentsRoutes } from './lib/conversations/assignable-agents-routes.js'
+import { registerRoutes as registerPropertyDispositionRoutes } from './lib/listings/property-disposition-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -840,6 +841,7 @@ registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerAssignableAgentsRoutes(app, { authMiddleware })
+registerPropertyDispositionRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {

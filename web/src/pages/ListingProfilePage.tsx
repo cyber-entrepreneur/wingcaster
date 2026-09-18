@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
-  Globe2, Loader2, Mail, MapPin, Maximize, Megaphone, MessageCircle, MoreHorizontal,
+  GitCompareArrows, Globe2, Loader2, Mail, MapPin, Maximize, Megaphone, MessageCircle, MoreHorizontal,
   Phone, Share2, Sparkles, Trash2, Video, X, PlusCircle,
   type LucideIcon,
 } from 'lucide-react'
@@ -82,6 +82,7 @@ export function ListingProfilePage() {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [shareMsg, setShareMsg] = useState('')
+  const [hasDispositionCase, setHasDispositionCase] = useState(false)
 
   // Market pricing (existing engine — surfaced in Overview tab)
   const [pricingAnalysis, setPricingAnalysis] = useState<PricingAnalysis | null>(null)
@@ -113,6 +114,20 @@ export function ListingProfilePage() {
   }, [id, addToast])
 
   useEffect(() => { loadProperty() }, [loadProperty])
+
+  useEffect(() => {
+    if (!id || !property) return
+    let active = true
+    void (async () => {
+      try {
+        await api.getPropertyDispositionCase(id)
+        if (active) setHasDispositionCase(true)
+      } catch {
+        if (active) setHasDispositionCase(false)
+      }
+    })()
+    return () => { active = false }
+  }, [id, property])
 
   useEffect(() => {
     if (!id || !property) return
@@ -275,6 +290,25 @@ export function ListingProfilePage() {
       {shareMsg && (
         <div className="mb-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
           {shareMsg}
+        </div>
+      )}
+      {hasDispositionCase && (
+        <div
+          role="status"
+          className="mb-5 flex flex-col gap-3 rounded-[var(--lc-radius-md)] border border-[var(--lc-status-draft-fg)] bg-[var(--lc-status-draft-bg)] px-4 py-3 text-[var(--lc-status-draft-fg)] sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <GitCompareArrows className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">Property custody needs a decision</p>
+              <p className="mt-0.5 text-xs">
+                Review the two-party disposition case and record who should retain this listing.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <Link to={`/listings/${property.id}/disposition`}>Review case</Link>
+          </Button>
         </div>
       )}
 
