@@ -70,6 +70,7 @@ import { RolePermissionsDetailPage } from '@/pages/agency/settings/RolePermissio
 import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
 import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurityPolicyPage'
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
+import { LeadConversionFunnelPage } from '@/pages/agency/reports/LeadConversionFunnelPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
@@ -251,6 +252,7 @@ function AppRoutes() {
       <Route path="/agency/settings/security" element={<AgencySecurityPolicyPage />} />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
       <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
+      <Route path="/agency/reports/leads" element={<LeadConversionFunnelPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />
       <Route path="/plans" element={<PlansPage />} />
