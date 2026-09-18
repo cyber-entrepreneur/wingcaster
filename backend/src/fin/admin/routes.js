@@ -39,6 +39,7 @@ import { applyPayment, recordPayment, reversePayment } from '../billing/payment-
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { createFacilityBodySchema } from './facility-schemas.js'
+import { runReconciliationBodySchema, scopeFromRunBody } from './reconciliation-schemas.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval } from './approvals/execute.js'
 import {
@@ -406,8 +407,13 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/reconciliation/run', writeGuards, wrap(async (req, res) => {
+    const parsed = runReconciliationBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
     const result = await runReconciliation(getPool(), {
       environment: sessionEnvironment(req),
+      scope: scopeFromRunBody(parsed.data),
       scheduleKind: 'ON_DEMAND',
       now: req.fin.now,
     })
