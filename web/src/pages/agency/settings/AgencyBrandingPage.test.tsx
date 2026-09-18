@@ -95,7 +95,7 @@ describe('AgencyBrandingPage', () => {
 
     fireEvent.change(screen.getByLabelText('Agency name'), { target: { value: 'Aleph International' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Cross-border property advisors.' } })
-    fireEvent.click(screen.getByLabelText('Archivo'))
+    fireEvent.click(screen.getByRole('radio', { name: /Archivo/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => expect(apiMock.updateAgencyBranding).toHaveBeenCalledWith('agency-1', expect.objectContaining({
