@@ -9,6 +9,7 @@ import { PasswordPage } from './PasswordPage'
 import { DeleteAccountPage } from './DeleteAccountPage'
 import { SettingsUnavailablePage } from './SettingsUnavailablePage'
 import { PreferencesPage } from '@/pages/PreferencesPage'
+import { SavedSearchesPage } from './SavedSearchesPage'
 
 /**
  * Child routes of `/settings` (SHR-SET-001..005).
@@ -32,6 +33,7 @@ export const settingsRoutes = (
     <Route path="notifications" element={<BillingPage section="channels" />} />
     <Route path="notifications/billing" element={<Navigate to="/settings/notifications" replace />} />
     <Route path="preferences" element={<PreferencesPage />} />
+    <Route path="saved-searches" element={<SavedSearchesPage />} />
     <Route path="data-export" element={<DataExportPage />} />
     <Route path="privacy/data-export" element={<Navigate to="/settings/data-export" replace />} />
     <Route path="api-tokens" element={<ApiTokensPage />} />
