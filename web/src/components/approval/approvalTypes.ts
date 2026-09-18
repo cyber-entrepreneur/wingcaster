@@ -86,6 +86,46 @@ export interface ExecuteResult {
   short_action_summary: string
 }
 
+export type ApprovalAuditEventStatus = 'info' | 'success' | 'failed' | 'warning'
+
+export interface ApprovalAuditActor {
+  type: string
+  id: string | null
+  email: string | null
+}
+
+export interface ApprovalAuditEvent {
+  id: string
+  type: string
+  status: ApprovalAuditEventStatus
+  occurred_at: string
+  actor: ApprovalAuditActor
+  reason_code: string | null
+  target_type: string | null
+  target_id: string | null
+  before_state: Record<string, unknown> | null
+  after_state: Record<string, unknown> | null
+  payload_snapshot: Record<string, unknown> | null
+  integrity_hash: string | null
+}
+
+export interface ApprovalAuditTrail {
+  request: {
+    id: string
+    tenant_id: string | null
+    action_kind: string
+    status: string
+    workflow_code: string | null
+    value_tier: ApprovalValueTier | null
+    min_distinct_approvers: number
+    created_at: string
+    updated_at: string
+    payload_hash: string
+    payload: Record<string, unknown>
+  }
+  events: ApprovalAuditEvent[]
+}
+
 export interface EligibleEscalationTarget {
   id: string
   display_name: string

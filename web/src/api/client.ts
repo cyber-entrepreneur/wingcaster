@@ -2737,6 +2737,9 @@ export const api = {
   getApprovalExecutePreview: (id: string): Promise<import('@/components/approval/approvalTypes').ExecutePreview> =>
     fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/execute-preview`),
 
+  getApprovalAuditTrail: (id: string): Promise<import('@/components/approval/approvalTypes').ApprovalAuditTrail> =>
+    fetchJson(`/admin/fin/approvals/${encodeURIComponent(id)}/audit-trail`),
+
   executeApproval: (
     id: string,
     data: {

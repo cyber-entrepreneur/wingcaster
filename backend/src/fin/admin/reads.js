@@ -329,6 +329,131 @@ export async function listApprovals({ environment }) {
   )
 }
 
+const SENSITIVE_SNAPSHOT_KEY = /(?:authorization|credential|password|private_key|secret|token)/i
+
+function redactSnapshot(value) {
+  if (Array.isArray(value)) return value.map(redactSnapshot)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [
+      key,
+      SENSITIVE_SNAPSHOT_KEY.test(key) ? '[REDACTED]' : redactSnapshot(nested),
+    ]),
+  )
+}
+
+function auditStatus(action) {
+  const normalized = String(action || '').toUpperCase()
+  if (/(REJECT|FAIL|CANCEL|EXPIRE)/.test(normalized)) return 'failed'
+  if (/(ESCALAT|WITHDRAW|RECALL)/.test(normalized)) return 'warning'
+  if (/(APPROV|EXECUT|PUBLISH|COMPLETE)/.test(normalized)) return 'success'
+  return 'info'
+}
+
+export async function getApprovalAuditTrail({ environment, id }) {
+  const request = (await query(
+    `SELECT id, tenant_id, action_kind, status, payload_hash, payload,
+            workflow_code, value_tier, min_distinct_approvers,
+            created_at, created_by_actor_type, created_by_actor_id, updated_at
+       FROM fin.approval_requests
+      WHERE environment = $1 AND id = $2`,
+    [environment, id],
+  ))[0]
+  if (!request) return null
+
+  const [actions, auditEvents] = await Promise.all([
+    query(
+      `SELECT id, actor_id, decision, created_at
+         FROM fin.approval_actions
+        WHERE request_id = $1
+        ORDER BY created_at ASC, id ASC`,
+      [id],
+    ),
+    query(
+      `SELECT id, actor_type, actor_id, actor_email_snapshot, action,
+              target_type, target_id, before_state, after_state, reason_code,
+              row_hash, created_at
+         FROM fin.financial_audit_events
+        WHERE environment = $1 AND approval_request_id = $2
+        ORDER BY created_at ASC, id ASC`,
+      [environment, id],
+    ),
+  ])
+
+  const events = [
+    {
+      id: `request:${request.id}`,
+      type: 'SUBMITTED',
+      status: 'info',
+      occurred_at: request.created_at,
+      actor: {
+        type: request.created_by_actor_type || 'USER',
+        id: request.created_by_actor_id || null,
+        email: null,
+      },
+      reason_code: null,
+      target_type: 'approval_request',
+      target_id: request.id,
+      before_state: null,
+      after_state: null,
+      payload_snapshot: redactSnapshot(request.payload || {}),
+      integrity_hash: request.payload_hash,
+    },
+    ...actions.map((action) => ({
+      id: action.id,
+      type: action.decision,
+      status: action.decision === 'REJECTED' ? 'failed' : 'success',
+      occurred_at: action.created_at,
+      actor: { type: 'USER', id: action.actor_id, email: null },
+      reason_code: null,
+      target_type: 'approval_request',
+      target_id: request.id,
+      before_state: null,
+      after_state: null,
+      payload_snapshot: null,
+      integrity_hash: null,
+    })),
+    ...auditEvents.map((event) => ({
+      id: event.id,
+      type: event.action,
+      status: auditStatus(event.action),
+      occurred_at: event.created_at,
+      actor: {
+        type: event.actor_type,
+        id: event.actor_id || null,
+        email: event.actor_email_snapshot || null,
+      },
+      reason_code: event.reason_code || null,
+      target_type: event.target_type || null,
+      target_id: event.target_id || null,
+      before_state: redactSnapshot(event.before_state),
+      after_state: redactSnapshot(event.after_state),
+      payload_snapshot: null,
+      integrity_hash: event.row_hash,
+    })),
+  ].sort((a, b) => {
+    const byTime = new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
+    return byTime || String(a.id).localeCompare(String(b.id))
+  })
+
+  return {
+    request: {
+      id: request.id,
+      tenant_id: request.tenant_id,
+      action_kind: request.action_kind,
+      status: request.status,
+      workflow_code: request.workflow_code,
+      value_tier: request.value_tier,
+      min_distinct_approvers: request.min_distinct_approvers,
+      created_at: request.created_at,
+      updated_at: request.updated_at,
+      payload_hash: request.payload_hash,
+      payload: redactSnapshot(request.payload || {}),
+    },
+    events,
+  }
+}
+
 export async function listAudit({ environment, limit = 100 }) {
   return query(
     `SELECT id, actor_type, actor_id, actor_email_snapshot, action, target_type,

@@ -18,6 +18,7 @@ import { PackageApprovalQueuePage } from './PackageApprovalQueuePage'
 import { PackageApprovalDetailPage } from './PackageApprovalDetailPage'
 import { PackageVersionHistoryPage } from './PackageVersionHistoryPage'
 import { PackageVersionReadOnlyPage } from './PackageVersionReadOnlyPage'
+import type { ApprovalAuditTrail } from '@/components/approval'
 import type {
   PackageDetailResponse,
   PackageListResponse,
@@ -212,7 +213,12 @@ const apiMock = vi.hoisted(() => ({
   listFeatures: vi.fn(),
 }))
 
+const approvalApiMock = vi.hoisted(() => ({
+  getApprovalAuditTrail: vi.fn(),
+}))
+
 vi.mock('./api', () => ({ packagesApi: apiMock }))
+vi.mock('@/api/client', () => ({ api: approvalApiMock }))
 
 const authMock = vi.hoisted(() => ({ isAdmin: true, agent: { id: 'admin-1' } }))
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => authMock }))
@@ -247,6 +253,37 @@ beforeEach(() => {
   apiMock.updateDraft.mockResolvedValue(draftDetail)
   apiMock.submitForApproval.mockResolvedValue({})
   apiMock.reject.mockResolvedValue({})
+  approvalApiMock.getApprovalAuditTrail.mockResolvedValue({
+    request: {
+      id: 'appr_123',
+      tenant_id: null,
+      action_kind: 'PACKAGE_PUBLISH',
+      status: 'REQUESTED',
+      workflow_code: 'WF-07',
+      value_tier: 'elevated',
+      min_distinct_approvers: 2,
+      created_at: '2026-09-16T10:00:00Z',
+      updated_at: '2026-09-16T10:00:00Z',
+      payload_hash: 'abc123def456',
+      payload: {},
+    },
+    events: [
+      {
+        id: 'evt-submitted',
+        type: 'SUBMITTED',
+        status: 'info',
+        occurred_at: '2026-09-16T10:00:00Z',
+        actor: { type: 'USER', id: 'usr_fatima', email: null },
+        reason_code: null,
+        target_type: 'approval_request',
+        target_id: 'appr_123',
+        before_state: null,
+        after_state: null,
+        payload_snapshot: { monthly_price_minor: 11900 },
+        integrity_hash: 'abc123def456',
+      },
+    ],
+  } satisfies ApprovalAuditTrail)
   authMock.isAdmin = true
 })
 
@@ -351,6 +388,8 @@ describe('PA-PKG-003 approval detail (WF-20 consumer)', () => {
     expect(document.querySelector('[data-diff-field="price"]')).toBeTruthy()
     const approve = screen.getByRole('button', { name: /Approve and publish/i }) as HTMLButtonElement
     expect(approve.disabled).toBe(false)
+    expect(await screen.findByText('Approval audit trail')).toBeTruthy()
+    expect(screen.getByText('Submitted')).toBeTruthy()
   })
 
   it('blocks approve and offers recall for own submissions', async () => {
