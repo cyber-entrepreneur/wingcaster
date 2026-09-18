@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { FinAdminGate, FinTable } from './shell'
 import { CreateFacilityDialog } from './CreateFacilityDialog'
+import { AdjustFacilityLimitDialog } from './AdjustFacilityLimitDialog'
 
 export function FacilitiesPage() {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
@@ -10,6 +11,8 @@ export function FacilitiesPage() {
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [successId, setSuccessId] = useState<string | null>(null)
+  const [limitOpen, setLimitOpen] = useState(false)
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | undefined>()
 
   function reload() {
     setLoading(true)
@@ -30,6 +33,16 @@ export function FacilitiesPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Button size="sm" onClick={() => setCreateOpen(true)}>Create facility</Button>
         <Button size="sm" variant="outline" onClick={() => reload()}>Refresh</Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSelectedFacilityId(undefined)
+            setLimitOpen(true)
+          }}
+        >
+          Adjust limit
+        </Button>
       </div>
 
       {successId && (
@@ -45,11 +58,29 @@ export function FacilitiesPage() {
       )}
       {!loading && !error && rows.length > 0 && (
         <FinTable
-          columns={['tenant_id', 'id', 'currency', 'limit_minor', 'status', 'net_terms_days', 'valid_from']}
+          columns={['tenant_id', 'id', 'currency', 'limit_minor', 'current_draw_minor', 'status', 'net_terms_days', 'valid_from']}
           rows={rows}
+          onRowClick={(row) => {
+            setSelectedFacilityId(String(row.id || ''))
+            setLimitOpen(true)
+          }}
         />
       )}
 
+      <AdjustFacilityLimitDialog
+        open={limitOpen}
+        onOpenChange={setLimitOpen}
+        facilities={rows as Array<{
+          id: string
+          currency: string
+          limit_minor: number | string
+          current_draw_minor?: number | string
+          status: string
+          version?: number
+        }>}
+        initialFacilityId={selectedFacilityId}
+        onAdjusted={reload}
+      />
       <CreateFacilityDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

@@ -77,11 +77,20 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
     expect(paused.body.status).toBe('PAUSED')
   })
 
+<<<<<<< HEAD
   it('rejects create body with unknown fields', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const res = await request(app)
       .post('/api/admin/fin/facilities')
       .set(writeHeaders(elevate(), { idempotencyKey: `FACILITY:${randomUUID()}` }))
+=======
+  it('rejects limit amendment without approval_request_id', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const created = await request(app)
+      .post('/api/admin/fin/facilities')
+      .set(writeHeaders(token, { idempotencyKey: `FACILITY:${randomUUID()}` }))
+>>>>>>> b428529 (feat(fin-admin): PA-FAC-004 adjust facility limit)
       .send({
         reason_code: 'TEST',
         tenant_id: world().tenantA.tenantId,
@@ -89,8 +98,17 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
         currency: 'USD',
         limit_minor: 1000,
         net_terms_days: 30,
+<<<<<<< HEAD
         environment: 'LIVE',
       })
+=======
+      })
+    expect(created.status).toBe(200)
+    const res = await request(app)
+      .post(`/api/admin/fin/facilities/${created.body.facilityId}/limit`)
+      .set(writeHeaders(token))
+      .send({ limit_minor: 2000, reason_code: 'FACILITY_LIMIT_INCREASE' })
+>>>>>>> b428529 (feat(fin-admin): PA-FAC-004 adjust facility limit)
     expect(res.status).toBe(400)
     expect(res.body.code).toBe('VALIDATION')
   })

@@ -231,6 +231,11 @@ describe('admin/fin pages', () => {
     expect(container.querySelector('h1')?.textContent).toBe(title)
   })
 
+  it('Facilities page exposes adjust limit CTA', () => {
+    wrap(<FacilitiesPage />)
+    expect(screen.getByRole('button', { name: 'Adjust limit' })).toBeTruthy()
+  })
+
   it('Overview is gated for non-admins', () => {
     authMock.isAdmin = false
     wrap(<OverviewPage />)
