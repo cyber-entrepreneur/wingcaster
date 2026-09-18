@@ -216,7 +216,16 @@ export function buildWidgetBootstrapScript(widget, { listings, agency, appBase, 
     type: widget.type,
     config,
     agency: agency
-      ? { id: agency.id, name: agency.name, phone: agency.phone, email: agency.email, primary_color: agency.primary_color }
+      ? {
+          id: agency.id,
+          name: agency.name,
+          phone: agency.phone,
+          email: agency.email,
+          logo_url: agency.logo_url || agency.logo || null,
+          primary_color: agency.brand_primary_color || agency.primary_color,
+          accent_color: agency.brand_accent_color || agency.secondary_color,
+          font_family: agency.brand_font_family || 'system',
+        }
       : null,
     listings: (listings || []).slice(0, Number(config.limit) || 6).map((p) => ({
       id: p.id,
@@ -257,7 +266,8 @@ export function buildWidgetBootstrapScript(widget, { listings, agency, appBase, 
 
   var primary = (DATA.agency && DATA.agency.primary_color) || '#0f172a';
   var theme = (DATA.config && DATA.config.theme) || 'light';
-  root.style.cssText = 'font-family:system-ui,-apple-system,sans-serif;color:' + (theme==='dark'?'#f8fafc':'#0f172a') + ';background:' + (theme==='dark'?'#0f172a':'#fff') + ';';
+  var fontFamily = DATA.agency && DATA.agency.font_family === 'playfair-display' ? 'Playfair Display,serif' : DATA.agency && DATA.agency.font_family === 'archivo' ? 'Archivo,sans-serif' : 'IBM Plex Sans,system-ui,sans-serif';
+  root.style.cssText = 'font-family:' + fontFamily + ';color:' + (theme==='dark'?'#f8fafc':'#0f172a') + ';background:' + (theme==='dark'?'#0f172a':'#fff') + ';';
 
   if (DATA.type === 'listing-gallery') {
     var grid = el('div', { style: { display:'grid', gap:'12px', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))' } });

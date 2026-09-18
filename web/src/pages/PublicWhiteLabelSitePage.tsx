@@ -39,8 +39,31 @@ export function PublicWhiteLabelSitePage() {
       .finally(() => setLoading(false))
   }, [subdomain, addToast])
 
-  const brand = data?.site?.brand_config || {}
-  const primary = brand.primary_color || data?.agency?.primary_color || 'var(--lc-action-primary)' 
+  const siteBrand = data?.site?.brand_config || {}
+  const brand = {
+    ...siteBrand,
+    logo_url: data?.agency?.logo_url || siteBrand.logo_url,
+    favicon_url: data?.agency?.favicon_url || siteBrand.favicon_url,
+    primary_color: data?.agency?.brand_primary_color || data?.agency?.primary_color || siteBrand.primary_color,
+    accent_color: data?.agency?.brand_accent_color || data?.agency?.secondary_color || siteBrand.secondary_color,
+    font_family: data?.agency?.brand_font_family || siteBrand.font_family,
+  }
+  const primary = brand.primary_color || 'var(--lc-action-primary)'
+
+  useEffect(() => {
+    if (!brand.favicon_url) return
+    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    const previous = link?.href
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'icon'
+      document.head.appendChild(link)
+    }
+    link.href = brand.favicon_url
+    return () => {
+      if (previous && link) link.href = previous
+    }
+  }, [brand.favicon_url])
 
   const listings = useMemo(() => {
     let rows = data?.listings || []
@@ -101,7 +124,7 @@ export function PublicWhiteLabelSitePage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ ['--wl-primary' as any]: primary }}>
+    <div className="min-h-screen" style={{ ['--wl-primary' as any]: primary, fontFamily: brandFont(brand.font_family) }}>
       <header className="border-b bg-[var(--lc-surface)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
@@ -210,4 +233,10 @@ export function PublicWhiteLabelSitePage() {
       </section>
     </div>
   )
+}
+
+function brandFont(font?: string) {
+  if (font === 'archivo') return 'var(--lc-font-display)'
+  if (font === 'playfair-display') return 'Playfair Display, serif'
+  return 'var(--lc-font-ui)'
 }

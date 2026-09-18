@@ -240,6 +240,7 @@ import {
   registerAgencyMfaPolicyRoutes,
   evaluateMfaPolicyForSignIn,
 } from './lib/agencies/mfa-policy-routes.js'
+import { registerAgencyBrandingRoutes } from './lib/agencies/branding-routes.js'
 import { registerApiTokenRoutes } from './lib/auth/api-tokens-routes.js'
 import {
   evaluateMfaPolicyForSignInAuto,
@@ -7866,6 +7867,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Issue #190 — admin-enforced 2FA policy per agency (SOC 2 / ISO 27001 control).
 // The runtime write-gate is chained inside `authMiddleware` (see auth.js).
 registerAgencyMfaPolicyRoutes(app, { authMiddleware })
+registerAgencyBrandingRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens

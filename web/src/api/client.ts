@@ -6,6 +6,10 @@ import type {
   TwoFactorStatus,
 } from '@/types/twoFactor'
 import type {
+  AgencyBrandingResponse,
+  AgencyBrandingUpdate,
+} from '@/types/agencyBranding'
+import type {
   AgencyComparablesFilters,
   AgencyComparablesResponse,
   AgencyPricingPortfolio,
@@ -966,6 +970,18 @@ export const api = {
   getAgency: (id: string) => fetchJson(`/agencies/${id}`),
   updateAgency: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agencies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getAgencyBranding: (id: string): Promise<AgencyBrandingResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/branding`),
+  updateAgencyBranding: (id: string, data: AgencyBrandingUpdate): Promise<AgencyBrandingResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/branding`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  resetAgencyBranding: (id: string): Promise<AgencyBrandingResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/branding/reset`, {
+      method: 'POST',
+      body: '{}',
+    }),
 
   // Issue 190 — admin-enforced 2FA policy.
   getAgencyMfaPolicy: (

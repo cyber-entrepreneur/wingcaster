@@ -69,6 +69,7 @@ import { RolesOverviewPage } from '@/pages/agency/settings/RolesOverviewPage'
 import { RolePermissionsDetailPage } from '@/pages/agency/settings/RolePermissionsDetailPage'
 import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
 import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurityPolicyPage'
+import { AgencyBrandingPage } from '@/pages/agency/settings/AgencyBrandingPage'
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
@@ -249,6 +250,7 @@ function AppRoutes() {
       <Route path="/admin/audit" element={<AuditLogPage />} />
       <Route path="/agency/settings/audit" element={<AuditLogPage />} />
       <Route path="/agency/settings/security" element={<AgencySecurityPolicyPage />} />
+      <Route path="/agency/settings/branding" element={<AgencyBrandingPage />} />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
       <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
