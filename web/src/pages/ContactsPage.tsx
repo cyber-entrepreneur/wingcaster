@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Mail, Phone, Search, Users, UserCheck, UserPlus, Activity } from 'lucide-react'
+import { Download, Loader2, Mail, Phone, Search, Users, UserCheck, UserPlus, Activity } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -13,6 +14,7 @@ import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
+import { ContactExportDialog } from '@/components/contacts/ContactExportDialog'
 
 interface Contact {
   id: string
@@ -64,6 +66,7 @@ export function ContactsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
 
   useEffect(() => {
     if (!agent) return
@@ -103,7 +106,20 @@ export function ContactsPage() {
       <CmdPageHeader
         title="Contacts"
         subtitle={`${counts.total} total`}
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setExportOpen(true)}
+            disabled={counts.total === 0}
+          >
+            <Download className="h-4 w-4" /> Export
+          </Button>
+        }
       />
+
+      <ContactExportDialog open={exportOpen} onClose={() => setExportOpen(false)} contactCount={counts.total} />
 
       <CmdKpiStrip
         items={[

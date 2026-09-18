@@ -226,6 +226,28 @@ export interface BuyerOfferInput {
   notes?: string | null
 }
 
+// AGT-CTC-005 — Contact export.
+export type ContactExportFormat = 'csv' | 'vcard'
+
+export interface ContactExportField {
+  key: string
+  label: string
+}
+
+/** Fields a Pro agent may include in a CSV export (canonical column order). */
+export const CONTACT_EXPORT_FIELDS: ContactExportField[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'status', label: 'Status' },
+  { key: 'source', label: 'Source' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'first_touch_channel', label: 'First touch channel' },
+  { key: 'first_touch_at', label: 'First touch at' },
+  { key: 'last_activity_at', label: 'Last activity at' },
+  { key: 'created_at', label: 'Created at' },
+]
+
 export interface ClosedTransaction {
   id: string
   listing_id: string
@@ -1689,6 +1711,15 @@ export const api = {
     return fetchJson(`/contacts${qs}`)
   },
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
+  // AGT-CTC-005 — bulk export download URL (fetched with the auth header, then
+  // streamed to a Blob by the caller so the browser saves a real file).
+  contactsExportPath: (params: { format?: ContactExportFormat; fields?: string[] } = {}): string => {
+    const q = new URLSearchParams()
+    if (params.format) q.set('format', params.format)
+    if (params.fields && params.fields.length) q.set('fields', params.fields.join(','))
+    const qs = q.toString()
+    return `${API_BASE}/contacts/export${qs ? `?${qs}` : ''}`
+  },
   revealContactPii: (id: string, field: string) =>
     fetchJson(`/contacts/${id}/reveal-pii`, {
       method: 'POST',
