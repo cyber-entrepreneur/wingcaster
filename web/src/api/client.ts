@@ -612,6 +612,62 @@ export interface AgencyAgentLeaderboardResponse {
   }
 }
 
+/** AGN-REP-006 — agency campaign performance row. */
+export interface AgencyCampaignPerformanceRow {
+  id: string
+  name: string
+  status: string
+  trigger: string
+  channel: string
+  channels: string[]
+  agent_id: string | null
+  agent_name: string | null
+  enrollments_total: number
+  enrollments_active: number
+  enrollments_completed: number
+  completion_rate: number | null
+  messages_sent: number
+  messages_delivered: number
+  messages_failed: number
+  delivery_rate: number | null
+  steps_count: number
+  href: string
+  created_at: string | null
+}
+
+/** AGN-REP-006 — agency campaign performance payload. */
+export interface AgencyCampaignPerformanceResponse {
+  generated_at: string
+  agency_id: string
+  filters: {
+    start_date: string | null
+    end_date: string | null
+    channel: string | null
+    agent_id: string | null
+  }
+  overview: {
+    campaigns: number
+    active_campaigns: number
+    total_enrollments: number
+    completed_enrollments: number
+    messages_sent: number
+    messages_delivered: number
+    completion_rate: number | null
+  }
+  rows: AgencyCampaignPerformanceRow[]
+  by_channel: Array<{
+    channel: string
+    messages_sent: number
+    messages_delivered: number
+    campaigns: number
+    delivery_rate: number | null
+  }>
+  filter_options: {
+    channels: string[]
+    agents: Array<{ id: string; name: string }>
+  }
+}
+
 /** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
@@ -3000,6 +3056,15 @@ export const api = {
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/crm${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getAgencyCampaignPerformance: (params?: {
+    start_date?: string
+    end_date?: string
+    channel?: string
+    agent_id?: string
+  }) =>
+    fetchJson(
+      `/agency/analytics/campaign-performance${params ? '?' + new URLSearchParams(params).toString() : ''}`,
+    ) as Promise<AgencyCampaignPerformanceResponse>,
   getAgencyAgentLeaderboard: (params?: {
     start_date?: string
     end_date?: string
