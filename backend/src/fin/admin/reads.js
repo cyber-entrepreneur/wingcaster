@@ -433,7 +433,9 @@ export async function getApprovalAuditTrail({ environment, id }) {
     })),
   ].sort((a, b) => {
     const byTime = new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
-    return byTime || String(a.id).localeCompare(String(b.id))
+    if (byTime) return byTime
+    const phase = (event) => event.type === 'SUBMITTED' ? 0 : event.type === 'APPROVED' || event.type === 'REJECTED' ? 1 : 2
+    return phase(a) - phase(b) || String(a.id).localeCompare(String(b.id))
   })
 
   return {

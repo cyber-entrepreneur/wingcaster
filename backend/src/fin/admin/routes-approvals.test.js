@@ -75,7 +75,7 @@ finPostgresSuite('admin/routes-approvals', {}, ({ url, pool, world }) => {
     expect(res.body.events.map((event) => event.type)).toEqual(
       expect.arrayContaining(['SUBMITTED', 'APPROVED']),
     )
-    expect(res.body.events[0].integrity_hash).toBe('test-hash')
+    expect(res.body.events.find((event) => event.type === 'SUBMITTED')?.integrity_hash).toBe('test-hash')
   })
 
   it('validates audit ids and hides approvals from another environment', async () => {
