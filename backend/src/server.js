@@ -253,6 +253,7 @@ import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transf
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
+import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
@@ -825,6 +826,7 @@ registerOwnershipTransferRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
+registerSellerReportRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 

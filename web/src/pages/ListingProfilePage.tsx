@@ -259,6 +259,14 @@ export function ListingProfilePage() {
             <Share2 className="h-4 w-4" />
             Share
           </Button>
+          {isOwner && property && (
+            <Link to={`/listings/${property.id}/report`}>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Share2 className="h-4 w-4" />
+                Seller report
+              </Button>
+            </Link>
+          )}
           {isOwner && (
             <Button
               variant="outline"
