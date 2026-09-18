@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
+import { useStepUp } from '@/context/StepUpContext'
 import { useToast } from '@/components/ui/toast'
 
 interface ScoringLogicConfig {
@@ -54,6 +56,7 @@ interface Signal {
 
 export function AdminScoringPage() {
   const { isAdmin } = useAuth()
+  const { runElevated } = useStepUp()
   const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState('dimensions')
   const [dimensions, setDimensions] = useState<Dimension[]>([])
@@ -125,7 +128,18 @@ export function AdminScoringPage() {
   async function createAiConfig(e: React.FormEvent) {
     e.preventDefault()
     try {
-      await api.createAdminAiConfig(newAi)
+      const created = await runElevated(
+        () => api.createAdminAiConfig({
+          ...newAi,
+          description: '',
+          temperature: 0.3,
+          max_tokens: 2048,
+          output_schema: {},
+          is_active: true,
+        }),
+        'create AI scoring config',
+      )
+      if (!created) return
       addToast({ title: 'AI config created' })
       setNewAi({ name: '', provider: 'gemini', model: '', system_prompt: '', scoring_prompt_template: '' })
       loadAll()
@@ -236,7 +250,12 @@ export function AdminScoringPage() {
         <TabsContent value="ai" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>AI Configs</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle>AI Configs</CardTitle>
+                <Button asChild size="sm">
+                  <Link to="/admin/scoring/ai-configs">Open AI config console</Link>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="mb-4 max-h-96 overflow-auto">

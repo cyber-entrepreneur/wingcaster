@@ -2308,14 +2308,32 @@ export const api = {
     fetchJson(`/admin/scoring/source-types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAdminSourceType: (id: string) =>
     fetchJson(`/admin/scoring/source-types/${id}`, { method: 'DELETE' }),
-  listAdminAiConfigs: (params?: Record<string, string>) => {
+  listAdminAiConfigs: (params?: Record<string, string>): Promise<{
+    items: import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfig[]
+  }> => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/scoring/ai-configs${qs}`)
   },
-  createAdminAiConfig: (data: Record<string, unknown>) =>
+  createAdminAiConfig: (data: import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfigInput): Promise<
+    import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfig
+  > =>
     fetchJson('/admin/scoring/ai-configs', { method: 'POST', body: JSON.stringify(data) }),
-  updateAdminAiConfig: (id: string, data: Record<string, unknown>) =>
+  updateAdminAiConfig: (
+    id: string,
+    data: Partial<import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfigInput>,
+  ): Promise<import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfig> =>
     fetchJson(`/admin/scoring/ai-configs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  listAdminAiConfigVersions: (id: string): Promise<{
+    items: import('@/pages/admin/scoring/aiConfigTypes').AiScoringConfigVersion[]
+  }> => fetchJson(`/admin/scoring/ai-configs/${encodeURIComponent(id)}/versions`),
+  previewAdminAiConfig: (
+    id: string,
+    data: { area_id: string; dimension_id: string },
+  ): Promise<import('@/pages/admin/scoring/aiConfigTypes').AiConfigPreviewResult> =>
+    fetchJson(`/admin/scoring/ai-configs/${encodeURIComponent(id)}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   deleteAdminAiConfig: (id: string) =>
     fetchJson(`/admin/scoring/ai-configs/${id}`, { method: 'DELETE' }),
   listAdminSignals: (params?: Record<string, string>) => {
