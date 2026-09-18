@@ -99,6 +99,33 @@ export interface WhatsAppIntakeAnalytics {
   approval_rate: number
 }
 
+export type PersonalChannelPlatform =
+  | 'facebook'
+  | 'instagram'
+  | 'linkedin'
+  | 'tiktok'
+  | 'x'
+  | 'whatsapp'
+
+export interface PersonalChannelConnection {
+  id: string
+  platform: PersonalChannelPlatform
+  account_name: string
+  handle: string | null
+  is_primary: boolean
+  status: string
+  health: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface PersonalChannelConnectionInput {
+  platform: PersonalChannelPlatform
+  account_name: string
+  handle: string
+  is_primary?: boolean
+}
+
 /** Issue 192b — self-serve data-export job shape. */
 export type ScheduledPublicationStatus =
   | 'pending'
@@ -1573,6 +1600,27 @@ export const api = {
     fetchJson(`/my-connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   disconnectMyPlatform: (id: string) =>
     fetchJson(`/my-connections/${id}`, { method: 'DELETE' }),
+  listPersonalChannelConnections: (): Promise<{ connections: PersonalChannelConnection[] }> =>
+    fetchJson('/social-channels/my-connections'),
+  createPersonalChannelConnection: (
+    data: PersonalChannelConnectionInput,
+  ): Promise<PersonalChannelConnection> =>
+    fetchJson('/social-channels/my-connections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updatePersonalChannelConnection: (
+    id: string,
+    data: Partial<Pick<PersonalChannelConnectionInput, 'account_name' | 'handle' | 'is_primary'>>,
+  ): Promise<PersonalChannelConnection> =>
+    fetchJson(`/social-channels/my-connections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  removePersonalChannelConnection: (
+    id: string,
+  ): Promise<{ success: true; new_primary_id: string | null }> =>
+    fetchJson(`/social-channels/my-connections/${id}`, { method: 'DELETE' }),
   distributeOwn: (propertyId: string, platforms: string[], options?: {
     mode?: string
     formats?: Record<string, string[]>

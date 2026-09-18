@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Check, ExternalLink, Facebook, Instagram, Linkedin, Loader2, Lock,
   MessageCircle, Plug, Twitter, Unplug, Video,
@@ -13,6 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PersonalConnectionsPanel } from '@/components/social-channels/PersonalConnectionsPanel'
+import { useUiMode } from '@/hooks/useUiMode'
 
 type FieldSpec = { key: string; label: string; required: boolean; secret: boolean }
 type PlatformSpec = { model: 'enterprise' | 'oauth'; target_fields: FieldSpec[] }
@@ -43,6 +46,8 @@ const PLATFORM_ORDER = ['facebook', 'instagram', 'linkedin', 'whatsapp', 'x', 't
 export function SocialChannelsPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  const { shouldRenderPro } = useUiMode()
+  const [searchParams, setSearchParams] = useSearchParams()
   usePageTitle('Social Channels')
 
   const [config, setConfig] = useState<Record<string, PlatformSpec> | null>(null)
@@ -86,6 +91,7 @@ export function SocialChannelsPage() {
     for (const c of connections) map[c.platform] = c
     return map
   }, [connections])
+  const activeTab = shouldRenderPro && searchParams.get('tab') === 'accounts' ? 'accounts' : 'channels'
 
   if (authLoading || loading) {
     return (
@@ -123,21 +129,42 @@ export function SocialChannelsPage() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        {PLATFORM_ORDER.map((platform) => {
-          const spec = config?.[platform]
-          if (!spec) return null
-          return (
-            <PlatformCard
-              key={platform}
-              platform={platform}
-              spec={spec}
-              connection={connectionByPlatform[platform] || null}
-              onChanged={load}
-            />
-          )
-        })}
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const next = new URLSearchParams(searchParams)
+          if (value === 'accounts') next.set('tab', 'accounts')
+          else next.delete('tab')
+          setSearchParams(next, { replace: true })
+        }}
+      >
+        <TabsList className={`grid w-full sm:w-auto ${shouldRenderPro ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <TabsTrigger value="channels">Channel setup</TabsTrigger>
+          {shouldRenderPro ? <TabsTrigger value="accounts">My accounts</TabsTrigger> : null}
+        </TabsList>
+        <TabsContent value="channels" className="mt-4">
+          <div className="space-y-4">
+            {PLATFORM_ORDER.map((platform) => {
+              const spec = config?.[platform]
+              if (!spec) return null
+              return (
+                <PlatformCard
+                  key={platform}
+                  platform={platform}
+                  spec={spec}
+                  connection={connectionByPlatform[platform] || null}
+                  onChanged={load}
+                />
+              )
+            })}
+          </div>
+        </TabsContent>
+        {shouldRenderPro ? (
+          <TabsContent value="accounts" className="mt-4">
+            <PersonalConnectionsPanel />
+          </TabsContent>
+        ) : null}
+      </Tabs>
     </div>
   )
 }

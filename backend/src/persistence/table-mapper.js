@@ -266,7 +266,14 @@ const TABLE_MAP = {
 
   // Distribution
   platform_accounts: { schema: 'public', table: 'platform_accounts', columns: ['agent_id', 'agency_id', 'platform', 'account_handle', 'access_token', 'refresh_token', 'expires_at', 'status'] },
-  marketplace_connections: { schema: 'public', table: 'marketplace_connections', columns: ['agent_id', 'agency_id', 'platform', 'credentials', 'status'] },
+  marketplace_connections: {
+    schema: 'public',
+    table: 'marketplace_connections',
+    columns: [
+      'agent_id', 'agency_id', 'platform', 'account_name', 'handle',
+      'credentials', 'status', 'health', 'is_primary',
+    ],
+  },
   distributions: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
   distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
   publishing_jobs: { schema: 'public', table: 'publishing_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'submitted_at', 'completed_at'] },

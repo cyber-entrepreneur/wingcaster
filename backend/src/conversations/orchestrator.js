@@ -9,6 +9,7 @@ import { sendXDM, replyToXMention, isXEnabled } from '../lib/notifications/x.js'
 import { sendFacebookMessengerDM, replyToFacebookComment, isFacebookEnabled } from '../lib/notifications/facebook.js'
 import { replyToLinkedInComment, isLinkedInEnabled } from '../lib/notifications/linkedin.js'
 import { resolveConnectionCredentials } from '../lib/credentials.js'
+import { findAgentPrimaryConnection } from '../lib/social/personal-connections-routes.js'
 import { classifyByRules } from '../lib/comment-classifier.js'
 import { emitUsageEventAsync } from '../billing/index.js'
 import {
@@ -109,11 +110,8 @@ const CLASSIFIABLE_CHANNELS = new Set([
  */
 async function resolveAgentPlatformCreds(agentId, platform) {
   if (!agentId || !platform) return null
-  const conn = await findOne(
-    'marketplace_connections',
-    (c) => c.agent_id === agentId && c.platform === platform,
-  )
-  if (!conn || conn.status !== 'connected') return null
+  const conn = await findAgentPrimaryConnection(agentId, platform)
+  if (!conn) return null
   return resolveConnectionCredentials(conn)
 }
 
