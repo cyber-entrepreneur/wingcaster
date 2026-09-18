@@ -11,6 +11,9 @@ const apiMock = vi.hoisted(() => ({
   createBuyerOffer: vi.fn(),
   updateBuyerOffer: vi.fn(),
   deleteBuyerOffer: vi.fn(),
+  getContacts: vi.fn(
+    async (): Promise<Array<{ id: string; name: string; email?: string; phone?: string }>> => [],
+  ),
 }))
 
 vi.mock('@/api/client', () => ({ api: apiMock }))
@@ -58,7 +61,7 @@ describe('OffersPanel', () => {
   it('renders offers with money + status', async () => {
     apiMock.listBuyerOffers.mockResolvedValue({ offers: [offer({ status: 'countered' })] })
     renderPanel()
-    expect(await screen.findByText('Jane Buyer')).toBeInTheDocument()
+    expect((await screen.findAllByText('Jane Buyer')).length).toBeGreaterThan(0)
     // amount shows in the summary strip and the row; both count
     expect(screen.getAllByText(/\$475,000/).length).toBeGreaterThan(0)
     // status label appears on both the badge and the <option>; at least one
@@ -83,7 +86,38 @@ describe('OffersPanel', () => {
         expect.objectContaining({ offeror_name: 'New Buyer', amount: 500000 }),
       ),
     )
-    expect(await screen.findByText('New Buyer')).toBeInTheDocument()
+    expect((await screen.findAllByText('New Buyer')).length).toBeGreaterThan(0)
+  })
+
+  it('links a buyer from the CRM picker into the offer', async () => {
+    const user = userEvent.setup()
+    apiMock.createBuyerOffer.mockResolvedValue(offer({ id: 'o9', contact_id: 'c-1', offeror_name: 'Sam CRM', amount: 300000 }))
+    apiMock.getContacts.mockResolvedValue([{ id: 'c-1', name: 'Sam CRM', email: 'sam@x.test' }])
+    renderPanel()
+    await screen.findByText(/No offers recorded yet/i)
+
+    await user.click(screen.getByRole('button', { name: /Record offer/i }))
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByPlaceholderText(/Search contacts/i))
+    await user.click(await within(dialog).findByText('Sam CRM'))
+    // Picking fills the offeror name + shows the linked chip
+    expect(within(dialog).getByDisplayValue('Sam CRM')).toBeInTheDocument()
+    await user.type(within(dialog).getByPlaceholderText(/e\.g\. 475000/i), '300000')
+    await user.click(within(dialog).getByRole('button', { name: /^Record offer$/i }))
+
+    await waitFor(() =>
+      expect(apiMock.createBuyerOffer).toHaveBeenCalledWith(
+        'prop-1',
+        expect.objectContaining({ contact_id: 'c-1', offeror_name: 'Sam CRM', amount: 300000 }),
+      ),
+    )
+  })
+
+  it('renders the comparison chart once offers exist', async () => {
+    apiMock.listBuyerOffers.mockResolvedValue({ offers: [offer({ amount: 480000 })] })
+    const { container } = renderPanel({ asking: 500000, benchmark: 475000 })
+    await screen.findAllByText('Jane Buyer')
+    expect(container.querySelector('svg')).toBeTruthy()
   })
 
   it('fires onOfferAccepted when status is set to accepted', async () => {
@@ -92,7 +126,7 @@ describe('OffersPanel', () => {
     apiMock.updateBuyerOffer.mockResolvedValue(offer({ status: 'accepted' }))
     const onAccepted = vi.fn()
     renderPanel({ onOfferAccepted: onAccepted })
-    await screen.findByText('Jane Buyer')
+    await screen.findAllByText('Jane Buyer')
 
     await user.selectOptions(screen.getByLabelText(/Offer status/i), 'accepted')
 
@@ -105,10 +139,10 @@ describe('OffersPanel', () => {
     apiMock.listBuyerOffers.mockResolvedValue({ offers: [offer()] })
     apiMock.deleteBuyerOffer.mockResolvedValue({ success: true })
     renderPanel()
-    await screen.findByText('Jane Buyer')
+    await screen.findAllByText('Jane Buyer')
 
     await user.click(screen.getByRole('button', { name: /Remove offer from Jane Buyer/i }))
     await waitFor(() => expect(apiMock.deleteBuyerOffer).toHaveBeenCalledWith('o1'))
-    await waitFor(() => expect(screen.queryByText('Jane Buyer')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryAllByText('Jane Buyer').length).toBe(0))
   })
 })

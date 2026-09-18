@@ -355,6 +355,9 @@ export function ListingProfilePage() {
           <OffersPanel
             propertyId={property.id}
             currency={property.price_unit || 'USD'}
+            asking={property.price ?? null}
+            benchmark={pricingAnalysis?.median_price ?? null}
+            avgAsking={pricingAnalysis?.mean_price ?? null}
             onOfferAccepted={() => setClosureModalOpen(true)}
           />
           {property.description && (

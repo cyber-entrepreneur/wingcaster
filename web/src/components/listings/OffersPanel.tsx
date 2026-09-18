@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { HandCoins, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, HandCoins, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { api, type BuyerOffer, type BuyerOfferInput, type BuyerOfferStatus } from '@/api/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { OffersComparisonChart } from './OffersComparisonChart'
+
+interface ContactOption {
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+}
 
 const STATUS_LABELS: Record<BuyerOfferStatus, string> = {
   received: 'Received',
@@ -43,6 +51,14 @@ function formatMoney(amount: number, currency: string): string {
 interface OffersPanelProps {
   propertyId: string
   currency?: string
+  /** Asking price of this listing — drawn as a reference line on the chart. */
+  asking?: number | null
+  /** Benchmark = median of similar SOLD comparables (from pricing analysis). */
+  benchmark?: number | null
+  /** Average asking = mean of comparable listings (from pricing analysis). */
+  avgAsking?: number | null
+  /** This property's last recorded sale price, when known. */
+  lastSale?: number | null
   /** Fired when an offer is set to `accepted` — parent prompts the closure flow (AGT-HTX-002). */
   onOfferAccepted?: (offer: BuyerOffer) => void
 }
@@ -56,7 +72,15 @@ interface OffersPanelProps {
  * the agent to close the listing (acceptance and closure are deliberately
  * separate — an accepted offer can still fall through).
  */
-export function OffersPanel({ propertyId, currency = 'USD', onOfferAccepted }: OffersPanelProps) {
+export function OffersPanel({
+  propertyId,
+  currency = 'USD',
+  asking,
+  benchmark,
+  avgAsking,
+  lastSale,
+  onOfferAccepted,
+}: OffersPanelProps) {
   const { addToast } = useToast()
   const [offers, setOffers] = useState<BuyerOffer[]>([])
   const [loading, setLoading] = useState(true)
@@ -160,9 +184,22 @@ export function OffersPanel({ propertyId, currency = 'USD', onOfferAccepted }: O
             No offers recorded yet. Log the first one when a buyer makes an offer.
           </p>
         ) : (
-          <ul className="divide-y">
-            {offers.map((offer) => (
-              <li key={offer.id} className="flex flex-wrap items-center gap-3 py-3">
+          <>
+            {offers.filter((o) => o.amount > 0).length >= 1 ? (
+              <div className="mb-4 overflow-x-auto rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] p-3">
+                <OffersComparisonChart
+                  offers={offers}
+                  currency={currency}
+                  asking={asking}
+                  benchmark={benchmark}
+                  avgAsking={avgAsking}
+                  lastSale={lastSale}
+                />
+              </div>
+            ) : null}
+            <ul className="divide-y">
+              {offers.map((offer) => (
+                <li key={offer.id} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{offer.offeror_name}</span>
@@ -219,7 +256,8 @@ export function OffersPanel({ propertyId, currency = 'USD', onOfferAccepted }: O
                 </div>
               </li>
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </CardContent>
 
@@ -258,6 +296,7 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
   const { addToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({
+    contact_id: existing?.contact_id ?? (null as string | null),
     offeror_name: existing?.offeror_name ?? '',
     amount: existing?.amount != null ? String(existing.amount) : '',
     currency: existing?.currency ?? defaultCurrency,
@@ -270,6 +309,42 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
   const setField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  // CRM contact picker — the agent can link a buyer from their contacts, or
+  // type a free-text offeror name. Linking sets contact_id + snapshots the name.
+  const [contactQuery, setContactQuery] = useState('')
+  const [contactResults, setContactResults] = useState<ContactOption[]>([])
+  const [contactOpen, setContactOpen] = useState(false)
+  const [contactLoading, setContactLoading] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!contactOpen) return
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(async () => {
+      setContactLoading(true)
+      try {
+        const rows = await api.getContacts(contactQuery.trim() ? { q: contactQuery.trim() } : undefined)
+        const list = Array.isArray(rows)
+          ? rows
+          : ((rows as { contacts?: unknown[] })?.contacts ?? [])
+        setContactResults((list as ContactOption[]).slice(0, 8))
+      } catch {
+        setContactResults([])
+      } finally {
+        setContactLoading(false)
+      }
+    }, 250)
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current)
+    }
+  }, [contactQuery, contactOpen])
+
+  const pickContact = (c: ContactOption) => {
+    setForm((f) => ({ ...f, contact_id: c.id, offeror_name: c.name }))
+    setContactOpen(false)
+    setContactQuery('')
+  }
+
   const amountNum = Number(form.amount)
   const valid = form.offeror_name.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0
 
@@ -278,6 +353,7 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
     setBusy(true)
     try {
       const payload: BuyerOfferInput = {
+        contact_id: form.contact_id,
         offeror_name: form.offeror_name.trim(),
         amount: amountNum,
         currency: form.currency.trim() || defaultCurrency,
@@ -314,14 +390,73 @@ function OfferFormModal({ propertyId, defaultCurrency, existing, onClose, onSave
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
+          {/* CRM buyer picker */}
+          <div className="block">
+            <Label className="text-xs">Buyer (from your contacts)</Label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lc-text-muted)]" />
+                <Input
+                  className="ps-8"
+                  value={contactOpen ? contactQuery : ''}
+                  placeholder={form.contact_id ? 'Linked — search to change' : 'Search contacts…'}
+                  onFocus={() => setContactOpen(true)}
+                  onChange={(e) => {
+                    setContactQuery(e.target.value)
+                    setContactOpen(true)
+                  }}
+                />
+              </div>
+              {contactOpen ? (
+                <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] shadow-[var(--lc-elevation-md)]">
+                  {contactLoading ? (
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--lc-text-muted)]">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Searching…
+                    </div>
+                  ) : contactResults.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-[var(--lc-text-muted)]">
+                      No contacts found — type the offeror name below instead.
+                    </div>
+                  ) : (
+                    contactResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-[var(--lc-surface-sunken)]"
+                        onClick={() => pickContact(c)}
+                      >
+                        <span className="truncate font-medium text-[var(--lc-text-primary)]">{c.name}</span>
+                        <span className="truncate text-xs text-[var(--lc-text-muted)]">{c.email || c.phone || ''}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
           <label className="block">
             <Label className="text-xs">Offeror name *</Label>
-            <Input
-              value={form.offeror_name}
-              onChange={(e) => setField('offeror_name', e.target.value)}
-              placeholder="Buyer or their agent"
-              maxLength={200}
-            />
+            <div className="relative">
+              <Input
+                value={form.offeror_name}
+                onChange={(e) => setField('offeror_name', e.target.value)}
+                placeholder="Buyer or their agent"
+                maxLength={200}
+              />
+              {form.contact_id ? (
+                <span className="absolute end-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-[var(--lc-radius-pill)] bg-[var(--lc-surface-sunken)] px-2 py-0.5 text-[10px] text-[var(--lc-text-muted)]">
+                  <Check className="h-3 w-3" /> linked
+                  <button
+                    type="button"
+                    aria-label="Unlink contact"
+                    className="ms-0.5"
+                    onClick={() => setField('contact_id', null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ) : null}
+            </div>
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block sm:col-span-2">
