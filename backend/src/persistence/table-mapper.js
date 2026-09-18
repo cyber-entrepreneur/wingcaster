@@ -542,6 +542,19 @@ const TABLE_MAP = {
     table: 'pricing_decisions',
     columns: ['property_id', 'actor_id', 'analysis_id', 'channel', 'action', 'old_price', 'new_price', 'currency', 'reason'],
   },
+  bulk_price_adjustments: {
+    schema: 'market_pricing',
+    table: 'bulk_price_adjustments',
+    columns: [
+      'agency_id', 'actor_id', 'strategy', 'listing_count', 'total_value_before', 'total_value_after',
+      'currency', 'status', 'reversal_deadline', 'reverted_at', 'reverted_by',
+    ],
+  },
+  bulk_price_adjustment_items: {
+    schema: 'market_pricing',
+    table: 'bulk_price_adjustment_items',
+    columns: ['batch_id', 'property_id', 'agent_id', 'old_price', 'new_price', 'currency'],
+  },
   external_comparables: {
     schema: 'market_pricing',
     table: 'external_comparables',
