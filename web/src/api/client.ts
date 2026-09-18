@@ -8,6 +8,9 @@ import type {
 import type {
   AgencyComparablesFilters,
   AgencyComparablesResponse,
+  BulkPriceActiveAdjustment,
+  BulkPricePreview,
+  BulkPriceStrategy,
   AgencyPricingPortfolio,
   AgentPriceReport,
   AgentPricingPortfolio,
@@ -2430,6 +2433,33 @@ export const api = {
     }),
   getAgentPricingPortfolio: (): Promise<AgentPricingPortfolio> => fetchJson('/agent/pricing/portfolio'),
   getAgencyPricingPortfolio: (): Promise<AgencyPricingPortfolio> => fetchJson('/agency/pricing/portfolio'),
+  getAgencyBulkPriceAdjustActive: (): Promise<{ active: BulkPriceActiveAdjustment | null }> =>
+    fetchJson('/agency/pricing/bulk-adjust/active'),
+  previewAgencyBulkPriceAdjust: (payload: {
+    listing_ids: string[]
+    strategy: BulkPriceStrategy
+    strategy_value?: number | null
+  }): Promise<{ preview: BulkPricePreview; missing: string[]; safety: { ok: boolean; code?: string; error?: string } }> =>
+    fetchJson('/agency/pricing/bulk-adjust/preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  applyAgencyBulkPriceAdjust: (payload: {
+    listing_ids: string[]
+    strategy: BulkPriceStrategy
+    strategy_value?: number | null
+    reversal_hours?: number
+    confirmation: string
+  }): Promise<{ adjustment: { id: string; status: string; reversal_deadline_at: string; listing_count: number }; missing: string[] }> =>
+    fetchJson('/agency/pricing/bulk-adjust', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  revertAgencyBulkPriceAdjust: (adjustmentId: string): Promise<{ id: string; status: string; reverted_at: string }> =>
+    fetchJson(`/agency/pricing/bulk-adjust/${encodeURIComponent(adjustmentId)}/revert`, {
+      method: 'POST',
+      body: '{}',
+    }),
   getAgencyPricingComparables: (filters: AgencyComparablesFilters = {}): Promise<AgencyComparablesResponse> => {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(filters)) {

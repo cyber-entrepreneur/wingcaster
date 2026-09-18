@@ -190,6 +190,51 @@ export interface AgencyComparablesFilters {
 
 export type RecalculationJobStatus = 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'cancelled'
 
+export type BulkPriceStrategy =
+  | 'recommendation'
+  | 'percent_up'
+  | 'percent_down'
+  | 'set_median'
+  | 'fixed_delta'
+
+export interface BulkPricePreviewRow {
+  property_id: string
+  agent_id: string | null
+  agent_name: string
+  title: string
+  address: string | null
+  currency: string
+  price_before: number
+  price_after: number
+  delta_percent: number
+  thumbnail_url?: string | null
+}
+
+export interface BulkPricePreview {
+  rows: BulkPricePreviewRow[]
+  skipped: Array<{ property_id: string; reason: string }>
+  totals: {
+    listing_count: number
+    total_value_before: number
+    total_value_after: number
+    aggregate_change_percent: number
+  }
+}
+
+export interface BulkPriceActiveAdjustment {
+  adjustment: {
+    id: string
+    status: string
+    strategy: BulkPriceStrategy
+    reversal_deadline_at: string
+    listing_count: number
+    total_value_before: number
+    total_value_after: number
+    created_at: string
+  }
+  items: BulkPricePreviewRow[]
+}
+
 export interface PricingRecalculationJob {
   id: string
   requested_by?: string | null
