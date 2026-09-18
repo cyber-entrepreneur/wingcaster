@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   closeConversation: vi.fn(),
   updateConversation: vi.fn(),
   assignConversation: vi.fn(),
+  getAssignableAgents: vi.fn(async () => ({ agents: [] })),
   getAgentPreferences: vi.fn(),
   patchAgentPreferences: vi.fn(),
   getConversationAiSuggestions: vi.fn(),

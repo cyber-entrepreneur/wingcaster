@@ -88,6 +88,15 @@ export interface ScheduledPublicationInput {
   recurrence?: 'none' | 'weekly'
 }
 
+/** AGT-INB-004 — a teammate a conversation can be assigned to. */
+export interface AssignableAgent {
+  id: string
+  name: string | null
+  email: string | null
+  role: string | null
+  is_self: boolean
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -1909,6 +1918,8 @@ export const api = {
   }> => fetchJson('/command-center'),
   assignConversation: (id: string, agentId?: string) =>
     fetchJson(`/conversations/${id}/assign`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
+  getAssignableAgents: (id: string): Promise<{ agents: AssignableAgent[] }> =>
+    fetchJson(`/conversations/${id}/assignable-agents`),
   updateConversation: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   closeConversation: (id: string, reason?: string) =>
