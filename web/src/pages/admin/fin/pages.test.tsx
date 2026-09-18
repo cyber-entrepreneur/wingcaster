@@ -5,7 +5,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditsPage,
+  ContractVersionEditorPage, CreditLotsPage, CreditsPage,
   ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
@@ -16,6 +16,13 @@ const apiMock = vi.hoisted(() => ({
   finGet: vi.fn(async (path = '') => {
     if (String(path).includes('metered-features')) {
       return { features: [{ id: 'f1', code: 'publishing.social.instagram', display_name: 'Instagram', category: 'publishing.social', meter_unit: 'post' }] }
+    }
+    if (String(path).includes('/credits/lots/') && !String(path).includes('?')) {
+      return {
+        id: 'lot-1', tenant_id: 't1', status: 'ACTIVE', source_kind: 'PURCHASE',
+        granted_units: 1000, remaining_units: 800, consideration_minor: 5000, currency: 'USD',
+        issued_at: '2026-01-01T00:00:00.000Z', expires_at: '2026-12-31T00:00:00.000Z',
+      }
     }
     if (String(path).includes('/tenants/') && !String(path).includes('?')) {
       return {
@@ -188,7 +195,7 @@ describe('admin/fin pages', () => {
     ['Overview', () => <OverviewPage />],
     ['Tenants', () => <TenantsPage />],
     ['Usage drill', () => <UsagePage />],
-    ['Credit lots', () => <CreditsPage />],
+    ['Credit lots', () => <CreditLotsPage />],
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],

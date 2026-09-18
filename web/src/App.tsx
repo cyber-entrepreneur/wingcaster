@@ -125,7 +125,7 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
   ContractVersionEditorPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
@@ -368,6 +368,7 @@ function AppRoutes() {
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
       <Route path="/admin/fin/usage" element={<UsagePage />} />
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
+      <Route path="/admin/fin/credits/lots" element={<CreditLotsPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />
       <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
       <Route path="/admin/fin/contracts" element={<ContractsPage />} />

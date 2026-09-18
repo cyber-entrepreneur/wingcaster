@@ -20,8 +20,10 @@ import {
   getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
-  listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
+  getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
+import { retireLotBodySchema } from './credit-lot-schemas.js'
+import { expireLot } from '../ledger/expire-lot.js'
 import {
   amendFacilityLimit, closeFacility, createFacility, pauseFacility,
   resumeFacility, suspendFacility,
@@ -175,8 +177,33 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     const lots = await listLots({
       environment: sessionEnvironment(req),
       tenantId: req.query.tenant || req.query.tenant_id,
+      status: req.query.status,
+      expiringSoon: req.query.expiring_soon === '1' || req.query.expiring_soon === 'true',
     })
     return res.status(200).json({ lots })
+  }))
+
+  app.get('/api/admin/fin/credits/lots/:id', readGuards, wrap(async (req, res) => {
+    const lot = await getLot({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!lot) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json(lot)
+  }))
+
+  app.post('/api/admin/fin/credits/lots/:id/retire', writeGuards, wrap(async (req, res) => {
+    const parsed = retireLotBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
+    const lot = await getLot({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!lot) return res.status(404).json({ code: 'NOT_FOUND' })
+    if (lot.status !== 'ACTIVE') {
+      return res.status(409).json({ code: 'LOT_NOT_ACTIVE', status: lot.status })
+    }
+    const result = await expireLot({
+      ...input(req, { lotId: req.params.id }),
+      reasonCode: parsed.data.reason_code || 'LOT_RETIRE',
+    })
+    return res.status(200).json(result)
   }))
 
   app.get('/api/admin/fin/holds', readGuards, wrap(async (req, res) => {
