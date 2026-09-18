@@ -469,6 +469,72 @@ export interface AgencyLeadFunnelResponse {
   }
 }
 
+export interface AgencyRevenueAttributionRow {
+  channel: string
+  label: string
+  revenue: number
+  count: number
+}
+
+export interface AgencyRevenueAttributionAgentRow {
+  agent_id: string
+  agent_name: string
+  revenue: number
+  count: number
+}
+
+export interface AgencyRevenueAttributionCampaignRow {
+  campaign_id: string
+  campaign_name: string
+  revenue: number
+  count: number
+}
+
+export interface AgencyRevenueAttributionTransaction {
+  id: string
+  closed_at: string
+  agent_id: string
+  agent_name: string
+  attribution_source: string
+  channel_label: string
+  final_sold_price: number
+  currency: string
+  transaction_type: string
+  listing_id: string
+  campaign_id: string | null
+  campaign_name: string | null
+}
+
+export interface AgencyRevenueAttributionResponse {
+  generated_at: string
+  scope: {
+    agency_id: string
+    start_date: string | null
+    end_date: string | null
+    filters: { channel: string | null; agent_id: string | null; campaign_id: string | null }
+  }
+  summary: {
+    total_revenue: number
+    transaction_count: number
+    average_deal_value: number
+    currency: string
+  }
+  by_channel: AgencyRevenueAttributionRow[]
+  by_agent: AgencyRevenueAttributionAgentRow[]
+  by_campaign: AgencyRevenueAttributionCampaignRow[]
+  waterfall: { label: string; value: number }[]
+  sankey: {
+    nodes: { id: string; label: string; group: 'channel' | 'agent' }[]
+    links: { source: string; target: string; value: number }[]
+  }
+  transactions: AgencyRevenueAttributionTransaction[]
+  filter_options: {
+    channels: string[]
+    agents: { id: string; name: string }[]
+    campaigns: { id: string; name: string }[]
+  }
+}
+
 export interface PerformanceMetricBlock {
   impressions: number
   reach: number
@@ -2643,6 +2709,20 @@ export const api = {
   }) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])).toString() : ''
     return fetchJson(`/agency/analytics/lead-funnel${qs}`) as Promise<AgencyLeadFunnelResponse>
+  },
+  getAgencyRevenueAttribution: (params?: {
+    start_date?: string
+    end_date?: string
+    channel?: string
+    agent_id?: string
+    campaign_id?: string
+  }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)]),
+      ).toString()
+      : ''
+    return fetchJson(`/agency/analytics/revenue-attribution${qs}`) as Promise<AgencyRevenueAttributionResponse>
   },
   trackEvent: (data: Record<string, unknown>) =>
     fetchJson('/white-label/analytics', { method: 'POST', body: JSON.stringify(data) }),

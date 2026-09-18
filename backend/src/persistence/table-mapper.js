@@ -270,6 +270,18 @@ const TABLE_MAP = {
     table: 'opportunity_stage_history',
     columns: ['opportunity_id', 'from_stage', 'to_stage', 'changed_by', 'changed_at'],
   },
+  closed_transactions: {
+    schema: 'public',
+    table: 'closed_transactions',
+    columns: [
+      'listing_id', 'agent_id', 'agency_id', 'contact_id', 'opportunity_id', 'transaction_type',
+      'original_listed_price', 'final_sold_price', 'currency', 'price_reductions_count',
+      'listed_at', 'closed_at', 'days_on_market', 'days_to_first_offer',
+      'offers_received_count', 'viewings_conducted', 'rejected_offer_max', 'rejected_offer_min',
+      'buyer_type', 'buyer_nationality', 'payment_method', 'down_payment_percent', 'mortgage_provider',
+      'close_reason', 'agent_notes', 'attribution_source', 'origin', 'is_backfilled', 'source_note',
+    ],
+  },
 
   // Conversations
   conversations: {
