@@ -54,6 +54,7 @@ const EMPTY_FILTERS: AgencyComparablesFilters = {
 
 export function AgencyComparablesPage() {
   const { agent, loading: authLoading } = useAuth()
+  const agentId = agent?.id
   const { addToast } = useToast()
   const [draftFilters, setDraftFilters] = useState<AgencyComparablesFilters>(EMPTY_FILTERS)
   const [activeFilters, setActiveFilters] = useState<AgencyComparablesFilters>(EMPTY_FILTERS)
@@ -66,7 +67,7 @@ export function AgencyComparablesPage() {
   usePageTitle('Agency comparables')
 
   const load = useCallback(async (filters: AgencyComparablesFilters) => {
-    if (!agent) return
+    if (!agentId) return
     setLoading(true)
     setError('')
     try {
@@ -77,7 +78,7 @@ export function AgencyComparablesPage() {
     } finally {
       setLoading(false)
     }
-  }, [agent])
+  }, [agentId])
 
   useEffect(() => {
     void load(activeFilters)

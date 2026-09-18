@@ -87,6 +87,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  document.documentElement.dir = 'ltr'
   apiMock.getAgencyPricingComparables.mockResolvedValue(RESPONSE)
   apiMock.reportComparable.mockResolvedValue({ id: 'comparable-report-1' })
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:comparables') })

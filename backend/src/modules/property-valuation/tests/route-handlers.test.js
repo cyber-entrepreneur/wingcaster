@@ -852,6 +852,7 @@ describe('Agent and Agency Pricing Routes', () => {
 
   it('strictly validates agency comparable query filters', async () => {
     const { app, routes } = fakeExpress()
+    const membershipCallsBefore = vi.mocked(listUserAgencyMemberships).mock.calls.length
     const services = {
       dal: { findAll: vi.fn().mockResolvedValue([]) },
       analysisService: {},
@@ -874,7 +875,7 @@ describe('Agent and Agency Pricing Routes', () => {
         expect.objectContaining({ path: expect.stringMatching(/date_to|unexpected/) }),
       ]),
     }))
-    expect(listUserAgencyMemberships).not.toHaveBeenCalled()
+    expect(vi.mocked(listUserAgencyMemberships).mock.calls).toHaveLength(membershipCallsBefore)
   })
 
   it('rejects comparable browser access without an active agency membership', async () => {
