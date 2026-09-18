@@ -205,6 +205,11 @@ const TABLE_MAP = {
   scheduled_publications: { schema: 'public', table: 'scheduled_publications', columns: ['property_id', 'agent_id', 'agency_id', 'portals', 'message', 'scheduled_at', 'timezone', 'recurrence', 'status', 'job_id', 'attempts', 'last_error', 'last_fired_at', 'created_at', 'updated_at'] },
   neighborhood_stats: { schema: 'public', table: 'neighborhood_stats', columns: ['name', 'city', 'metric', 'value', 'updated_at'] },
   saved_searches: { schema: 'public', table: 'saved_searches', columns: ['agent_id', 'contact_id', 'name', 'filters', 'alert_settings'] },
+  reminder_policies: {
+    schema: 'public',
+    table: 'reminder_policies',
+    columns: ['name', 'owner_type', 'owner_id', 'appointment_type', 'rules', 'is_default'],
+  },
 
   // CRM
   contacts: {
