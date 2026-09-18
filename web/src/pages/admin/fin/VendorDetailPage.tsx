@@ -51,7 +51,7 @@ function statusBadge(status: string) {
         : normalized === 'RECEIVED'
           ? 'pending'
           : 'unpublished'
-  return <Badge status={badgeStatus}>{status.replaceAll('_', ' ')}</Badge>
+  return <Badge status={badgeStatus}>{status.replace(/_/g, ' ')}</Badge>
 }
 
 export function VendorDetailPage() {
@@ -247,7 +247,7 @@ export function VendorDetailPage() {
                         className="grid gap-3 rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-4 sm:grid-cols-[1.5fr_1fr_1fr_auto]"
                       >
                         <div className="min-w-0">
-                          <h3 className="break-words font-medium">{rate.productCode}</h3>
+                          <h2 className="break-words font-medium">{rate.productCode}</h2>
                           <p className="break-words text-sm text-[var(--lc-text-muted)]">
                             {rate.card} · version <Numeric as="span">{rate.version}</Numeric>
                           </p>
@@ -345,7 +345,7 @@ export function VendorDetailPage() {
                         className="rounded-[var(--lc-radius-lg)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-4"
                       >
                         <header className="flex flex-wrap items-center justify-between gap-2">
-                          <h3 className="break-words font-medium">{feature.feature}</h3>
+                          <h2 className="break-words font-medium">{feature.feature}</h2>
                           <Badge
                             status={
                               feature.margin_pct == null

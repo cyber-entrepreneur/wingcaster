@@ -116,7 +116,7 @@ describe('VendorDetailPage (PA-VEN-002)', () => {
 
     expect(await screen.findByText('OpenAI')).toBeTruthy()
     expect(screen.getByText('ai.tokens')).toBeTruthy()
-    expect(screen.getByText('$12.5000')).toBeTruthy()
+    expect(screen.getByText('$12.50')).toBeTruthy()
     expect(document.querySelectorAll('[data-lc-numeric]').length).toBeGreaterThan(0)
   })
 
@@ -132,7 +132,7 @@ describe('VendorDetailPage (PA-VEN-002)', () => {
     await user.click(screen.getByRole('tab', { name: 'Margin' }))
     const panel = screen.getByRole('tabpanel')
     expect(within(panel).getByText('37.5% margin')).toBeTruthy()
-    expect(within(panel).getByText('$20.0000')).toBeTruthy()
+    expect(within(panel).getByText('$20.00')).toBeTruthy()
   })
 
   it('surfaces a leak-safe not-found state', async () => {
