@@ -32,6 +32,28 @@ import type {
   AgencyPublicProfileUpdate,
 } from '@/types/agencyPublicProfile'
 
+export interface AgencyDeletionImpact {
+  active_members: number
+  listings_count: number
+  credits_balance_usd: number
+  past_due_invoices: boolean
+}
+
+export interface AgencyDeletionStateResponse {
+  agency: { id: string; name: string }
+  impact: AgencyDeletionImpact
+  blocks: { active_members: boolean; past_due: boolean }
+  deletion: { id: string; status: string; scheduled_for: string; reason: string } | null
+  can_schedule: boolean
+}
+
+export interface AgencyDeletionScheduleResponse {
+  id: string
+  status: string
+  scheduled_for: string
+  impact: AgencyDeletionImpact
+}
+
 /** H5 — audit log entry as returned by /api/audit/log. */
 export interface AuditLogEntry {
   id: string
@@ -2033,6 +2055,27 @@ export const api = {
       `/agencies/${encodeURIComponent(agencyId)}/ownership-transfer/${encodeURIComponent(transferId)}/reverse`,
       { method: 'POST', body: JSON.stringify(body) },
     ),
+
+  getAgencyDeletionState: (agencyId: string): Promise<AgencyDeletionStateResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/deletion/state`),
+  regenerateAgencyDeletionWord: (agencyId: string): Promise<{ word: string; expires_at: string }> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/deletion/regenerate-word`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  initiateAgencyDeletion: (
+    agencyId: string,
+    body: { word: string; typed_agency_name: string; reason: string; notes?: string },
+  ): Promise<AgencyDeletionScheduleResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/deletion/initiate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  cancelAgencyDeletion: (agencyId: string): Promise<{ ok: boolean; cancelled_at: string }> =>
+    fetchJson(`/agencies/${encodeURIComponent(agencyId)}/deletion/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
 
   // Properties
   getProperties: (params?: Record<string, string>) => {

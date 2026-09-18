@@ -41,6 +41,14 @@ const TABLE_MAP = {
       'scheduled_for', 'confirmed_at', 'cancelled_at', 'completed_at', 'reminders_sent',
     ],
   },
+  agency_deletion_requests: {
+    schema: 'public',
+    table: 'agency_deletion_requests',
+    columns: [
+      'agency_id', 'requested_by', 'status', 'liveness_word_hash', 'reason', 'notes',
+      'typed_agency_name', 'scheduled_for', 'draft_expires_at', 'cancelled_at', 'completed_at',
+    ],
+  },
   auth_challenges: {
     schema: 'public',
     table: 'auth_challenges',
@@ -63,6 +71,7 @@ const TABLE_MAP = {
       'owner_id', 'name', 'slug', 'license_number', 'description', 'site_hosting_type', 'cta_config',
       'accepting_applications', 'logo_url', 'favicon_url', 'brand_primary_color',
       'brand_accent_color', 'brand_font_family', 'brand_updated_at', 'brand_updated_by',
+      'deletion_scheduled_for', 'deleted_at',
     ],
   },
   agency_public_profile_settings: {

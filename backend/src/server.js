@@ -256,6 +256,7 @@ import { registerAuditSiemRoutes } from './lib/audit/audit-siem.js'
 import { recordSigninEvent, scoreSigninAttempt } from './lib/auth/signin-risk.js'
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
+import { registerAgencyDeletionRoutes } from './lib/agencies/agency-deletion-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerLeadFunnelRoutes } from './analytics/lead-funnel-routes.js'
 import { registerRevenueAttributionRoutes } from './analytics/revenue-attribution-routes.js'
@@ -861,6 +862,7 @@ registerAgencyOnboardingStateRoutes(app)
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
+registerAgencyDeletionRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
 registerLeadFunnelRoutes(app, { authMiddleware })
 registerRevenueAttributionRoutes(app, { authMiddleware })
