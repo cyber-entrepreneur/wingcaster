@@ -82,6 +82,7 @@ import { OwnershipTransferOutcomePage } from '@/pages/agent/OwnershipTransferOut
 import { RolesOverviewPage } from '@/pages/agency/settings/RolesOverviewPage'
 import { RolePermissionsDetailPage } from '@/pages/agency/settings/RolePermissionsDetailPage'
 import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
+import { AuditRetentionPolicyPage } from '@/pages/admin/audit/AuditRetentionPolicyPage'
 import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurityPolicyPage'
 import { AgencyBrandingPage } from '@/pages/agency/settings/AgencyBrandingPage'
 import { AgencyRoutingRulesPage } from '@/pages/agency/routing/AgencyRoutingRulesPage'
@@ -300,6 +301,7 @@ function AppRoutes() {
       <Route path="/agency/settings/roles" element={<RolesOverviewPage />} />
       <Route path="/agency/settings/roles/:packId" element={<RolePermissionsDetailPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
+      <Route path="/admin/audit/retention" element={<AuditRetentionPolicyPage />} />
       <Route path="/agency/settings/audit" element={<AuditLogPage />} />
       <Route path="/agency/settings/security" element={<AgencySecurityPolicyPage />} />
       <Route path="/agency/settings/branding" element={<AgencyBrandingPage />} />
