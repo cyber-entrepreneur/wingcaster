@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { HorizontalBarChart } from '@/components/dashboard/HorizontalBarChart'
+import { SourcePerformancePanel } from '@/components/analytics/SourcePerformancePanel'
 
 interface CrmAnalytics {
   generated_at: string
@@ -273,6 +274,10 @@ export function CrmAnalyticsPage() {
                   )}
                 </CardContent>
               </Card>
+            </div>
+
+            <div className="mt-6">
+              <SourcePerformancePanel />
             </div>
 
             <p className="mt-6 text-xs text-muted-foreground">
