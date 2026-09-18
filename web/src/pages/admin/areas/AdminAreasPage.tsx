@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
+import { ManualScoreOverrideDialog } from '@/pages/admin/scoring/ManualScoreOverrideDialog'
 
 interface Area {
   id: string
@@ -16,11 +17,21 @@ interface Area {
   center_longitude: number
 }
 
+interface DimensionRow {
+  id: string
+  name: string
+  slug: string
+  is_active?: boolean
+}
+
 export function AdminAreasPage() {
   const { isAdmin } = useAuth()
   const [areas, setAreas] = useState<Area[]>([])
+  const [dimensions, setDimensions] = useState<DimensionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [overrideOpen, setOverrideOpen] = useState(false)
+  const [overrideAreaId, setOverrideAreaId] = useState<string | undefined>()
 
   useEffect(() => {
     if (!isAdmin) return
@@ -30,8 +41,12 @@ export function AdminAreasPage() {
   async function loadAreas() {
     setLoading(true)
     try {
-      const data = await api.listAdminAreas({ limit: '200' })
+      const [data, dims] = await Promise.all([
+        api.listAdminAreas({ limit: '200' }),
+        api.listAdminDimensions() as Promise<{ items: DimensionRow[] }>,
+      ])
       setAreas((data as { items?: Area[] }).items || [])
+      setDimensions(dims.items || [])
     } catch (err: any) {
       setError(err?.message || 'Failed to load areas')
     } finally {
@@ -94,6 +109,15 @@ export function AdminAreasPage() {
       {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
       {statusMsg && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{statusMsg}</p>}
       {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+
+      <ManualScoreOverrideDialog
+        open={overrideOpen}
+        onOpenChange={setOverrideOpen}
+        areas={areas}
+        dimensions={dimensions}
+        initialAreaId={overrideAreaId}
+        onSubmitted={loadAreas}
+      />
       <p className="mb-4 text-xs text-muted-foreground">
         Full flow to make a Property Score appear for a listing: (1) Enable scoring on the area,
         (2) Fetch Google signals (requires GOOGLE_MAPS_API_KEY in backend .env), (3) Calculate scores.
@@ -131,6 +155,16 @@ export function AdminAreasPage() {
                       </Button>
                       <Button size="sm" variant="outline" disabled={busyAreaId === area.id} onClick={() => calculateScores(area)}>
                         {busyAreaId === area.id && busyAction === 'calc' ? 'Calculating…' : 'Calculate scores'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setOverrideAreaId(area.id)
+                          setOverrideOpen(true)
+                        }}
+                      >
+                        Override score
                       </Button>
                     </>
                   )}

@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useStepUp } from '@/context/StepUpContext'
 import { useToast } from '@/components/ui/toast'
 import { RecalculateScoresDialog } from './RecalculateScoresDialog'
+import { ManualScoreOverrideDialog } from './ManualScoreOverrideDialog'
 
 interface ScoringLogicConfig {
   logic?: string
@@ -73,6 +74,7 @@ export function AdminScoringPage() {
   const [usage, setUsage] = useState<GoogleUsageSummary | null>(null)
   const [areas, setAreas] = useState<AreaRow[]>([])
   const [recalcOpen, setRecalcOpen] = useState(false)
+  const [overrideOpen, setOverrideOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const [newDim, setNewDim] = useState({ name: '', slug: '', name_ar: '', scoring_logic_config: '{"logic":"weighted_average"}' })
@@ -92,7 +94,6 @@ export function AdminScoringPage() {
         api.listAdminSourceTypes() as Promise<{ items: SourceType[] }>,
         api.listAdminAiConfigs() as Promise<{ items: AiConfig[] }>,
         api.listAdminSignals({ limit: '50' }) as Promise<{ items: Signal[]; total: number }>,
-        // fetch/JSON boundary — admin Google usage payload is untyped on the client
         api.getAdminGoogleUsage() as Promise<GoogleUsageSummary>,
         api.listAdminAreas({ status: 'scoring_enabled', limit: '500' }) as Promise<{ items: AreaRow[] }>,
       ])
@@ -190,6 +191,9 @@ export function AdminScoringPage() {
         <Button size="sm" onClick={() => setRecalcOpen(true)}>
           Recalculate scores
         </Button>
+        <Button size="sm" variant="outline" onClick={() => setOverrideOpen(true)}>
+          Manual score override
+        </Button>
       </div>
       {loading && <p className="mb-4 text-sm text-muted-foreground">Loading...</p>}
 
@@ -199,6 +203,13 @@ export function AdminScoringPage() {
         areas={areas}
         dimensions={dimensions}
         onStarted={loadAll}
+      />
+      <ManualScoreOverrideDialog
+        open={overrideOpen}
+        onOpenChange={setOverrideOpen}
+        areas={areas}
+        dimensions={dimensions}
+        onSubmitted={loadAll}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
