@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, BarChart3, Building2, Database, Loader2, RefreshCw, Users } from 'lucide-react'
 import { api } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import type { AgencyPricingPortfolio, PricePosition, PricingTrendSnapshot } from
 export function AgencyPricingPage() {
   const { agent, loading: authLoading } = useAuth()
   const { addToast } = useToast()
+  const navigate = useNavigate()
   const [portfolio, setPortfolio] = useState<AgencyPricingPortfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [agentFilter, setAgentFilter] = useState('')
@@ -24,7 +25,11 @@ export function AgencyPricingPage() {
   const [trendKey, setTrendKey] = useState('')
   const [trends, setTrends] = useState<PricingTrendSnapshot[]>([])
   const [trendsLoading, setTrendsLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   usePageTitle('Agency Price Health')
+
+  const role = (agent?.affiliation as { role?: string } | undefined)?.role || null
+  const canBulkAdjust = role === 'owner' || role === 'admin'
 
   const load = useCallback(async () => {
     if (!agent) return
@@ -98,6 +103,15 @@ export function AgencyPricingPage() {
                 Browse comparables
               </Link>
             </Button>
+            {canBulkAdjust ? (
+              <Button
+                variant="outline"
+                disabled={selectedIds.length === 0}
+                onClick={() => navigate(`/agency/pricing/bulk-adjust?ids=${selectedIds.join(',')}`)}
+              >
+                Bulk adjust ({selectedIds.length})
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="h-4 w-4" />Refresh</Button>
           </div>
         </div>
@@ -149,7 +163,24 @@ export function AgencyPricingPage() {
             </div>
             <div className="space-y-3">
               {listings.map((listing) => (
-                <div key={listing.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_auto] md:items-center">
+                <div key={listing.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_auto_auto] md:items-center">
+                  {canBulkAdjust ? (
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--lc-action-primary)]"
+                        checked={selectedIds.includes(listing.id)}
+                        onChange={(event) => {
+                          setSelectedIds((prev) =>
+                            event.target.checked
+                              ? [...prev, listing.id]
+                              : prev.filter((id) => id !== listing.id),
+                          )
+                        }}
+                        aria-label={`Select ${listing.title || listing.id}`}
+                      />
+                    </label>
+                  ) : null}
                   <div className="min-w-0"><Link to={`/listings/${listing.id}`} className="font-medium hover:underline">{listing.title || listing.id}</Link><p className="truncate text-xs text-muted-foreground">{listing.agent_name || 'Unassigned'} · {[listing.neighborhood, listing.city, listing.property_type].filter(Boolean).join(' · ')}</p></div>
                   <div><p className="text-xs text-muted-foreground">List price</p><p className="font-semibold">{formatMoney(listing.price, listing.currency)}</p></div>
                   <PriceHealthIndicator analysis={listing.pricing_analysis} />
