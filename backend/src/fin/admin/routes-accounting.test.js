@@ -8,6 +8,23 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
+  it('lists accounting periods for the session environment', async () => {
+    const { app } = await makeOpsApp(url())
+    const env = commandEnv(world(), { reasonCode: 'TEST' })
+    const opened = await openAccountingPeriod({
+      ...env,
+      legalEntityId: world().legalEntityId,
+      periodKey: `list-${randomUUID().slice(0, 8)}`,
+      startsAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-02-01T00:00:00.000Z',
+    })
+    const list = await request(app)
+      .get('/api/admin/fin/accounting/periods')
+    expect(list.status).toBe(200)
+    expect(Array.isArray(list.body.periods)).toBe(true)
+    expect(list.body.periods.some((row) => row.id === opened.periodId)).toBe(true)
+  })
+
   it('soft-closes a past OPEN period; hard-close then reopen with override', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()
