@@ -100,7 +100,7 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditJanitorPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
@@ -313,6 +313,7 @@ function AppRoutes() {
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
       <Route path="/admin/fin/usage" element={<UsagePage />} />
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
+      <Route path="/admin/fin/credits/janitor" element={<CreditJanitorPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />
       <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
       <Route path="/admin/fin/contracts" element={<ContractsPage />} />
