@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
-import { useStepUp } from '@/context/StepUpContext'
 import { useToast } from '@/components/ui/toast'
 
 interface ScoringLogicConfig {
@@ -56,7 +55,6 @@ interface Signal {
 
 export function AdminScoringPage() {
   const { isAdmin } = useAuth()
-  const { runElevated } = useStepUp()
   const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState('dimensions')
   const [dimensions, setDimensions] = useState<Dimension[]>([])
@@ -68,7 +66,6 @@ export function AdminScoringPage() {
 
   const [newDim, setNewDim] = useState({ name: '', slug: '', name_ar: '', scoring_logic_config: '{"logic":"weighted_average"}' })
   const [newSource, setNewSource] = useState({ name: '', slug: '', archetype: 'google_places', input_method: 'google_places_api' })
-  const [newAi, setNewAi] = useState({ name: '', provider: 'gemini', model: '', system_prompt: '', scoring_prompt_template: '' })
 
   useEffect(() => {
     if (!isAdmin) return
@@ -119,29 +116,6 @@ export function AdminScoringPage() {
       await api.createAdminSourceType(newSource)
       addToast({ title: 'Source type created' })
       setNewSource({ name: '', slug: '', archetype: 'google_places', input_method: 'google_places_api' })
-      loadAll()
-    } catch (err: unknown) {
-      addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
-    }
-  }
-
-  async function createAiConfig(e: React.FormEvent) {
-    e.preventDefault()
-    try {
-      const created = await runElevated(
-        () => api.createAdminAiConfig({
-          ...newAi,
-          description: '',
-          temperature: 0.3,
-          max_tokens: 2048,
-          output_schema: {},
-          is_active: true,
-        }),
-        'create AI scoring config',
-      )
-      if (!created) return
-      addToast({ title: 'AI config created' })
-      setNewAi({ name: '', provider: 'gemini', model: '', system_prompt: '', scoring_prompt_template: '' })
       loadAll()
     } catch (err: unknown) {
       addToast({ title: 'Error', description: err instanceof Error ? err.message : undefined, variant: 'error' })
@@ -248,17 +222,20 @@ export function AdminScoringPage() {
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-4">
-          <Card>
+          <Card data-screen="PA-SCR-002-entry">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle>AI Configs</CardTitle>
+                <CardTitle>AI configs</CardTitle>
                 <Button asChild size="sm">
                   <Link to="/admin/scoring/ai-configs">Open AI config console</Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="mb-4 max-h-96 overflow-auto">
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Version prompts, run metered previews, and activate configs in the dedicated PA-SCR-002 console.
+              </p>
+              <div className="max-h-96 overflow-auto">
                 {aiConfigs.map((c) => (
                   <div key={c.id} className="flex items-center justify-between border-b py-2 text-sm">
                     <div>
@@ -269,29 +246,13 @@ export function AdminScoringPage() {
                     <span className="text-xs">{c.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
                 ))}
+                {aiConfigs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No AI configs yet.</p>
+                ) : null}
               </div>
-              <form onSubmit={createAiConfig} className="space-y-2">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <Input placeholder="Name" value={newAi.name} onChange={(e) => setNewAi({ ...newAi, name: e.target.value })} />
-                  <Input placeholder="Provider" value={newAi.provider} onChange={(e) => setNewAi({ ...newAi, provider: e.target.value })} />
-                  <Input placeholder="Model" value={newAi.model} onChange={(e) => setNewAi({ ...newAi, model: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-xs">System prompt</Label>
-                  <textarea
-                    className="min-h-[80px] w-full rounded-md border px-3 py-2 text-sm"
-                    value={newAi.system_prompt}
-                    onChange={(e) => setNewAi({ ...newAi, system_prompt: e.target.value })}
-                  />
-                  <Label className="text-xs">Scoring prompt template</Label>
-                  <textarea
-                    className="min-h-[80px] w-full rounded-md border px-3 py-2 text-sm"
-                    value={newAi.scoring_prompt_template}
-                    onChange={(e) => setNewAi({ ...newAi, scoring_prompt_template: e.target.value })}
-                  />
-                </div>
-                <Button type="submit" size="sm">Add AI Config</Button>
-              </form>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/admin/scoring/ai-configs">Manage in AI config console</Link>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
