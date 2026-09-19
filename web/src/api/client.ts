@@ -27,6 +27,10 @@ import type {
   OwnershipTransferOtpResult,
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
+import type {
+  AgencyPublicProfileSettingsResponse,
+  AgencyPublicProfileUpdate,
+} from '@/types/agencyPublicProfile'
 
 /** H5 — audit log entry as returned by /api/audit/log. */
 export interface AuditLogEntry {
