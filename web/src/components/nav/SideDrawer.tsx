@@ -223,6 +223,8 @@ const PA_NAV: DrawerNavGroup[] = [
     id: 'configuration',
     items: [
       { id: 'system-config', label: 'System config', href: '/admin/cfg', icon: Settings },
+      { id: 'scoring', label: 'Area scoring', href: '/admin/scoring', icon: BarChart3 },
+      { id: 'ai-configs', label: 'AI configs', href: '/admin/scoring/ai-configs', icon: Zap },
       { id: 'portals', label: 'Portal registry', href: '/admin/portals', icon: Globe },
       { id: 'admin-templates', label: 'Templates', href: '/admin/tpl', icon: LayoutTemplate },
       { id: 'admin-notifications', label: 'Notifications', href: '/admin/notifications', icon: Bell },
