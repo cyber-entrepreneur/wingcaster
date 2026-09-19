@@ -9,6 +9,7 @@ export const FIN_NAV = [
   { path: '/admin/fin/tenants', label: 'Tenants' },
   { path: '/admin/fin/usage', label: 'Usage' },
   { path: '/admin/fin/credits', label: 'Credits' },
+  { path: '/admin/fin/credits/janitor', label: 'Credit janitor' },
   { path: '/admin/fin/holds', label: 'Holds' },
   { path: '/admin/fin/facilities', label: 'Facilities' },
   { path: '/admin/fin/contracts', label: 'Contracts' },

@@ -9,7 +9,7 @@ import { getPool } from '../../persistence/postgres-adapter.js'
 import { CATEGORY, FinError, finError } from '../errors.js'
 import { requireIfMatch, sendPreconditionFailed, setETag } from '../middleware/if-match.js'
 import { adminMutationLimiter } from '../../lib/admin-limiter.js'
-import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
+import { actorFrom, adminNow, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
@@ -42,6 +42,8 @@ import {
   listEligibleEscalationTargets,
   withdrawApproval,
 } from './approvals-escalate-withdraw.js'
+import { creditJanitorRunBodySchema } from './credit-janitor-schemas.js'
+import { loadCreditJanitorStatus, runCreditJanitorAdmin } from './credit-janitor.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -94,6 +96,15 @@ function wrap(handler) {
       try { return sendFinError(res, error) } catch (err) { next(err) }
     }
   }
+}
+
+function validateBody(schema, req, res) {
+  const parsed = schema.safeParse(req.body || {})
+  if (!parsed.success) {
+    res.status(400).json({ error: 'validation_failed', details: parsed.error.flatten() })
+    return false
+  }
+  return true
 }
 
 function input(req, extra = {}) {
@@ -171,6 +182,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       tenantId: req.query.tenant || req.query.tenant_id,
     })
     return res.status(200).json({ lots })
+  }))
+
+  app.get('/api/admin/fin/credits/janitor/status', readGuards, wrap(async (_req, res) => {
+    const status = await loadCreditJanitorStatus(getPool())
+    return res.status(200).json({ status })
+  }))
+
+  app.post('/api/admin/fin/credits/janitor/run', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(creditJanitorRunBodySchema, req, res)) return
+    const result = await runCreditJanitorAdmin(getPool(), req.fin?.now || adminNow())
+    return res.status(200).json(result)
   }))
 
   app.get('/api/admin/fin/holds', readGuards, wrap(async (req, res) => {
