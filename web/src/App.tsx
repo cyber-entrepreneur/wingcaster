@@ -135,7 +135,7 @@ import {
   DunningCaseDetailPage, DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
+  PaymentsPage, PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
   SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from '@/pages/admin/fin'
@@ -399,6 +399,7 @@ function AppRoutes() {
       <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
       <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
       <Route path="/admin/fin/dunning" element={<DunningCasesPage />} />
+      <Route path="/admin/fin/payments" element={<PaymentsPage />} />
       <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
       <Route path="/admin/fin/vendors/:vendorId/statements/:month" element={<VendorStatementDetailPage />} />
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />

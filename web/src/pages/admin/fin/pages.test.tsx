@@ -8,7 +8,7 @@ import {
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage, CureDunningCasePage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
+  PaymentsPage, PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from './index'
 
@@ -298,6 +298,7 @@ describe('admin/fin pages', () => {
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
     ['Dunning cases', () => <DunningCasesPage />],
+    ['Payments', () => <PaymentsPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Vendor statement', () => (
       <Routes>
