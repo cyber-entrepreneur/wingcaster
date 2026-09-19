@@ -1642,6 +1642,7 @@ export const api = {
     formats?: Record<string, string[]>
     recipient?: string
     caption?: string
+    captions?: Record<string, string>
     intent?: string
   }) =>
     fetchJson(`/properties/${propertyId}/distribute-own`, {
@@ -1652,6 +1653,7 @@ export const api = {
         formats: options?.formats,
         recipient: options?.recipient,
         caption: options?.caption,
+        captions: options?.captions,
         intent: options?.intent || 'distribute',
       }),
     }),
