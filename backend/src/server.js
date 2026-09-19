@@ -5698,15 +5698,17 @@ app.delete('/api/my-connections/:id', authMiddleware, requireElevated(), async (
 
 app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (req, res) => {
   const prop = await assertOwnsProperty(req.user.id, req.params.propertyId)
-  const { platforms, formats, mode, recipient, caption, intent } = req.body
+  const { platforms, formats, mode, recipient, caption, captions, intent } = req.body
   if (!platforms?.length) return res.status(400).json({ error: 'Select at least one platform' })
 
   const serialized = serializeProperty(prop)
   const distributions = []
   const fatalWhatsAppFailures = []
   const autoCaption = caption || `${serialized.title} · ${serialized.city || serialized.location || ''} · $${Number(serialized.price || 0).toLocaleString()}\n\nAvailable on REB`
+  const perChannelCaptions = captions && typeof captions === 'object' ? captions : {}
 
   for (const platform of platforms) {
+    const channelCaption = String(perChannelCaptions[platform] || caption || autoCaption).trim() || autoCaption
     const conn = await findAgentPrimaryConnection(req.user.id, platform)
     if (!conn) {
       const failed = {
@@ -5786,7 +5788,7 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
         next_retry_at: status === 'pending_retry' ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null,
         intent: intent || 'distribute',
         handle: conn.settings?.handle || conn.account_name,
-        caption: autoCaption,
+        caption: channelCaption,
         format: formatMap[platform] || 'post',
         note: status === 'pending_retry'
           ? 'Queued for retry publishing. A publisher worker or manual retry can complete delivery.'
