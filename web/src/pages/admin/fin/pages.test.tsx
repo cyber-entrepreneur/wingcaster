@@ -9,7 +9,7 @@ import {
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -513,5 +513,18 @@ describe('admin/fin pages', () => {
     expect(await screen.findByText('Cure dunning case')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Cure case' })).toBeDisabled()
     expect(screen.getByLabelText('Payment reference')).toBeTruthy()
+  })
+
+  it('Write off dunning case requires evidence before submit', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/write-off']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/write-off" element={<WriteOffDunningCasePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Write off dunning case')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeDisabled()
+    expect(screen.getByLabelText('Evidence')).toBeTruthy()
   })
 })
