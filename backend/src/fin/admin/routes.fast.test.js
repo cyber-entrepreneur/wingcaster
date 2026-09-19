@@ -34,6 +34,7 @@ const WRITES = [
   ['post', '/api/admin/fin/facilities/x/suspend'],
   ['post', '/api/admin/fin/facilities/x/close'],
   ['post', '/api/admin/fin/facilities/x/limit'],
+  ['post', '/api/admin/fin/credits/lots/x/retire'],
   ['post', '/api/admin/fin/reconciliation/run'],
   ['post', '/api/admin/fin/reconciliation/drift/x/resolve'],
   ['post', '/api/admin/fin/exceptions/x/notes'],

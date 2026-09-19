@@ -192,17 +192,43 @@ export async function usageDrill({ environment, tenantId, holderId, billingAccou
   }
 }
 
-export async function listLots({ environment, tenantId }) {
-  const params = tenantId ? [environment, tenantId] : [environment]
-  const filter = tenantId ? 'AND tenant_id = $2' : ''
+export async function listLots({
+  environment, tenantId, status, expiringSoon,
+}) {
+  const params = [environment]
+  const filters = []
+  if (tenantId) {
+    params.push(tenantId)
+    filters.push(`AND tenant_id = $${params.length}`)
+  }
+  if (status) {
+    params.push(status)
+    filters.push(`AND status = $${params.length}`)
+  }
+  if (expiringSoon) {
+    filters.push(`AND status = 'ACTIVE'
+      AND expires_at IS NOT NULL
+      AND expires_at <= (NOW() + INTERVAL '30 days')`)
+  }
   return query(
     `SELECT id, tenant_id, holder_id, billing_account_id, source_kind, status,
             granted_units, remaining_units, consideration_minor, currency,
             expires_at, issued_at
-       FROM fin.lots WHERE environment = $1 ${filter}
+       FROM fin.lots WHERE environment = $1 ${filters.join(' ')}
        ORDER BY issued_at DESC NULLS LAST LIMIT 200`,
     params,
   )
+}
+
+export async function getLot({ environment, id }) {
+  const rows = await query(
+    `SELECT id, tenant_id, holder_id, billing_account_id, book_id, source_kind, status,
+            granted_units, remaining_units, consideration_minor, currency,
+            expires_at, issued_at, created_at, updated_at, version
+       FROM fin.lots WHERE environment = $1 AND id = $2`,
+    [environment, id],
+  )
+  return rows[0] || null
 }
 
 export async function listHolds({ environment }) {

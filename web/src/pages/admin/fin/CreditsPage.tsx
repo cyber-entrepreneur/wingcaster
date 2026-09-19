@@ -1,18 +1,6 @@
-import { useEffect, useState } from 'react'
-import { api } from '@/api/client'
-import { FinAdminGate, FinTable } from './shell'
+import { Navigate } from 'react-router-dom'
 
+/** PA-CRD-002 wallet detail is elsewhere; lots live at PA-CRD-003 route. */
 export function CreditsPage() {
-  const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
-  useEffect(() => {
-    void api.finGet('/credits/lots').then((body) => setRows((body.lots || []) as Array<Record<string, unknown>>))
-  }, [])
-  return (
-    <FinAdminGate title="Credit lots">
-      <FinTable
-        columns={['id', 'source_kind', 'status', 'granted_units', 'remaining_units', 'consideration_minor', 'expires_at']}
-        rows={rows}
-      />
-    </FinAdminGate>
-  )
+  return <Navigate to="/admin/fin/credits/lots" replace />
 }
