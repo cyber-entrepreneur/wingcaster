@@ -1,3 +1,4 @@
+export { FeatureRegistryPage } from './FeatureRegistryPage'
 export { OverviewPage } from './OverviewPage'
 export { TenantsPage } from './TenantsPage'
 export { UsagePage } from './UsagePage'

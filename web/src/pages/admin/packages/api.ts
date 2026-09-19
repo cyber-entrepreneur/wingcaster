@@ -84,6 +84,18 @@ export const packagesApi = {
       body,
     ),
 
-  listFeatures: (): Promise<{ features: MeteredFeature[] }> =>
-    api.finGet('/metered-features') as unknown as Promise<{ features: MeteredFeature[] }>,
+  listFeatures: (query = ''): Promise<{ features: MeteredFeature[] }> =>
+    api.finGet(`/metered-features${query}`) as unknown as Promise<{ features: MeteredFeature[] }>,
+
+  getFeature: (featureId: string): Promise<MeteredFeature> =>
+    api.finGet(`/metered-features/${encodeURIComponent(featureId)}`) as unknown as Promise<MeteredFeature>,
+
+  patchFeature: (
+    featureId: string,
+    body: { display_name?: string; active?: boolean; reason: string },
+  ): Promise<MeteredFeature> =>
+    api.finPatch(
+      `/metered-features/${encodeURIComponent(featureId)}`,
+      body,
+    ) as unknown as Promise<MeteredFeature>,
 }
