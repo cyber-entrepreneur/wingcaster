@@ -4020,6 +4020,20 @@ export const api = {
       },
     }),
 
+  /** PA-INV-004 — issue a debit note against an issued invoice. */
+  createAdminDebitNote: (
+    invoiceId: string,
+    body: { amount_minor: number; reason_code?: string },
+  ): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin/invoices/${encodeURIComponent(invoiceId)}/debit-note`, {
+      method: 'POST',
+      body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
+      headers: {
+        'If-Match': '"1"',
+        'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
+      },
+    }),
+
   finPatch: (path: string, body: Record<string, unknown> = {}): Promise<Record<string, unknown>> =>
     fetchJson(`/admin/fin${path}`, {
       method: 'PATCH',
