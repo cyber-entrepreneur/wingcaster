@@ -3828,6 +3828,30 @@ export const api = {
   reviewAdminPricingReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // PA-PVA-011 — canonical property resolution admin
+  getAdminCanonicalResolutionQueue: () => fetchJson('/admin/pricing/canonical'),
+  getAdminCanonicalResolution: (id: string) => fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}`),
+  postAdminCanonicalChangePrimary: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/change-primary`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalSplit: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/split`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalMerge: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/merge`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalHold: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/hold`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   // WF-05 PA-PVA-008/008b — comparable-report queue + decisions (BE-28)
   listAdminComparableReports: (params?: Record<string, string>) => {
     const qs = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''
