@@ -1,5 +1,6 @@
 export { OverviewPage } from './OverviewPage'
 export { TenantsPage } from './TenantsPage'
+export { TenantDetailPage } from './TenantDetailPage'
 export { UsagePage } from './UsagePage'
 export { CreditsPage } from './CreditsPage'
 export { HoldsPage } from './HoldsPage'
