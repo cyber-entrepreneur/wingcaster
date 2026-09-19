@@ -259,6 +259,7 @@ import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transf
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerLeadFunnelRoutes } from './analytics/lead-funnel-routes.js'
 import { registerRevenueAttributionRoutes } from './analytics/revenue-attribution-routes.js'
+import { registerAgencyRoutingRuleRoutes } from './lib/routing/agency-routing-rules-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
@@ -7879,6 +7880,7 @@ if (process.env.NODE_ENV !== 'test') {
 registerAgencyMfaPolicyRoutes(app, { authMiddleware })
 registerAgencyBrandingRoutes(app, { authMiddleware })
 registerAgencyPublicProfileSettingsRoutes(app, { authMiddleware })
+registerAgencyRoutingRuleRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens

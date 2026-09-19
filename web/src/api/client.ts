@@ -360,6 +360,53 @@ export type AgencyMfaConditionalRule =
   | { kind: 'new_device' }
   | { kind: 'impossible_geo_hop' }
 
+/** AGN-ROU-002 — lead routing rule condition row. */
+export interface RoutingRuleCondition {
+  field: 'source' | 'area' | 'property_type' | 'language' | 'time_of_day'
+  op: 'eq' | 'contains' | 'gte' | 'lte'
+  value: string
+}
+
+/** AGN-ROU-002 — lead routing rule filters block. */
+export interface RoutingRuleFilters {
+  match: 'all' | 'any'
+  conditions: RoutingRuleCondition[]
+}
+
+/** AGN-ROU-002 — lead routing rule target assignment. */
+export interface RoutingRuleTarget {
+  strategy: 'round_robin' | 'first_response' | 'least_loaded' | 'weighted' | 'manual'
+  assign_to_agent_id: string | null
+  round_robin_group_id: string | null
+  language: string | null
+}
+
+/** AGN-ROU-002 — agency lead routing rule (tenant_lead_routing_policies). */
+export interface AgencyRoutingRule {
+  id: string
+  agency_id: string | null
+  name: string
+  priority: number
+  trigger: 'inquiry' | 'comment' | 'whatsapp_message'
+  enabled: boolean
+  strategy: RoutingRuleTarget['strategy']
+  relationship_priority: boolean
+  filters: RoutingRuleFilters
+  target: RoutingRuleTarget
+  eligible_members: Record<string, unknown>
+  strategy_config: Record<string, unknown>
+  claim_timeout_seconds: number | null
+  response_timeout_seconds: number | null
+  max_attempts: number
+  cooldown_seconds: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AgencyRoutingRulesListResponse {
+  rules: AgencyRoutingRule[]
+}
+
 /** Issue 190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
@@ -1309,6 +1356,24 @@ export const api = {
   createAgency: (data: Record<string, unknown>) =>
     fetchJson('/agencies', { method: 'POST', body: JSON.stringify(data) }),
   getMyAgency: () => fetchJson('/agencies/my'),
+  /** AGN-ROU-001/002 — list agency lead routing rules. */
+  listAgencyRoutingRules: (): Promise<AgencyRoutingRulesListResponse> =>
+    fetchJson('/agency/routing/rules'),
+  /** AGN-ROU-002 — fetch one routing rule by id. */
+  getAgencyRoutingRule: (ruleId: string): Promise<AgencyRoutingRule> =>
+    fetchJson(`/agency/routing/rules/${encodeURIComponent(ruleId)}`),
+  /** AGN-ROU-002 — create a routing rule. */
+  createAgencyRoutingRule: (data: Partial<AgencyRoutingRule>): Promise<AgencyRoutingRule> =>
+    fetchJson('/agency/routing/rules', { method: 'POST', body: JSON.stringify(data) }),
+  /** AGN-ROU-002 — update a routing rule. */
+  updateAgencyRoutingRule: (ruleId: string, data: Partial<AgencyRoutingRule>): Promise<AgencyRoutingRule> =>
+    fetchJson(`/agency/routing/rules/${encodeURIComponent(ruleId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  /** AGN-ROU-002 — delete a routing rule. */
+  deleteAgencyRoutingRule: (ruleId: string): Promise<{ success: boolean }> =>
+    fetchJson(`/agency/routing/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' }),
   /** AGN-ROL-001 — capability-pack list with member counts + agency owner meta. */
   listAgencyCapabilityPacks: () => fetchJson('/agency/capability-packs'),
   /** AGN-ROL-002 — one pack's full capability matrix (domains) + members preview. */
