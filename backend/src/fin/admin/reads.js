@@ -497,6 +497,30 @@ export async function listDunningCases({ environment }) {
   )
 }
 
+export async function getDunningCase({ environment, id }) {
+  const rows = await query(
+    `SELECT c.id, c.tenant_id, c.billing_account_id, c.invoice_id, c.status,
+            c.reason_code, c.policy_delay_ms, c.controls_snapshot,
+            c.created_at, c.updated_at,
+            i.invoice_number, i.total_minor, i.due_at, i.status AS invoice_status
+       FROM fin.dunning_cases c
+       LEFT JOIN fin.invoices i
+         ON i.id = c.invoice_id AND i.environment = c.environment
+      WHERE c.environment = $1 AND c.id = $2`,
+    [environment, id],
+  )
+  const row = rows[0]
+  if (!row) return null
+  const steps = await query(
+    `SELECT id, step_kind, entered_at, completed_at, outcome, reason_code
+       FROM fin.dunning_steps
+      WHERE environment = $1 AND case_id = $2
+      ORDER BY entered_at ASC`,
+    [environment, id],
+  )
+  return { ...row, steps }
+}
+
 export async function simulatePrice({ model, billableUnits, unitRateMinor, packageSizeUnits, tiers, dimensions, eventDimensions }) {
   const { computeAmountMinor } = await import('../rating/engine.js')
   const amount = computeAmountMinor(model || 'PER_UNIT', {

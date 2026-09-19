@@ -8,7 +8,40 @@ import { openDunningCase } from '../dunning/cases.js'
 import { insertControls } from '../funding/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
+const readHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  Accept: 'application/json',
+})
+
 finPostgresSuite('admin/routes-dunning', {}, ({ url, world, pool }) => {
+  it('loads a dunning case by id; unknown case returns 404', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const missing = await request(app)
+      .get('/api/admin/fin/dunning/cases/00000000-0000-0000-0000-000000000099')
+      .set(readHeaders(token))
+    expect(missing.status).toBe(404)
+
+    await insertControls(pool(), {
+      subjectType: 'BILLING_ACCOUNT',
+      subjectId: world().tenantA.billingAccountId,
+    })
+    const issued = await seedIssuedInvoice(pool(), world(), { amountMinor: 50 })
+    const opened = await openDunningCase({
+      ...commandEnv(world(), { reasonCode: 'AR_OVERDUE' }),
+      invoiceId: issued.invoiceId,
+      billingAccountId: world().tenantA.billingAccountId,
+      invoiceStatus: 'ISSUED',
+      dueAt: issued.dueAt,
+    })
+    const loaded = await request(app)
+      .get(`/api/admin/fin/dunning/cases/${opened.caseId}`)
+      .set(readHeaders(token))
+    expect(loaded.status).toBe(200)
+    expect(loaded.body.case.id).toBe(opened.caseId)
+    expect(loaded.body.case.status).toBe('OPEN')
+  })
+
   it('advances an open case; unknown case errors', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()
