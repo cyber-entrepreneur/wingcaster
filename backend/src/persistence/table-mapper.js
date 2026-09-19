@@ -247,7 +247,7 @@ const TABLE_MAP = {
   seller_report_share_tokens: { schema: 'public', table: 'seller_report_share_tokens', columns: ['report_id', 'token', 'recipient_email', 'revoked_at', 'created_at'] },
   scheduled_publications: { schema: 'public', table: 'scheduled_publications', columns: ['property_id', 'agent_id', 'agency_id', 'portals', 'message', 'scheduled_at', 'timezone', 'recurrence', 'status', 'job_id', 'attempts', 'last_error', 'last_fired_at', 'created_at', 'updated_at'] },
   neighborhood_stats: { schema: 'public', table: 'neighborhood_stats', columns: ['name', 'city', 'metric', 'value', 'updated_at'] },
-  saved_searches: { schema: 'public', table: 'saved_searches', columns: ['agent_id', 'contact_id', 'name', 'filters', 'alert_settings'] },
+  saved_searches: { schema: 'public', table: 'saved_searches', columns: ['user_id', 'agent_id', 'contact_id', 'name', 'filters', 'alert_settings', 'alert_enabled', 'alert_channel', 'alert_frequency', 'last_alert_run_at', 'last_match_count', 'created_at', 'updated_at'] },
 
   // CRM
   contacts: {
@@ -332,6 +332,78 @@ const TABLE_MAP = {
   distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
   publishing_jobs: { schema: 'public', table: 'publishing_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'submitted_at', 'completed_at'] },
   distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at'] },
+
+  // Growth-OS Wave 0 canonical spine
+  channel_definitions: {
+    schema: 'public',
+    table: 'channel_definitions',
+    columns: ['platform', 'kind', 'global_capabilities'],
+  },
+  channel_connections: {
+    schema: 'public',
+    table: 'channel_connections',
+    columns: [
+      'channel_definition_id', 'agency_id', 'agent_id', 'integration_model',
+      'credentials_ref', 'provider_account_id', 'rate_limits', 'health',
+      'tenant_capabilities',
+    ],
+  },
+  executions: {
+    schema: 'public',
+    table: 'executions',
+    columns: [
+      'campaign_id', 'journey_node_run_id', 'agency_id', 'agent_id', 'kind',
+      'channel_connection_id', 'creative_id', 'audience_id', 'subject_type',
+      'subject_id', 'scheduled_at', 'recurrence', 'status', 'provider_ref',
+      'published_at', 'completed_at',
+    ],
+  },
+  execution_attempts: {
+    schema: 'public',
+    table: 'execution_attempts',
+    columns: [
+      'execution_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at',
+    ],
+  },
+  events: {
+    schema: 'public',
+    table: 'events',
+    columns: [
+      'event_name', 'event_category', 'schema_version', 'source',
+      'actor_type', 'actor_id', 'object_type', 'object_id',
+      'context', 'occurred_at', 'ingested_at', 'contact_id',
+      'execution_id', 'campaign_id', 'channel_connection_id', 'value_micros',
+      'currency', 'idempotency_key', 'provider_event_id', 'provider_message_id',
+      'subject_identity_id', 'identity_refs',
+      'correlation_id', 'causation_event_id',
+      'agency_id', 'agent_id',
+    ],
+  },
+  metric_observations: {
+    schema: 'public',
+    table: 'metric_observations',
+    columns: [
+      'subject_type', 'subject_id', 'execution_id', 'metric_name', 'metric_value',
+      'aggregation_type', 'period_start', 'period_end', 'observed_at', 'source',
+      'provider_ref', 'dimensions', 'agency_id', 'agent_id',
+    ],
+  },
+  consent: {
+    schema: 'public',
+    table: 'consent',
+    columns: [
+      'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
+      'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
+  consent_current: {
+    schema: 'public',
+    table: 'consent_current',
+    columns: [
+      'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
+      'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
@@ -352,6 +424,11 @@ const TABLE_MAP = {
   // Audit / activity
   audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'tenant_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
   activity_log: { schema: 'public', table: 'activity_log', columns: ['agent_id', 'contact_id', 'property_id', 'inquiry_id', 'opportunity_id', 'viewing_id', 'type', 'meta'] },
+  comment_classifier_runs: {
+    schema: 'public',
+    table: 'comment_classifier_runs',
+    columns: ['triggered_by_agent_id', 'batched', 'updated_count', 'skipped_reason', 'error_message'],
+  },
 
   // Templates / entitlements / credits
   message_templates: { schema: 'public', table: 'message_templates', columns: ['owner_type', 'owner_id', 'name', 'channel', 'category', 'subject', 'body', 'variables', 'language', 'approval_status', 'is_default'] },
@@ -455,6 +532,27 @@ const TABLE_MAP = {
     ],
   },
   transactions: { schema: 'public', table: 'transactions', columns: ['agent_id', 'property_id', 'type', 'amount', 'currency', 'status', 'closed_at'] },
+  closed_transactions: {
+    schema: 'public',
+    table: 'closed_transactions',
+    columns: [
+      'listing_id', 'agent_id', 'agency_id', 'contact_id', 'opportunity_id',
+      'transaction_type', 'original_listed_price', 'final_sold_price', 'currency',
+      'price_reductions_count', 'price_reduction_history', 'listed_at', 'closed_at',
+      'days_on_market', 'days_to_first_offer', 'offers_received_count', 'viewings_conducted',
+      'rejected_offer_max', 'rejected_offer_min', 'buyer_type', 'buyer_nationality',
+      'payment_method', 'down_payment_percent', 'mortgage_provider', 'close_reason',
+      'agent_notes', 'attribution_source', 'origin', 'is_backfilled', 'source_note',
+    ],
+  },
+  closed_transaction_imports: {
+    schema: 'public',
+    table: 'closed_transaction_imports',
+    columns: [
+      'agent_id', 'agency_id', 'filename', 'row_count', 'imported_count',
+      'skipped_count', 'error_summary', 'column_map',
+    ],
+  },
 
   // Templates legacy alias
   templates: { schema: 'public', table: 'message_templates', columns: [] },

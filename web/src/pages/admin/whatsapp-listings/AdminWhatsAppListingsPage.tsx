@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Coins } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EntitlementForm } from '@/components/whatsapp-listings/EntitlementForm'
+import { GrantWhatsAppCreditsDialog } from '@/components/whatsapp-listings/GrantWhatsAppCreditsDialog'
 import { UsageChart } from '@/components/whatsapp-listings/UsageChart'
 import { useToast } from '@/components/ui/toast'
 
@@ -12,11 +15,16 @@ export function AdminWhatsAppListingsPage() {
   const { addToast } = useToast()
   const [health, setHealth] = useState<any>(null)
   const [usage, setUsage] = useState<any>(null)
-  const [audit, setAudit] = useState<any[]>([])
   const [entitlements, setEntitlements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [grantOpen, setGrantOpen] = useState(false)
+  const [grantTarget, setGrantTarget] = useState<{
+    scope: 'agent' | 'agency'
+    scopeId: string
+    label?: string
+  } | null>(null)
 
   useEffect(() => {
     load()
@@ -25,15 +33,13 @@ export function AdminWhatsAppListingsPage() {
   async function load() {
     setLoading(true)
     try {
-      const [healthData, usageData, auditData, entitlementsData] = await Promise.all([
+      const [healthData, usageData, entitlementsData] = await Promise.all([
         api.getWhatsAppListingsHealth(),
         api.getAdminWhatsAppListingsUsage(),
-        api.getAdminWhatsAppListingsAuditLog(),
         api.getAdminWhatsAppListingsEntitlements(),
       ])
       setHealth(healthData)
       setUsage(usageData)
-      setAudit(auditData.items || [])
       setEntitlements(entitlementsData)
     } catch (err: any) {
       addToast({ title: 'Error', description: err.message || 'Failed to load admin WhatsApp listings', variant: 'error' })
@@ -63,6 +69,11 @@ export function AdminWhatsAppListingsPage() {
     }
   }
 
+  function openGrant(scope: 'agent' | 'agency', scopeId: string) {
+    setGrantTarget({ scope, scopeId, label: scopeId })
+    setGrantOpen(true)
+  }
+
   if (loading) return <div className="p-6">Loading...</div>
 
   const byAgent = usage?.by_agent || {}
@@ -76,7 +87,19 @@ export function AdminWhatsAppListingsPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <h1 className="text-2xl font-bold">Admin: WhatsApp Listings</h1>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold">Admin: WhatsApp Listings</h1>
+        <Button
+          type="button"
+          onClick={() => {
+            setGrantTarget(null)
+            setGrantOpen(true)
+          }}
+        >
+          <Coins className="me-2 h-4 w-4" aria-hidden="true" />
+          Grant credits
+        </Button>
+      </header>
 
       <Card>
         <CardHeader><CardTitle>Module health</CardTitle></CardHeader>
@@ -117,21 +140,41 @@ export function AdminWhatsAppListingsPage() {
               <p><strong>Max drafts:</strong> {e.config?.max_drafts_per_month}</p>
               <p><strong>AI providers:</strong> {(e.config?.ai_providers_allowed || []).join(', ')}</p>
               <p><strong>Variants:</strong> {(e.config?.thumbnail_variants || []).join(', ')}</p>
-              <Button className="mt-2" size="sm" variant="destructive" onClick={() => handleDelete(e.id)}>Delete</Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {e.scope_id ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openGrant(e.scope === 'agency' ? 'agency' : 'agent', e.scope_id)}
+                  >
+                    Grant credits
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(e.id)}>Delete</Button>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <h2 className="text-xl font-semibold">Audit log</h2>
-      <div className="space-y-2">
-        {audit.length === 0 && <p className="text-muted-foreground">No audit entries yet.</p>}
-        {audit.map((log) => (
-          <div key={log.id} className="rounded border p-2 text-sm">
-            <span className="font-medium">{log.type}</span> · {new Date(log.created_at).toLocaleString()} · {JSON.stringify(log.meta || {})}
-          </div>
-        ))}
-      </div>
+      <Card>
+        <CardHeader><CardTitle>Audit trail</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-[var(--lc-text-muted)]">
+            Review intake events, approvals, discards, and admin credit grants in the dedicated audit log.
+          </p>
+          <Button asChild variant="outline">
+            <Link to="/admin/whatsapp-listings/audit">Open WhatsApp audit log</Link>
+          </Button>
+        </CardContent>
+      </Card>
+      <GrantWhatsAppCreditsDialog
+        open={grantOpen}
+        onOpenChange={setGrantOpen}
+        target={grantTarget}
+        onGranted={() => void load()}
+      />
     </div>
   )
 }

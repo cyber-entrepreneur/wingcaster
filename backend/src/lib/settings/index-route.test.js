@@ -143,11 +143,11 @@ describe('buildSettingsIndex — menu contains/excludes expected items', () => {
       memberships: [personalOwner()],
       user: { id: 'u1', password_hash: 'x' },
     })
-    expect(groupIds(body)).toEqual(['account', 'security', 'billing', 'danger'])
+    expect(groupIds(body)).toEqual(['account', 'security', 'billing', 'agent', 'danger'])
     expect(groupIds(body)).not.toContain('team')
     expect(itemIds(body)).toEqual(expect.arrayContaining([
       'profile', 'password', 'two_factor', 'sessions',
-      'billing_notifications', 'subscription', 'delete_account',
+      'billing_notifications', 'subscription', 'saved_searches', 'delete_account',
     ]))
     expect(itemIds(body)).not.toContain('members')
   })
@@ -248,7 +248,7 @@ describe('buildSettingsIndex — menu contains/excludes expected items', () => {
     for (const group of body.groups) {
       expect(group.items.length).toBeGreaterThan(0)
     }
-    expect(groupIds(body)).toEqual(['account', 'security', 'danger'])
+    expect(groupIds(body)).toEqual(['account', 'security', 'agent', 'danger'])
   })
 
   it('fallback omits team and billing but keeps Account + Security + Danger', () => {

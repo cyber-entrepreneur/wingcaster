@@ -192,17 +192,43 @@ export async function usageDrill({ environment, tenantId, holderId, billingAccou
   }
 }
 
-export async function listLots({ environment, tenantId }) {
-  const params = tenantId ? [environment, tenantId] : [environment]
-  const filter = tenantId ? 'AND tenant_id = $2' : ''
+export async function listLots({
+  environment, tenantId, status, expiringSoon,
+}) {
+  const params = [environment]
+  const filters = []
+  if (tenantId) {
+    params.push(tenantId)
+    filters.push(`AND tenant_id = $${params.length}`)
+  }
+  if (status) {
+    params.push(status)
+    filters.push(`AND status = $${params.length}`)
+  }
+  if (expiringSoon) {
+    filters.push(`AND status = 'ACTIVE'
+      AND expires_at IS NOT NULL
+      AND expires_at <= (NOW() + INTERVAL '30 days')`)
+  }
   return query(
     `SELECT id, tenant_id, holder_id, billing_account_id, source_kind, status,
             granted_units, remaining_units, consideration_minor, currency,
             expires_at, issued_at
-       FROM fin.lots WHERE environment = $1 ${filter}
+       FROM fin.lots WHERE environment = $1 ${filters.join(' ')}
        ORDER BY issued_at DESC NULLS LAST LIMIT 200`,
     params,
   )
+}
+
+export async function getLot({ environment, id }) {
+  const rows = await query(
+    `SELECT id, tenant_id, holder_id, billing_account_id, book_id, source_kind, status,
+            granted_units, remaining_units, consideration_minor, currency,
+            expires_at, issued_at, created_at, updated_at, version
+       FROM fin.lots WHERE environment = $1 AND id = $2`,
+    [environment, id],
+  )
+  return rows[0] || null
 }
 
 export async function listHolds({ environment }) {
@@ -217,10 +243,19 @@ export async function listHolds({ environment }) {
 
 export async function listFacilities({ environment }) {
   return query(
-    `SELECT id, tenant_id, billing_account_id, currency, limit_minor,
-            net_terms_days, status, valid_from, valid_to, version
-       FROM fin.credit_facilities WHERE environment = $1
-       ORDER BY created_at DESC LIMIT 200`,
+    `SELECT f.id, f.tenant_id, f.billing_account_id, f.currency, f.limit_minor,
+            f.net_terms_days, f.status, f.valid_from, f.valid_to, f.version,
+            COALESCE(d.current_draw_minor, 0)::bigint AS current_draw_minor
+       FROM fin.credit_facilities f
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(r.reserved_minor), 0)::bigint AS current_draw_minor
+           FROM fin.facility_reservations r
+          WHERE r.facility_id = f.id
+            AND r.environment = f.environment
+            AND r.status = 'OPEN'
+       ) d ON TRUE
+      WHERE f.environment = $1
+      ORDER BY f.created_at DESC LIMIT 200`,
     [environment],
   )
 }
@@ -563,6 +598,42 @@ export async function listDunningCases({ environment }) {
        ORDER BY created_at DESC LIMIT 200`,
     [environment],
   )
+}
+
+export async function listAccountingPeriods({ environment, limit = 200 }) {
+  return query(
+    `SELECT id, legal_entity_id, period_key, status, starts_at, ends_at,
+            closed_at, closed_by_actor_id, created_at, updated_at
+       FROM fin.accounting_periods
+      WHERE environment = $1
+      ORDER BY period_key DESC
+      LIMIT $2`,
+    [environment, limit],
+  )
+}
+
+export async function getDunningCase({ environment, id }) {
+  const rows = await query(
+    `SELECT c.id, c.tenant_id, c.billing_account_id, c.invoice_id, c.status,
+            c.reason_code, c.policy_delay_ms, c.controls_snapshot,
+            c.created_at, c.updated_at,
+            i.invoice_number, i.total_minor, i.due_at, i.status AS invoice_status
+       FROM fin.dunning_cases c
+       LEFT JOIN fin.invoices i
+         ON i.id = c.invoice_id AND i.environment = c.environment
+      WHERE c.environment = $1 AND c.id = $2`,
+    [environment, id],
+  )
+  const row = rows[0]
+  if (!row) return null
+  const steps = await query(
+    `SELECT id, step_kind, entered_at, completed_at, outcome, reason_code
+       FROM fin.dunning_steps
+      WHERE environment = $1 AND case_id = $2
+      ORDER BY entered_at ASC`,
+    [environment, id],
+  )
+  return { ...row, steps }
 }
 
 export async function simulatePrice({ model, billableUnits, unitRateMinor, packageSizeUnits, tiers, dimensions, eventDimensions }) {

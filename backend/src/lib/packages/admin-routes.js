@@ -31,6 +31,10 @@ import {
   startSubscription,
 } from './lifecycle.js'
 import { deprecatePackageVersionBodySchema } from './package-deprecate-schemas.js'
+import {
+  meteredFeatureListQuerySchema,
+  meteredFeaturePatchBodySchema,
+} from './metered-feature-schemas.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -335,7 +339,11 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   }))
 
   app.get('/api/admin/fin/metered-features', readGuards, wrap(async (req, res) => {
-    const features = await run((client) => listMeteredFeaturesAdmin(client, req.query))
+    const query = meteredFeatureListQuerySchema.parse(req.query)
+    const features = await run((client) => listMeteredFeaturesAdmin(client, {
+      category: query.category,
+      active: query.active === undefined ? undefined : query.active === 'true',
+    }))
     return res.status(200).json({ features, env_agnostic: true })
   }))
 
@@ -365,7 +373,11 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
     return res.status(200).json({ ...result, env: 'test' })
   }))
   app.get('/api/admin/feature-registry', readGuards, wrap(async (req, res) => {
-    const features = await run((client) => listMeteredFeaturesAdmin(client, req.query))
+    const query = meteredFeatureListQuerySchema.parse(req.query)
+    const features = await run((client) => listMeteredFeaturesAdmin(client, {
+      category: query.category,
+      active: query.active === undefined ? undefined : query.active === 'true',
+    }))
     return res.status(200).json({ features, env_agnostic: true })
   }))
 
@@ -381,9 +393,15 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
         'credits_per_unit and cost_per_unit_micro_usd cannot be patched inline',
       )
     }
+    const body = meteredFeaturePatchBodySchema.parse(req.body)
     const row = await run((client) => updateMeteredFeature(client, {
-      featureId: req.params.id, ...actorOf(req), ...commandBody(req),
-      reason: req.body?.reason,
+      featureId: req.params.id,
+      ...actorOf(req),
+      ...commandBody(req),
+      display_name: body.display_name,
+      active: body.active,
+      data: body.data,
+      reason: body.reason,
     }))
     return res.status(200).json(row)
   }))

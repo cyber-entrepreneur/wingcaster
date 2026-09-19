@@ -21,6 +21,12 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { findAll, findOne, insert, update, remove } from './db.js'
+import {
+  applyColumnMapping,
+  normaliseCsvRow,
+  parseSimpleCsv,
+} from './lib/closed-transactions/csv.js'
+import { recordImportBatch } from './lib/closed-transactions/import-batch.js'
 
 export const TRANSACTION_TYPES = ['sale', 'rent', 'lease']
 
@@ -183,10 +189,17 @@ export async function deleteClosedTransaction(id) {
  * (case-insensitive). Missing fields fall through to defaults.
  * Returns { imported, skipped, errors: [] }.
  */
-export async function importClosedTransactionsCsv({ csvText, agentId, agencyId }) {
+export async function importClosedTransactionsCsv({
+  csvText,
+  agentId,
+  agencyId,
+  columnMap,
+  filename,
+}) {
   if (!csvText) throw new Error('csvText is required')
-  const rows = parseSimpleCsv(csvText)
-  const results = { imported: 0, skipped: 0, errors: [] }
+  const { rows: rawRows } = parseSimpleCsv(csvText)
+  const rows = applyColumnMapping(rawRows, columnMap)
+  const results = { imported: 0, skipped: 0, errors: [], import_id: null }
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     try {
@@ -196,9 +209,16 @@ export async function importClosedTransactionsCsv({ csvText, agentId, agencyId }
         results.skipped++
         continue
       }
-      // Backfill rows that don't reference a listing get a synthetic id so
-      // they still record as a training data point without polluting the
-      // properties collection.
+      if (!payload.final_sold_price) {
+        results.errors.push({ row: i + 2, error: 'final_sold_price required' })
+        results.skipped++
+        continue
+      }
+      if (!payload.closed_at) {
+        results.errors.push({ row: i + 2, error: 'closed_at required' })
+        results.skipped++
+        continue
+      }
       const listingId = payload.listing_id || `backfill:${payload.external_reference}`
       await recordClosedTransaction({
         ...payload,
@@ -215,63 +235,15 @@ export async function importClosedTransactionsCsv({ csvText, agentId, agencyId }
       results.skipped++
     }
   }
+  results.import_id = await recordImportBatch({
+    agentId,
+    agencyId,
+    filename,
+    rowCount: rows.length,
+    imported: results.imported,
+    skipped: results.skipped,
+    errors: results.errors,
+    columnMap,
+  })
   return results
-}
-
-/**
- * Small tolerant CSV parser — handles quoted values with commas inside,
- * newlines as row separator, first row as header. No dependency added.
- */
-function parseSimpleCsv(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0)
-  if (!lines.length) return []
-  const headers = splitCsvRow(lines[0]).map((h) => h.trim().toLowerCase())
-  const out = []
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitCsvRow(lines[i])
-    const obj = {}
-    headers.forEach((h, idx) => { obj[h] = cells[idx] != null ? String(cells[idx]).trim() : '' })
-    out.push(obj)
-  }
-  return out
-}
-
-function splitCsvRow(line) {
-  const out = []
-  let cur = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"' && line[i + 1] === '"' && inQuotes) { cur += '"'; i++; continue }
-    if (ch === '"') { inQuotes = !inQuotes; continue }
-    if (ch === ',' && !inQuotes) { out.push(cur); cur = ''; continue }
-    cur += ch
-  }
-  out.push(cur)
-  return out
-}
-
-function normaliseCsvRow(row) {
-  return {
-    listing_id: row.listing_id || row.property_id || row.listing || '',
-    external_reference: row.external_reference || row.reference || '',
-    transaction_type: row.transaction_type || row.type || 'sale',
-    original_listed_price: row.original_listed_price || row.listed_price || '',
-    final_sold_price: row.final_sold_price || row.sold_price || row.sale_price || '',
-    currency: row.currency || 'USD',
-    listed_at: row.listed_at || row.listed_date || null,
-    closed_at: row.closed_at || row.closed_date || row.sold_date || null,
-    days_on_market: row.days_on_market || '',
-    offers_received_count: row.offers_received_count || row.offers || '',
-    viewings_conducted: row.viewings_conducted || row.viewings || '',
-    buyer_type: (row.buyer_type || '').toLowerCase(),
-    buyer_nationality: row.buyer_nationality || row.nationality || '',
-    payment_method: (row.payment_method || '').toLowerCase(),
-    down_payment_percent: row.down_payment_percent || row.down_payment || '',
-    mortgage_provider: row.mortgage_provider || '',
-    close_reason: (row.close_reason || '').toLowerCase(),
-    agent_notes: row.agent_notes || row.notes || '',
-    attribution_source: (row.attribution_source || row.source || '').toLowerCase(),
-    source_note: row.source_note || '',
-  }
 }

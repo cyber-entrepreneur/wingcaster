@@ -225,18 +225,3 @@ export async function buildSellerReportPayload({
 
   return payload
 }
-
-export function stripClientPayload(payload) {
-  const next = JSON.parse(JSON.stringify(payload))
-  delete next.report.show_offer_amounts
-  delete next.report.show_full_address
-  if (!next.report.show_offer_amounts) {
-    next.offers = next.offers.map((offer) => ({
-      id: offer.id,
-      status: offer.status,
-      summary: offer.summary || 'Offer received',
-      amount_hidden: true,
-    }))
-  }
-  return next
-}

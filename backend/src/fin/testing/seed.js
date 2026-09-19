@@ -56,7 +56,7 @@ export async function seedPlatform(client) {
        id, environment, legal_entity_id, period_key, starts_at, ends_at, status,
        created_at, updated_at
      ) VALUES ($1, 'LIVE', $2, '2026-08', '2026-08-01T00:00:00.000Z',
-               '2026-09-01T00:00:00.000Z', 'OPEN', $3, $3)`,
+               '2030-01-01T00:00:00.000Z', 'OPEN', $3, $3)`,
     [accountingPeriodId, legalEntityId, NOW],
   )
   return { platformId, liveEnvId, testEnvId, legalEntityId, accountingPeriodId }

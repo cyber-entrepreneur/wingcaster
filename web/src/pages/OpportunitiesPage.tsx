@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { DollarSign, Loader2, Plus, TrendingUp, Target, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
@@ -14,6 +13,7 @@ import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
+import { AddOpportunityDialog } from '@/components/opportunities/AddOpportunityDialog'
 import {
   OpportunitiesListView,
   type OpportunityRow,
@@ -47,20 +47,13 @@ export function OpportunitiesPage() {
   const { addToast } = useToast()
   const { effectiveMode, isProCapable } = useUiMode()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   usePageTitle('Opportunities')
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
-  const [showForm, setShowForm] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [stageFilter, setStageFilter] = useState<'open' | 'all' | string>('open')
-  const [form, setForm] = useState({
-    contact_id: '',
-    stage: 'new',
-    deal_value: '',
-    expected_close_date: '',
-    notes: '',
-  })
 
   const wantListView =
     effectiveMode === 'guided' || searchParams.get('view') === 'list' || !isProCapable
@@ -112,28 +105,6 @@ export function OpportunitiesPage() {
     return { total, weighted: Math.round(weighted), count: open.length, wonValue }
   }, [opportunities])
 
-  const handleCreate = async () => {
-    if (!form.contact_id) return
-    setCreating(true)
-    try {
-      await api.createOpportunity({
-        contact_id: form.contact_id,
-        stage: form.stage,
-        deal_value: form.deal_value ? Number(form.deal_value) : null,
-        expected_close_date: form.expected_close_date ? new Date(form.expected_close_date).toISOString() : null,
-        notes: form.notes,
-      })
-      setForm({ contact_id: '', stage: 'new', deal_value: '', expected_close_date: '', notes: '' })
-      setShowForm(false)
-      await loadAll()
-      addToast({ title: 'Opportunity created', variant: 'success' })
-    } catch (e: any) {
-      addToast({ title: 'Failed to create opportunity', description: e.message, variant: 'error' })
-    } finally {
-      setCreating(false)
-    }
-  }
-
   const updateStage = async (opportunity: Opportunity, nextStage: string) => {
     try {
       await api.updateOpportunity(opportunity.id, { stage: nextStage })
@@ -165,10 +136,19 @@ export function OpportunitiesPage() {
         title="Opportunities"
         subtitle={`${summary.count} open deals`}
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)} className="gap-1.5">
+          <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5">
             <Plus className="h-4 w-4" /> New deal
           </Button>
         }
+      />
+
+      <AddOpportunityDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={(id) => {
+          void loadAll()
+          navigate(`/opportunities/${id}`)
+        }}
       />
 
       <CmdKpiStrip
@@ -197,49 +177,6 @@ export function OpportunitiesPage() {
         ]}
       />
 
-      {showForm && (
-        <div className="shrink-0 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-            <select
-              className="h-10 min-w-[160px] flex-1 rounded-md border border-[var(--lc-border)] bg-background px-2 text-sm"
-              value={form.contact_id}
-              onChange={(e) => setForm((f) => ({ ...f, contact_id: e.target.value }))}
-            >
-              <option value="">Select contact…</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <select
-              className="h-10 w-36 shrink-0 rounded-md border border-[var(--lc-border)] bg-background px-2 text-sm"
-              value={form.stage}
-              onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
-            >
-              {OPPORTUNITY_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
-            </select>
-            <Input
-              placeholder="Deal value ($)"
-              type="number"
-              className="h-10 w-36 shrink-0"
-              value={form.deal_value}
-              onChange={(e) => setForm((f) => ({ ...f, deal_value: e.target.value }))}
-            />
-            <Input
-              type="date"
-              className="h-10 w-36 shrink-0"
-              value={form.expected_close_date}
-              onChange={(e) => setForm((f) => ({ ...f, expected_close_date: e.target.value }))}
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreate} disabled={creating || !form.contact_id}>
-                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {wantListView ? (
         <OpportunitiesListView
           opportunities={opportunities}
@@ -249,7 +186,7 @@ export function OpportunitiesPage() {
           contactName={contactName}
           onAdvance={handleStageAdvance}
           onRetreat={handleStageRetreat}
-          onAdd={() => setShowForm(true)}
+          onAdd={() => setAddOpen(true)}
         />
       ) : (
         <>
@@ -285,7 +222,7 @@ export function OpportunitiesPage() {
                 title="No deals yet"
                 description="Create your first deal above or complete a viewing with 'Interested' outcome."
                 action={
-                  <Button size="sm" onClick={() => setShowForm(true)} className="gap-1.5">
+                  <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5">
                     <Plus className="h-4 w-4" /> New deal
                   </Button>
                 }

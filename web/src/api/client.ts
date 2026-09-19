@@ -20,6 +20,7 @@ import type {
   PricingRecalculationJob,
   PricingTrendSnapshot,
 } from '@/types/marketPricing'
+import type { InboxNotificationsResponse } from '@/types/inboxNotifications'
 import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
 import type { Territory } from '@/types/territory'
 import type {
@@ -85,6 +86,69 @@ export interface AuditLogSearchFilters {
   q?: string
   limit?: number
   offset?: number
+}
+
+export interface AgencyWalletAllocationSlice {
+  key: string
+  label: string
+  credits: number
+  kind: 'agent' | 'pool'
+}
+
+export interface AgencyWalletTransaction {
+  id: string
+  type: string
+  amount: number
+  description?: string | null
+  created_at: string
+}
+
+export interface AgencyWalletOverview {
+  agency_id: string
+  balance: {
+    credits_remaining: number
+    credits_reserved: number
+    currency: string
+    hard_block: boolean
+  }
+  kpis: {
+    wallet_balance: number
+    mtd_spend: number
+    burn_rate_daily: number
+    days_until_exhausted: number | null
+    allocated_to_agents: number
+    total_available: number
+  }
+  allocation: {
+    slices: AgencyWalletAllocationSlice[]
+    allocated_total: number
+    unallocated_pool: number
+  }
+  transactions: AgencyWalletTransaction[]
+  settings: {
+    agency_id: string
+    low_balance_alert_threshold: number
+    updated_by: string | null
+    updated_at: string | null
+    is_default?: boolean
+  }
+  alerts: {
+    is_low_balance: boolean
+    threshold: number
+  }
+  permissions: {
+    can_manage_settings: boolean
+    can_top_up: boolean
+    can_allocate: boolean
+  }
+}
+
+export interface AgencyWalletSettings {
+  agency_id: string
+  low_balance_alert_threshold: number
+  updated_by: string | null
+  updated_at: string | null
+  is_default?: boolean
 }
 
 export type WhatsAppIntakeAnalyticsRange = '7d' | '30d' | '90d'
@@ -936,6 +1000,34 @@ export interface PerformanceMetricBlock {
   contacts: number
   avg_views_per_post: number
   published_posts: number
+}
+
+export type SavedSearchAlertChannel = 'email' | 'whatsapp' | 'inapp'
+export type SavedSearchAlertFrequency = 'instant' | 'daily' | 'weekly'
+
+export interface SavedSearch {
+  id: string
+  user_id: string | null
+  agent_id: string | null
+  contact_id: string | null
+  name: string
+  filters: Record<string, unknown>
+  filter_summary?: string
+  alert_enabled: boolean
+  alert_channel: SavedSearchAlertChannel
+  alert_frequency: SavedSearchAlertFrequency
+  last_alert_run_at: string | null
+  last_match_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SavedSearchInput {
+  name: string
+  filters?: Record<string, unknown>
+  alert_enabled?: boolean
+  alert_channel?: SavedSearchAlertChannel
+  alert_frequency?: SavedSearchAlertFrequency
 }
 
 export type BuyerOfferStatus = 'received' | 'countered' | 'accepted' | 'rejected' | 'withdrawn'
@@ -2416,8 +2508,8 @@ export const api = {
     fetchJson(`/properties/${id}/notes/${noteId}`, { method: 'DELETE' }),
   getListingReport: (id: string) => fetchJson(`/properties/${id}/report`),
 
-  // Saved searches
-  getSavedSearches: () => fetchJson('/saved-searches'),
+  // AGT-CMP-005 — saved searches (audience source)
+  getSavedSearches: () => fetchJson('/saved-searches') as Promise<{ saved_searches: SavedSearch[] }>,
   createSavedSearch: (name: string, filters: Record<string, unknown>) =>
     fetchJson('/saved-searches', {
       method: 'POST',
@@ -2429,16 +2521,16 @@ export const api = {
         alert_frequency: 'daily',
       }),
     }),
-  createSavedSearchWithAlerts: (data: {
-    name: string
-    filters: Record<string, unknown>
-    alert_enabled?: boolean
-    alert_channel?: 'email' | 'whatsapp' | 'inapp'
-    alert_frequency?: 'instant' | 'daily' | 'weekly'
-  }) => fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }),
-  updateSavedSearch: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  runSavedSearchAlerts: () => fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }),
+  createSavedSearchWithAlerts: (data: SavedSearchInput) =>
+    fetchJson('/saved-searches', { method: 'POST', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  updateSavedSearch: (id: string, data: Partial<SavedSearchInput>) =>
+    fetchJson(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }) as Promise<SavedSearch>,
+  runSavedSearchAlerts: () => fetchJson('/saved-searches/run-alerts', { method: 'POST', body: '{}' }) as Promise<{
+    ran_at: string
+    searches_processed: number
+    total_matches: number
+    results: Array<Record<string, unknown>>
+  }>,
   deleteSavedSearch: (id: string) =>
     fetchJson(`/saved-searches/${id}`, { method: 'DELETE' }),
 
@@ -2448,6 +2540,12 @@ export const api = {
     return fetchJson(`/notifications${qs}`)
   },
   markNotificationRead: (id: string) => fetchJson(`/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  getMyInboxNotifications: (): Promise<InboxNotificationsResponse> =>
+    fetchJson('/auth/me/notifications'),
+  markMyInboxNotificationRead: (id: string) =>
+    fetchJson(`/auth/me/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  markMyInboxNotificationsAllRead: () =>
+    fetchJson('/auth/me/notifications/mark-all-read', { method: 'POST', body: '{}' }),
   getNotificationPrefs: () => fetchJson('/notification-preferences'),
   updateNotificationPrefs: (data: Record<string, unknown>) =>
     fetchJson('/notification-preferences', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -2566,6 +2664,7 @@ export const api = {
     formats?: Record<string, string[]>
     recipient?: string
     caption?: string
+    captions?: Record<string, string>
     intent?: string
   }) =>
     fetchJson(`/properties/${propertyId}/distribute-own`, {
@@ -2576,6 +2675,7 @@ export const api = {
         formats: options?.formats,
         recipient: options?.recipient,
         caption: options?.caption,
+        captions: options?.captions,
         intent: options?.intent || 'distribute',
       }),
     }),
@@ -2692,11 +2792,39 @@ export const api = {
     fetchJson('/closed-transactions', { method: 'POST', body: JSON.stringify(payload) }),
   deleteClosedTransaction: (id: string) =>
     fetchJson(`/closed-transactions/${id}`, { method: 'DELETE' }),
-  importClosedTransactionsCsv: (csvText: string): Promise<{
-    imported: number; skipped: number; errors: Array<{ row: number; error: string }>
+  importClosedTransactionsCsv: (
+    csvText: string,
+    options?: {
+      column_map?: Record<string, string>
+      filename?: string | null
+      preview_only?: boolean
+    },
+  ): Promise<{
+    imported?: number
+    skipped?: number
+    errors?: Array<{ row: number; error: string }>
+    import_id?: string | null
+    row_count?: number
+    preview?: Array<{
+      row: number
+      listing_id: string | null
+      external_reference: string | null
+      transaction_type: string
+      final_sold_price: string | null
+      closed_at: string | null
+      currency: string
+      valid: boolean
+    }>
+    valid_count?: number
+    headers?: string[]
   }> => fetchJson('/closed-transactions/import', {
     method: 'POST',
-    body: JSON.stringify({ csv_text: csvText }),
+    body: JSON.stringify({
+      csv_text: csvText,
+      ...(options?.column_map ? { column_map: options.column_map } : {}),
+      ...(options?.filename ? { filename: options.filename } : {}),
+      ...(options?.preview_only ? { preview_only: true } : {}),
+    }),
   }),
 
   /* -------- Contact 360 (Phase 4.8) -------- */
@@ -2947,7 +3075,33 @@ export const api = {
     categories: string[]
     sentiments: string[]
     meta: Record<string, { label: string; emoji: string; description: string; route: string }>
+    operational?: {
+      batch_size?: number
+      ai_enabled?: boolean
+      ai_provider?: string | null
+      rules_confidence_threshold?: number
+    }
   }> => fetchJson('/comment-classifier/config'),
+
+  /** PA-CLS-001 — manual classifier batch + run history. */
+  runCommentClassifierBatch: (): Promise<Record<string, unknown>> =>
+    fetchJson('/admin/comment-classifier/run', { method: 'POST', body: '{}' }),
+
+  listCommentClassifierRuns: (params?: { limit?: string }): Promise<{
+    runs: Array<{
+      id: string
+      triggered_by_agent_id?: string | null
+      batched: number
+      updated_count: number
+      skipped_reason?: string | null
+      error_message?: string | null
+      created_at: string
+    }>
+    total: number
+  }> => {
+    const qs = params?.limit ? `?limit=${encodeURIComponent(params.limit)}` : ''
+    return fetchJson(`/admin/comment-classifier/runs${qs}`)
+  },
   reclassifyComment: (messageId: string, category: string, sentiment?: string) =>
     fetchJson(`/comments/${messageId}/reclassify`, {
       method: 'POST',
@@ -3167,6 +3321,8 @@ export const api = {
   deleteMessageTemplate: (id: string) => fetchJson(`/message-templates/${id}`, { method: 'DELETE' }),
   renderMessageTemplate: (id: string, variables: Record<string, string>) =>
     fetchJson(`/message-templates/${id}/render`, { method: 'POST', body: JSON.stringify({ variables }) }),
+  testSendMessageTemplate: (id: string, to: string, variables: Record<string, string>) =>
+    fetchJson(`/message-templates/${id}/test-send`, { method: 'POST', body: JSON.stringify({ to, variables }) }),
 
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
@@ -3317,6 +3473,11 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/whatsapp-listings/audit-log${qs}`)
   },
+  adminWhatsAppListingsAuditLogCsvPath: (params?: Record<string, string | undefined>) => {
+    const entries = Object.entries(params || {}).filter(([, v]) => v != null && v !== '') as [string, string][]
+    const qs = entries.length ? `?${new URLSearchParams(entries)}` : ''
+    return `${API_BASE}/admin/whatsapp-listings/audit-log.csv${qs}`
+  },
   getAdminWhatsAppListingsEntitlements: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/entitlements${qs}`)
@@ -3325,6 +3486,16 @@ export const api = {
     fetchJson('/admin/entitlements', { method: 'POST', body: JSON.stringify(data) }),
   deleteAdminWhatsAppListingsEntitlement: (id: string) =>
     fetchJson(`/admin/entitlements/${id}`, { method: 'DELETE' }),
+  grantAdminWhatsAppListingsCredits: (body: {
+    scope: 'agent' | 'agency'
+    scope_id: string
+    amount_usd: number
+    reason: string
+  }) =>
+    fetchJson('/admin/whatsapp-listings/credits/grant', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   getAgencyWhatsAppListingsUsage: () => fetchJson('/agency/whatsapp-listings/usage'),
   getAgencyWhatsAppListingsEntitlements: () => fetchJson('/agency/entitlements'),
@@ -3333,6 +3504,17 @@ export const api = {
   updateAgencyWhatsAppListingsEntitlement: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agency/entitlements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAgencyWhatsAppListingsCredits: () => fetchJson('/agency/credits/balance'),
+  getAgencyWalletOverview: (): Promise<AgencyWalletOverview> =>
+    fetchJson('/agency/credits/wallet-overview') as Promise<AgencyWalletOverview>,
+  getAgencyWalletSettings: (): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings') as Promise<{ settings: AgencyWalletSettings }>,
+  updateAgencyWalletSettings: (lowBalanceAlertThreshold: number): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ low_balance_alert_threshold: lowBalanceAlertThreshold }),
+    }) as Promise<{ settings: AgencyWalletSettings }>,
+  getAgencyFeatureQuotas: (): Promise<AgencyFeatureQuotasResponse> =>
+    fetchJson('/agency/credits/feature-quotas') as Promise<AgencyFeatureQuotasResponse>,
   getAgencyWhatsAppListingsTransactions: (limit = 100) =>
     fetchJson(`/agency/credits/transactions?limit=${limit}`),
   topUpAgencyWhatsAppListingsCredits: (amountUsd: number, paymentIntentId?: string) =>
@@ -3947,6 +4129,20 @@ export const api = {
       },
     }),
 
+  /** PA-INV-004 — issue a debit note against an issued invoice. */
+  createAdminDebitNote: (
+    invoiceId: string,
+    body: { amount_minor: number; reason_code?: string },
+  ): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin/invoices/${encodeURIComponent(invoiceId)}/debit-note`, {
+      method: 'POST',
+      body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
+      headers: {
+        'If-Match': '"1"',
+        'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
+      },
+    }),
+
   finPatch: (path: string, body: Record<string, unknown> = {}): Promise<Record<string, unknown>> =>
     fetchJson(`/admin/fin${path}`, {
       method: 'PATCH',
@@ -4225,6 +4421,35 @@ export interface FeatureQuota {
   soft_warning: boolean
   used_credits?: number
   typical_credits?: number
+}
+
+export interface AgencyFeatureQuotaAgentBreakdown {
+  agent_user_id: string | null
+  agent_name: string
+  used_credits: number
+  source: 'agent' | 'agency'
+}
+
+export interface AgencyFeatureQuota extends FeatureQuota {
+  category?: string
+  category_group: string
+  at_cap: boolean
+  near_cap: boolean
+  agent_breakdown: AgencyFeatureQuotaAgentBreakdown[]
+}
+
+export interface AgencyFeatureQuotaGroup {
+  key: string
+  label: string
+  quotas: AgencyFeatureQuota[]
+}
+
+export interface AgencyFeatureQuotasResponse {
+  agency_id: string
+  billing_cycle_start: string | null
+  billing_cycle_end: string | null
+  groups: AgencyFeatureQuotaGroup[]
+  quotas: AgencyFeatureQuota[]
 }
 
 export interface TenantCreditsBalance {

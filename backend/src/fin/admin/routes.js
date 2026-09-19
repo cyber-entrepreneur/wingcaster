@@ -9,7 +9,7 @@ import { getPool } from '../../persistence/postgres-adapter.js'
 import { CATEGORY, FinError, finError } from '../errors.js'
 import { requireIfMatch, sendPreconditionFailed, setETag } from '../middleware/if-match.js'
 import { adminMutationLimiter } from '../../lib/admin-limiter.js'
-import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
+import { actorFrom, adminNow, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
 import { loadOverviewKpis } from './kpis.js'
 import { EXCEPTION_TYPES, deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
@@ -19,9 +19,11 @@ import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas
 import {
   getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
-  listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
-  listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
+  listAccountingPeriods, listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
+  getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
+import { retireLotBodySchema } from './credit-lot-schemas.js'
+import { expireLot } from '../ledger/expire-lot.js'
 import {
   amendFacilityLimit, closeFacility, createFacility, pauseFacility,
   resumeFacility, suspendFacility,
@@ -40,6 +42,7 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { createFacilityBodySchema } from './facility-schemas.js'
 import { runReconciliationBodySchema, scopeFromRunBody } from './reconciliation-schemas.js'
+import { amendFacilityLimitBodySchema } from './facility-limit-schemas.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval } from './approvals/execute.js'
 import {
@@ -48,6 +51,16 @@ import {
   listEligibleEscalationTargets,
   withdrawApproval,
 } from './approvals-escalate-withdraw.js'
+import { invoiceDebitNoteBodySchema } from './invoice-debit-note-schemas.js'
+import { dunningCaseActionBodySchema } from './dunning-case-schemas.js'
+import {
+  accountingPeriodActionBodySchema,
+  accountingPeriodReopenBodySchema,
+} from './accounting-period-schemas.js'
+import { creditJanitorRunBodySchema } from './credit-janitor-schemas.js'
+import { loadCreditJanitorStatus, runCreditJanitorAdmin } from './credit-janitor.js'
+import { creditFinMirrorRunBodySchema } from './credit-fin-mirror-schemas.js'
+import { loadCreditFinMirrorStatus, runCreditFinMirrorAdmin } from './credit-fin-mirror.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -100,6 +113,15 @@ function wrap(handler) {
       try { return sendFinError(res, error) } catch (err) { next(err) }
     }
   }
+}
+
+function validateBody(schema, req, res) {
+  const parsed = schema.safeParse(req.body || {})
+  if (!parsed.success) {
+    res.status(400).json({ error: 'validation_failed', details: parsed.error.flatten() })
+    return false
+  }
+  return true
 }
 
 function input(req, extra = {}) {
@@ -175,8 +197,56 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     const lots = await listLots({
       environment: sessionEnvironment(req),
       tenantId: req.query.tenant || req.query.tenant_id,
+      status: req.query.status,
+      expiringSoon: req.query.expiring_soon === '1' || req.query.expiring_soon === 'true',
     })
     return res.status(200).json({ lots })
+  }))
+
+  app.get('/api/admin/fin/credits/lots/:id', readGuards, wrap(async (req, res) => {
+    const lot = await getLot({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!lot) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json(lot)
+  }))
+
+  app.post('/api/admin/fin/credits/lots/:id/retire', writeGuards, wrap(async (req, res) => {
+    const parsed = retireLotBodySchema.safeParse(req.body || {})
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
+    const lot = await getLot({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!lot) return res.status(404).json({ code: 'NOT_FOUND' })
+    if (lot.status !== 'ACTIVE') {
+      return res.status(409).json({ code: 'LOT_NOT_ACTIVE', status: lot.status })
+    }
+    const result = await expireLot({
+      ...input(req, { lotId: req.params.id }),
+      reasonCode: parsed.data.reason_code || 'LOT_RETIRE',
+      now: req.fin.now,
+    })
+    return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/credits/janitor/status', readGuards, wrap(async (_req, res) => {
+    const status = await loadCreditJanitorStatus(getPool())
+    return res.status(200).json({ status })
+  }))
+
+  app.post('/api/admin/fin/credits/janitor/run', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(creditJanitorRunBodySchema, req, res)) return
+    const result = await runCreditJanitorAdmin(getPool(), req.fin?.now || adminNow())
+    return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/credits/fin-mirror/status', readGuards, wrap(async (_req, res) => {
+    const status = await loadCreditFinMirrorStatus(getPool())
+    return res.status(200).json({ status })
+  }))
+
+  app.post('/api/admin/fin/credits/fin-mirror/run', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(creditFinMirrorRunBodySchema, req, res)) return
+    const result = await runCreditFinMirrorAdmin(getPool(), req.fin?.now || adminNow())
+    return res.status(200).json(result)
   }))
 
   app.get('/api/admin/fin/holds', readGuards, wrap(async (req, res) => {
@@ -363,6 +433,20 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json({ cases })
   }))
 
+  app.get('/api/admin/fin/accounting/periods', readGuards, wrap(async (req, res) => {
+    const periods = await listAccountingPeriods({ environment: sessionEnvironment(req) })
+    return res.status(200).json({ periods })
+  }))
+
+  app.get('/api/admin/fin/dunning/cases/:id', readGuards, wrap(async (req, res) => {
+    const detail = await getDunningCase({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!detail) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json({ case: detail })
+  }))
+
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
 
   app.post('/api/admin/fin/facilities', writeGuards, wrap(async (req, res) => {
@@ -401,7 +485,16 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/facilities/:id/limit', writeGuards, wrap(async (req, res) => {
-    const result = await amendFacilityLimit(input(req, { facilityId: req.params.id }))
+    const parsed = amendFacilityLimitBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
+    const result = await amendFacilityLimit(input(req, {
+      facilityId: req.params.id,
+      limitMinor: parsed.data.limit_minor,
+      approvalRequestId: parsed.data.approval_request_id,
+      reasonCode: parsed.data.reason_code,
+    }))
     if (result.version != null) setETag(res, result.version)
     return res.status(200).json(result)
   }))
@@ -522,11 +615,19 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/dunning/cases/:id/advance', writeGuards, wrap(async (req, res) => {
+    const parsed = dunningCaseActionBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+    }
     const result = await advanceDunning(input(req, { caseId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/dunning/cases/:id/cure', writeGuards, wrap(async (req, res) => {
+    const parsed = dunningCaseActionBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+    }
     const result = await cureDunning(input(req, { caseId: req.params.id }))
     return res.status(200).json(result)
   }))
@@ -593,6 +694,14 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/invoices/:id/debit-note', writeGuards, wrap(async (req, res) => {
+    const parsed = invoiceDebitNoteBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      })
+    }
+    req.body = { ...req.body, ...parsed.data }
     const env = input(req, { invoiceId: req.params.id })
     const drafted = await draftDebitNote({
       ...env,
@@ -628,16 +737,19 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/soft-close', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodActionBodySchema, req, res)) return
     const result = await softClosePeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/hard-close', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodActionBodySchema, req, res)) return
     const result = await hardClosePeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/reopen', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodReopenBodySchema, req, res)) return
     const result = await reopenPeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))
