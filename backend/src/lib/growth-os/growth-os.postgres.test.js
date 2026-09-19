@@ -32,6 +32,7 @@ const WAVE0_FILES = [
   '546_growth_os_canonical_backfill.sql',
   '547_growth_os_forward_sync_triggers.sql',
   '548_growth_os_consent_compliance.sql',
+  '549_growth_os_event_taxonomy.sql',
 ]
 
 async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
@@ -47,6 +48,12 @@ async function seedMessagingChannel({ platform, agencyId = null, agentId = null 
 }
 
 async function seedWhatsAppInbound(pool, { contactId, inboundAt }) {
+  await pool.query(
+    `INSERT INTO public.contacts (id, name, data)
+     VALUES ($1, 'Wave0 contact', '{}'::jsonb)
+     ON CONFLICT (id) DO NOTHING`,
+    [contactId],
+  )
   const conversationId = `cnv_${randomUUID()}`
   await pool.query(
     `INSERT INTO public.conversations
@@ -265,6 +272,21 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         expect(seen.executions.rows).toHaveLength(1)
         expect(seen.events.rows).toHaveLength(1)
         expect(seen.consents.rows).toHaveLength(1)
+      } finally {
+        await closeDb()
+      }
+    })
+  }, 180_000)
+
+  it('rejects unknown event_name per taxonomy catalog', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      try {
+        await expect(ingestEvent({
+          eventName: 'ad.delivered',
+          eventCategory: 'delivery',
+          providerEventId: `prov_${randomUUID()}`,
+        })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })
       } finally {
         await closeDb()
       }

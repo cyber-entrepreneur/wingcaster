@@ -30,7 +30,10 @@ export {
   ingestEventSafe,
   getEvent,
   listEvents,
+  buildProviderEventId,
   EVENT_CATEGORIES,
+  EVENT_NAMES,
+  EVENT_NAME_CATEGORIES,
 } from './events.js'
 
 export {

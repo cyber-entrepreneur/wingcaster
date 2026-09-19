@@ -1,12 +1,45 @@
 /**
  * Growth-OS Wave 0 — events access layer.
- * ingestEvent is idempotent on provider_event_id (ON CONFLICT DO NOTHING).
+ * ingestEvent implements docs/event-taxonomy-catalog.md §2–§4.
  */
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { findAll, findOne, query } from '../../persistence/index.js'
 
 const EVENT_CATEGORIES = new Set(['business', 'delivery', 'engagement', 'system'])
+
+/** Launch [L] / starred vocabulary from event-taxonomy-catalog.md §4. */
+const EVENT_NAME_CATEGORIES = {
+  'lead.created': 'business',
+  'lead.qualified': 'business',
+  'viewing.booked': 'business',
+  'viewing.completed': 'business',
+  'offer.made': 'business',
+  'reservation.created': 'business',
+  'transaction.closed': 'business',
+  'commission.earned': 'business',
+  'message.sent': 'delivery',
+  'message.delivered': 'delivery',
+  'message.failed': 'delivery',
+  'post.published': 'delivery',
+  'post.failed': 'delivery',
+  'portal.submitted': 'delivery',
+  'email.opened': 'engagement',
+  'email.clicked': 'engagement',
+  'message.read': 'engagement',
+  'message.replied': 'engagement',
+  'post.impression': 'engagement',
+  'post.engaged': 'engagement',
+  'link.clicked': 'engagement',
+  'unsubscribe.requested': 'engagement',
+  'execution.created': 'system',
+  'consent.granted': 'system',
+  'consent.withdrawn': 'system',
+  'journey.entered': 'system',
+  'journey.node.suppressed': 'system',
+}
+
+const EVENT_NAMES = new Set(Object.keys(EVENT_NAME_CATEGORIES))
 
 function prefixedId(prefix) {
   return `${prefix}${randomUUID()}`
@@ -20,13 +53,58 @@ function assertCategory(category) {
   }
 }
 
+function assertEventName(eventName) {
+  if (!EVENT_NAMES.has(eventName)) {
+    throw Object.assign(new Error(`Unknown event_name: ${eventName}`), {
+      code: 'UNKNOWN_EVENT_NAME',
+    })
+  }
+}
+
+function resolveEventCategory(eventName, eventCategory) {
+  assertEventName(eventName)
+  const expected = EVENT_NAME_CATEGORIES[eventName]
+  if (eventCategory == null) return expected
+  if (eventCategory !== expected) {
+    throw Object.assign(
+      new Error(`event_category ${eventCategory} does not match catalog for ${eventName} (${expected})`),
+      { code: 'EVENT_CATEGORY_MISMATCH' },
+    )
+  }
+  return expected
+}
+
 /**
- * Ingest an event. When providerEventId is set, duplicate ingest yields the
- * existing row (idempotent). Returns { event, inserted }.
+ * §2 internal idempotency key: "<source>:<object_ref>:<event_name>:<occurred_at-or-seq>".
+ */
+export function buildProviderEventId({
+  providerEventId = null,
+  source = null,
+  objectRef = null,
+  eventName = null,
+  occurredAt = null,
+  seq = null,
+} = {}) {
+  if (providerEventId) return providerEventId
+  if (!source || !objectRef || !eventName) {
+    throw Object.assign(new Error('providerEventId or source+objectRef+eventName is required'), {
+      code: 'MISSING_PROVIDER_EVENT_ID',
+    })
+  }
+  const suffix = seq != null ? String(seq) : (occurredAt || new Date().toISOString())
+  const raw = `${source}:${objectRef}:${eventName}:${suffix}`
+  if (raw.length <= 512) return raw
+  const digest = createHash('sha256').update(raw).digest('hex')
+  return `${source}:${objectRef}:${eventName}:${digest}`
+}
+
+/**
+ * Ingest an event. Duplicate provider_event_id yields the existing row (idempotent).
+ * Returns { event, inserted }.
  */
 export async function ingestEvent({
   eventName,
-  eventCategory,
+  eventCategory = null,
   schemaVersion = '1',
   source = null,
   actor = null,
@@ -46,27 +124,37 @@ export async function ingestEvent({
   agentId = null,
   id = null,
   data = {},
+  seq = null,
 } = {}) {
   if (!eventName) {
     throw Object.assign(new Error('eventName is required'), { code: 'MISSING_EVENT_NAME' })
   }
-  assertCategory(eventCategory)
 
-  if (providerEventId) {
-    const existing = await findOne(
-      'events',
-      (row) => row.provider_event_id === providerEventId,
-    )
-    if (existing) return { event: existing, inserted: false }
-  }
+  const resolvedCategory = resolveEventCategory(eventName, eventCategory)
+  assertCategory(resolvedCategory)
+
+  const occurred = occurredAt || new Date().toISOString()
+  const idempotencyKey = buildProviderEventId({
+    providerEventId,
+    source,
+    objectRef,
+    eventName,
+    occurredAt: occurred,
+    seq,
+  })
+
+  const existing = await findOne(
+    'events',
+    (row) => row.provider_event_id === idempotencyKey,
+  )
+  if (existing) return { event: existing, inserted: false }
 
   const eventId = id || prefixedId('evt_')
-  const occurred = occurredAt || new Date().toISOString()
   const ingested = new Date().toISOString()
   const params = [
     eventId,
     eventName,
-    eventCategory,
+    resolvedCategory,
     schemaVersion,
     source,
     actor,
@@ -80,7 +168,7 @@ export async function ingestEvent({
     channelConnectionId,
     valueMicros,
     currency,
-    providerEventId,
+    idempotencyKey,
     correlationId,
     causationEventId,
     agencyId,
@@ -88,44 +176,31 @@ export async function ingestEvent({
     JSON.stringify(data ?? {}),
   ]
 
-  const insertSql = providerEventId
-    ? `INSERT INTO public.events (
-         id, event_name, event_category, schema_version, source, actor, object_ref,
-         context, occurred_at, ingested_at, contact_id, execution_id, campaign_id,
-         channel_connection_id, value_micros, currency, provider_event_id,
-         correlation_id, causation_event_id, agency_id, agent_id, data
-       ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,
-         $8::jsonb,$9,$10,$11,$12,$13,
-         $14,$15,$16,$17,
-         $18,$19,$20,$21,$22::jsonb
-       )
-       ON CONFLICT (provider_event_id) WHERE (provider_event_id IS NOT NULL)
-       DO NOTHING
-       RETURNING *`
-    : `INSERT INTO public.events (
-         id, event_name, event_category, schema_version, source, actor, object_ref,
-         context, occurred_at, ingested_at, contact_id, execution_id, campaign_id,
-         channel_connection_id, value_micros, currency, provider_event_id,
-         correlation_id, causation_event_id, agency_id, agent_id, data
-       ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,
-         $8::jsonb,$9,$10,$11,$12,$13,
-         $14,$15,$16,$17,
-         $18,$19,$20,$21,$22::jsonb
-       )
-       RETURNING *`
+  const insertSql = `INSERT INTO public.events (
+       id, event_name, event_category, schema_version, source, actor, object_ref,
+       context, occurred_at, ingested_at, contact_id, execution_id, campaign_id,
+       channel_connection_id, value_micros, currency, provider_event_id,
+       correlation_id, causation_event_id, agency_id, agent_id, data
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,
+       $8::jsonb,$9,$10,$11,$12,$13,
+       $14,$15,$16,$17,
+       $18,$19,$20,$21,$22::jsonb
+     )
+     ON CONFLICT (provider_event_id) WHERE (provider_event_id IS NOT NULL)
+     DO NOTHING
+     RETURNING *`
 
   let result
   try {
     result = await query(insertSql, params)
   } catch (err) {
-    if (providerEventId && (err?.code === '23505' || /unique|duplicate/i.test(String(err?.message || '')))) {
-      const existing = await findOne(
+    if (err?.code === '23505' || /unique|duplicate/i.test(String(err?.message || ''))) {
+      const dup = await findOne(
         'events',
-        (row) => row.provider_event_id === providerEventId,
+        (row) => row.provider_event_id === idempotencyKey,
       )
-      if (existing) return { event: existing, inserted: false }
+      if (dup) return { event: dup, inserted: false }
     }
     throw err
   }
@@ -135,13 +210,11 @@ export async function ingestEvent({
     return { event: mapEventRow(insertedRow), inserted: true }
   }
 
-  if (providerEventId) {
-    const existing = await findOne(
-      'events',
-      (row) => row.provider_event_id === providerEventId,
-    )
-    if (existing) return { event: existing, inserted: false }
-  }
+  const afterConflict = await findOne(
+    'events',
+    (row) => row.provider_event_id === idempotencyKey,
+  )
+  if (afterConflict) return { event: afterConflict, inserted: false }
 
   throw Object.assign(new Error('Failed to ingest event'), { code: 'EVENT_INGEST_FAILED' })
 }
@@ -182,7 +255,7 @@ export async function ingestEventSafe(payload) {
   try {
     return await ingestEvent(payload)
   } catch (err) {
-    if (err?.code === '23505' && payload.providerEventId) {
+    if (err?.code === '23505' && payload?.providerEventId) {
       const existing = await findOne(
         'events',
         (row) => row.provider_event_id === payload.providerEventId,
@@ -219,4 +292,8 @@ export async function listEvents({
   })
 }
 
-export { EVENT_CATEGORIES }
+export {
+  EVENT_CATEGORIES,
+  EVENT_NAMES,
+  EVENT_NAME_CATEGORIES,
+}

@@ -166,6 +166,50 @@ describe('growth-os events', () => {
     expect(result.event.value_micros).toBe(1000)
     expect(String(query.mock.calls[0][0])).toMatch(/ON CONFLICT \(provider_event_id\)/)
   })
+
+  it('rejects unknown event_name', async () => {
+    await expect(ingestEvent({
+      eventName: 'ad.delivered',
+      eventCategory: 'delivery',
+      providerEventId: 'prov_ff',
+    })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })
+  })
+
+  it('rejects event_category mismatch', async () => {
+    await expect(ingestEvent({
+      eventName: 'message.delivered',
+      eventCategory: 'business',
+      providerEventId: 'prov_bad',
+    })).rejects.toMatchObject({ code: 'EVENT_CATEGORY_MISMATCH' })
+  })
+
+  it('requires an idempotency key', async () => {
+    await expect(ingestEvent({
+      eventName: 'message.delivered',
+      eventCategory: 'delivery',
+    })).rejects.toMatchObject({ code: 'MISSING_PROVIDER_EVENT_ID' })
+  })
+
+  it('builds deterministic provider_event_id for internal events', async () => {
+    findOne.mockResolvedValueOnce(null)
+    query.mockResolvedValueOnce([{
+      id: 'evt_1',
+      event_name: 'execution.created',
+      event_category: 'system',
+      provider_event_id: 'publishing:execution:exec_1:execution.created:2026-01-01T00:00:00.000Z',
+      context: {},
+      data: {},
+    }])
+    await ingestEvent({
+      eventName: 'execution.created',
+      source: 'publishing',
+      objectRef: 'execution:exec_1',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(query.mock.calls[0][1][16]).toBe(
+      'publishing:execution:exec_1:execution.created:2026-01-01T00:00:00.000Z',
+    )
+  })
 })
 
 describe('growth-os consent eligibility', () => {
