@@ -5,7 +5,13 @@
 import { v4 as uuidv4 } from 'uuid'
 import { authMiddleware } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
+import { query } from '../../../db.js'
 import { Collections, findAllModule, insertModule } from '../infrastructure/db.js'
+import {
+  listWhatsAppAuditLogs,
+  whatsAppAuditLogListQuerySchema,
+  whatsAppAuditRowsToCsv,
+} from '../application/whatsapp-audit-reads.js'
 
 export function registerAdminRoutes(app, { entitlements, credits, pipeline, config }) {
   app.get('/api/admin/whatsapp-listings/health', authMiddleware, requirePlatformAdmin, (_req, res) => {
@@ -87,14 +93,32 @@ export function registerAdminRoutes(app, { entitlements, credits, pipeline, conf
 
   app.get('/api/admin/whatsapp-listings/audit-log', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
-      const { agent_id, limit = 100, offset = 0 } = req.query
-      let logs = await findAllModule(Collections.AUDIT_LOGS, () => true)
-      if (agent_id) logs = logs.filter((l) => l.agent_id === agent_id)
-      logs = logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      const total = logs.length
-      const items = logs.slice(Number(offset), Number(offset) + Number(limit))
-      res.json({ total, offset: Number(offset), limit: Number(limit), items })
+      const payload = await listWhatsAppAuditLogs(query, req.query)
+      res.json(payload)
     } catch (err) {
+      if (err?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Invalid audit-log query', details: err.issues })
+      }
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  app.get('/api/admin/whatsapp-listings/audit-log.csv', authMiddleware, requirePlatformAdmin, async (req, res) => {
+    try {
+      const queryParams = whatsAppAuditLogListQuerySchema.parse({
+        ...req.query,
+        limit: req.query.limit ?? 500,
+        offset: req.query.offset ?? 0,
+      })
+      const payload = await listWhatsAppAuditLogs(query, queryParams)
+      const csv = whatsAppAuditRowsToCsv(payload.items)
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', 'attachment; filename="whatsapp-audit-log.csv"')
+      return res.status(200).send(csv)
+    } catch (err) {
+      if (err?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Invalid audit-log query', details: err.issues })
+      }
       res.status(500).json({ error: err.message })
     }
   })

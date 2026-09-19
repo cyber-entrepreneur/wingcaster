@@ -65,6 +65,7 @@ import { MessageTemplatesPage } from '@/pages/MessageTemplatesPage'
 import { MessageTemplatesPage as PlatformMessageTemplatesPage } from '@/pages/admin/platform-templates/MessageTemplatesPage'
 import { TemplateEditPage as PlatformTemplateEditPage } from '@/pages/admin/platform-templates/TemplateEditPage'
 import { AdminWhatsAppListingsPage } from '@/pages/admin/whatsapp-listings/AdminWhatsAppListingsPage'
+import { WhatsAppAuditLogPage } from '@/pages/admin/whatsapp-listings/WhatsAppAuditLogPage'
 import { AgencyWhatsAppListingsPage } from '@/pages/agency/whatsapp-listings/AgencyWhatsAppListingsPage'
 import { ApplicationsQueuePage } from '@/pages/agency/ApplicationsQueuePage'
 import { ApplicationDetailPage } from '@/pages/agency/ApplicationDetailPage'
@@ -316,6 +317,7 @@ function AppRoutes() {
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/operations" element={<CommandCenterPage />} />
       <Route path="/admin/whatsapp-listings" element={<AdminWhatsAppListingsPage />} />
+      <Route path="/admin/whatsapp-listings/audit" element={<WhatsAppAuditLogPage />} />
       <Route path="/admin/message-templates" element={<PlatformMessageTemplatesPage />} />
       <Route path="/admin/message-templates/new" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,7 +13,6 @@ export function AdminWhatsAppListingsPage() {
   const { addToast } = useToast()
   const [health, setHealth] = useState<any>(null)
   const [usage, setUsage] = useState<any>(null)
-  const [audit, setAudit] = useState<any[]>([])
   const [entitlements, setEntitlements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -25,15 +25,13 @@ export function AdminWhatsAppListingsPage() {
   async function load() {
     setLoading(true)
     try {
-      const [healthData, usageData, auditData, entitlementsData] = await Promise.all([
+      const [healthData, usageData, entitlementsData] = await Promise.all([
         api.getWhatsAppListingsHealth(),
         api.getAdminWhatsAppListingsUsage(),
-        api.getAdminWhatsAppListingsAuditLog(),
         api.getAdminWhatsAppListingsEntitlements(),
       ])
       setHealth(healthData)
       setUsage(usageData)
-      setAudit(auditData.items || [])
       setEntitlements(entitlementsData)
     } catch (err: any) {
       addToast({ title: 'Error', description: err.message || 'Failed to load admin WhatsApp listings', variant: 'error' })
@@ -123,15 +121,17 @@ export function AdminWhatsAppListingsPage() {
         ))}
       </div>
 
-      <h2 className="text-xl font-semibold">Audit log</h2>
-      <div className="space-y-2">
-        {audit.length === 0 && <p className="text-muted-foreground">No audit entries yet.</p>}
-        {audit.map((log) => (
-          <div key={log.id} className="rounded border p-2 text-sm">
-            <span className="font-medium">{log.type}</span> · {new Date(log.created_at).toLocaleString()} · {JSON.stringify(log.meta || {})}
-          </div>
-        ))}
-      </div>
+      <Card>
+        <CardHeader><CardTitle>Audit trail</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-[var(--lc-text-muted)]">
+            Review intake events, approvals, discards, and admin credit grants in the dedicated audit log.
+          </p>
+          <Button asChild variant="outline">
+            <Link to="/admin/whatsapp-listings/audit">Open WhatsApp audit log</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
