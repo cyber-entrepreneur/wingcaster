@@ -130,7 +130,7 @@ import {
 import {
   ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage,
-  DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
+  DunningCaseDetailPage, DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
@@ -400,6 +400,7 @@ function AppRoutes() {
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
       <Route path="/admin/fin/reconciliation/:id" element={<ReconciliationRunDetailPage />} />
       <Route path="/admin/fin/accounting/periods" element={<AccountingPeriodsPage />} />
+      <Route path="/admin/fin/dunning/:id" element={<DunningCaseDetailPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
