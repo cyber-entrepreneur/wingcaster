@@ -8,6 +8,23 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
+  it('lists accounting periods for the session environment', async () => {
+    const { app } = await makeOpsApp(url())
+    const env = commandEnv(world(), { reasonCode: 'TEST' })
+    const opened = await openAccountingPeriod({
+      ...env,
+      legalEntityId: world().legalEntityId,
+      periodKey: `list-${randomUUID().slice(0, 8)}`,
+      startsAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-02-01T00:00:00.000Z',
+    })
+    const list = await request(app)
+      .get('/api/admin/fin/accounting/periods')
+    expect(list.status).toBe(200)
+    expect(Array.isArray(list.body.periods)).toBe(true)
+    expect(list.body.periods.some((row) => row.id === opened.periodId)).toBe(true)
+  })
+
   it('soft-closes a past OPEN period; hard-close then reopen with override', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()
@@ -16,13 +33,14 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
       ...env,
       legalEntityId: world().legalEntityId,
       periodKey: `admin-${randomUUID().slice(0, 8)}`,
-      startsAt: '2026-01-01T00:00:00.000Z',
-      endsAt: '2026-02-01T00:00:00.000Z',
+      // Distinct window from the list test — uq_accounting_periods_window is (env, entity, starts_at, ends_at).
+      startsAt: '2026-03-01T00:00:00.000Z',
+      endsAt: '2026-04-01T00:00:00.000Z',
     })
     const soft = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/soft-close`)
       .set(writeHeaders(token, { idempotencyKey: `SOFT:${randomUUID()}` }))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect(soft.status).toBe(200)
     expect(soft.body.status).toBe('SOFT_CLOSED')
 
@@ -30,7 +48,7 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     const hard = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/hard-close`)
       .set(writeHeaders(token, { idempotencyKey: `HARD:${randomUUID()}` }))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect([200, 400, 409]).toContain(hard.status)
 
     const approvalId = await insertApproval(pool(), {
@@ -49,7 +67,7 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     const res = await request(app)
       .post('/api/admin/fin/accounting/periods/00000000-0000-0000-0000-000000000099/soft-close')
       .set(writeHeaders(elevate()))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect(res.status).toBeGreaterThanOrEqual(400)
   })
 })
