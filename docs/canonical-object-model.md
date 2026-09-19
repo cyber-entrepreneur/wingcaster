@@ -74,18 +74,19 @@ Immutable-ish analytics/business event. `provider_event_id` UNIQUE; ingest is `O
 **Partitioning:** monthly range partitioning on `occurred_at` conflicts with Postgres requiring partition keys in UNIQUE indexes (`provider_event_id`). Wave 0 uses a **single table** + `growth_os_ensure_events_partition()` helper (no-op) until a composite uniqueness model is adopted.
 
 ### Consent
-Current-state eligibility per `(contact_id, channel, purpose)`.
+Append-only consent history; current state per `(contact_id, channel, purpose)` via `consent_current` view (latest `captured_at`).
 
 | Field | Notes |
 |---|---|
 | id | `cns_…` |
-| contact_id / channel / purpose | purpose ∈ `marketing` · `transactional` · `nurture` |
+| contact_id / channel / purpose | purpose ∈ `marketing` · `transactional` · `nurture`; channel ∈ `email` · `sms` · `whatsapp` |
 | status | `granted` · `denied` · `withdrawn` |
-| legal_basis / source / captured_at / expires_at / jurisdiction / proof_ref | |
+| legal_basis | `explicit_optin` · `double_optin` · `contract` · `legitimate_interest` · `soft_optin_existing_customer` |
+| source / captured_at / expires_at / jurisdiction / proof_ref | |
 
-**History model:** upsert current row; prior states appended to `data.prior_states`. View `consent_current` = `SELECT * FROM consent`.
+**History model:** append-only rows; `setConsent()` always inserts. View `consent_current` = `DISTINCT ON (contact_id, channel, purpose) … ORDER BY captured_at DESC`.
 
-`checkEligibility({ contactId, channel, purpose })` → `{ allowed, reason, consent }` with reasons: `granted` · `denied` · `withdrawn` · `expired` · `missing_consent`.
+`checkEligibility({ contactId, channel, purpose, now? })` → `{ allowed, reason_code, required_action?, window_expires_at? }` per `docs/consent-and-compliance-spec.md` §5 (precedence: withdrawn → channel health → transactional/WhatsApp window → nurture/marketing consent → frequency cap).
 
 ## Maps to existing schema
 

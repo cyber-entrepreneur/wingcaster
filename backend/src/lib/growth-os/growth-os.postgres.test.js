@@ -14,6 +14,7 @@ import {
   checkEligibility,
   createChannelConnection,
   createExecution,
+  ELIGIBILITY_REASON_CODES,
   ensureChannelDefinition,
   ingestEvent,
   recordExecutionAttempt,
@@ -30,7 +31,36 @@ const WAVE0_FILES = [
   '545_growth_os_events_consent.sql',
   '546_growth_os_canonical_backfill.sql',
   '547_growth_os_forward_sync_triggers.sql',
+  '548_growth_os_consent_compliance.sql',
 ]
+
+async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
+  const def = await ensureChannelDefinition({ platform, kind: 'owned_messaging' })
+  const conn = await createChannelConnection({
+    channelDefinitionId: def.id,
+    agencyId,
+    agentId,
+    credentialsRef: `secret:fixture:${platform}`,
+    health: 'connected',
+  })
+  return { def, conn }
+}
+
+async function seedWhatsAppInbound(pool, { contactId, inboundAt }) {
+  const conversationId = `cnv_${randomUUID()}`
+  await pool.query(
+    `INSERT INTO public.conversations
+       (id, contact_id, channel, source_channel, status, data)
+     VALUES ($1, $2, 'whatsapp', 'whatsapp', 'open', '{}'::jsonb)`,
+    [conversationId, contactId],
+  )
+  await pool.query(
+    `INSERT INTO public.conversation_messages
+       (id, conversation_id, direction, channel, content, created_at, data)
+     VALUES ($1, $2, 'inbound', 'whatsapp', 'hello', $3, '{}'::jsonb)`,
+    [`msg_${randomUUID()}`, conversationId, inboundAt],
+  )
+}
 
 async function asGrowthOsRole(pool, gucs, fn) {
   const client = await pool.connect()
@@ -525,31 +555,191 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
     })
   }, 180_000)
 
-  it('access layer eligibility + execution transitions work on real PG', async () => {
+  it('consent_current view returns latest row per contact×channel×purpose', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
+      const pool = getPool()
       try {
         const contactId = `ctc_${randomUUID()}`
         await setConsent({
           contactId,
-          channel: 'whatsapp',
-          purpose: 'transactional',
+          channel: 'email',
+          purpose: 'marketing',
           status: 'granted',
+          legalBasis: 'explicit_optin',
+          capturedAt: '2026-01-01T00:00:00.000Z',
+        })
+        await setConsent({
+          contactId,
+          channel: 'email',
+          purpose: 'marketing',
+          status: 'withdrawn',
+          legalBasis: 'explicit_optin',
+          capturedAt: '2026-02-01T00:00:00.000Z',
+        })
+        const rows = await pool.query(
+          `SELECT status, captured_at
+           FROM public.consent_current
+           WHERE contact_id = $1 AND channel = 'email' AND purpose = 'marketing'`,
+          [contactId],
+        )
+        expect(rows.rows).toHaveLength(1)
+        expect(rows.rows[0]).toMatchObject({
+          status: 'withdrawn',
+          captured_at: new Date('2026-02-01T00:00:00.000Z'),
+        })
+        expect((await pool.query(
+          'SELECT COUNT(*)::int AS n FROM public.consent WHERE contact_id = $1',
+          [contactId],
+        )).rows[0].n).toBe(2)
+      } finally {
+        await closeDb()
+      }
+    })
+  }, 180_000)
+
+  it('checkEligibility honours spec §5 on real PG', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      try {
+        await seedMessagingChannel({ platform: 'whatsapp' })
+        await seedMessagingChannel({ platform: 'email' })
+        const contactId = `ctc_${randomUUID()}`
+
+        await setConsent({
+          contactId,
+          channel: 'email',
+          purpose: 'marketing',
+          status: 'granted',
+          legalBasis: 'explicit_optin',
+          jurisdiction: 'AE',
         })
         expect(await checkEligibility({
-          contactId, channel: 'whatsapp', purpose: 'transactional',
-        })).toMatchObject({ allowed: true, reason: 'granted' })
+          contactId, channel: 'email', purpose: 'marketing',
+        })).toMatchObject({
+          allowed: true,
+          reason_code: ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED,
+        })
+
+        await setConsent({
+          contactId,
+          channel: 'email',
+          purpose: 'marketing',
+          status: 'denied',
+          legalBasis: 'explicit_optin',
+        })
+        expect(await checkEligibility({
+          contactId, channel: 'email', purpose: 'marketing',
+        })).toMatchObject({
+          allowed: false,
+          reason_code: ELIGIBILITY_REASON_CODES.DENY_OPTED_OUT,
+        })
+
+        await setConsent({
+          contactId,
+          channel: 'email',
+          purpose: 'marketing',
+          status: 'granted',
+          legalBasis: 'explicit_optin',
+          expiresAt: '2020-01-01T00:00:00.000Z',
+        })
+        expect(await checkEligibility({
+          contactId,
+          channel: 'email',
+          purpose: 'marketing',
+          now: '2026-01-01T00:00:00.000Z',
+        })).toMatchObject({
+          allowed: false,
+          reason_code: ELIGIBILITY_REASON_CODES.DENY_EXPIRED,
+        })
 
         await setConsent({
           contactId,
           channel: 'whatsapp',
-          purpose: 'transactional',
+          purpose: 'marketing',
           status: 'withdrawn',
+          legalBasis: 'explicit_optin',
         })
         expect(await checkEligibility({
-          contactId, channel: 'whatsapp', purpose: 'transactional',
-        })).toMatchObject({ allowed: false, reason: 'withdrawn' })
+          contactId, channel: 'whatsapp', purpose: 'marketing',
+        })).toMatchObject({
+          allowed: false,
+          reason_code: ELIGIBILITY_REASON_CODES.DENY_WITHDRAWN,
+        })
 
+        expect(await checkEligibility({
+          contactId, channel: 'email', purpose: 'transactional',
+        })).toMatchObject({
+          allowed: true,
+          reason_code: ELIGIBILITY_REASON_CODES.OK_TRANSACTIONAL,
+        })
+
+        expect(await checkEligibility({
+          contactId,
+          channel: 'whatsapp',
+          purpose: 'transactional',
+          now: '2026-06-01T00:00:00.000Z',
+        })).toMatchObject({
+          allowed: false,
+          reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_WINDOW_CLOSED_NO_TEMPLATE,
+        })
+
+        await seedWhatsAppInbound(pool, {
+          contactId,
+          inboundAt: '2026-06-01T10:00:00.000Z',
+        })
+        const inWindow = await checkEligibility({
+          contactId,
+          channel: 'whatsapp',
+          purpose: 'transactional',
+          now: '2026-06-01T18:00:00.000Z',
+        })
+        expect(inWindow).toMatchObject({
+          allowed: true,
+          reason_code: ELIGIBILITY_REASON_CODES.OK_SERVICE_WINDOW,
+        })
+        expect(inWindow.window_expires_at).toBeTruthy()
+
+        expect(await checkEligibility({
+          contactId,
+          channel: 'whatsapp',
+          purpose: 'transactional',
+          now: '2026-06-03T00:00:00.000Z',
+          approvedTemplate: 'utility',
+        })).toMatchObject({
+          allowed: true,
+          reason_code: ELIGIBILITY_REASON_CODES.OK_TEMPLATE,
+        })
+
+        const marketingContact = `ctc_${randomUUID()}`
+        await setConsent({
+          contactId: marketingContact,
+          channel: 'whatsapp',
+          purpose: 'marketing',
+          status: 'granted',
+          legalBasis: 'explicit_optin',
+          jurisdiction: 'AE',
+        })
+        expect(await checkEligibility({
+          contactId: marketingContact,
+          channel: 'whatsapp',
+          purpose: 'marketing',
+          now: '2026-06-03T00:00:00.000Z',
+        })).toMatchObject({
+          allowed: false,
+          reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_NO_TEMPLATE,
+        })
+      } finally {
+        await closeDb()
+      }
+    })
+  }, 180_000)
+
+  it('access layer execution transitions work on real PG', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      try {
         const def = await ensureChannelDefinition({
           platform: `portal_${randomUUID().slice(0, 6)}`,
           kind: 'portal',

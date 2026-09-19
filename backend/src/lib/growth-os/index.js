@@ -37,7 +37,10 @@ export {
   checkEligibility,
   setConsent,
   getConsent,
+  insertConsentSql,
   upsertConsentSql,
   CONSENT_STATUSES,
   CONSENT_PURPOSES,
+  CONSENT_LEGAL_BASES,
+  ELIGIBILITY_REASON_CODES,
 } from './consent.js'

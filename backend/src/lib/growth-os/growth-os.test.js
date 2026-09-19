@@ -28,6 +28,8 @@ import {
   ingestEvent,
   checkEligibility,
   setConsent,
+  getConsent,
+  ELIGIBILITY_REASON_CODES,
 } from './index.js'
 
 beforeEach(() => {
@@ -37,6 +39,15 @@ beforeEach(() => {
   update.mockReset()
   query.mockReset()
 })
+
+function mockHealthyChannel() {
+  query.mockImplementation(async (sql) => {
+    if (String(sql).includes('channel_connections')) {
+      return [{ '?column?': 1 }]
+    }
+    return []
+  })
+}
 
 describe('growth-os channels', () => {
   it('ensureChannelDefinition rejects invalid kind', async () => {
@@ -158,92 +169,233 @@ describe('growth-os events', () => {
 })
 
 describe('growth-os consent eligibility', () => {
-  it('granted → allow', async () => {
-    findOne.mockResolvedValueOnce({
-      id: 'cns_1',
+  it('granted marketing → OK_CONSENT_GRANTED', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql, params) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('consent_current') && params?.[2] === 'marketing') {
+        return [{
+          status: 'granted',
+          legal_basis: 'explicit_optin',
+          jurisdiction: 'AE',
+          expires_at: null,
+        }]
+      }
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
+    })).resolves.toMatchObject({
+      allowed: true,
+      reason_code: ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED,
+    })
+  })
+
+  it('denied → DENY_OPTED_OUT', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql, params) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('consent_current')) {
+        return [{ status: 'denied', expires_at: null }]
+      }
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_OPTED_OUT,
+    })
+  })
+
+  it('withdrawn on channel → DENY_WITHDRAWN', async () => {
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('status = \'withdrawn\'')) return [{ '?column?': 1 }]
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
+      skipChannelHealth: true,
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_WITHDRAWN,
+    })
+  })
+
+  it('expired grant → DENY_EXPIRED', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('consent_current')) {
+        return [{
+          status: 'granted',
+          legal_basis: 'explicit_optin',
+          jurisdiction: 'AE',
+          expires_at: '2020-01-01T00:00:00.000Z',
+        }]
+      }
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
+      now: '2026-01-01T00:00:00.000Z',
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_EXPIRED,
+    })
+  })
+
+  it('missing consent → DENY_NO_CONSENT', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('consent_current')) return []
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'whatsapp', purpose: 'nurture',
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_NO_CONSENT,
+    })
+  })
+
+  it('transactional email → OK_TRANSACTIONAL', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1', channel: 'email', purpose: 'transactional',
+    })).resolves.toMatchObject({
+      allowed: true,
+      reason_code: ELIGIBILITY_REASON_CODES.OK_TRANSACTIONAL,
+    })
+  })
+
+  it('whatsapp transactional inside service window → OK_SERVICE_WINDOW', async () => {
+    mockHealthyChannel()
+    const inboundAt = new Date('2026-01-01T12:00:00.000Z')
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('conversation_messages')) {
+        return [{ last_inbound_at: inboundAt.toISOString() }]
+      }
+      return []
+    })
+    const result = await checkEligibility({
+      contactId: 'ctc_1',
+      channel: 'whatsapp',
+      purpose: 'transactional',
+      now: '2026-01-01T18:00:00.000Z',
+    })
+    expect(result).toMatchObject({
+      allowed: true,
+      reason_code: ELIGIBILITY_REASON_CODES.OK_SERVICE_WINDOW,
+    })
+    expect(result.window_expires_at).toBe(new Date(inboundAt.getTime() + 24 * 3600 * 1000).toISOString())
+  })
+
+  it('whatsapp transactional outside window without template → DENY_WHATSAPP_WINDOW_CLOSED_NO_TEMPLATE', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('conversation_messages')) return [{ last_inbound_at: '2020-01-01T00:00:00.000Z' }]
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1',
+      channel: 'whatsapp',
+      purpose: 'transactional',
+      now: '2026-01-01T00:00:00.000Z',
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_WINDOW_CLOSED_NO_TEMPLATE,
+      required_action: 'use_approved_utility_or_auth_template',
+    })
+  })
+
+  it('whatsapp transactional outside window with utility template → OK_TEMPLATE', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('conversation_messages')) return [{ last_inbound_at: '2020-01-01T00:00:00.000Z' }]
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1',
+      channel: 'whatsapp',
+      purpose: 'transactional',
+      now: '2026-01-01T00:00:00.000Z',
+      approvedTemplate: 'utility',
+    })).resolves.toMatchObject({
+      allowed: true,
+      reason_code: ELIGIBILITY_REASON_CODES.OK_TEMPLATE,
+    })
+  })
+
+  it('whatsapp marketing granted outside window without template → DENY_WHATSAPP_NO_TEMPLATE', async () => {
+    mockHealthyChannel()
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('channel_connections')) return [{ '?column?': 1 }]
+      if (String(sql).includes('status = \'withdrawn\'')) return []
+      if (String(sql).includes('consent_current')) {
+        return [{
+          status: 'granted',
+          legal_basis: 'explicit_optin',
+          jurisdiction: 'AE',
+          expires_at: null,
+        }]
+      }
+      if (String(sql).includes('conversation_messages')) {
+        return [{ last_inbound_at: '2020-01-01T00:00:00.000Z' }]
+      }
+      return []
+    })
+    await expect(checkEligibility({
+      contactId: 'ctc_1',
+      channel: 'whatsapp',
+      purpose: 'marketing',
+      now: '2026-01-01T00:00:00.000Z',
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_NO_TEMPLATE,
+    })
+  })
+
+  it('setConsent appends rows and getConsent reads latest', async () => {
+    insert.mockImplementation(async (_c, row) => row)
+    query.mockResolvedValueOnce([{
+      id: 'cns_2',
       contact_id: 'ctc_1',
       channel: 'email',
       purpose: 'marketing',
-      status: 'granted',
-      expires_at: null,
-    })
-    await expect(checkEligibility({
-      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
-    })).resolves.toMatchObject({ allowed: true, reason: 'granted' })
-  })
-
-  it('denied → deny', async () => {
-    findOne.mockResolvedValueOnce({ status: 'denied', expires_at: null })
-    await expect(checkEligibility({
-      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
-    })).resolves.toMatchObject({ allowed: false, reason: 'denied' })
-  })
-
-  it('withdrawn → deny', async () => {
-    findOne.mockResolvedValueOnce({ status: 'withdrawn', expires_at: null })
-    await expect(checkEligibility({
-      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
-    })).resolves.toMatchObject({ allowed: false, reason: 'withdrawn' })
-  })
-
-  it('expired grant → deny', async () => {
-    findOne.mockResolvedValueOnce({
-      status: 'granted',
-      expires_at: '2020-01-01T00:00:00.000Z',
-    })
-    await expect(checkEligibility({
-      contactId: 'ctc_1', channel: 'email', purpose: 'marketing',
-      at: '2026-01-01T00:00:00.000Z',
-    })).resolves.toMatchObject({ allowed: false, reason: 'expired' })
-  })
-
-  it('missing consent → deny', async () => {
-    findOne.mockResolvedValueOnce(null)
-    await expect(checkEligibility({
-      contactId: 'ctc_1', channel: 'whatsapp', purpose: 'nurture',
-    })).resolves.toMatchObject({ allowed: false, reason: 'missing_consent' })
-  })
-
-  it('setConsent appends prior_states on update', async () => {
-    findOne
-      .mockResolvedValueOnce({
-        id: 'cns_1',
-        contact_id: 'ctc_1',
-        channel: 'email',
-        purpose: 'marketing',
-        status: 'granted',
-        captured_at: '2025-01-01T00:00:00.000Z',
-        data: {},
-      })
-      .mockResolvedValueOnce({
-        id: 'cns_1',
-        status: 'withdrawn',
-        data: {
-          prior_states: [{ status: 'granted', captured_at: '2025-01-01T00:00:00.000Z' }],
-        },
-      })
-    update.mockImplementation(async (_c, _f, updater) => {
-      updater({
-        id: 'cns_1',
-        status: 'granted',
-        data: {},
-        legal_basis: null,
-        source: null,
-        jurisdiction: null,
-        proof_ref: null,
-        agency_id: null,
-        agent_id: null,
-      })
-      return 1
-    })
+      status: 'withdrawn',
+      captured_at: '2026-02-01T00:00:00.000Z',
+    }])
     const row = await setConsent({
       contactId: 'ctc_1',
       channel: 'email',
       purpose: 'marketing',
       status: 'withdrawn',
+      legalBasis: 'explicit_optin',
     })
     expect(row.status).toBe('withdrawn')
-    expect(row.data.prior_states).toHaveLength(1)
-    expect(row.data.prior_states[0].status).toBe('granted')
+    expect(insert).toHaveBeenCalledTimes(1)
+    const current = await getConsent({
+      contactId: 'ctc_1',
+      channel: 'email',
+      purpose: 'marketing',
+    })
+    expect(current.status).toBe('withdrawn')
   })
 })

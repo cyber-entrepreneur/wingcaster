@@ -1,0 +1,59 @@
+flowchart TD
+    subgraph UI["Web UI"]
+      PM["Promote/Distribute modal"]
+      COMP["Listings composer<br/>StepPublishPreview"]
+      CARD["Social-card render UI"]
+      CM["Campaign Manager<br/>(CRM drip, text-only)"]
+    end
+
+    subgraph PathA["Path A - distribute-own (server.js:5763)"]
+      A1["writes distributions rows"]
+      AWA["WhatsApp -> LIVE send"]
+      AQ["IG/TG/TikTok/X -> pending_retry"]
+    end
+
+    subgraph PathB["Path B - publish-social (server.js:5932)  [ORPHANED: no UI]"]
+      B1["real direct publish"]
+    end
+
+    subgraph PathC["Path C - submit-to-fi (server.js:7416)"]
+      C1["publishing_jobs + distribution_jobs<br/>status=in_review"]
+      C2["PA-MOD-001 approval / RPA"]
+    end
+
+    RW["Retry worker (server.js:5007)<br/>Instagram ONLY; others 'not implemented'"]
+    SCH["Scheduler<br/>scheduled_publications -> portal path"]
+
+    subgraph ADP["Provider adapters (REAL Graph/API)"]
+      IG["Instagram"]
+      FB["Facebook"]
+      X["X"]
+      TT["TikTok"]
+      LI["LinkedIn"]
+      WA["WhatsApp Cloud API"]
+      PORT["Portals (PF Group, etc.)"]
+    end
+
+    BB["Bannerbear / social-cards module<br/>render branded card -> uploads/social-cards"]
+
+    PM --> A1
+    PM --> C1
+    A1 --> AWA --> WA
+    A1 --> AQ --> RW --> IG
+    RW -. "FB/X/TikTok/TG not implemented" .-> FB
+
+    COMP -. "could/should call" .-> B1
+    B1 --> IG & FB & X & TT & LI
+    PM -. "SHOULD consolidate here" .-> B1
+
+    C1 --> C2 --> PORT
+    SCH --> C1
+
+    CARD --> BB
+    BB -. "MISSING LINK: card never feeds a post" .-> B1
+    BB -. "MISSING: campaign steps have no media field" .-> CM
+
+    classDef orphan fill:#fdecea,stroke:#c0392b;
+    classDef gap stroke-dasharray:4 4,stroke:#c0392b,color:#c0392b;
+    class PathB orphan;
+    class BB gap;

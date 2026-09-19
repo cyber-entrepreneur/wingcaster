@@ -384,6 +384,14 @@ const TABLE_MAP = {
       'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
     ],
   },
+  consent_current: {
+    schema: 'public',
+    table: 'consent_current',
+    columns: [
+      'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
+      'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },
