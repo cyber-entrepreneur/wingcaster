@@ -53,7 +53,7 @@ finPostgresSuite('admin/routes-reconciliation', {}, ({ url }) => {
     const ran = await request(app)
       .post('/api/admin/fin/reconciliation/run')
       .set(writeHeaders(token))
-      .send({ reason_code: 'TEST', environment: 'TEST', now: '1999-01-01T00:00:00.000Z' })
+      .send({ scope_kind: 'platform', reason_code: 'TEST' })
     expect(ran.status).toBe(200)
     const runId = ran.body.runId || ran.body.id
     if (!runId) return
