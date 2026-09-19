@@ -30,10 +30,14 @@ export {
   ingestEventSafe,
   getEvent,
   listEvents,
+  buildIdempotencyKey,
+  buildProviderIdempotencyKey,
   buildProviderEventId,
   EVENT_CATEGORIES,
   EVENT_NAMES,
   EVENT_NAME_CATEGORIES,
+  ACTOR_TYPES,
+  OBJECT_TYPES,
 } from './events.js'
 
 export {

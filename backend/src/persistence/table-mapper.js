@@ -369,11 +369,23 @@ const TABLE_MAP = {
     schema: 'public',
     table: 'events',
     columns: [
-      'event_name', 'event_category', 'schema_version', 'source', 'actor',
-      'object_ref', 'context', 'occurred_at', 'ingested_at', 'contact_id',
+      'event_name', 'event_category', 'schema_version', 'source',
+      'actor_type', 'actor_id', 'object_type', 'object_id',
+      'context', 'occurred_at', 'ingested_at', 'contact_id',
       'execution_id', 'campaign_id', 'channel_connection_id', 'value_micros',
-      'currency', 'provider_event_id', 'correlation_id', 'causation_event_id',
+      'currency', 'idempotency_key', 'provider_event_id', 'provider_message_id',
+      'subject_identity_id', 'identity_refs',
+      'correlation_id', 'causation_event_id',
       'agency_id', 'agent_id',
+    ],
+  },
+  metric_observations: {
+    schema: 'public',
+    table: 'metric_observations',
+    columns: [
+      'subject_type', 'subject_id', 'execution_id', 'metric_name', 'metric_value',
+      'aggregation_type', 'period_start', 'period_end', 'observed_at', 'source',
+      'provider_ref', 'dimensions', 'agency_id', 'agent_id',
     ],
   },
   consent: {

@@ -128,10 +128,10 @@ describe('growth-os executions', () => {
 })
 
 describe('growth-os events', () => {
-  it('ingestEvent is idempotent on provider_event_id', async () => {
+  it('ingestEvent is idempotent on idempotency_key', async () => {
     findOne.mockResolvedValueOnce({
       id: 'evt_existing',
-      provider_event_id: 'prov_1',
+      idempotency_key: 'prov_1',
       event_name: 'message.delivered',
     })
     const first = await ingestEvent({
@@ -150,6 +150,7 @@ describe('growth-os events', () => {
       id: 'evt_1',
       event_name: 'message.delivered',
       event_category: 'delivery',
+      idempotency_key: 'prov_2',
       provider_event_id: 'prov_2',
       value_micros: '1000',
       context: {},
@@ -164,7 +165,7 @@ describe('growth-os events', () => {
     })
     expect(result.inserted).toBe(true)
     expect(result.event.value_micros).toBe(1000)
-    expect(String(query.mock.calls[0][0])).toMatch(/ON CONFLICT \(provider_event_id\)/)
+    expect(String(query.mock.calls[0][0])).toMatch(/ON CONFLICT \(idempotency_key\)/)
   })
 
   it('rejects unknown event_name', async () => {
@@ -172,6 +173,19 @@ describe('growth-os events', () => {
       eventName: 'ad.delivered',
       eventCategory: 'delivery',
       providerEventId: 'prov_ff',
+    })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })
+  })
+
+  it('rejects removed v1 engagement names', async () => {
+    await expect(ingestEvent({
+      eventName: 'post.impression',
+      eventCategory: 'engagement',
+      providerEventId: 'prov_impression',
+    })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })
+    await expect(ingestEvent({
+      eventName: 'message.sent',
+      eventCategory: 'delivery',
+      providerEventId: 'prov_sent',
     })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })
   })
 
@@ -187,28 +201,65 @@ describe('growth-os events', () => {
     await expect(ingestEvent({
       eventName: 'message.delivered',
       eventCategory: 'delivery',
-    })).rejects.toMatchObject({ code: 'MISSING_PROVIDER_EVENT_ID' })
+    })).rejects.toMatchObject({ code: 'MISSING_IDEMPOTENCY_KEY' })
   })
 
-  it('builds deterministic provider_event_id for internal events', async () => {
+  it('builds deterministic idempotency_key for internal events', async () => {
     findOne.mockResolvedValueOnce(null)
     query.mockResolvedValueOnce([{
       id: 'evt_1',
       event_name: 'execution.created',
       event_category: 'system',
-      provider_event_id: 'publishing:execution:exec_1:execution.created:2026-01-01T00:00:00.000Z',
+      idempotency_key: 'publishing:execution:exec_1:execution.created:2026-01-01T00:00:00.000Z',
       context: {},
       data: {},
     }])
     await ingestEvent({
       eventName: 'execution.created',
       source: 'publishing',
-      objectRef: 'execution:exec_1',
+      objectType: 'execution',
+      objectId: 'exec_1',
       occurredAt: '2026-01-01T00:00:00.000Z',
     })
-    expect(query.mock.calls[0][1][16]).toBe(
+    expect(query.mock.calls[0][1][18]).toBe(
       'publishing:execution:exec_1:execution.created:2026-01-01T00:00:00.000Z',
     )
+  })
+
+  it('stores typed actor/object and identity refs', async () => {
+    findOne.mockResolvedValueOnce(null)
+    query.mockResolvedValueOnce([{
+      id: 'evt_2',
+      event_name: 'lead.contacted',
+      event_category: 'business',
+      idempotency_key: 'crm:lead:ld_1:lead.contacted:2026-01-02T00:00:00.000Z',
+      actor_type: 'agent',
+      actor_id: 'agt_1',
+      object_type: 'lead',
+      object_id: 'ld_1',
+      subject_identity_id: 'idn_1',
+      identity_refs: { email: 'a@example.com' },
+      context: {},
+      data: {},
+    }])
+    await ingestEvent({
+      eventName: 'lead.contacted',
+      source: 'crm',
+      actorType: 'agent',
+      actorId: 'agt_1',
+      objectType: 'lead',
+      objectId: 'ld_1',
+      subjectIdentityId: 'idn_1',
+      identityRefs: { email: 'a@example.com' },
+      occurredAt: '2026-01-02T00:00:00.000Z',
+    })
+    const params = query.mock.calls[0][1]
+    expect(params[5]).toBe('agent')
+    expect(params[6]).toBe('agt_1')
+    expect(params[7]).toBe('lead')
+    expect(params[8]).toBe('ld_1')
+    expect(params[21]).toBe('idn_1')
+    expect(params[22]).toBe(JSON.stringify({ email: 'a@example.com' }))
   })
 })
 

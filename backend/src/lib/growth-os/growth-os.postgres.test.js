@@ -33,6 +33,7 @@ const WAVE0_FILES = [
   '547_growth_os_forward_sync_triggers.sql',
   '548_growth_os_consent_compliance.sql',
   '549_growth_os_event_taxonomy.sql',
+  '550_growth_os_event_taxonomy_v2.sql',
 ]
 
 async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
@@ -128,7 +129,7 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           WHERE n.nspname = 'public'
             AND relname IN (
               'channel_definitions','channel_connections','executions',
-              'execution_attempts','events','consent'
+              'execution_attempts','events','consent','metric_observations'
             )
             AND relkind = 'r'
           ORDER BY 1
@@ -140,6 +141,7 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           'events',
           'execution_attempts',
           'executions',
+          'metric_observations',
         ])
       } finally {
         await closeDb()
@@ -160,9 +162,9 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           ORDER BY 1
         `, [[
           'channel_definitions', 'channel_connections', 'executions',
-          'execution_attempts', 'events', 'consent',
+          'execution_attempts', 'events', 'consent', 'metric_observations',
         ]])
-        expect(rows).toHaveLength(6)
+        expect(rows).toHaveLength(7)
         for (const row of rows) {
           expect(row.relrowsecurity).toBe(true)
           expect(row.relforcerowsecurity).toBe(true)
@@ -293,15 +295,18 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
     })
   }, 180_000)
 
-  it('event ingest with same provider_event_id yields one row', async () => {
+  it('event ingest with same idempotency_key yields one row', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
       const pool = getPool()
       try {
-        const providerEventId = `prov_${randomUUID()}`
+        const idempotencyKey = `webhook:whatsapp:prov_${randomUUID()}`
+        const providerEventId = idempotencyKey.split(':').slice(2).join(':')
         const first = await ingestEvent({
           eventName: 'message.delivered',
           eventCategory: 'delivery',
+          source: 'webhook:whatsapp',
+          idempotencyKey,
           providerEventId,
           valueMicros: 1500,
           currency: 'USD',
@@ -309,6 +314,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         const second = await ingestEvent({
           eventName: 'message.delivered',
           eventCategory: 'delivery',
+          source: 'webhook:whatsapp',
+          idempotencyKey,
           providerEventId,
           valueMicros: 9999,
           currency: 'USD',
@@ -318,10 +325,51 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         expect(second.event.id).toBe(first.event.id)
 
         const { rows } = await pool.query(
-          'SELECT id FROM public.events WHERE provider_event_id = $1',
-          [providerEventId],
+          'SELECT id FROM public.events WHERE idempotency_key = $1',
+          [idempotencyKey],
         )
         expect(rows).toHaveLength(1)
+      } finally {
+        await closeDb()
+      }
+    })
+  }, 180_000)
+
+  it('metric_observations has tenant RLS like events', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      try {
+        const agencyA = `agc_a_${randomUUID()}`
+        const agencyB = `agc_b_${randomUUID()}`
+        const agentA = `agt_a_${randomUUID()}`
+        const agentB = `agt_b_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId: agencyA, agentId: agentA })
+        await seedAgencyAgent(pool, { agencyId: agencyB, agentId: agentB })
+
+        const obsA = `mob_${randomUUID()}`
+        const obsB = `mob_${randomUUID()}`
+        await pool.query(
+          `INSERT INTO public.metric_observations
+             (id, subject_type, subject_id, metric_name, metric_value, aggregation_type, agency_id, agent_id, data)
+           VALUES ($1, 'post', 'post_a', 'impressions', 100, 'cumulative', $2, $3, '{}'::jsonb)`,
+          [obsA, agencyA, agentA],
+        )
+        await pool.query(
+          `INSERT INTO public.metric_observations
+             (id, subject_type, subject_id, metric_name, metric_value, aggregation_type, agency_id, agent_id, data)
+           VALUES ($1, 'post', 'post_b', 'impressions', 200, 'cumulative', $2, $3, '{}'::jsonb)`,
+          [obsB, agencyB, agentB],
+        )
+
+        const seen = await asGrowthOsRole(pool, { 'app.agency_id': agencyA }, async (client) => {
+          return client.query(
+            'SELECT id FROM public.metric_observations WHERE agency_id = ANY($1::text[])',
+            [[agencyA, agencyB]],
+          )
+        })
+        expect(seen.rows).toHaveLength(1)
+        expect(seen.rows[0].id).toBe(obsA)
       } finally {
         await closeDb()
       }
