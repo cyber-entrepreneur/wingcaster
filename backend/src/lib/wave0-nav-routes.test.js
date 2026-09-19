@@ -297,6 +297,46 @@ describe('wave0 nav routes', () => {
     expect(mark.status).toBe(200)
     expect(mark.body.success).toBe(true)
     expect(dal.update).toHaveBeenCalled()
+
+    dal.findOne.mockImplementation(async (collection, filter) => {
+      if (collection === 'notifications') {
+        const row = {
+          id: 'n1',
+          user_id: 'user-1',
+          title: 'Hello',
+          body: 'World',
+          type: 'consumer',
+          read: false,
+          created_at: '2026-01-02T00:00:00.000Z',
+        }
+        return filter(row) ? row : null
+      }
+      return null
+    })
+    const single = await request(buildApp()).post('/api/auth/me/notifications/n1/read')
+    expect(single.status).toBe(200)
+    expect(single.body.success).toBe(true)
+  })
+
+  it('serializeNotification includes category and href', async () => {
+    const { __test } = await import('./wave0-nav-routes.js')
+    const { serializeNotification, resolveNotificationHref, resolveNotificationCategory } = __test
+    const row = {
+      id: 'n1',
+      type: 'inquiry_sla_overdue',
+      title: 'SLA',
+      body: 'Overdue',
+      read: false,
+      created_at: '2026-01-02T00:00:00.000Z',
+      meta: { inquiry_id: 'inq_1' },
+    }
+    expect(resolveNotificationCategory(row)).toBe('leads')
+    expect(resolveNotificationHref(row)).toBe('/inbox')
+    expect(serializeNotification(row)).toMatchObject({
+      category: 'leads',
+      href: '/inbox',
+      unread: true,
+    })
   })
 
   it('POST /api/search scopes by persona', async () => {
