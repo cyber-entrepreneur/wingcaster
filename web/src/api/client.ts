@@ -134,6 +134,55 @@ export interface PersonalChannelConnectionInput {
   is_primary?: boolean
 }
 
+export type CanonicalPropertyState = 'primary' | 'secondary' | 'disputed'
+
+export interface CanonicalPrimaryDispute {
+  id: string
+  canonical_id: string
+  listing_id: string
+  mandate_type: 'exclusive'
+  mandate_reference: string
+  evidence_notes: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn'
+  created_at: string
+  updated_at: string
+}
+
+export interface CanonicalSiblingListing {
+  id: string
+  title: string
+  price: number | null
+  currency: string
+  status: string
+  agency: { id: string; name: string } | null
+  agent: { id: string; name: string }
+  listed_at: string | null
+  updated_at: string | null
+  is_primary: boolean
+  is_mine: boolean
+}
+
+export interface CanonicalPropertyView {
+  canonical: {
+    id: string
+    location: string | null
+    city: string | null
+    neighborhood: string | null
+    primary_listing_id: string
+    sibling_count: number
+  }
+  state: CanonicalPropertyState
+  can_contest: boolean
+  dispute: CanonicalPrimaryDispute | null
+  listings: CanonicalSiblingListing[]
+}
+
+export interface CanonicalPrimaryDisputeInput {
+  mandate_type: 'exclusive'
+  mandate_reference: string
+  evidence_notes: string
+}
+
 /** Issue 192b — self-serve data-export job shape. */
 export type ScheduledPublicationStatus =
   | 'pending'
@@ -1261,6 +1310,18 @@ export const api = {
     return fetchJson(`/properties${qs}`)
   },
   getProperty: (id: string) => fetchJson(`/properties/${id}`),
+  getCanonicalPropertyView: (
+    id: string,
+  ): Promise<{ canonical_view: CanonicalPropertyView | null }> =>
+    fetchJson(`/properties/${id}/canonical`),
+  createCanonicalPrimaryDispute: (
+    id: string,
+    data: CanonicalPrimaryDisputeInput,
+  ): Promise<{ dispute: CanonicalPrimaryDispute }> =>
+    fetchJson(`/properties/${id}/canonical/disputes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   createProperty: (data: Record<string, unknown>) =>
     fetchJson('/properties', { method: 'POST', body: JSON.stringify(data) }),
   /** AGT-PUB-003 / BE-BLOCKER-11 — portal submission ledger for a listing or job. */
