@@ -90,6 +90,7 @@ import {
 } from './lib/wave0-nav-routes.js'
 import { registerWave8ProRoutes } from './lib/wave8-pro-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
+import { recordCreditJanitorRun } from './fin/admin/credit-janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
@@ -8929,7 +8930,9 @@ const startServer = async () => {
     if (CREDITS_JANITOR_ENABLED) {
       creditsJanitorTimer = setInterval(async () => {
         try {
-          await runCreditJanitorTick({ pool: getPool() })
+          const pool = getPool()
+          const result = await runCreditJanitorTick({ pool })
+          await recordCreditJanitorRun(pool, result).catch(() => {})
         } catch (err) {
           logger.error({ err: err.message || String(err) }, 'Credit reservation janitor failed')
         }

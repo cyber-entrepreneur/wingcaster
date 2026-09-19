@@ -9,7 +9,7 @@ import { getPool } from '../../persistence/postgres-adapter.js'
 import { CATEGORY, FinError, finError } from '../errors.js'
 import { requireIfMatch, sendPreconditionFailed, setETag } from '../middleware/if-match.js'
 import { adminMutationLimiter } from '../../lib/admin-limiter.js'
-import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
+import { actorFrom, adminNow, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
 import { loadOverviewKpis } from './kpis.js'
 import { EXCEPTION_TYPES, deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
@@ -57,6 +57,8 @@ import {
   accountingPeriodActionBodySchema,
   accountingPeriodReopenBodySchema,
 } from './accounting-period-schemas.js'
+import { creditJanitorRunBodySchema } from './credit-janitor-schemas.js'
+import { loadCreditJanitorStatus, runCreditJanitorAdmin } from './credit-janitor.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -220,6 +222,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       reasonCode: parsed.data.reason_code || 'LOT_RETIRE',
       now: req.fin.now,
     })
+    return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/credits/janitor/status', readGuards, wrap(async (_req, res) => {
+    const status = await loadCreditJanitorStatus(getPool())
+    return res.status(200).json({ status })
+  }))
+
+  app.post('/api/admin/fin/credits/janitor/run', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(creditJanitorRunBodySchema, req, res)) return
+    const result = await runCreditJanitorAdmin(getPool(), req.fin?.now || adminNow())
     return res.status(200).json(result)
   }))
 
