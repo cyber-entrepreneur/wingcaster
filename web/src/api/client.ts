@@ -2720,11 +2720,39 @@ export const api = {
     fetchJson('/closed-transactions', { method: 'POST', body: JSON.stringify(payload) }),
   deleteClosedTransaction: (id: string) =>
     fetchJson(`/closed-transactions/${id}`, { method: 'DELETE' }),
-  importClosedTransactionsCsv: (csvText: string): Promise<{
-    imported: number; skipped: number; errors: Array<{ row: number; error: string }>
+  importClosedTransactionsCsv: (
+    csvText: string,
+    options?: {
+      column_map?: Record<string, string>
+      filename?: string | null
+      preview_only?: boolean
+    },
+  ): Promise<{
+    imported?: number
+    skipped?: number
+    errors?: Array<{ row: number; error: string }>
+    import_id?: string | null
+    row_count?: number
+    preview?: Array<{
+      row: number
+      listing_id: string | null
+      external_reference: string | null
+      transaction_type: string
+      final_sold_price: string | null
+      closed_at: string | null
+      currency: string
+      valid: boolean
+    }>
+    valid_count?: number
+    headers?: string[]
   }> => fetchJson('/closed-transactions/import', {
     method: 'POST',
-    body: JSON.stringify({ csv_text: csvText }),
+    body: JSON.stringify({
+      csv_text: csvText,
+      ...(options?.column_map ? { column_map: options.column_map } : {}),
+      ...(options?.filename ? { filename: options.filename } : {}),
+      ...(options?.preview_only ? { preview_only: true } : {}),
+    }),
   }),
 
   /* -------- Contact 360 (Phase 4.8) -------- */

@@ -455,6 +455,27 @@ const TABLE_MAP = {
     ],
   },
   transactions: { schema: 'public', table: 'transactions', columns: ['agent_id', 'property_id', 'type', 'amount', 'currency', 'status', 'closed_at'] },
+  closed_transactions: {
+    schema: 'public',
+    table: 'closed_transactions',
+    columns: [
+      'listing_id', 'agent_id', 'agency_id', 'contact_id', 'opportunity_id',
+      'transaction_type', 'original_listed_price', 'final_sold_price', 'currency',
+      'price_reductions_count', 'price_reduction_history', 'listed_at', 'closed_at',
+      'days_on_market', 'days_to_first_offer', 'offers_received_count', 'viewings_conducted',
+      'rejected_offer_max', 'rejected_offer_min', 'buyer_type', 'buyer_nationality',
+      'payment_method', 'down_payment_percent', 'mortgage_provider', 'close_reason',
+      'agent_notes', 'attribution_source', 'origin', 'is_backfilled', 'source_note',
+    ],
+  },
+  closed_transaction_imports: {
+    schema: 'public',
+    table: 'closed_transaction_imports',
+    columns: [
+      'agent_id', 'agency_id', 'filename', 'row_count', 'imported_count',
+      'skipped_count', 'error_summary', 'column_map',
+    ],
+  },
 
   // Templates legacy alias
   templates: { schema: 'public', table: 'message_templates', columns: [] },
