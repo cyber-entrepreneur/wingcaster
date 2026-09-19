@@ -30,6 +30,7 @@ import {
   cancelAtPeriodEnd, cancelImmediate, changePlan, pauseSubscription, resumeSubscription,
   startSubscription,
 } from './lifecycle.js'
+import { deprecatePackageVersionBodySchema } from './package-deprecate-schemas.js'
 
 function requireExplicitPlatformAdmin(req, res, next) {
   if (req.user?.platform_role !== 'platform_admin') {
@@ -319,9 +320,16 @@ export function registerFinPackagesAdminRoutes(app, { authMiddleware, requirePla
   }))
 
   app.post('/api/admin/fin/packages/:id/versions/:vid/deprecate', writeGuards, wrap(async (req, res) => {
+    const parsed = deprecatePackageVersionBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
+    const reason = parsed.data.grace_period_note
+      ? `${parsed.data.reason} (grace note: ${parsed.data.grace_period_note})`
+      : parsed.data.reason
     const row = await run((client) => deprecateVersion(client, {
       packageId: req.params.id, versionId: req.params.vid, ...actorOf(req),
-      reason: req.body?.reason,
+      reason,
     }))
     return res.status(200).json(row)
   }))

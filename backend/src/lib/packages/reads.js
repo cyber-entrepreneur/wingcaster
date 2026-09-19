@@ -87,7 +87,16 @@ export async function getPackage(client, packageId, { environment = null } = {})
     throw new PackageError(PACKAGE_ERROR.PACKAGE_NOT_FOUND, `Package ${packageId} not found`)
   }
   const versions = await client.query(
-    `SELECT * FROM public.product_package_versions WHERE package_id = $1 ORDER BY version_number`,
+    `SELECT v.*,
+            (
+              SELECT COUNT(*)::int
+                FROM public.tenant_subscriptions s
+               WHERE s.package_version_id = v.id
+                 AND s.status IN ('PENDING_START', 'ACTIVE', 'PAUSED', 'CANCELED_AT_PERIOD_END')
+            ) AS subscribers_count
+       FROM public.product_package_versions v
+      WHERE v.package_id = $1
+      ORDER BY v.version_number`,
     [packageId],
   )
   return { ...rows[0], versions: versions.rows }

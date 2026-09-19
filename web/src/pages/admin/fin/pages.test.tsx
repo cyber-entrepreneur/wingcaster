@@ -30,7 +30,14 @@ const apiMock = vi.hoisted(() => ({
       }
     }
     if (String(path).includes('/packages/')) {
-      return { id: 'p1', display_name: 'Starter', code: 'starter', tier: 'starter', target_audience: 'agent', versions: [] }
+      return {
+        id: 'p1', display_name: 'Starter', code: 'starter', tier: 'starter', target_audience: 'agent',
+        subscribers_count: 2,
+        versions: [{
+          id: 'v-pub', version_number: 2, state: 'PUBLISHED', properties_covered: 10,
+          monthly_price_minor: 1000, subscribers_count: 1, effective_from: '2026-01-01T00:00:00.000Z',
+        }],
+      }
     }
     if (String(path).includes('/prices/active-catalog')) {
       return { prices: [{ id: 'p1', code: 'social.post', currency: 'USD', unit_rate_minor: 100 }] }
@@ -186,9 +193,16 @@ describe('admin/fin pages', () => {
     expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeTruthy()
   })
 
-  it('Package detail exposes compose CTA', () => {
-    wrap(<PackageDetailPage />)
-    expect(screen.getByRole('button', { name: 'Compose new version' })).toBeTruthy()
+  it('Package detail exposes compose and deprecate CTAs', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/packages/p1']}>
+        <Routes>
+          <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('button', { name: 'Compose new version' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Deprecate v2' })).toBeTruthy()
   })
 
   it('Facilities page exposes create CTA', () => {
