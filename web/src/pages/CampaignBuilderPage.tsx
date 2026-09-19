@@ -4,20 +4,17 @@
  * Step 2: Audience (target rules / tags)
  * Step 3: Steps (message sequence editor)
  * Step 4: Review + publish
+ *
+ * AGT-CMP-003: `?mode=pro` renders the single-page Pro builder.
  */
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
   Check,
-  ChevronDown,
-  ChevronUp,
   Loader2,
-  Mail,
   Megaphone,
-  MessageSquare,
-  Phone,
   Plus,
   Trash2,
   Zap,
@@ -26,120 +23,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/components/ui/toast'
-import { useAuth } from '@/context/AuthContext'
-import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { cn } from '@/lib/utils'
 import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
-
-// ─── types ────────────────────────────────────────────────────────────────────
-
-interface Step {
-  delay_hours: number
-  channel: string
-  template_id?: string | null
-  subject: string
-  body: string
-}
-
-interface Template {
-  id: string
-  name: string
-  channel: 'email' | 'sms' | 'whatsapp'
-  category: string
-  subject: string | null
-  body: string
-  variables: string[]
-  owner_type: 'agent' | 'agency' | 'platform'
-  owner_id: string | null
-  is_default: boolean
-  approval_status: string
-  language: string
-  usage_count: number
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-interface AudienceRule {
-  field: 'status' | 'source' | 'tags' | 'territory'
-  operator: 'is' | 'is_not' | 'contains'
-  value: string
-}
-
-interface FormState {
-  name: string
-  description: string
-  trigger: string
-  target_channel: string
-  tags_filter: string[]
-  audience_rules: AudienceRule[]
-  steps: Step[]
-}
-
-// ─── constants ────────────────────────────────────────────────────────────────
-
-const TRIGGERS = [
-  { value: 'manual', label: 'Manual', description: 'Enroll contacts by hand or via API' },
-  { value: 'new_lead', label: 'New lead', description: 'Fires when a new contact is created' },
-  { value: 'inquiry', label: 'New inquiry', description: 'Fires when a property inquiry arrives' },
-  { value: 'viewing_completed', label: 'Viewing completed', description: 'Fires after a viewing is marked complete' },
-  { value: 'tag', label: 'Tag applied', description: 'Fires when a specific tag is added to a contact' },
-]
-
-const CHANNELS = [
-  { value: 'email', label: 'Email', icon: Mail },
-  { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
-  { value: 'sms', label: 'SMS', icon: Phone },
-]
-
-const AUDIENCE_FIELDS: { value: AudienceRule['field']; label: string }[] = [
-  { value: 'status', label: 'Contact status' },
-  { value: 'source', label: 'Lead source' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'territory', label: 'Territory' },
-]
-
-const AUDIENCE_OPERATORS: { value: AudienceRule['operator']; label: string }[] = [
-  { value: 'is', label: 'is' },
-  { value: 'is_not', label: 'is not' },
-  { value: 'contains', label: 'contains' },
-]
-
-const WIZARD_STEPS = ['Basics', 'Audience', 'Steps', 'Review']
-
-const EMPTY_STEP: Step = { delay_hours: 0, channel: 'email', template_id: null, subject: '', body: '' }
-
-const EMPTY_RULE: AudienceRule = { field: 'status', operator: 'is', value: '' }
-
-const PRESET_TEMPLATES: { label: string; steps: Step[] }[] = [
-  {
-    label: 'New lead 3-touch',
-    steps: [
-      { delay_hours: 0, channel: 'email', subject: 'We received your inquiry', body: 'Hi {{client_name}}, thanks for reaching out about {{property_title}}. We\'ll be in touch shortly.' },
-      { delay_hours: 48, channel: 'whatsapp', subject: '', body: 'Hi {{client_name}}, following up on your inquiry about {{property_title}}. Are you available for a call?' },
-      { delay_hours: 120, channel: 'email', subject: 'Similar properties you may like', body: 'Hi {{client_name}}, here are a few more listings that match your search criteria.' },
-    ],
-  },
-  {
-    label: 'Post-viewing nurture',
-    steps: [
-      { delay_hours: 2, channel: 'whatsapp', subject: '', body: 'Hi {{client_name}}, hope you enjoyed the viewing at {{property_title}}. Any questions?' },
-      { delay_hours: 48, channel: 'email', subject: 'Your viewing feedback', body: 'Hi {{client_name}}, we\'d love your thoughts on {{property_title}}. Are you ready to move forward?' },
-    ],
-  },
-  {
-    label: 'Re-engagement',
-    steps: [
-      { delay_hours: 0, channel: 'email', subject: 'We miss you', body: 'Hi {{client_name}}, it\'s been a while! We have new listings that match your previous searches.' },
-      { delay_hours: 72, channel: 'whatsapp', subject: '', body: 'Hi {{client_name}}, just checking in. Can we schedule a call to discuss what you\'re looking for?' },
-    ],
-  },
-]
-
-// ─── sub-components ────────────────────────────────────────────────────────────
+import { CampaignBuilderProView } from '@/components/campaigns/CampaignBuilderProView'
+import { CampaignStepEditor } from '@/components/campaigns/CampaignStepEditor'
+import {
+  AUDIENCE_FIELDS,
+  AUDIENCE_OPERATORS,
+  CHANNELS,
+  PRESET_TEMPLATES,
+  TRIGGERS,
+  WIZARD_STEPS,
+} from '@/components/campaigns/campaign-builder-shared'
+import { useCampaignBuilderForm } from '@/components/campaigns/useCampaignBuilderForm'
 
 function WizardProgressBar({ current }: { current: number }) {
   return (
@@ -172,277 +70,38 @@ function WizardProgressBar({ current }: { current: number }) {
   )
 }
 
-function StepEditor({
-  step,
-  index,
-  onUpdate,
-  onRemove,
-  canRemove,
-  templates,
-  templatesLoading,
-}: {
-  step: Step
-  index: number
-  onUpdate: (s: Step) => void
-  onRemove: () => void
-  canRemove: boolean
-  templates: Template[]
-  templatesLoading: boolean
-}) {
-  const [open, setOpen] = useState(true)
-  const ChannelIcon = CHANNELS.find((c) => c.value === step.channel)?.icon ?? Mail
-  const selectedTemplate = templates.find((t) => t.id === step.template_id)
-  const channelTemplates = templates.filter((t) => t.channel === step.channel)
-  const isUsingTemplate = Boolean(selectedTemplate)
-
-  return (
-    <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-surface)]">
-      {/* Step header */}
-      <div
-        className="flex cursor-pointer items-center gap-3 px-4 py-3"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--lc-surface-sunken)] text-xs font-semibold">
-          {index + 1}
-        </div>
-        <ChannelIcon className="h-4 w-4 text-muted-foreground" />
-        <span className="flex-1 text-sm font-medium truncate">
-          {selectedTemplate ? selectedTemplate.name : (step.subject || step.body.slice(0, 60) || 'Untitled step')}
-        </span>
-        {selectedTemplate && (
-          <Badge variant="secondary" className="text-[10px]">Template</Badge>
-        )}
-        {step.delay_hours > 0 && (
-          <Badge variant="outline" className="text-[10px]">+{step.delay_hours}h</Badge>
-        )}
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-red-500"
-          onClick={(e) => { e.stopPropagation(); if (canRemove) onRemove() }}
-          disabled={!canRemove}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </div>
-
-      {/* Step body */}
-      {open && (
-        <div className="space-y-3 border-t border-[var(--lc-border)] p-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Template</Label>
-            <select
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-60"
-              value={step.template_id || ''}
-              disabled={templatesLoading}
-              onChange={(e) => {
-                const id = e.target.value
-                if (!id) {
-                  onUpdate({ ...step, template_id: null })
-                  return
-                }
-                const template = templates.find((t) => t.id === id)
-                if (!template) return
-                onUpdate({
-                  ...step,
-                  template_id: template.id,
-                  channel: template.channel,
-                  subject: template.subject || step.subject,
-                  body: template.body,
-                })
-              }}
-            >
-              <option value="">— Manual message —</option>
-              {channelTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.is_default ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-            {templatesLoading && <p className="text-[10px] text-muted-foreground">Loading templates…</p>}
-            {isUsingTemplate && (
-              <p className="text-[10px] text-muted-foreground">
-                Subject and body are previewed from the template. Select “Manual message” to edit.
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Delay (hours after previous step)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={step.delay_hours}
-                onChange={(e) => onUpdate({ ...step, delay_hours: Number(e.target.value) })}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Channel</Label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-60"
-                value={step.channel}
-                disabled={isUsingTemplate}
-                onChange={(e) => {
-                  const channel = e.target.value
-                  const next = { ...step, channel }
-                  if (selectedTemplate && selectedTemplate.channel !== channel) {
-                    next.template_id = null
-                    next.subject = ''
-                    next.body = ''
-                  }
-                  onUpdate(next)
-                }}
-              >
-                {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </div>
-          </div>
-          {step.channel === 'email' && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Subject line</Label>
-              <Input
-                value={step.subject}
-                placeholder="e.g. We received your inquiry"
-                disabled={isUsingTemplate}
-                onChange={(e) => onUpdate({ ...step, subject: e.target.value })}
-                className="h-9 disabled:opacity-60"
-              />
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs">
-              Message body
-              <span className="ml-2 text-muted-foreground">
-                {'  '}Available tokens:{' '}
-                {['{{client_name}}', '{{property_title}}', '{{agent_name}}', '{{viewing_date}}'].map((t) => (
-                  <code key={t} className="ml-1 rounded bg-muted px-1 text-[10px]">{t}</code>
-                ))}
-              </span>
-            </Label>
-            <textarea
-              rows={4}
-              value={step.body}
-              placeholder="Write your message…"
-              disabled={isUsingTemplate}
-              onChange={(e) => onUpdate({ ...step, body: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-60"
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── main component ────────────────────────────────────────────────────────────
-
-export function CampaignBuilderPage() {
+function CampaignBuilderWizard() {
   const navigate = useNavigate()
-  const { agent } = useAuth()
-  const { addToast } = useToast()
   usePageTitle('New Campaign')
 
   const [wizardStep, setWizardStep] = useState(0)
-  const [saving, setSaving] = useState(false)
-  const [tagInput, setTagInput] = useState('')
+  const {
+    form,
+    setField,
+    tagInput,
+    setTagInput,
+    addTag,
+    removeTag,
+    addRule,
+    updateRule,
+    removeRule,
+    addStep,
+    updateStep,
+    removeStep,
+    applyTemplate,
+    templates,
+    templatesLoading,
+    saving,
+    handleSave,
+    stepsAreValid,
+  } = useCampaignBuilderForm()
 
-  const [form, setForm] = useState<FormState>({
-    name: '',
-    description: '',
-    trigger: 'manual',
-    target_channel: 'email',
-    tags_filter: [],
-    audience_rules: [],
-    steps: [{ ...EMPTY_STEP }],
-  })
-
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [templatesLoading, setTemplatesLoading] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    setTemplatesLoading(true)
-    api
-      .getMessageTemplates()
-      .then((rows) => {
-        if (!cancelled) setTemplates(Array.isArray(rows) ? rows : [])
-      })
-      .catch(() => {
-        if (!cancelled) setTemplates([])
-      })
-      .finally(() => {
-        if (!cancelled) setTemplatesLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // ─ helpers ─
-  const setField = <K extends keyof FormState>(k: K, v: FormState[K]) =>
-    setForm((f) => ({ ...f, [k]: v }))
-
-  const addTag = () => {
-    const t = tagInput.trim()
-    if (t && !form.tags_filter.includes(t)) setField('tags_filter', [...form.tags_filter, t])
-    setTagInput('')
-  }
-
-  const removeTag = (t: string) => setField('tags_filter', form.tags_filter.filter((x) => x !== t))
-
-  const addRule = () => setField('audience_rules', [...form.audience_rules, { ...EMPTY_RULE }])
-
-  const updateRule = (i: number, r: AudienceRule) =>
-    setField('audience_rules', form.audience_rules.map((x, idx) => (idx === i ? r : x)))
-
-  const removeRule = (i: number) =>
-    setField('audience_rules', form.audience_rules.filter((_, idx) => idx !== i))
-
-  const addStep = () => setField('steps', [...form.steps, { ...EMPTY_STEP }])
-
-  const updateStep = (i: number, s: Step) =>
-    setField('steps', form.steps.map((x, idx) => (idx === i ? s : x)))
-
-  const removeStep = (i: number) =>
-    setField('steps', form.steps.filter((_, idx) => idx !== i))
-
-  const applyTemplate = (t: typeof PRESET_TEMPLATES[number]) => {
-    setField('steps', t.steps)
-    setField('target_channel', t.steps[0]?.channel || 'email')
-  }
-
-  // ─ validation ─
   const canAdvance = (): boolean => {
     if (wizardStep === 0) return form.name.trim().length >= 2
-    if (wizardStep === 2) return form.steps.every((s) => Boolean(s.template_id) || s.body.trim().length > 0)
+    if (wizardStep === 2) return stepsAreValid
     return true
   }
 
-  // ─ submit ─
-  const handleSave = async (status: 'draft' | 'active') => {
-    setSaving(true)
-    try {
-      await api.createCampaign({
-        name: form.name.trim(),
-        description: form.description.trim(),
-        status,
-        trigger: form.trigger,
-        target_channel: form.target_channel,
-        tags_filter: form.tags_filter,
-        steps: form.steps,
-      })
-      addToast({ title: `Campaign ${status === 'active' ? 'launched' : 'saved as draft'}`, variant: 'success' })
-      navigate('/campaigns')
-    } catch (e: any) {
-      addToast({ title: 'Could not save campaign', description: e.message, variant: 'error' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // ─ render ─
   return (
     <CrmShell>
       <CmdPageHeader
@@ -458,7 +117,6 @@ export function CampaignBuilderPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-8">
 
-          {/* ── Step 0: Basics ── */}
           {wizardStep === 0 && (
             <div className="space-y-6">
               <div>
@@ -541,7 +199,6 @@ export function CampaignBuilderPage() {
             </div>
           )}
 
-          {/* ── Step 1: Audience ── */}
           {wizardStep === 1 && (
             <div className="space-y-6">
               <div>
@@ -549,7 +206,6 @@ export function CampaignBuilderPage() {
                 <p className="text-sm text-muted-foreground">Define who gets enrolled. Leave empty to enroll manually.</p>
               </div>
 
-              {/* Tag filters */}
               <div className="space-y-3">
                 <Label>Contact tags</Label>
                 <p className="text-xs text-muted-foreground">Contacts must have ALL of the specified tags to be auto-enrolled.</p>
@@ -575,7 +231,6 @@ export function CampaignBuilderPage() {
                 )}
               </div>
 
-              {/* Audience rules */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -598,14 +253,14 @@ export function CampaignBuilderPage() {
                         <select
                           className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                           value={rule.field}
-                          onChange={(e) => updateRule(i, { ...rule, field: e.target.value as AudienceRule['field'] })}
+                          onChange={(e) => updateRule(i, { ...rule, field: e.target.value as typeof rule.field })}
                         >
                           {AUDIENCE_FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                         </select>
                         <select
                           className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                           value={rule.operator}
-                          onChange={(e) => updateRule(i, { ...rule, operator: e.target.value as AudienceRule['operator'] })}
+                          onChange={(e) => updateRule(i, { ...rule, operator: e.target.value as typeof rule.operator })}
                         >
                           {AUDIENCE_OPERATORS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
@@ -626,7 +281,6 @@ export function CampaignBuilderPage() {
             </div>
           )}
 
-          {/* ── Step 2: Steps ── */}
           {wizardStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
@@ -636,7 +290,6 @@ export function CampaignBuilderPage() {
                 </div>
               </div>
 
-              {/* Preset templates */}
               <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-bg-page)] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start from a template</p>
                 <div className="flex flex-wrap gap-2">
@@ -653,10 +306,9 @@ export function CampaignBuilderPage() {
                 </div>
               </div>
 
-              {/* Step list */}
               <div className="space-y-3">
                 {form.steps.map((step, i) => (
-                  <StepEditor
+                  <CampaignStepEditor
                     key={i}
                     step={step}
                     index={i}
@@ -675,7 +327,6 @@ export function CampaignBuilderPage() {
             </div>
           )}
 
-          {/* ── Step 3: Review ── */}
           {wizardStep === 3 && (
             <div className="space-y-6">
               <div>
@@ -749,7 +400,6 @@ export function CampaignBuilderPage() {
                 </div>
               </div>
 
-              {/* Save actions */}
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -772,7 +422,6 @@ export function CampaignBuilderPage() {
             </div>
           )}
 
-          {/* ── Wizard nav ── */}
           {wizardStep < 3 && (
             <div className="mt-8 flex items-center justify-between">
               <Button
@@ -797,4 +446,12 @@ export function CampaignBuilderPage() {
       </div>
     </CrmShell>
   )
+}
+
+export function CampaignBuilderPage() {
+  const [searchParams] = useSearchParams()
+  if (searchParams.get('mode') === 'pro') {
+    return <CampaignBuilderProView />
+  }
+  return <CampaignBuilderWizard />
 }
