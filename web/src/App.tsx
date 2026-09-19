@@ -129,7 +129,7 @@ import {
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
-  ContractVersionEditorPage, CreditJanitorPage, CreditsPage,
+  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage,
   DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -378,6 +378,7 @@ function AppRoutes() {
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
       <Route path="/admin/fin/credits/lots" element={<CreditLotsPage />} />
       <Route path="/admin/fin/credits/janitor" element={<CreditJanitorPage />} />
+      <Route path="/admin/fin/credits/fin-mirror" element={<CreditFinMirrorPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />
       <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
       <Route path="/admin/fin/contracts" element={<ContractsPage />} />

@@ -5,7 +5,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
+  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
   DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
@@ -170,6 +170,19 @@ const apiMock = vi.hoisted(() => ({
         },
       }
     }
+    if (String(path).includes('/credits/fin-mirror/status')) {
+      return {
+        status: {
+          worker: 'CREDITS_FIN_MIRROR',
+          backlog_count: 0,
+          grant_backlog_count: 0,
+          consumption_backlog_count: 0,
+          lock_held: false,
+          last_run_at: null,
+          last_processed_count: 0,
+        },
+      }
+    }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
       facilities: [], contracts: [], invoices: [], runs: [], types: [],
@@ -216,6 +229,7 @@ describe('admin/fin pages', () => {
     ['Usage drill', () => <UsagePage />],
     ['Credit lots', () => <CreditLotsPage />],
     ['Credit janitor', () => <CreditJanitorPage />],
+    ['Fin mirror worker', () => <CreditFinMirrorPage />],
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],

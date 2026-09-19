@@ -10,6 +10,7 @@ export const FIN_NAV = [
   { path: '/admin/fin/usage', label: 'Usage' },
   { path: '/admin/fin/credits/lots', label: 'Credits' },
   { path: '/admin/fin/credits/janitor', label: 'Credit janitor' },
+  { path: '/admin/fin/credits/fin-mirror', label: 'Fin mirror worker' },
   { path: '/admin/fin/holds', label: 'Holds' },
   { path: '/admin/fin/facilities', label: 'Facilities' },
   { path: '/admin/fin/contracts', label: 'Contracts' },
