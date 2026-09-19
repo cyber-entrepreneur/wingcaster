@@ -64,6 +64,10 @@ export interface Property {
   agency_id?: string | null
   agency_tied?: boolean | number
   listing_owner_type?: 'agency' | 'independent' | string
+  tenant_id?: string | null
+  custody_tenant_id?: string | null
+  source_user_id?: string | null
+  exit_disposition?: 'agency_retains' | 'agent_retains' | 'case_review' | string | null
   marketplace_syndicated?: boolean | number
   ungroup_override?: boolean | number
   territory_id?: string

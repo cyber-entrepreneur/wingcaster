@@ -13,6 +13,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ListingsPage } from '@/pages/ListingsPage'
 import { ManualListingComposerPage } from '@/pages/agent/listings/ManualListingComposerPage'
+import { PropertyDispositionPage } from '@/pages/agent/listings/PropertyDispositionPage'
 import { PublishOutcomePage } from '@/pages/agent/PublishOutcomePage'
 import { PortalTrackerPage } from '@/pages/agent/PortalTrackerPage'
 import { ListingProfilePage } from '@/pages/ListingProfilePage'
@@ -174,6 +175,7 @@ function AppRoutes() {
       <Route path="/listings" element={<ListingsPage />} />
       <Route path="/listings/new" element={<ManualListingComposerPage />} />
       <Route path="/listings/:id/edit" element={<ManualListingComposerPage />} />
+      <Route path="/listings/:id/disposition" element={<PropertyDispositionPage />} />
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/portals/submit" element={<PortalSubmitPage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
