@@ -2,6 +2,7 @@
  * SELECT-only helpers for Stage 12 admin read routes.
  */
 import { query } from '../../db.js'
+import { FIN_BILLING_PERIOD_CLOSE } from '../foundation/advisory-locks.js'
 
 function envParams(environment, extra = []) {
   return [environment, ...extra]
@@ -277,6 +278,56 @@ export async function getBillingPeriod({ environment, id }) {
     [environment, id],
   )
   return rows[0] || null
+}
+
+export async function getBillingPeriodDetail({ environment, id }) {
+  const rows = await query(
+    `SELECT id, tenant_id, billing_account_id, period_key, starts_at, ends_at,
+            status, version, created_at, updated_at,
+            (status = 'OPEN' AND ends_at <= now()) AS close_eligible
+       FROM fin.billing_periods
+      WHERE environment = $1 AND id = $2`,
+    [environment, id],
+  )
+  const period = rows[0] || null
+  if (!period) return null
+
+  const lockRows = await query(
+    `SELECT l.granted, l.pid::text AS pid, a.usename, a.application_name, a.state
+       FROM pg_locks l
+       LEFT JOIN pg_stat_activity a ON a.pid = l.pid
+      WHERE l.locktype = 'advisory'
+        AND l.classid = $1
+        AND l.objid = hashtext($2::text)
+        AND l.granted = true
+      LIMIT 1`,
+    [FIN_BILLING_PERIOD_CLOSE, id],
+  )
+  const lockRow = lockRows[0] || null
+  const lockHeld = Boolean(lockRow?.granted)
+
+  const invoiceRows = await query(
+    `SELECT id, status, invoice_number FROM fin.invoices
+      WHERE billing_period_id = $1 AND status NOT IN ('VOID')
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [id],
+  )
+
+  const status = String(period.status || '')
+  return {
+    ...period,
+    lock: lockHeld ? {
+      held: true,
+      pid: lockRow?.pid || null,
+      usename: lockRow?.usename || null,
+      application_name: lockRow?.application_name || null,
+      state: lockRow?.state || null,
+    } : { held: false },
+    invoice: invoiceRows[0] || null,
+    ready_for_close: Boolean(period.close_eligible) && !lockHeld,
+    ready_for_reopen: status === 'USAGE_CLOSING' || status === 'INVOICE_DRAFTED',
+  }
 }
 
 export async function listPayments({ environment }) {

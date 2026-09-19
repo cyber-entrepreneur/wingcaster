@@ -2,9 +2,9 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
@@ -28,6 +28,19 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/billing/periods/')) {
+      return {
+        period: {
+          id: 'bp1',
+          period_key: '2026-01',
+          status: 'OPEN',
+          tenant_id: 't1',
+          lock: { held: false },
+          ready_for_close: true,
+          ready_for_reopen: false,
+        },
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -124,5 +137,17 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Billing period close renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/billing/periods/bp1/close']}>
+        <Routes>
+          <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Billing period close')
+    expect(await screen.findByText('Advisory lock 1020')).toBeTruthy()
   })
 })
