@@ -13,7 +13,7 @@ import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment }
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -186,6 +186,13 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/contracts', readGuards, wrap(async (req, res) => {
     const contracts = await listContracts({ environment: sessionEnvironment(req) })
     return res.status(200).json({ contracts })
+  }))
+
+  app.get('/api/admin/fin/contracts/:id', readGuards, wrap(async (req, res) => {
+    const contract = await getContract({ environment: sessionEnvironment(req), id: req.params.id })
+    if (!contract) return res.status(404).json({ code: 'NOT_FOUND' })
+    setETag(res, contract.version)
+    return res.status(200).json(contract)
   }))
 
   app.get('/api/admin/fin/pricing', readGuards, wrap(async (req, res) => {
