@@ -7,7 +7,7 @@ import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
+  PaymentsPage, PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
   TenantsPage, UsagePage, VendorCostsPage,
 } from './index'
 
@@ -28,6 +28,9 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path) === '/payments' || String(path).endsWith('/payments')) {
+      return { payments: [{ id: 'pay1', status: 'RECEIVED', amount_minor: 100, currency: 'USD', provider: 'MANUAL', received_at: '2026-01-01', applied_invoices: '' }] }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -80,6 +83,7 @@ describe('admin/fin pages', () => {
     ['Subscriptions', () => <SubscriptionsPage />],
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
+    ['Payments', () => <PaymentsPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Reconciliation', () => <ReconciliationPage />],
     ['Exceptions', () => <ExceptionsPage />],
