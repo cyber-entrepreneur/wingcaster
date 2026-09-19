@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { findAll, findOne, insert, update } from '../../persistence/index.js'
+import { withTenant } from './with-tenant.js'
 
 const EXECUTION_KINDS = new Set([
   'message', 'social_post', 'paid_ad', 'portal_submit', 'seo_page',
@@ -45,6 +46,13 @@ function assertStatus(status) {
   }
 }
 
+function tenantContext(row, { agencyId = null, agentId = null } = {}) {
+  return {
+    agencyId: agencyId ?? row?.agency_id ?? null,
+    agentId: agentId ?? row?.agent_id ?? null,
+  }
+}
+
 export async function createExecution({
   kind,
   status = 'draft',
@@ -66,34 +74,41 @@ export async function createExecution({
   assertKind(kind)
   assertStatus(status)
 
-  return insert('executions', {
-    id: id || prefixedId('exec_'),
-    kind,
-    status,
-    agency_id: agencyId,
-    agent_id: agentId,
-    channel_connection_id: channelConnectionId,
-    campaign_id: campaignId,
-    journey_node_run_id: journeyNodeRunId,
-    creative_id: creativeId,
-    audience_id: audienceId,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    scheduled_at: scheduledAt,
-    recurrence,
-    provider_ref: providerRef,
-    data,
-  })
+  return withTenant(agencyId, agentId, () =>
+    insert('executions', {
+      id: id || prefixedId('exec_'),
+      kind,
+      status,
+      agency_id: agencyId,
+      agent_id: agentId,
+      channel_connection_id: channelConnectionId,
+      campaign_id: campaignId,
+      journey_node_run_id: journeyNodeRunId,
+      creative_id: creativeId,
+      audience_id: audienceId,
+      subject_type: subjectType,
+      subject_id: subjectId,
+      scheduled_at: scheduledAt,
+      recurrence,
+      provider_ref: providerRef,
+      data,
+    }),
+  )
 }
 
-export async function scheduleExecution(id, scheduledAt, { recurrence = null } = {}) {
+export async function scheduleExecution(
+  id,
+  scheduledAt,
+  { recurrence = null, agencyId = null, agentId = null } = {},
+) {
   if (!scheduledAt) {
     throw Object.assign(new Error('scheduledAt is required'), { code: 'MISSING_SCHEDULED_AT' })
   }
-  const existing = await getExecution(id)
+  const existing = await getExecution(id, { agencyId, agentId })
   if (!existing) {
     throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
   }
+  const tenant = tenantContext(existing, { agencyId, agentId })
   assertStatus(existing.status)
   const next = 'scheduled'
   if (existing.status !== 'scheduled' && !TRANSITIONS[existing.status]?.has(next)) {
@@ -102,28 +117,35 @@ export async function scheduleExecution(id, scheduledAt, { recurrence = null } =
       { code: 'INVALID_EXECUTION_TRANSITION' },
     )
   }
-  const changed = await update(
-    'executions',
-    (row) => row.id === id,
-    (row) => ({
-      ...row,
-      status: next,
-      scheduled_at: scheduledAt,
-      recurrence: recurrence ?? row.recurrence ?? null,
-    }),
-  )
-  if (!changed) {
-    throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
-  }
-  return getExecution(id)
+  return withTenant(tenant.agencyId, tenant.agentId, async () => {
+    const changed = await update(
+      'executions',
+      (row) => row.id === id,
+      (row) => ({
+        ...row,
+        status: next,
+        scheduled_at: scheduledAt,
+        recurrence: recurrence ?? row.recurrence ?? null,
+      }),
+    )
+    if (!changed) {
+      throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
+    }
+    return findOne('executions', (row) => row.id === id)
+  })
 }
 
-export async function transitionExecution(id, nextStatus, { providerRef = undefined, publishedAt = undefined } = {}) {
+export async function transitionExecution(
+  id,
+  nextStatus,
+  { providerRef = undefined, publishedAt = undefined, agencyId = null, agentId = null } = {},
+) {
   assertStatus(nextStatus)
-  const existing = await getExecution(id)
+  const existing = await getExecution(id, { agencyId, agentId })
   if (!existing) {
     throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
   }
+  const tenant = tenantContext(existing, { agencyId, agentId })
   const allowed = TRANSITIONS[existing.status]
   if (!allowed?.has(nextStatus) && existing.status !== nextStatus) {
     throw Object.assign(
@@ -132,34 +154,38 @@ export async function transitionExecution(id, nextStatus, { providerRef = undefi
     )
   }
   const now = new Date().toISOString()
-  const changed = await update(
-    'executions',
-    (row) => row.id === id,
-    (row) => {
-      const patch = {
-        ...row,
-        status: nextStatus,
-      }
-      if (providerRef !== undefined) patch.provider_ref = providerRef
-      if (nextStatus === 'published') {
-        patch.published_at = publishedAt || row.published_at || now
-        patch.completed_at = row.completed_at || now
-      }
-      if (nextStatus === 'failed' || nextStatus === 'cancelled') {
-        patch.completed_at = row.completed_at || now
-      }
-      return patch
-    },
-  )
-  if (!changed) {
-    throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
-  }
-  return getExecution(id)
+  return withTenant(tenant.agencyId, tenant.agentId, async () => {
+    const changed = await update(
+      'executions',
+      (row) => row.id === id,
+      (row) => {
+        const patch = {
+          ...row,
+          status: nextStatus,
+        }
+        if (providerRef !== undefined) patch.provider_ref = providerRef
+        if (nextStatus === 'published') {
+          patch.published_at = publishedAt || row.published_at || now
+          patch.completed_at = row.completed_at || now
+        }
+        if (nextStatus === 'failed' || nextStatus === 'cancelled') {
+          patch.completed_at = row.completed_at || now
+        }
+        return patch
+      },
+    )
+    if (!changed) {
+      throw Object.assign(new Error(`execution not found: ${id}`), { code: 'EXECUTION_NOT_FOUND' })
+    }
+    return findOne('executions', (row) => row.id === id)
+  })
 }
 
-export async function getExecution(id) {
+export async function getExecution(id, { agencyId = null, agentId = null } = {}) {
   if (!id) return null
-  return findOne('executions', (row) => row.id === id)
+  return withTenant(agencyId, agentId, () =>
+    findOne('executions', (row) => row.id === id),
+  )
 }
 
 export async function listExecutions({
@@ -169,14 +195,16 @@ export async function listExecutions({
   kind = null,
   channelConnectionId = null,
 } = {}) {
-  return findAll('executions', (row) => {
-    if (agencyId != null && row.agency_id !== agencyId) return false
-    if (agentId != null && row.agent_id !== agentId) return false
-    if (status != null && row.status !== status) return false
-    if (kind != null && row.kind !== kind) return false
-    if (channelConnectionId != null && row.channel_connection_id !== channelConnectionId) return false
-    return true
-  })
+  return withTenant(agencyId, agentId, () =>
+    findAll('executions', (row) => {
+      if (agencyId != null && row.agency_id !== agencyId) return false
+      if (agentId != null && row.agent_id !== agentId) return false
+      if (status != null && row.status !== status) return false
+      if (kind != null && row.kind !== kind) return false
+      if (channelConnectionId != null && row.channel_connection_id !== channelConnectionId) return false
+      return true
+    }),
+  )
 }
 
 export async function recordExecutionAttempt({
@@ -188,26 +216,31 @@ export async function recordExecutionAttempt({
   attemptedAt = null,
   id = null,
   data = {},
+  agencyId = null,
+  agentId = null,
 } = {}) {
   if (!executionId) {
     throw Object.assign(new Error('executionId is required'), { code: 'MISSING_EXECUTION_ID' })
   }
-  const parent = await getExecution(executionId)
+  const parent = await getExecution(executionId, { agencyId, agentId })
   if (!parent) {
     throw Object.assign(new Error(`execution not found: ${executionId}`), {
       code: 'EXECUTION_NOT_FOUND',
     })
   }
-  return insert('execution_attempts', {
-    id: id || prefixedId('exa_'),
-    execution_id: executionId,
-    status,
-    response,
-    error_message: errorMessage,
-    error_class: errorClass,
-    attempted_at: attemptedAt || new Date().toISOString(),
-    data,
-  })
+  const tenant = tenantContext(parent, { agencyId, agentId })
+  return withTenant(tenant.agencyId, tenant.agentId, () =>
+    insert('execution_attempts', {
+      id: id || prefixedId('exa_'),
+      execution_id: executionId,
+      status,
+      response,
+      error_message: errorMessage,
+      error_class: errorClass,
+      attempted_at: attemptedAt || new Date().toISOString(),
+      data,
+    }),
+  )
 }
 
 export { EXECUTION_KINDS, EXECUTION_STATUSES, TRANSITIONS }

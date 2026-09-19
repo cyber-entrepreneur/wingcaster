@@ -5,6 +5,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { findAll, findOne, query } from '../../persistence/index.js'
+import { withTenant } from './with-tenant.js'
 
 const EVENT_CATEGORIES = new Set(['business', 'delivery', 'engagement', 'system'])
 
@@ -267,6 +268,7 @@ export async function ingestEvent({
     seq,
   })
 
+  return withTenant(agencyId, agentId, async () => {
   const existing = await findOne(
     'events',
     (row) => row.idempotency_key === resolvedIdempotencyKey,
@@ -352,6 +354,7 @@ export async function ingestEvent({
   if (afterConflict) return { event: afterConflict, inserted: false }
 
   throw Object.assign(new Error('Failed to ingest event'), { code: 'EVENT_INGEST_FAILED' })
+  })
 }
 
 function mapEventRow(row) {
@@ -418,9 +421,11 @@ export async function ingestEventSafe(payload) {
   }
 }
 
-export async function getEvent(id) {
+export async function getEvent(id, { agencyId = null, agentId = null } = {}) {
   if (!id) return null
-  return findOne('events', (row) => row.id === id)
+  return withTenant(agencyId, agentId, () =>
+    findOne('events', (row) => row.id === id),
+  )
 }
 
 export async function listEvents({
@@ -432,7 +437,7 @@ export async function listEvents({
   eventCategory = null,
   correlationId = null,
 } = {}) {
-  return findAll('events', (row) => {
+  return withTenant(agencyId, agentId, () => findAll('events', (row) => {
     if (agencyId != null && row.agency_id !== agencyId) return false
     if (agentId != null && row.agent_id !== agentId) return false
     if (contactId != null && row.contact_id !== contactId) return false
@@ -441,7 +446,7 @@ export async function listEvents({
     if (eventCategory != null && row.event_category !== eventCategory) return false
     if (correlationId != null && row.correlation_id !== correlationId) return false
     return true
-  })
+  }))
 }
 
 export {

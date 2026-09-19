@@ -34,6 +34,7 @@ const WAVE0_FILES = [
   '548_growth_os_consent_compliance.sql',
   '549_growth_os_event_taxonomy.sql',
   '550_growth_os_event_taxonomy_v2.sql',
+  '551_growth_os_tenant_rls_strict.sql',
 ]
 
 async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
@@ -169,6 +170,52 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           expect(row.relrowsecurity).toBe(true)
           expect(row.relforcerowsecurity).toBe(true)
         }
+      } finally {
+        await closeDb()
+      }
+    })
+  }, 180_000)
+
+  it('ambient growth_os_app_role without tenant GUC sees no tenant rows', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      try {
+        const agencyA = `agc_a_${randomUUID()}`
+        const agencyB = `agc_b_${randomUUID()}`
+        const agentA = `agt_a_${randomUUID()}`
+        const agentB = `agt_b_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId: agencyA, agentId: agentA })
+        await seedAgencyAgent(pool, { agencyId: agencyB, agentId: agentB })
+
+        const def = await ensureChannelDefinition({
+          platform: `ig_${randomUUID().slice(0, 8)}`,
+          kind: 'organic_social',
+        })
+        await createChannelConnection({
+          channelDefinitionId: def.id,
+          agencyId: agencyA,
+          agentId: agentA,
+          credentialsRef: `secret:test:${randomUUID()}`,
+        })
+        await createChannelConnection({
+          channelDefinitionId: def.id,
+          agencyId: agencyB,
+          agentId: agentB,
+          credentialsRef: `secret:test:${randomUUID()}`,
+        })
+
+        const ambient = await asGrowthOsRole(pool, {}, async (client) => {
+          const connections = await client.query('SELECT id FROM public.channel_connections')
+          const executions = await client.query('SELECT id FROM public.executions')
+          const events = await client.query('SELECT id FROM public.events')
+          const consents = await client.query('SELECT id FROM public.consent')
+          return { connections, executions, events, consents }
+        })
+        expect(ambient.connections.rows).toHaveLength(0)
+        expect(ambient.executions.rows).toHaveLength(0)
+        expect(ambient.events.rows).toHaveLength(0)
+        expect(ambient.consents.rows).toHaveLength(0)
       } finally {
         await closeDb()
       }
@@ -630,6 +677,9 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
       configure({ databaseUrl: url, force: true })
       const pool = getPool()
       try {
+        const agencyId = `agc_${randomUUID()}`
+        const agentId = `agt_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId, agentId })
         const contactId = `ctc_${randomUUID()}`
         await setConsent({
           contactId,
@@ -638,6 +688,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           status: 'granted',
           legalBasis: 'explicit_optin',
           capturedAt: '2026-01-01T00:00:00.000Z',
+          agencyId,
+          agentId,
         })
         await setConsent({
           contactId,
@@ -646,6 +698,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           status: 'withdrawn',
           legalBasis: 'explicit_optin',
           capturedAt: '2026-02-01T00:00:00.000Z',
+          agencyId,
+          agentId,
         })
         const rows = await pool.query(
           `SELECT status, captured_at
@@ -673,8 +727,11 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
       configure({ databaseUrl: url, force: true })
       const pool = getPool()
       try {
-        await seedMessagingChannel({ platform: 'whatsapp' })
-        await seedMessagingChannel({ platform: 'email' })
+        const agencyId = `agc_${randomUUID()}`
+        const agentId = `agt_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId, agentId })
+        await seedMessagingChannel({ platform: 'whatsapp', agencyId, agentId })
+        await seedMessagingChannel({ platform: 'email', agencyId, agentId })
         const contactId = `ctc_${randomUUID()}`
 
         await setConsent({
@@ -684,9 +741,11 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           status: 'granted',
           legalBasis: 'explicit_optin',
           jurisdiction: 'AE',
+          agencyId,
+          agentId,
         })
         expect(await checkEligibility({
-          contactId, channel: 'email', purpose: 'marketing',
+          contactId, channel: 'email', purpose: 'marketing', agencyId, agentId,
         })).toMatchObject({
           allowed: true,
           reason_code: ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED,
@@ -698,9 +757,11 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           purpose: 'marketing',
           status: 'denied',
           legalBasis: 'explicit_optin',
+          agencyId,
+          agentId,
         })
         expect(await checkEligibility({
-          contactId, channel: 'email', purpose: 'marketing',
+          contactId, channel: 'email', purpose: 'marketing', agencyId, agentId,
         })).toMatchObject({
           allowed: false,
           reason_code: ELIGIBILITY_REASON_CODES.DENY_OPTED_OUT,
@@ -713,12 +774,16 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           status: 'granted',
           legalBasis: 'explicit_optin',
           expiresAt: '2020-01-01T00:00:00.000Z',
+          agencyId,
+          agentId,
         })
         expect(await checkEligibility({
           contactId,
           channel: 'email',
           purpose: 'marketing',
           now: '2026-01-01T00:00:00.000Z',
+          agencyId,
+          agentId,
         })).toMatchObject({
           allowed: false,
           reason_code: ELIGIBILITY_REASON_CODES.DENY_EXPIRED,
@@ -730,16 +795,18 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           purpose: 'marketing',
           status: 'withdrawn',
           legalBasis: 'explicit_optin',
+          agencyId,
+          agentId,
         })
         expect(await checkEligibility({
-          contactId, channel: 'whatsapp', purpose: 'marketing',
+          contactId, channel: 'whatsapp', purpose: 'marketing', agencyId, agentId,
         })).toMatchObject({
           allowed: false,
           reason_code: ELIGIBILITY_REASON_CODES.DENY_WITHDRAWN,
         })
 
         expect(await checkEligibility({
-          contactId, channel: 'email', purpose: 'transactional',
+          contactId, channel: 'email', purpose: 'transactional', agencyId, agentId,
         })).toMatchObject({
           allowed: true,
           reason_code: ELIGIBILITY_REASON_CODES.OK_TRANSACTIONAL,
@@ -753,6 +820,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           channel: 'whatsapp',
           purpose: 'transactional',
           now: '2026-06-01T00:00:00.000Z',
+          agencyId,
+          agentId,
         })).toMatchObject({
           allowed: false,
           reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_WINDOW_CLOSED_NO_TEMPLATE,
@@ -767,6 +836,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           channel: 'whatsapp',
           purpose: 'transactional',
           now: '2026-06-01T18:00:00.000Z',
+          agencyId,
+          agentId,
         })
         expect(inWindow).toMatchObject({
           allowed: true,
@@ -780,6 +851,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           purpose: 'transactional',
           now: '2026-06-03T00:00:00.000Z',
           approvedTemplate: 'utility',
+          agencyId,
+          agentId,
         })).toMatchObject({
           allowed: true,
           reason_code: ELIGIBILITY_REASON_CODES.OK_TEMPLATE,
@@ -793,12 +866,16 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           status: 'granted',
           legalBasis: 'explicit_optin',
           jurisdiction: 'AE',
+          agencyId,
+          agentId,
         })
         expect(await checkEligibility({
           contactId: marketingContact,
           channel: 'whatsapp',
           purpose: 'marketing',
           now: '2026-06-03T00:00:00.000Z',
+          agencyId,
+          agentId,
         })).toMatchObject({
           allowed: false,
           reason_code: ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_NO_TEMPLATE,
@@ -812,24 +889,33 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
   it('access layer execution transitions work on real PG', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
+      const pool = getPool()
       try {
+        const agencyId = `agc_${randomUUID()}`
+        const agentId = `agt_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId, agentId })
         const def = await ensureChannelDefinition({
           platform: `portal_${randomUUID().slice(0, 6)}`,
           kind: 'portal',
         })
         const conn = await createChannelConnection({
           channelDefinitionId: def.id,
+          agencyId,
+          agentId,
           credentialsRef: 'secret:fixture:1',
         })
         const exec = await createExecution({
           kind: 'portal_submit',
           channelConnectionId: conn.id,
+          agencyId,
+          agentId,
           status: 'draft',
         })
-        const queued = await transitionExecution(exec.id, 'queued')
+        const tenant = { agencyId, agentId }
+        const queued = await transitionExecution(exec.id, 'queued', tenant)
         expect(queued.status).toBe('queued')
-        const published = await transitionExecution(exec.id, 'processing')
-          .then((e) => transitionExecution(e.id, 'published', { providerRef: 'ext' }))
+        const published = await transitionExecution(exec.id, 'processing', tenant)
+          .then((e) => transitionExecution(e.id, 'published', { providerRef: 'ext', ...tenant }))
         expect(published.status).toBe('published')
         expect(published.provider_ref).toBe('ext')
 
@@ -837,6 +923,7 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           executionId: exec.id,
           status: 'published',
           response: { ok: true },
+          ...tenant,
         })
         expect(attempt.id).toMatch(/^exa_/)
         expect(attempt.execution_id).toBe(exec.id)

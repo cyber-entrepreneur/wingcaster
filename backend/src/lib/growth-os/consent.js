@@ -6,7 +6,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { findAll, insert, query } from '../../persistence/index.js'
+import { insert, query } from '../../persistence/index.js'
+import { withTenant } from './with-tenant.js'
 
 const WHATSAPP_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -268,6 +269,7 @@ export async function checkEligibility({
   const normalizedChannel = normalizeChannel(channel)
   const now = nowInput ? new Date(nowInput) : new Date()
 
+  return withTenant(agencyId, agentId, async () => {
   // 1. Global do-not-contact / withdrawn for (contact, channel).
   if (await hasChannelWithdrawal({ contactId, channel: normalizedChannel })) {
     return deny(ELIGIBILITY_REASON_CODES.DENY_WITHDRAWN)
@@ -360,6 +362,7 @@ export async function checkEligibility({
   }
 
   return allow(ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED)
+  })
 }
 
 /**
@@ -391,36 +394,41 @@ export async function setConsent({
   assertStatus(status)
   assertLegalBasis(legalBasis)
 
-  return insert('consent', {
-    id: id || prefixedId('cns_'),
-    contact_id: contactId,
-    channel: normalizeChannel(channel),
-    purpose,
-    status,
-    legal_basis: legalBasis,
-    source,
-    captured_at: capturedAt || new Date().toISOString(),
-    expires_at: expiresAt,
-    jurisdiction,
-    proof_ref: proofRef,
-    agency_id: agencyId,
-    agent_id: agentId,
-    data,
-  })
+  return withTenant(agencyId, agentId, () =>
+    insert('consent', {
+      id: id || prefixedId('cns_'),
+      contact_id: contactId,
+      channel: normalizeChannel(channel),
+      purpose,
+      status,
+      legal_basis: legalBasis,
+      source,
+      captured_at: capturedAt || new Date().toISOString(),
+      expires_at: expiresAt,
+      jurisdiction,
+      proof_ref: proofRef,
+      agency_id: agencyId,
+      agent_id: agentId,
+      data,
+    }),
+  )
 }
 
-export async function getConsent({ contactId, channel, purpose }) {
-  return getCurrentConsentRow({
-    contactId,
-    channel: normalizeChannel(channel),
-    purpose,
-  })
+export async function getConsent({ contactId, channel, purpose, agencyId = null, agentId = null }) {
+  return withTenant(agencyId, agentId, () =>
+    getCurrentConsentRow({
+      contactId,
+      channel: normalizeChannel(channel),
+      purpose,
+    }),
+  )
 }
 
 /**
  * Direct SQL insert used by tests / bulk paths.
  */
 export async function insertConsentSql(row) {
+  return withTenant(row.agency_id ?? null, row.agent_id ?? null, async () => {
   const result = await query(
     `INSERT INTO public.consent (
        id, contact_id, channel, purpose, status, legal_basis, source,
@@ -447,6 +455,7 @@ export async function insertConsentSql(row) {
     ],
   )
   return Array.isArray(result) ? result[0] : result?.rows?.[0]
+  })
 }
 
 /** @deprecated Use insertConsentSql — append-only model. */

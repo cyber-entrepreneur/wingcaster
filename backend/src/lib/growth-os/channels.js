@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { findAll, findOne, insert, update } from '../../persistence/index.js'
+import { withTenant } from './with-tenant.js'
 
 const CHANNEL_KINDS = new Set(['owned_messaging', 'organic_social', 'paid', 'portal'])
 const CONNECTION_HEALTH = new Set(['connected', 'disconnected', 'expired', 'error'])
@@ -45,18 +46,20 @@ export async function ensureChannelDefinition({
   }
   assertKind(kind)
 
-  const existing = await findOne(
-    'channel_definitions',
-    (row) => String(row.platform || '').toLowerCase() === String(platform).toLowerCase(),
-  )
-  if (existing) return existing
+  return withTenant(null, null, async () => {
+    const existing = await findOne(
+      'channel_definitions',
+      (row) => String(row.platform || '').toLowerCase() === String(platform).toLowerCase(),
+    )
+    if (existing) return existing
 
-  return insert('channel_definitions', {
-    id: id || prefixedId('chnd_'),
-    platform,
-    kind,
-    global_capabilities: globalCapabilities,
-    data,
+    return insert('channel_definitions', {
+      id: id || prefixedId('chnd_'),
+      platform,
+      kind,
+      global_capabilities: globalCapabilities,
+      data,
+    })
   })
 }
 
@@ -90,75 +93,85 @@ export async function createChannelConnection({
   }
   assertHealth(health)
 
-  const definition = await findOne('channel_definitions', (row) => row.id === channelDefinitionId)
-  if (!definition) {
-    throw Object.assign(new Error(`channel_definition not found: ${channelDefinitionId}`), {
-      code: 'CHANNEL_DEFINITION_NOT_FOUND',
-    })
-  }
+  return withTenant(agencyId, agentId, async () => {
+    const definition = await findOne('channel_definitions', (row) => row.id === channelDefinitionId)
+    if (!definition) {
+      throw Object.assign(new Error(`channel_definition not found: ${channelDefinitionId}`), {
+        code: 'CHANNEL_DEFINITION_NOT_FOUND',
+      })
+    }
 
-  return insert('channel_connections', {
-    id: id || prefixedId('chn_'),
-    channel_definition_id: channelDefinitionId,
-    agency_id: agencyId,
-    agent_id: agentId,
-    integration_model: integrationModel,
-    credentials_ref: credentialsRef,
-    provider_account_id: providerAccountId,
-    rate_limits: rateLimits,
-    health,
-    tenant_capabilities: tenantCapabilities,
-    data,
+    return insert('channel_connections', {
+      id: id || prefixedId('chn_'),
+      channel_definition_id: channelDefinitionId,
+      agency_id: agencyId,
+      agent_id: agentId,
+      integration_model: integrationModel,
+      credentials_ref: credentialsRef,
+      provider_account_id: providerAccountId,
+      rate_limits: rateLimits,
+      health,
+      tenant_capabilities: tenantCapabilities,
+      data,
+    })
   })
 }
 
-export async function getChannelConnection(id) {
+export async function getChannelConnection(id, { agencyId = null, agentId = null } = {}) {
   if (!id) return null
-  return findOne('channel_connections', (row) => row.id === id)
+  return withTenant(agencyId, agentId, () =>
+    findOne('channel_connections', (row) => row.id === id),
+  )
 }
 
 export async function listChannelConnections({ agencyId = null, agentId = null, health = null } = {}) {
-  return findAll('channel_connections', (row) => {
-    if (agencyId != null && row.agency_id !== agencyId) return false
-    if (agentId != null && row.agent_id !== agentId) return false
-    if (health != null && row.health !== health) return false
-    return true
-  })
+  return withTenant(agencyId, agentId, () =>
+    findAll('channel_connections', (row) => {
+      if (agencyId != null && row.agency_id !== agencyId) return false
+      if (agentId != null && row.agent_id !== agentId) return false
+      if (health != null && row.health !== health) return false
+      return true
+    }),
+  )
 }
 
 /**
  * Resolve merged capabilities: definition.global ∪ connection.tenant.
  */
-export async function resolveCapabilities(channelConnectionId) {
-  const connection = await getChannelConnection(channelConnectionId)
-  if (!connection) {
-    throw Object.assign(new Error(`channel_connection not found: ${channelConnectionId}`), {
-      code: 'CHANNEL_CONNECTION_NOT_FOUND',
-    })
-  }
-  const definition = await findOne(
-    'channel_definitions',
-    (row) => row.id === connection.channel_definition_id,
-  )
-  return {
-    connection,
-    definition,
-    capabilities: {
-      ...(definition?.global_capabilities || {}),
-      ...(connection.tenant_capabilities || {}),
-    },
-  }
+export async function resolveCapabilities(channelConnectionId, { agencyId = null, agentId = null } = {}) {
+  return withTenant(agencyId, agentId, async () => {
+    const connection = await findOne('channel_connections', (row) => row.id === channelConnectionId)
+    if (!connection) {
+      throw Object.assign(new Error(`channel_connection not found: ${channelConnectionId}`), {
+        code: 'CHANNEL_CONNECTION_NOT_FOUND',
+      })
+    }
+    const definition = await findOne(
+      'channel_definitions',
+      (row) => row.id === connection.channel_definition_id,
+    )
+    return {
+      connection,
+      definition,
+      capabilities: {
+        ...(definition?.global_capabilities || {}),
+        ...(connection.tenant_capabilities || {}),
+      },
+    }
+  })
 }
 
-export async function updateChannelConnectionHealth(id, health) {
+export async function updateChannelConnectionHealth(id, health, { agencyId = null, agentId = null } = {}) {
   assertHealth(health)
-  const changed = await update(
-    'channel_connections',
-    (row) => row.id === id,
-    (row) => ({ ...row, health }),
-  )
-  if (!changed) return null
-  return getChannelConnection(id)
+  return withTenant(agencyId, agentId, async () => {
+    const changed = await update(
+      'channel_connections',
+      (row) => row.id === id,
+      (row) => ({ ...row, health }),
+    )
+    if (!changed) return null
+    return findOne('channel_connections', (row) => row.id === id)
+  })
 }
 
 export { CHANNEL_KINDS, CONNECTION_HEALTH }

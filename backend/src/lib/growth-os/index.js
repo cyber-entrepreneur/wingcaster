@@ -2,6 +2,8 @@
  * Growth-OS Wave 0 — public access surface for later waves.
  */
 
+export { withTenant } from './with-tenant.js'
+
 export {
   ensureChannelDefinition,
   createChannelConnection,

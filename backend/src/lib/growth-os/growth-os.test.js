@@ -1,12 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-const { findAll, findOne, insert, update, query } = vi.hoisted(() => ({
-  findAll: vi.fn(),
-  findOne: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
-  query: vi.fn(),
-}))
+const { findAll, findOne, insert, update, query, txClient } = vi.hoisted(() => {
+  const txClient = {
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+  }
+  return {
+    findAll: vi.fn(),
+    findOne: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    query: vi.fn(),
+    txClient,
+  }
+})
 
 vi.mock('../../persistence/index.js', () => ({
   findAll,
@@ -14,6 +20,7 @@ vi.mock('../../persistence/index.js', () => ({
   insert,
   update,
   query,
+  transaction: async (fn) => fn(txClient),
 }))
 
 import {
