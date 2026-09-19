@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
-  DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
+  DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
@@ -180,6 +180,18 @@ const apiMock = vi.hoisted(() => ({
           lock_held: false,
           last_run_at: null,
           last_processed_count: 0,
+        },
+      }
+    }
+    if (String(path).includes('/dunning/cases/')) {
+      return {
+        case: {
+          id: 'c1',
+          status: 'OPEN',
+          tenant_id: 't1',
+          invoice_id: 'i1',
+          invoice_number: 'INV-1',
+          steps: [{ step_kind: 'REMIND', entered_at: '2026-01-01T00:00:00.000Z' }],
         },
       }
     }
@@ -399,5 +411,16 @@ describe('admin/fin pages', () => {
     expect(await screen.findByText('R001')).toBeTruthy()
     expect(screen.getAllByText('R002').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Drift items' })).toBeTruthy()
+  })
+
+  it('Dunning case detail renders for a platform admin', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/c1']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id" element={<DunningCaseDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Dunning case')
   })
 })
