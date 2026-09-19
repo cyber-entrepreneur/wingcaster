@@ -24,12 +24,12 @@ import {
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../persistence/migrations')
 
 const WAVE0_FILES = [
-  '525_growth_os_canonical_enums.sql',
-  '526_growth_os_channel_tables.sql',
-  '527_growth_os_executions.sql',
-  '528_growth_os_events_consent.sql',
-  '529_growth_os_canonical_backfill.sql',
-  '530_growth_os_forward_sync_triggers.sql',
+  '542_growth_os_canonical_enums.sql',
+  '543_growth_os_channel_tables.sql',
+  '544_growth_os_executions.sql',
+  '545_growth_os_events_consent.sql',
+  '546_growth_os_canonical_backfill.sql',
+  '547_growth_os_forward_sync_triggers.sql',
 ]
 
 async function asGrowthOsRole(pool, gucs, fn) {
@@ -343,7 +343,7 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         await pool.query('DELETE FROM public.channel_connections')
         await pool.query('DELETE FROM public.channel_definitions')
 
-        const backfillSql = await readFile(join(migrationsDir, '529_growth_os_canonical_backfill.sql'), 'utf8')
+        const backfillSql = await readFile(join(migrationsDir, '546_growth_os_canonical_backfill.sql'), 'utf8')
         await pool.query(backfillSql)
         await pool.query(backfillSql) // re-run
 

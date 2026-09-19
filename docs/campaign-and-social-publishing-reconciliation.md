@@ -29,7 +29,7 @@ Cutover of write-sites to canonical APIs is a later wave.
 ## Migration discipline
 
 Shared CHECK vocabularies / validator functions ship in their **own migration
-first** (`525_growth_os_canonical_enums.sql`), separate from table migrations.
+first** (`542_growth_os_canonical_enums.sql`), separate from table migrations.
 Bundling enums with tables breaks Real-PG CI when parallel PRs both introduce
 the same literals. Tables reference `growth_os_is_*` functions.
 
