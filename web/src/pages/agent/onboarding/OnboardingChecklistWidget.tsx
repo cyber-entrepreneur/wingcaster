@@ -39,7 +39,7 @@ const STEP_HREFS: Record<keyof OnboardingChecklistFlags, string> = {
   first_listing_drafted: '/onboarding/welcome',
   first_listing_published: '/onboarding/welcome',
   channels_connected: '/settings/channels',
-  notifications_enabled: '/notifications',
+  notifications_enabled: '/notification-preferences',
   profile_completed: '/settings/profile',
   subscription_active: '/plans',
 }
@@ -62,7 +62,7 @@ function defaultItems(locale: OnboardingLocale): OnboardingChecklistItem[] {
       key: 'notifications_enabled',
       label: t('checklist.step.notifications', locale),
       sub: t('checklist.step.notifications.sub', locale),
-      href: '/notifications',
+      href: '/notification-preferences',
     },
     {
       key: 'profile_completed',

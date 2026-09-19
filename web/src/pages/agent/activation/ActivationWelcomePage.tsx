@@ -19,7 +19,7 @@ function featureHref(step: ActivationStep): string {
     case 'portal_credentials':
       return '/settings/channels'
     case 'working_hours':
-      return '/notifications'
+      return '/activate/working-hours'
     case 'invite_team':
       return '/agency'
     default:
