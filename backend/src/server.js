@@ -257,6 +257,10 @@ import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-off
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { registerRoutes as registerAssignableAgentsRoutes } from './lib/conversations/assignable-agents-routes.js'
 import { registerRoutes as registerPropertyDispositionRoutes } from './lib/listings/property-disposition-routes.js'
+import {
+  findAgentPrimaryConnection,
+  registerRoutes as registerPersonalConnectionRoutes,
+} from './lib/social/personal-connections-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -842,6 +846,7 @@ registerBuyerOfferRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerAssignableAgentsRoutes(app, { authMiddleware })
 registerPropertyDispositionRoutes(app, { authMiddleware })
+registerPersonalConnectionRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 
 setCommentRouterHook(async (message) => {
@@ -5750,7 +5755,7 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
   const autoCaption = caption || `${serialized.title} · ${serialized.city || serialized.location || ''} · $${Number(serialized.price || 0).toLocaleString()}\n\nAvailable on REB`
 
   for (const platform of platforms) {
-    const conn = await findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform && c.status === 'connected')
+    const conn = await findAgentPrimaryConnection(req.user.id, platform)
     if (!conn) {
       const failed = {
         id: uuidv4(),
