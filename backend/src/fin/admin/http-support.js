@@ -18,7 +18,8 @@ export async function makeOpsApp(databaseUrl, {
   vi.resetModules()
   const { configure } = await import('../../db.js')
   configure({ databaseUrl, force: true })
-  const { registerFinOpsAdminRoutes: register } = await import('./routes.js')
+  const { registerFinOpsAdminRoutes: registerOps } = await import('./routes.js')
+  const { registerFinPricingAdminRoutes: registerPricing } = await import('./pricing/routes.js')
   const { signElevatedToken: sign } = await import('../../auth.js')
   const app = express()
   app.use(express.json())
@@ -35,15 +36,15 @@ export async function makeOpsApp(databaseUrl, {
     }
     next()
   }
-  register(app, {
-    authMiddleware: fakeAuth,
-    requirePlatformAdmin: (req, res, next) => {
-      if (req.user?.platform_role !== 'platform_admin') {
-        return res.status(403).json({ error: 'Forbidden: platform admin required' })
-      }
-      next()
-    },
-  })
+  const requirePlatformAdminGuard = (req, res, next) => {
+    if (req.user?.platform_role !== 'platform_admin') {
+      return res.status(403).json({ error: 'Forbidden: platform admin required' })
+    }
+    next()
+  }
+  const guards = { authMiddleware: fakeAuth, requirePlatformAdmin: requirePlatformAdminGuard }
+  registerPricing(app, guards)
+  registerOps(app, guards)
   return {
     app,
     userId,

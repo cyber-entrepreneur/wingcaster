@@ -8,7 +8,7 @@ import {
   ContractVersionEditorPage, CreditsPage,
   ExceptionDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
 } from './index'
 
@@ -43,6 +43,27 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).match(/\/prices\/.+/)) {
+      return {
+        id: 'pr1',
+        code: 'feature.social.post',
+        currency: 'USD',
+        version: 2,
+        versions: [
+          {
+            id: 'pv1', version_n: 1, model: 'PER_UNIT', unit_rate_minor: 100,
+            status: 'ACTIVE', effective_from: '2026-01-01T00:00:00.000Z',
+          },
+          {
+            id: 'pv2', version_n: 2, model: 'PER_UNIT', unit_rate_minor: 120,
+            status: 'DRAFT', effective_from: '2026-02-01T00:00:00.000Z',
+          },
+        ],
+      }
+    }
+    if (String(path) === '/prices') {
+      return { prices: [{ id: 'pr1', code: 'feature.social.post', currency: 'USD', version: 2 }] }
     }
     if (String(path).includes('/exceptions/items')) {
       return {
@@ -117,7 +138,7 @@ describe('admin/fin pages', () => {
     ['Contracts', () => <ContractsPage />],
     ['Contract detail', () => <ContractDetailPage />],
     ['Contract version editor', () => <ContractVersionEditorPage />],
-    ['Pricing simulator', () => <FinPricingPage />],
+    ['Pricing', () => <FinPricingPage />],
     ['Packages', () => <PackagesPage />],
     ['Package', () => <PackageDetailPage />],
     ['Package version', () => <PackageVersionEditor />],
@@ -192,5 +213,17 @@ describe('admin/fin pages', () => {
     )
     expect(await screen.findByRole('button', { name: 'Resolve' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Mark wont-fix' })).toBeTruthy()
+  })
+  it('Price detail exposes version lifecycle actions', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/pricing/pr1']}>
+        <Routes>
+          <Route path="/admin/fin/pricing/:id" element={<PriceDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: 'Price detail' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'New version' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Activate v/ })).toBeTruthy()
   })
 })
