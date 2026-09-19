@@ -80,7 +80,7 @@ finPostgresSuite('credit facilities B §18', {}, ({ pool, world }) => {
       [
         '00000000-0000-0000-0000-0000000000d1',
         seeded.facilityId,
-        world().environment,
+        seeded.env.environment,
         world().tenantA.tenantId,
         seeded.env.now,
       ],
