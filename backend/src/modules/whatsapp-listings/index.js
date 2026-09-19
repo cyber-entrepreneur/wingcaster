@@ -78,6 +78,10 @@ export function createModule({ platformAdapter, config: configOverride }) {
   }
 
   function registerWorker() {
+    if (config.workerEnabled === false) {
+      logger.info('WhatsApp listing worker disabled via WHATSAPP_LISTINGS_WORKER_ENABLED')
+      return
+    }
     queue.start()
   }
 

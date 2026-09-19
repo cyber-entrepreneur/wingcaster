@@ -24,6 +24,11 @@ export function getConfig() {
     maxMediaPerDraft: Math.max(1, Math.min(50, Number(env('WHATSAPP_LISTINGS_MAX_MEDIA_PER_DRAFT', 15)))),
     maxMediaSizeBytes: Math.max(1, Number(env('WHATSAPP_LISTINGS_MAX_MEDIA_SIZE_BYTES', 12 * 1024 * 1024))),
     instagramRealPublishing: env('WHATSAPP_LISTINGS_INSTAGRAM_REAL_PUBLISHING', 'true') === 'true',
+    // The background poll worker auto-starts on server boot. Gated by its own
+    // flag so tests (which import server.js) can disable it — otherwise the
+    // setInterval keeps ticking against a dropped test database. Mirrors
+    // AREA_INTELLIGENCE_*_WORKER_ENABLED / MARKET_PRICING_WORKER_ENABLED.
+    workerEnabled: env('WHATSAPP_LISTINGS_WORKER_ENABLED', 'true') !== 'false',
     workerIntervalMs: Math.max(5000, Number(env('WHATSAPP_LISTINGS_WORKER_INTERVAL_MS', 60000))),
     workerBatchSize: Math.max(1, Math.min(100, Number(env('WHATSAPP_LISTINGS_WORKER_BATCH_SIZE', 20)))),
     dedupeTtlHours: Math.max(1, Math.min(168, Number(env('WHATSAPP_LISTINGS_DEDUPE_TTL_HOURS', 24)))),
