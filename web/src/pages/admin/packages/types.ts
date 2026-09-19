@@ -136,7 +136,11 @@ export interface MeteredFeature {
   display_name: string
   category: string | null
   meter_unit: string | null
+  cost_source?: string | null
+  credits_per_unit?: number | null
+  cost_per_unit_micro_usd?: number | null
   active: boolean
+  updated_at?: string | null
 }
 
 export interface PackageDetailResponse extends PackageRow {

@@ -123,7 +123,7 @@ import {
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
@@ -366,6 +366,7 @@ function AppRoutes() {
       <Route path="/admin/fin/pricing" element={<FinPricingPage />} />
       <Route path="/admin/fin/pricing/:id" element={<PriceDetailPage />} />
       <Route path="/admin/fin/packages" element={<PackagesPage />} />
+      <Route path="/admin/fin/packages/features" element={<FeatureRegistryPage />} />
       <Route path="/admin/fin/packages/:id" element={<PackageDetailPage />} />
       <Route path="/admin/fin/packages/:id/versions/:vid" element={<PackageVersionEditor />} />
       <Route path="/admin/fin/package-approvals" element={<PackageApprovalPage />} />

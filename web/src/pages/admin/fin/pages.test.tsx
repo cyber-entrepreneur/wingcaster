@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditsPage,
-  ExceptionDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
@@ -179,6 +179,7 @@ describe('admin/fin pages', () => {
     ['Contract version editor', () => <ContractVersionEditorPage />],
     ['Pricing', () => <FinPricingPage />],
     ['Packages', () => <PackagesPage />],
+    ['Feature registry', () => <FeatureRegistryPage />],
     ['Package', () => <PackageDetailPage />],
     ['Package version', () => <PackageVersionEditor />],
     ['Package approvals', () => <PackageApprovalPage />],
