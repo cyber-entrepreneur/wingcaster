@@ -226,6 +226,7 @@ const PA_NAV: DrawerNavGroup[] = [
       { id: 'portals', label: 'Portal registry', href: '/admin/portals', icon: Globe },
       { id: 'admin-templates', label: 'Templates', href: '/admin/tpl', icon: LayoutTemplate },
       { id: 'admin-notifications', label: 'Notifications', href: '/admin/notifications', icon: Bell },
+      { id: 'comment-classifier', label: 'Comment classifier', href: '/admin/comment-classifier', icon: MessageSquare },
     ],
   },
   {

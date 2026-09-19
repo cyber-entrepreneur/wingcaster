@@ -352,6 +352,11 @@ const TABLE_MAP = {
   // Audit / activity
   audit_log: { schema: 'public', table: 'audit_log', columns: ['agent_id', 'agency_id', 'tenant_id', 'type', 'action', 'entity_type', 'entity_id', 'ip', 'user_agent', 'metadata'] },
   activity_log: { schema: 'public', table: 'activity_log', columns: ['agent_id', 'contact_id', 'property_id', 'inquiry_id', 'opportunity_id', 'viewing_id', 'type', 'meta'] },
+  comment_classifier_runs: {
+    schema: 'public',
+    table: 'comment_classifier_runs',
+    columns: ['triggered_by_agent_id', 'batched', 'updated_count', 'skipped_reason', 'error_message'],
+  },
 
   // Templates / entitlements / credits
   message_templates: { schema: 'public', table: 'message_templates', columns: ['owner_type', 'owner_id', 'name', 'channel', 'category', 'subject', 'body', 'variables', 'language', 'approval_status', 'is_default'] },
