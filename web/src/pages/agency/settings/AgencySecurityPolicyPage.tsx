@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, Loader2, ShieldCheck, X } from 'lucide-react'
 import {
   api,
@@ -437,6 +438,18 @@ export function AgencySecurityPolicyPage() {
         matches the SOC 2 CC6.1 and ISO 27001 A.9.4.2 requirements for organisation-mandated
         strong-auth.
       </p>
+
+      {role === 'owner' ? (
+        <section className="mt-[var(--lc-space-xl)] rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-lg)]">
+          <h2 className="text-lg font-semibold text-[var(--lc-text-heading)]">Danger zone</h2>
+          <p className="mt-1 text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-muted)]">
+            Permanently delete this agency after a 30-day cool-down. Members must be offboarded first.
+          </p>
+          <Button asChild variant="outline" className="mt-4 border-[var(--lc-status-danger-border)] text-[var(--lc-status-danger-fg)]">
+            <Link to="/agency/settings/delete-agency">Delete agency</Link>
+          </Button>
+        </section>
+      ) : null}
     </div>
   )
 }
