@@ -2,11 +2,11 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  ExceptionDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
@@ -43,6 +43,34 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/exceptions/items')) {
+      return {
+        items: [{
+          id: 'USAGE_DLQ:00000000-0000-0000-0000-000000000001',
+          exception_type: 'USAGE_DLQ',
+          severity: 'HIGH',
+          status: 'OPEN',
+          tenant_id: 'tenant-1',
+          description: 'DLQ test row',
+          created_at: '2026-01-01T00:00:00.000Z',
+        }],
+      }
+    }
+    if (String(path).match(/\/exceptions\/.+/)) {
+      return {
+        id: 'USAGE_DLQ:00000000-0000-0000-0000-000000000001',
+        exception_type: 'USAGE_DLQ',
+        severity: 'HIGH',
+        status: 'OPEN',
+        tenant_id: 'tenant-1',
+        description: 'DLQ test row',
+        payload: { error_code: 'TEST' },
+        related_drifts: [],
+        notes: [],
+        deferred: true,
+        dl: 'DL-165',
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -141,5 +169,28 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Exception detail renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/exceptions/USAGE_DLQ%3A00000000-0000-0000-0000-000000000001']}>
+        <Routes>
+          <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: 'Exception detail' })).toBeTruthy()
+  })
+
+  it('Exception detail exposes resolve and wont-fix actions', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/exceptions/USAGE_DLQ%3A00000000-0000-0000-0000-000000000001']}>
+        <Routes>
+          <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('button', { name: 'Resolve' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Mark wont-fix' })).toBeTruthy()
   })
 })

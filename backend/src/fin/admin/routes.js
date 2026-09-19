@@ -11,7 +11,11 @@ import { requireIfMatch, sendPreconditionFailed, setETag } from '../middleware/i
 import { adminMutationLimiter } from '../../lib/admin-limiter.js'
 import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment } from './context.js'
 import { loadOverviewKpis } from './kpis.js'
-import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
+import { EXCEPTION_TYPES, deferredExceptionPayload, loadExceptions } from './exceptions.js'
+import {
+  addExceptionNote, getExceptionDetail, listExceptionItems, parseExceptionId,
+} from './exception-items.js'
+import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas.js'
 import {
   getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
@@ -235,6 +239,92 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/exceptions', readGuards, wrap(async (req, res) => {
     const payload = await loadExceptions({ environment: sessionEnvironment(req) })
     return res.status(200).json(payload)
+  }))
+
+  app.get('/api/admin/fin/exceptions/items', readGuards, wrap(async (req, res) => {
+    const type = req.query.type ? String(req.query.type).toUpperCase() : undefined
+    const limit = Math.min(Number(req.query.limit) || 200, 500)
+    const items = await listExceptionItems({
+      environment: sessionEnvironment(req),
+      type,
+      limit: Number.isFinite(limit) ? limit : 200,
+    })
+    return res.status(200).json({ items })
+  }))
+
+  app.get('/api/admin/fin/exceptions/:id', readGuards, wrap(async (req, res) => {
+    const detail = await getExceptionDetail({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!detail) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json(detail)
+  }))
+
+  app.post('/api/admin/fin/exceptions/:id/notes', writeGuards, wrap(async (req, res) => {
+    const parsed = parseExceptionId(req.params.id)
+    if (!parsed) return res.status(404).json({ code: 'NOT_FOUND' })
+    const bodyResult = exceptionNoteSchema.safeParse(req.body || {})
+    if (!bodyResult.success) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', issues: bodyResult.error.issues })
+    }
+    const actor = actorFrom(req)
+    const note = await addExceptionNote({
+      environment: sessionEnvironment(req),
+      type: parsed.type,
+      sourceId: parsed.sourceId,
+      body: bodyResult.data.body,
+      wontFix: false,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+    })
+    return res.status(201).json({ note })
+  }))
+
+  app.post('/api/admin/fin/exceptions/:id/wont-fix', writeGuards, wrap(async (req, res) => {
+    const parsed = parseExceptionId(req.params.id)
+    if (!parsed) return res.status(404).json({ code: 'NOT_FOUND' })
+    const bodyResult = exceptionWontFixSchema.safeParse(req.body || {})
+    if (!bodyResult.success) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', issues: bodyResult.error.issues })
+    }
+    const actor = actorFrom(req)
+    const note = await addExceptionNote({
+      environment: sessionEnvironment(req),
+      type: parsed.type,
+      sourceId: parsed.sourceId,
+      body: bodyResult.data.justification,
+      wontFix: true,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+    })
+    const deferred = deferredExceptionPayload(parsed.type)
+    return res.status(200).json({
+      note,
+      recorded: true,
+      resolution_deferred: Boolean(deferred),
+      ...(deferred ? { deferred } : {}),
+    })
+  }))
+
+  app.post('/api/admin/fin/exceptions/:id/resolve', writeGuards, wrap(async (req, res) => {
+    const parsed = parseExceptionId(req.params.id)
+    if (!parsed) return res.status(404).json({ code: 'NOT_FOUND' })
+    const row = EXCEPTION_TYPES.find((item) => item.type === parsed.type)
+    if (!row?.resolve) {
+      const deferred = deferredExceptionPayload(parsed.type)
+      return res.status(501).json(deferred || {
+        code: 'NOT_IMPLEMENTED',
+        exception_type: parsed.type,
+        error: `${parsed.type} has no resolve command`,
+      })
+    }
+    return res.status(501).json({
+      code: 'NOT_IMPLEMENTED',
+      command: row.resolve,
+      exception_type: parsed.type,
+      error: `Resolve ${parsed.type} via the ${row.resolve} workflow endpoint`,
+    })
   }))
 
   app.get('/api/admin/fin/approvals', readGuards, wrap(async (req, res) => {
