@@ -3330,6 +3330,16 @@ export const api = {
     fetchJson('/admin/entitlements', { method: 'POST', body: JSON.stringify(data) }),
   deleteAdminWhatsAppListingsEntitlement: (id: string) =>
     fetchJson(`/admin/entitlements/${id}`, { method: 'DELETE' }),
+  grantAdminWhatsAppListingsCredits: (body: {
+    scope: 'agent' | 'agency'
+    scope_id: string
+    amount_usd: number
+    reason: string
+  }) =>
+    fetchJson('/admin/whatsapp-listings/credits/grant', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   getAgencyWhatsAppListingsUsage: () => fetchJson('/agency/whatsapp-listings/usage'),
   getAgencyWhatsAppListingsEntitlements: () => fetchJson('/agency/entitlements'),

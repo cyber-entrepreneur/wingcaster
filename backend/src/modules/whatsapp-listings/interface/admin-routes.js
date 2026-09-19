@@ -3,15 +3,17 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { authMiddleware } from '../../../auth.js'
+import { authMiddleware, requireElevated } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { query } from '../../../db.js'
+import { adminMutationLimiter } from '../../../lib/admin-limiter.js'
 import { Collections, findAllModule, insertModule } from '../infrastructure/db.js'
 import {
   listWhatsAppAuditLogs,
   whatsAppAuditLogListQuerySchema,
   whatsAppAuditRowsToCsv,
 } from '../application/whatsapp-audit-reads.js'
+import { whatsAppCreditGrantBodySchema } from '../application/whatsapp-credit-grant-schemas.js'
 
 export function registerAdminRoutes(app, { entitlements, credits, pipeline, config }) {
   app.get('/api/admin/whatsapp-listings/health', authMiddleware, requirePlatformAdmin, (_req, res) => {
@@ -126,35 +128,37 @@ export function registerAdminRoutes(app, { entitlements, credits, pipeline, conf
   // Manual credit grant — the ONLY path that mints tenant credits until Phase
   // 7e ships a real payment gateway. Requires platform_admin + a reason for
   // the audit trail. Tenant-facing top-up endpoints return 501 by design.
-  app.post('/api/admin/whatsapp-listings/credits/grant', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  app.post('/api/admin/whatsapp-listings/credits/grant', authMiddleware, requirePlatformAdmin, requireElevated(), adminMutationLimiter, async (req, res) => {
     try {
-      const { scope, scope_id, amount_usd, reason } = req.body || {}
-      if (scope !== 'agent' && scope !== 'agency') {
-        return res.status(400).json({ error: "scope must be 'agent' or 'agency'" })
-      }
-      if (!scope_id) return res.status(400).json({ error: 'scope_id is required' })
-      const amount = Number(amount_usd)
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'amount_usd must be a positive number' })
-      }
-      const reasonText = String(reason || '').trim()
-      if (!reasonText) return res.status(400).json({ error: 'reason is required for audit trail' })
-
-      const balance = await credits.topUp(scope, scope_id, amount, {
-        description: `Manual admin credit by ${req.user.id}: ${reasonText}`,
+      const body = whatsAppCreditGrantBodySchema.parse(req.body)
+      const balance = await credits.topUp(body.scope, body.scope_id, body.amount_usd, {
+        description: `Manual admin credit by ${req.user.id}: ${body.reason}`,
       })
       await insertModule(Collections.AUDIT_LOGS, {
         id: uuidv4(),
-        actor_id: req.user.id,
+        agent_id: body.scope === 'agent' ? body.scope_id : null,
+        agency_id: body.scope === 'agency' ? body.scope_id : null,
         action: 'admin_credit_grant',
-        target_scope: scope,
-        target_id: scope_id,
-        amount_usd: amount,
-        reason: reasonText,
+        entity_type: body.scope,
+        entity_id: body.scope_id,
+        metadata: {
+          amount_usd: body.amount_usd,
+          reason: body.reason,
+        },
+        data: {
+          actor_id: req.user.id,
+          target_scope: body.scope,
+          target_id: body.scope_id,
+          amount_usd: body.amount_usd,
+          reason: body.reason,
+        },
         created_at: new Date().toISOString(),
       })
       res.status(201).json({ success: true, balance })
     } catch (err) {
+      if (err?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Invalid grant body', details: err.issues })
+      }
       res.status(500).json({ error: err.message })
     }
   })

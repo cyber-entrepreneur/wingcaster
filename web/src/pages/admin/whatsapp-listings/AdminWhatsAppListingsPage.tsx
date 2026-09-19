@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Coins } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EntitlementForm } from '@/components/whatsapp-listings/EntitlementForm'
+import { GrantWhatsAppCreditsDialog } from '@/components/whatsapp-listings/GrantWhatsAppCreditsDialog'
 import { UsageChart } from '@/components/whatsapp-listings/UsageChart'
 import { useToast } from '@/components/ui/toast'
 
@@ -17,6 +19,12 @@ export function AdminWhatsAppListingsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [grantOpen, setGrantOpen] = useState(false)
+  const [grantTarget, setGrantTarget] = useState<{
+    scope: 'agent' | 'agency'
+    scopeId: string
+    label?: string
+  } | null>(null)
 
   useEffect(() => {
     load()
@@ -61,6 +69,11 @@ export function AdminWhatsAppListingsPage() {
     }
   }
 
+  function openGrant(scope: 'agent' | 'agency', scopeId: string) {
+    setGrantTarget({ scope, scopeId, label: scopeId })
+    setGrantOpen(true)
+  }
+
   if (loading) return <div className="p-6">Loading...</div>
 
   const byAgent = usage?.by_agent || {}
@@ -74,7 +87,19 @@ export function AdminWhatsAppListingsPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <h1 className="text-2xl font-bold">Admin: WhatsApp Listings</h1>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold">Admin: WhatsApp Listings</h1>
+        <Button
+          type="button"
+          onClick={() => {
+            setGrantTarget(null)
+            setGrantOpen(true)
+          }}
+        >
+          <Coins className="me-2 h-4 w-4" aria-hidden="true" />
+          Grant credits
+        </Button>
+      </header>
 
       <Card>
         <CardHeader><CardTitle>Module health</CardTitle></CardHeader>
@@ -115,7 +140,19 @@ export function AdminWhatsAppListingsPage() {
               <p><strong>Max drafts:</strong> {e.config?.max_drafts_per_month}</p>
               <p><strong>AI providers:</strong> {(e.config?.ai_providers_allowed || []).join(', ')}</p>
               <p><strong>Variants:</strong> {(e.config?.thumbnail_variants || []).join(', ')}</p>
-              <Button className="mt-2" size="sm" variant="destructive" onClick={() => handleDelete(e.id)}>Delete</Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {e.scope_id ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openGrant(e.scope === 'agency' ? 'agency' : 'agent', e.scope_id)}
+                  >
+                    Grant credits
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(e.id)}>Delete</Button>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -132,6 +169,12 @@ export function AdminWhatsAppListingsPage() {
           </Button>
         </CardContent>
       </Card>
+      <GrantWhatsAppCreditsDialog
+        open={grantOpen}
+        onOpenChange={setGrantOpen}
+        target={grantTarget}
+        onGranted={() => void load()}
+      />
     </div>
   )
 }
