@@ -123,14 +123,61 @@ function notificationIcon(type, metadata = {}) {
   return 'inbox'
 }
 
+function notificationMeta(row) {
+  return row.metadata || row.meta || {}
+}
+
+function resolveNotificationHref(row) {
+  const meta = notificationMeta(row)
+  if (meta.deep_link_url) {
+    const url = String(meta.deep_link_url)
+    try {
+      const parsed = new URL(url, 'https://app.wingcaster.local')
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`
+    } catch {
+      if (url.startsWith('/')) return url
+    }
+  }
+  if (meta.href) return String(meta.href)
+  const type = String(row.type || meta.alert_type || '').toLowerCase()
+  if (meta.inquiry_id) return '/inbox'
+  if (meta.viewing_id) return '/inbox'
+  if (meta.property_id) return `/listings/${meta.property_id}`
+  if (meta.saved_search_id) return '/campaigns'
+  if (meta.distribution_attempt_id) return '/publishing/tracker'
+  if (type.includes('portal_submission')) return '/publishing/tracker'
+  if (type.includes('saved_search')) return '/campaigns'
+  if (type.includes('inquiry') || type.includes('viewing') || type.includes('lead')) return '/inbox'
+  if (type.includes('approval') || type.includes('application')) return '/inbox'
+  if (type === 'billing' || type.includes('subscription') || type.includes('credit')) return '/my-subscription'
+  return undefined
+}
+
+function resolveNotificationCategory(row) {
+  const type = String(row.type || notificationMeta(row).alert_type || '').toLowerCase()
+  if (type.includes('inquiry') || type.includes('viewing') || type.includes('lead')) return 'leads'
+  if (type.includes('portal') || type.includes('publish') || type.includes('saved_search')) return 'publications'
+  if (type.includes('approval') || type.includes('application') || row.type === 'workflow') return 'approvals'
+  if (type === 'billing' || type.includes('subscription') || type.includes('credit') || type.includes('invoice')) {
+    return 'billing'
+  }
+  return 'system'
+}
+
 function serializeNotification(row) {
+  const meta = notificationMeta(row)
+  const category = resolveNotificationCategory(row)
+  const href = resolveNotificationHref(row)
   return {
     id: row.id,
     title: row.title || 'Notification',
-    snippet: row.body || row.metadata?.snippet || '',
+    snippet: row.body || meta.snippet || '',
     timestamp: row.created_at || row.updated_at || null,
     unread: row.read !== true,
-    icon: notificationIcon(row.type, row.metadata || {}),
+    icon: notificationIcon(row.type, meta),
+    category,
+    href,
+    type: row.type || meta.alert_type || null,
   }
 }
 
@@ -749,6 +796,37 @@ export function registerWave0NavRoutes(app, deps) {
     res.json({ success: true, marked: inApp.length + consumer.length })
   })
 
+  app.post('/api/auth/me/notifications/:id/read', authMiddleware, async (req, res) => {
+    const now = new Date().toISOString()
+    const inApp = await findOne(
+      'notifications',
+      (n) => n.id === req.params.id && n.user_id === req.user.id,
+    )
+    if (inApp) {
+      await update('notifications', (n) => n.id === inApp.id, (n) => ({
+        ...n,
+        read: true,
+        read_at: now,
+        updated_at: now,
+      }))
+      return res.json({ success: true })
+    }
+
+    const consumer = await findOne(
+      'consumer_notifications',
+      (n) => n.id === req.params.id && n.user_id === req.user.id,
+    )
+    if (!consumer) return res.status(404).json({ error: 'Notification not found' })
+
+    await update('consumer_notifications', (n) => n.id === consumer.id, (n) => ({
+      ...n,
+      read: true,
+      read_at: now,
+      updated_at: now,
+    }))
+    res.json({ success: true })
+  })
+
   app.post('/api/search', authMiddleware, validate(searchSchema), async (req, res) => {
     const user = await findUserById(req.user.id)
     const agent = await findAgentForUser(req.user.id)
@@ -925,6 +1003,8 @@ export function registerWave0NavRoutes(app, deps) {
 
 export const __test = {
   serializeNotification,
+  resolveNotificationHref,
+  resolveNotificationCategory,
   oauthProviderConfig,
   scopedSearch,
   OAUTH_PROVIDERS,
