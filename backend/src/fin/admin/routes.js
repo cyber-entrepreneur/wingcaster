@@ -52,6 +52,7 @@ import {
   withdrawApproval,
 } from './approvals-escalate-withdraw.js'
 import { invoiceDebitNoteBodySchema } from './invoice-debit-note-schemas.js'
+import { dunningCaseActionBodySchema } from './dunning-case-schemas.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -561,11 +562,19 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/dunning/cases/:id/advance', writeGuards, wrap(async (req, res) => {
+    const parsed = dunningCaseActionBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+    }
     const result = await advanceDunning(input(req, { caseId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/dunning/cases/:id/cure', writeGuards, wrap(async (req, res) => {
+    const parsed = dunningCaseActionBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+    }
     const result = await cureDunning(input(req, { caseId: req.params.id }))
     return res.status(200).json(result)
   }))
