@@ -5,7 +5,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditLotsPage, CreditsPage,
+  ContractVersionEditorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
   DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
@@ -159,6 +159,17 @@ const apiMock = vi.hoisted(() => ({
     if (String(path).includes('/dunning/cases')) {
       return { cases: [{ id: 'case-1', tenant_id: 'tenant-1', invoice_id: 'inv-1', status: 'OPEN', created_at: '2026-09-19T00:00:00.000Z' }] }
     }
+    if (String(path).includes('/credits/janitor/status')) {
+      return {
+        status: {
+          worker: 'CREDITS_JANITOR',
+          backlog_count: 0,
+          lock_held: false,
+          last_run_at: null,
+          last_processed_count: 0,
+        },
+      }
+    }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
       facilities: [], contracts: [], invoices: [], runs: [], types: [],
@@ -204,6 +215,7 @@ describe('admin/fin pages', () => {
     ['Tenants', () => <TenantsPage />],
     ['Usage drill', () => <UsagePage />],
     ['Credit lots', () => <CreditLotsPage />],
+    ['Credit janitor', () => <CreditJanitorPage />],
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],
