@@ -35,6 +35,7 @@ const WAVE0_FILES = [
   '549_growth_os_event_taxonomy.sql',
   '550_growth_os_event_taxonomy_v2.sql',
   '551_growth_os_tenant_rls_strict.sql',
+  '552_growth_os_conversation_read_grants.sql',
 ]
 
 async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
@@ -347,6 +348,9 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
       configure({ databaseUrl: url, force: true })
       const pool = getPool()
       try {
+        const agencyId = `agc_${randomUUID()}`
+        const agentId = `agt_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId, agentId })
         const idempotencyKey = `webhook:whatsapp:prov_${randomUUID()}`
         const providerEventId = idempotencyKey.split(':').slice(2).join(':')
         const first = await ingestEvent({
@@ -355,6 +359,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           source: 'webhook:whatsapp',
           idempotencyKey,
           providerEventId,
+          agencyId,
+          agentId,
           valueMicros: 1500,
           currency: 'USD',
         })
@@ -364,6 +370,8 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           source: 'webhook:whatsapp',
           idempotencyKey,
           providerEventId,
+          agencyId,
+          agentId,
           valueMicros: 9999,
           currency: 'USD',
         })
