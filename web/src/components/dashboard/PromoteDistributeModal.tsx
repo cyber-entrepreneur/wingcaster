@@ -67,7 +67,10 @@ export function PromoteDistributeModal({
   const [quotas, setQuotas] = useState<FeatureQuota[]>([])
   const [error, setError] = useState('')
 
-  const baseCaption = useMemo(() => defaultListingCaption(property), [property])
+  const baseCaption = useMemo(
+    () => (property ? defaultListingCaption(property) : ''),
+    [property],
+  )
 
   useEffect(() => {
     if (!open) return
