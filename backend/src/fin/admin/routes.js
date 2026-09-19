@@ -38,6 +38,7 @@ import { approveDebitNote, draftDebitNote, issueDebitNote } from '../billing/deb
 import { applyPayment, recordPayment, reversePayment } from '../billing/payment-allocation.js'
 import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/periods.js'
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
+import { createFacilityBodySchema } from './facility-schemas.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval } from './approvals/execute.js'
 import {
@@ -364,6 +365,11 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
 
   app.post('/api/admin/fin/facilities', writeGuards, wrap(async (req, res) => {
+    // Validate the raw body so strict() rejects injected environment/now (DL-164).
+    const parsed = createFacilityBodySchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
     const result = await createFacility(input(req))
     if (result.version != null) setETag(res, result.version)
     return res.status(200).json(result)
