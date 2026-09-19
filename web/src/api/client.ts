@@ -437,6 +437,46 @@ export interface AgencyMessageTemplateRenderResult {
   missing_variables: string[]
 }
 
+/** AGN-WLB-003 — white-label copy fields block. */
+export interface AgencySiteCopyFields {
+  header: { tagline: string }
+  about: { paragraph: string; mission: string }
+  featured_listings: {
+    filter: 'all' | 'by_area' | 'by_property_type' | 'by_price_range'
+    area?: string
+    property_type?: string
+    price_min?: number | null
+    price_max?: number | null
+    sort: 'newest' | 'most_viewed' | 'manual'
+  }
+  team: { intro: string }
+  contact: { phone: string; email: string; address: string; hours: string }
+  footer: { disclaimer: string }
+}
+
+/** AGN-WLB-003 — agency site configuration row. */
+export interface AgencySiteConfig {
+  id: string
+  agency_id: string
+  template_id: string | null
+  logo_url: string | null
+  favicon_url: string | null
+  primary_color: string | null
+  accent_color: string | null
+  font_pair: string | null
+  copy_fields: AgencySiteCopyFields
+  custom_domain: string | null
+  ssl_status: string
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AgencyWhiteLabelCopyResponse {
+  config: AgencySiteConfig
+  agency_name: string
+}
+
 /** Issue 190 + H1 — per-agency 2FA policy shape (matches backend agency_mfa_policy row + is_default flag). */
 export interface AgencyMfaPolicy {
   agency_id: string
@@ -1386,6 +1426,15 @@ export const api = {
   createAgency: (data: Record<string, unknown>) =>
     fetchJson('/agencies', { method: 'POST', body: JSON.stringify(data) }),
   getMyAgency: () => fetchJson('/agencies/my'),
+  /** AGN-WLB-003 — load agency white-label copy config. */
+  getAgencyWhiteLabelCopy: (): Promise<AgencyWhiteLabelCopyResponse> =>
+    fetchJson('/agency/white-label/copy'),
+  /** AGN-WLB-003 — update agency white-label copy fields. */
+  updateAgencyWhiteLabelCopy: (data: { copy_fields: Partial<AgencySiteCopyFields> }): Promise<{ config: AgencySiteConfig }> =>
+    fetchJson('/agency/white-label/copy', { method: 'PUT', body: JSON.stringify(data) }),
+  /** AGN-WLB-003 — publish agency white-label copy. */
+  publishAgencyWhiteLabelCopy: (): Promise<{ config: AgencySiteConfig }> =>
+    fetchJson('/agency/white-label/copy/publish', { method: 'POST', body: '{}' }),
   /** AGN-ROU-001/002 — list agency lead routing rules. */
   listAgencyRoutingRules: (): Promise<AgencyRoutingRulesListResponse> =>
     fetchJson('/agency/routing/rules'),
