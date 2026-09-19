@@ -69,7 +69,10 @@ export function PromoteDistributeModal({
   const [error, setError] = useState('')
   const [scheduleOpen, setScheduleOpen] = useState(false)
 
-  const baseCaption = useMemo(() => defaultListingCaption(property), [property])
+  const baseCaption = useMemo(
+    () => (property ? defaultListingCaption(property) : ''),
+    [property],
+  )
 
   useEffect(() => {
     if (!open) return
