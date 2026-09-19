@@ -5,7 +5,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AdvanceDunningStagePage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
+  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage, CureDunningCasePage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
@@ -223,6 +223,17 @@ const apiMock = vi.hoisted(() => ({
           ready_for_close: true,
           ready_for_reopen: false,
         },
+      }
+    }
+    if (String(path).includes('/payments')) {
+      return {
+        payments: [{
+          id: 'pay1',
+          tenant_id: 't1',
+          status: 'RECEIVED',
+          amount_minor: '5000',
+          currency: 'USD',
+        }],
       }
     }
     return {
@@ -489,5 +500,18 @@ describe('admin/fin pages', () => {
     expect(await screen.findByText('Advance dunning stage')).toBeTruthy()
     expect(await screen.findByText('Target stage:')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Advance stage' })).toBeTruthy()
+  })
+
+  it('Cure dunning case requires payment reference', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/cure']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/cure" element={<CureDunningCasePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Cure dunning case')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Cure case' })).toBeDisabled()
+    expect(screen.getByLabelText('Payment reference')).toBeTruthy()
   })
 })
