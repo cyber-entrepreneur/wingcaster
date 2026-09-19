@@ -255,4 +255,8 @@ describe('admin/fin pages', () => {
     wrap(<ReconciliationPage />)
     expect(screen.getByRole('button', { name: 'Run reconciliation' })).toBeTruthy()
   })
+  it('Pricing page exposes new version CTA', () => {
+    wrap(<FinPricingPage />)
+    expect(screen.getByRole('button', { name: 'New version' })).toBeTruthy()
+  })
 })

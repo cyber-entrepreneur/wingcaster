@@ -7,19 +7,25 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { FinAdminGate, FinTable } from './shell'
 
+import { CreatePriceVersionDialog } from './CreatePriceVersionDialog'
+
 export function PricingPage() {
   const navigate = useNavigate()
   const [prices, setPrices] = useState<Array<Record<string, unknown>>>([])
+  const [draftOpen, setDraftOpen] = useState(false)
+  const [selectedPriceId, setSelectedPriceId] = useState<string | undefined>()
   const [model, setModel] = useState('PER_UNIT')
   const [units, setUnits] = useState('1')
   const [rate, setRate] = useState('100')
   const [result, setResult] = useState<string | null>(null)
 
-  useEffect(() => {
+  function reloadPrices() {
     void api.finGet('/prices').then((body) => {
       setPrices((body.prices || []) as Array<Record<string, unknown>>)
     })
-  }, [])
+  }
+
+  useEffect(() => { reloadPrices() }, [])
 
   async function simulate() {
     const body = await api.finGet(`/pricing?model=${encodeURIComponent(model)}&billable_units=${units}&unit_rate_minor=${rate}`)
@@ -32,7 +38,16 @@ export function PricingPage() {
       <section className="mb-8 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Prices</h2>
-          <p className="text-sm text-muted-foreground">Select a row to open price detail and version lifecycle.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedPriceId(undefined)
+              setDraftOpen(true)
+            }}
+          >
+            New version
+          </Button>
         </div>
         <FinTable
           columns={['code', 'currency', 'meter_id', 'version']}
@@ -40,6 +55,15 @@ export function PricingPage() {
           onRowClick={(row) => navigate(`/admin/fin/pricing/${String(row.id)}`)}
         />
       </section>
+
+      <CreatePriceVersionDialog
+        open={draftOpen}
+        onOpenChange={setDraftOpen}
+        prices={prices as Array<{ id: string; code: string; currency: string; version?: number | string }>}
+        initialPriceId={selectedPriceId}
+        onCreated={() => reloadPrices()}
+      />
+
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Simulator</h2>
