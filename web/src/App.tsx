@@ -38,6 +38,7 @@ import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEdi
 import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { OpportunityDetailPage } from '@/pages/agent/OpportunityDetailPage'
+import { AgentPublicProfileEditorPage } from '@/pages/agent/AgentPublicProfileEditorPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
@@ -204,6 +205,8 @@ function AppRoutes() {
       {/* AGT-PUB-006 ledger + receipt deep-link */}
       <Route path="/publishing/receipts/:id" element={<PublishOutcomePage />} />
       <Route path="/publishing/tracker" element={<PortalTrackerPage />} />
+      {/* AGT-APP-001 — must precede /agent/:id so "profile" is not captured as an id */}
+      <Route path="/agent/profile" element={<AgentPublicProfileEditorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/agent/pricing" element={<AgentPricingPage />} />
