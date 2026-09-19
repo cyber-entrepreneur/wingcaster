@@ -252,6 +252,7 @@ import { recordSigninEvent, scoreSigninAttempt } from './lib/auth/signin-risk.js
 import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes.js'
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
+import { registerAgencyCustomReportRoutes } from './lib/agencies/custom-reports-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
@@ -837,6 +838,7 @@ registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
+registerAgencyCustomReportRoutes(app)
 registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
