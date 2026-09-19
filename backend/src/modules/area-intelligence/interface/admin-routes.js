@@ -3,6 +3,7 @@ import { authMiddleware, requireElevated } from '../../../auth.js'
 import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { AreaStatus } from '../domain/types.js'
 import { aiSynthesis } from '../domain/scoring/ai-synthesis.js'
+import { areaSignalRejectBodySchema, areaSignalVerifyBodySchema } from './area-signal-review-schemas.js'
 
 const aiConfigFields = {
   name: z.string().trim().min(2).max(120),
@@ -421,9 +422,13 @@ export function registerAdminRoutes(
 
   app.post('/api/admin/scoring/signals/:id/verify', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
+      const parsed = areaSignalVerifyBodySchema.safeParse(req.body || {})
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+      }
       const signal = await signalService.verify(req.params.id, {
         verifiedBy: req.user.id,
-        notes: req.body.notes,
+        notes: parsed.data.notes,
       })
       if (!signal) return res.status(404).json({ error: 'Signal not found' })
       res.json(signal)
@@ -435,9 +440,13 @@ export function registerAdminRoutes(
 
   app.post('/api/admin/scoring/signals/:id/reject', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
+      const parsed = areaSignalRejectBodySchema.safeParse(req.body || {})
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+      }
       const signal = await signalService.reject(req.params.id, {
         verifiedBy: req.user.id,
-        reason: req.body.reason,
+        reason: parsed.data.reason,
       })
       if (!signal) return res.status(404).json({ error: 'Signal not found' })
       res.json(signal)
