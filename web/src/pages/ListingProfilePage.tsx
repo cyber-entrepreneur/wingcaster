@@ -32,6 +32,7 @@ import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
 import { ListingFormModal } from '@/components/ListingFormModal'
 import { ArchiveListingModal, type ArchiveReason } from '@/components/listings/ArchiveListingModal'
+import { DeleteListingModal } from '@/components/listings/DeleteListingModal'
 import type { Property } from '@/types'
 import type {
   PricingAnalysis,
@@ -104,7 +105,6 @@ export function ListingProfilePage() {
   }, [setSearchParams])
   const [editOpen, setEditOpen] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
-  const [deleteBusy, setDeleteBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [archiveModalOpen, setArchiveModalOpen] = useState(false)
   const [unarchiveBusy, setUnarchiveBusy] = useState(false)
@@ -238,19 +238,6 @@ export function ListingProfilePage() {
   }
 
   const [closureModalOpen, setClosureModalOpen] = useState(false)
-
-  async function handleDelete() {
-    if (!property || deleteBusy) return
-    setDeleteBusy(true)
-    try {
-      await api.deleteProperty(property.id)
-      addToast({ title: 'Listing deleted', variant: 'success' })
-      navigate('/listings')
-    } catch (err: unknown) {
-      addToast({ title: 'Could not delete', description: apiErrorMessage(err), variant: 'error' })
-      setDeleteBusy(false)
-    }
-  }
 
   async function copyShareLink() {
     if (!property) return
@@ -669,11 +656,15 @@ export function ListingProfilePage() {
       )}
 
       {confirmDelete && (
-        <ConfirmDeleteModal
-          busy={deleteBusy}
-          title={property.title}
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={handleDelete}
+        <DeleteListingModal
+          open={confirmDelete}
+          listingId={property.id}
+          listingTitle={property.title}
+          onClose={() => setConfirmDelete(false)}
+          onDeleted={() => {
+            setConfirmDelete(false)
+            navigate('/listings')
+          }}
         />
       )}
 
@@ -833,32 +824,6 @@ function StubTab({
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function ConfirmDeleteModal({
-  busy, title, onCancel, onConfirm,
-}: { busy: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div className="fixed inset-0 z-overlay flex items-center justify-center lc-overlay p-4">
-      <div className="w-full max-w-md rounded-lg bg-[var(--lc-surface)] p-6 shadow-xl">
-        <h2 className="text-lg font-semibold">Delete this listing?</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          "{title}" will be permanently removed. If you just want to hide it, archive it instead.
-        </p>
-        <div className="mt-6 flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button
-            className="bg-red-600 text-[var(--lc-action-primary-text)] hover:bg-red-700"
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-            Delete
-          </Button>
-        </div>
-      </div>
-    </div>
   )
 }
 
