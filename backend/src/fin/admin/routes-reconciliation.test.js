@@ -47,6 +47,29 @@ finPostgresSuite('admin/routes-reconciliation', {}, ({ url }) => {
     expect(res.status).toBe(200)
     expect(res.body.skipped === true || Boolean(res.body.runId)).toBe(true)
   })
+  it('returns run detail with checks and drifts', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const ran = await request(app)
+      .post('/api/admin/fin/reconciliation/run')
+      .set(writeHeaders(token))
+      .send({ scope_kind: 'platform', reason_code: 'TEST' })
+    expect(ran.status).toBe(200)
+    const runId = ran.body.runId || ran.body.id
+    if (!runId) return
+
+    const detail = await request(app).get(`/api/admin/fin/reconciliation/runs/${runId}`)
+    expect(detail.status).toBe(200)
+    expect(Array.isArray(detail.body.checks)).toBe(true)
+    expect(Array.isArray(detail.body.drifts)).toBe(true)
+  })
+
+  it('returns 404 for unknown run id', async () => {
+    const { app } = await makeOpsApp(url())
+    const res = await request(app).get('/api/admin/fin/reconciliation/runs/00000000-0000-0000-0000-000000000099')
+    expect(res.status).toBe(404)
+    expect(res.body.code).toBe('NOT_FOUND')
+  })
 
   it('resolveDrift returns 501 with DL-165', async () => {
     const { app, elevate } = await makeOpsApp(url())

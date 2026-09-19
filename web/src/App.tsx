@@ -130,7 +130,8 @@ import {
   ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
+  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
+  SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
@@ -385,6 +386,7 @@ function AppRoutes() {
       <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
       <Route path="/admin/fin/vendors/:vendorId/statements/:month" element={<VendorStatementDetailPage />} />
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
+      <Route path="/admin/fin/reconciliation/:id" element={<ReconciliationRunDetailPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
