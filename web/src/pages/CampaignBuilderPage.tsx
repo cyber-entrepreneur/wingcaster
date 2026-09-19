@@ -7,7 +7,7 @@
  *
  * AGT-CMP-003: `?mode=pro` renders the single-page Pro builder.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -38,6 +38,7 @@ import {
   WIZARD_STEPS,
 } from '@/components/campaigns/campaign-builder-shared'
 import { useCampaignBuilderForm } from '@/components/campaigns/useCampaignBuilderForm'
+import { campaignFormFromGoal } from '@/components/campaigns/campaign-goals'
 
 function WizardProgressBar({ current }: { current: number }) {
   return (
@@ -72,7 +73,13 @@ function WizardProgressBar({ current }: { current: number }) {
 
 function CampaignBuilderWizard() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   usePageTitle('New Campaign')
+
+  // AGT-CMP-001: seed the wizard from a goal preset (`?goal=`). The hook only
+  // reads this on its first render, so it acts as a one-time seed.
+  const goalParam = searchParams.get('goal')
+  const initialForm = useMemo(() => campaignFormFromGoal(goalParam), [goalParam])
 
   const [wizardStep, setWizardStep] = useState(0)
   const {
@@ -94,7 +101,7 @@ function CampaignBuilderWizard() {
     saving,
     handleSave,
     stepsAreValid,
-  } = useCampaignBuilderForm()
+  } = useCampaignBuilderForm(initialForm)
 
   const canAdvance = (): boolean => {
     if (wizardStep === 0) return form.name.trim().length >= 2
