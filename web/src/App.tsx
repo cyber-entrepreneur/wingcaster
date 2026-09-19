@@ -105,7 +105,7 @@ import {
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, WriteOffDunningCasePage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
@@ -331,6 +331,7 @@ function AppRoutes() {
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
+      <Route path="/admin/fin/dunning/:id/write-off" element={<WriteOffDunningCasePage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
       <Route path="/notifications" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
