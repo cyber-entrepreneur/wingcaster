@@ -3348,6 +3348,8 @@ export const api = {
   updateAgencyWhatsAppListingsEntitlement: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agency/entitlements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAgencyWhatsAppListingsCredits: () => fetchJson('/agency/credits/balance'),
+  getAgencyFeatureQuotas: (): Promise<AgencyFeatureQuotasResponse> =>
+    fetchJson('/agency/credits/feature-quotas') as Promise<AgencyFeatureQuotasResponse>,
   getAgencyWhatsAppListingsTransactions: (limit = 100) =>
     fetchJson(`/agency/credits/transactions?limit=${limit}`),
   topUpAgencyWhatsAppListingsCredits: (amountUsd: number, paymentIntentId?: string) =>
@@ -4240,6 +4242,35 @@ export interface FeatureQuota {
   soft_warning: boolean
   used_credits?: number
   typical_credits?: number
+}
+
+export interface AgencyFeatureQuotaAgentBreakdown {
+  agent_user_id: string | null
+  agent_name: string
+  used_credits: number
+  source: 'agent' | 'agency'
+}
+
+export interface AgencyFeatureQuota extends FeatureQuota {
+  category?: string
+  category_group: string
+  at_cap: boolean
+  near_cap: boolean
+  agent_breakdown: AgencyFeatureQuotaAgentBreakdown[]
+}
+
+export interface AgencyFeatureQuotaGroup {
+  key: string
+  label: string
+  quotas: AgencyFeatureQuota[]
+}
+
+export interface AgencyFeatureQuotasResponse {
+  agency_id: string
+  billing_cycle_start: string | null
+  billing_cycle_end: string | null
+  groups: AgencyFeatureQuotaGroup[]
+  quotas: AgencyFeatureQuota[]
 }
 
 export interface TenantCreditsBalance {
