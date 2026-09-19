@@ -26,6 +26,7 @@ import { PerformanceTab } from '@/components/performance/PerformanceTab'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
 import { OffersPanel } from '@/components/listings/OffersPanel'
 import { ListingPublicationsTab } from '@/components/listings/ListingPublicationsTab'
+import { ListingCommentsTab } from '@/components/listings/ListingCommentsTab'
 import { MarketContextCard } from '@/components/market-pricing/MarketContextCard'
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
@@ -70,9 +71,9 @@ interface AreaDetailResponse {
   scores: Array<{ score: number | null }>
 }
 
-type TabKey = 'overview' | 'publications' | 'comms' | 'email' | 'viewings' | 'area' | 'performance'
+type TabKey = 'overview' | 'publications' | 'comms' | 'comments' | 'email' | 'viewings' | 'area' | 'performance'
 
-const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'email', 'viewings', 'area', 'performance']
+const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'comments', 'email', 'viewings', 'area', 'performance']
 
 function parseTabParam(value: string | null): TabKey {
   if (value && TAB_KEYS.includes(value as TabKey)) return value as TabKey
@@ -136,6 +137,10 @@ export function ListingProfilePage() {
   }, [id, addToast])
 
   useEffect(() => { loadProperty() }, [loadProperty])
+
+  const handleTabChange = (value: string) => {
+    setTab(parseTabParam(value))
+  }
 
   useEffect(() => {
     if (!id || !property) return
@@ -412,7 +417,7 @@ export function ListingProfilePage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+      <Tabs value={tab} onValueChange={handleTabChange}>
         <TabsList className="mb-4 flex flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="publications">
@@ -422,6 +427,7 @@ export function ListingProfilePage() {
             Comms
             <Badge variant="outline" className="ml-2 text-[10px]">Phase 4</Badge>
           </TabsTrigger>
+          <TabsTrigger value="comments">Comments</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="viewings">Viewings</TabsTrigger>
           <TabsTrigger value="area">Property Score</TabsTrigger>
@@ -484,7 +490,24 @@ export function ListingProfilePage() {
           <SocialCardStudio property={property} />
           <PublishSocialTab property={property} />
           <InsightsSection listingId={property.id} />
-          <CommentsSection listingId={property.id} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Listing comments</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                Review, filter, and reply to comments on published social posts in the dedicated Comments tab.
+              </p>
+              <Button variant="outline" className="gap-1.5" onClick={() => handleTabChange('comments')}>
+                <MessageCircle className="h-4 w-4" />
+                Open comments
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="comments">
+          <ListingCommentsTab listingId={property.id} />
         </TabsContent>
 
         <TabsContent value="email">
@@ -1447,26 +1470,6 @@ function formatMetricSummary(t: { impressions: number; likes: number; comments: 
   return parts.length ? parts.join(' · ') : 'no metrics yet'
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  hot_lead:    'bg-red-100 text-red-800 border-red-200',
-  interest:    'bg-blue-100 text-blue-800 border-blue-200',
-  investor:    'bg-indigo-100 text-indigo-800 border-indigo-200',
-  question:    'bg-amber-100 text-amber-800 border-amber-200',
-  objection:   'bg-orange-100 text-orange-800 border-orange-200',
-  complaint:   'bg-rose-100 text-rose-800 border-rose-200',
-  testimonial: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  reaction:    'bg-slate-100 text-slate-700 border-slate-200',
-  referral:    'bg-purple-100 text-purple-800 border-purple-200',
-  spam:        'bg-zinc-100 text-zinc-500 border-zinc-200 line-through',
-  general:     'bg-slate-100 text-slate-600 border-slate-200',
-}
-
-const SENTIMENT_DOT: Record<string, string> = {
-  positive: 'bg-emerald-500',
-  neutral:  'bg-slate-400',
-  negative: 'bg-rose-500',
-}
-
 function PropertyScorePanel({ listingId }: { listingId: string }) {
   const [loading, setLoading] = useState(true)
   const [area, setArea] = useState<AreaSummary | null>(null)
@@ -1554,404 +1557,6 @@ function PropertyScorePanel({ listingId }: { listingId: string }) {
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function CommentsSection({ listingId }: { listingId: string }) {
-  const { addToast } = useToast()
-  type Resp = Awaited<ReturnType<typeof api.getListingComments>>
-  type ThreadT = Resp['threads'][number]
-  type MessageT = ThreadT['messages'][number]
-  const [threads, setThreads] = useState<ThreadT[]>([])
-  const [publishedPosts, setPublishedPosts] = useState(0)
-  const [summary, setSummary] = useState<Record<string, number>>({})
-  const [categoryMeta, setCategoryMeta] = useState<Resp['category_meta']>({})
-  const [loading, setLoading] = useState(true)
-  const [replyOpenFor, setReplyOpenFor] = useState<string | null>(null)
-  const [replyText, setReplyText] = useState('')
-  const [replyBusy, setReplyBusy] = useState(false)
-  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set())
-  const [reclassifyOpenFor, setReclassifyOpenFor] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const opts = categoryFilter.size > 0 ? { category: Array.from(categoryFilter) } : undefined
-      const r = await api.getListingComments(listingId, opts)
-      setThreads(r.threads)
-      setPublishedPosts(r.published_posts)
-      setSummary(r.summary || {})
-      setCategoryMeta(r.category_meta || {})
-    } catch (err: unknown) {
-      addToast({ title: 'Could not load comments', description: apiErrorMessage(err), variant: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }, [listingId, addToast, categoryFilter])
-
-  useEffect(() => { load() }, [load])
-
-  async function submitReply(conversationId: string) {
-    if (replyBusy || !replyText.trim()) return
-    setReplyBusy(true)
-    try {
-      await api.sendConversationMessage(conversationId, replyText.trim())
-      addToast({ title: 'Reply sent', variant: 'success' })
-      setReplyText('')
-      setReplyOpenFor(null)
-      load()
-    } catch (err: unknown) {
-      addToast({ title: 'Reply failed', description: apiErrorMessage(err), variant: 'error' })
-    } finally {
-      setReplyBusy(false)
-    }
-  }
-
-  async function sendSuggested(conversationId: string, text: string) {
-    if (!text?.trim()) return
-    try {
-      await api.sendConversationMessage(conversationId, text.trim())
-      addToast({ title: 'Suggested reply sent', variant: 'success' })
-      load()
-    } catch (err: unknown) {
-      addToast({ title: 'Reply failed', description: apiErrorMessage(err), variant: 'error' })
-    }
-  }
-
-  async function reclassify(messageId: string, category: string, sentiment?: string) {
-    try {
-      await api.reclassifyComment(messageId, category, sentiment)
-      addToast({ title: 'Reclassified', variant: 'success' })
-      setReclassifyOpenFor(null)
-      load()
-    } catch (err: unknown) {
-      addToast({ title: 'Reclassify failed', description: apiErrorMessage(err), variant: 'error' })
-    }
-  }
-
-  function toggleCategoryFilter(cat: string) {
-    setCategoryFilter((prev) => {
-      const next = new Set(prev)
-      if (next.has(cat)) next.delete(cat)
-      else next.add(cat)
-      return next
-    })
-  }
-
-  const channelLabel: Record<string, string> = {
-    instagram_comment: 'Instagram',
-    facebook_comment: 'Facebook',
-    tiktok_comment: 'TikTok',
-    x_mention: 'X',
-    linkedin_comment: 'LinkedIn',
-  }
-
-  // Ordered list of categories for the filter bar (mirrors backend priority).
-  const filterOrder = ['hot_lead', 'interest', 'investor', 'question', 'objection', 'complaint', 'testimonial', 'reaction', 'referral', 'general', 'spam']
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div>
-          <CardTitle className="text-lg">Comments on your published posts</CardTitle>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Across {publishedPosts} published post{publishedPosts === 1 ? '' : 's'} · replies use the
-            same tenant credentials you set on <Link to="/settings/channels" className="text-primary underline">Settings → Channels</Link>.
-          </p>
-        </div>
-        <Button size="sm" variant="ghost" onClick={load} disabled={loading} className="gap-1.5">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-          Refresh
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Filter chips */}
-        {Object.keys(categoryMeta).length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCategoryFilter(new Set())}
-              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                categoryFilter.size === 0
-                  ? 'bg-slate-900 text-[var(--lc-action-primary-text)] border-slate-900'
-                  : 'bg-[var(--lc-surface)] text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              All ({Object.values(summary).reduce((s, n) => s + (n || 0), 0)})
-            </button>
-            {filterOrder.map((cat) => {
-              const meta = categoryMeta[cat]
-              if (!meta) return null
-              const count = summary[cat] || 0
-              if (count === 0 && !categoryFilter.has(cat)) return null
-              const active = categoryFilter.has(cat)
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => toggleCategoryFilter(cat)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    active ? 'ring-2 ring-offset-1 ring-slate-900' : ''
-                  } ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.general}`}
-                  title={meta.description}
-                >
-                  <span>{meta.emoji}</span>
-                  <span>{meta.label}</span>
-                  <span className="opacity-70">({count})</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : threads.length === 0 ? (
-          <p className="rounded-md border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">
-            {categoryFilter.size > 0
-              ? 'No comments match the current filter. Clear filters to see everything.'
-              : 'No comments yet. Once your published posts start getting engagement, comment threads will appear here — reply inline without leaving Wingcaster.'}
-          </p>
-        ) : (
-          <ul className="space-y-4">
-            {threads.map((t) => {
-              const displayName = t.contact?.name || t.messages[0]?.author_name || 'Someone'
-              const topCat = t.top_category
-              const topMeta = topCat ? categoryMeta[topCat] : null
-              return (
-                <li key={t.conversation_id} className="rounded-lg border bg-[var(--lc-surface)] p-3">
-                  <div className="flex items-center justify-between gap-2 pb-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{channelLabel[t.channel] || t.channel}</Badge>
-                      {topMeta && (
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${CATEGORY_COLORS[topCat!] || CATEGORY_COLORS.general}`}
-                          title={topMeta.description}
-                        >
-                          {topMeta.emoji} {topMeta.label}
-                        </span>
-                      )}
-                      {t.needs_agent_attention && (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800 animate-pulse"
-                          title="Needs agent attention (flagged by router)"
-                        >
-                          ⚑ Needs attention
-                        </span>
-                      )}
-                      <span className="text-sm font-medium">{displayName}</span>
-                    </div>
-                    {t.distribution_url && (
-                      <a
-                        href={t.distribution_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View post
-                      </a>
-                    )}
-                  </div>
-                  <ul className="space-y-1.5 border-t pt-2">
-                    {t.messages.map((m) => (
-                      <MessageRow
-                        key={m.id}
-                        message={m}
-                        categoryMeta={categoryMeta}
-                        reclassifyOpen={reclassifyOpenFor === m.id}
-                        onOpenReclassify={() => setReclassifyOpenFor(reclassifyOpenFor === m.id ? null : m.id)}
-                        onReclassify={(cat, sent) => reclassify(m.id, cat, sent)}
-                        onSendSuggestedReply={(text) => sendSuggested(t.conversation_id, text)}
-                      />
-                    ))}
-                  </ul>
-                  {replyOpenFor === t.conversation_id ? (
-                    <div className="mt-2 flex gap-2">
-                      <Input
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Type a reply…"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            submitReply(t.conversation_id)
-                          }
-                        }}
-                        autoFocus
-                      />
-                      <Button size="sm" onClick={() => submitReply(t.conversation_id)} disabled={replyBusy}>
-                        {replyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setReplyOpenFor(null); setReplyText('') }}>
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="mt-2">
-                      <Button size="sm" variant="outline" onClick={() => { setReplyOpenFor(t.conversation_id); setReplyText('') }}>
-                        Reply
-                      </Button>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function MessageRow({
-  message: m,
-  categoryMeta,
-  reclassifyOpen,
-  onOpenReclassify,
-  onReclassify,
-  onSendSuggestedReply,
-}: {
-  message: {
-    id: string
-    direction: 'inbound' | 'outbound'
-    content: string
-    created_at: string
-    author_name: string | null
-    status: string
-    category: string | null
-    sentiment: 'positive' | 'neutral' | 'negative' | null
-    category_confidence: number | null
-    category_source: 'rules' | 'ai' | 'manual' | null
-    suggested_reply?: string | null
-    needs_agent_attention?: boolean
-    priority?: 'low' | 'normal' | 'high' | 'urgent' | null
-    is_hidden?: boolean
-    routings?: Array<{
-      id: string
-      category: string
-      route: string | null
-      outcomes: Array<{ type: string; ref_id?: string; at: string; notes?: string }>
-      created_at: string
-    }>
-  }
-  categoryMeta: Record<string, { label: string; emoji: string; description: string; route: string }>
-  reclassifyOpen: boolean
-  onOpenReclassify: () => void
-  onReclassify: (category: string, sentiment?: string) => void
-  onSendSuggestedReply?: (text: string) => void
-}) {
-  const meta = m.category ? categoryMeta[m.category] : null
-  const bubbleClass = m.direction === 'inbound'
-    ? 'rounded-md bg-slate-50 px-2.5 py-1.5 text-sm'
-    : 'ml-8 rounded-md bg-slate-900 px-2.5 py-1.5 text-sm text-[var(--lc-action-primary-text)]'
-  const sourceLabel = m.category_source
-    ? m.category_source === 'manual' ? '· manual' : m.category_source === 'ai' ? '· AI' : '· rules'
-    : ''
-  return (
-    <li className={bubbleClass}>
-      <div className="whitespace-pre-wrap">{m.content}</div>
-      <div className={`mt-0.5 flex items-center gap-2 text-[10px] ${m.direction === 'inbound' ? 'text-muted-foreground' : 'text-[var(--lc-action-primary-text)]/70'}`}>
-        <span>{new Date(m.created_at).toLocaleString()}</span>
-        {m.direction === 'outbound' && <span>· {m.status}</span>}
-        {m.direction === 'inbound' && meta && (
-          <span className="inline-flex items-center gap-1">
-            <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium ${CATEGORY_COLORS[m.category!] || CATEGORY_COLORS.general}`}>
-              {meta.emoji} {meta.label}
-            </span>
-            {m.sentiment && (
-              <span title={`sentiment: ${m.sentiment}`} className={`inline-block h-1.5 w-1.5 rounded-full ${SENTIMENT_DOT[m.sentiment] || SENTIMENT_DOT.neutral}`} />
-            )}
-            <span className="opacity-70">{sourceLabel}</span>
-          </span>
-        )}
-        {m.direction === 'inbound' && (
-          <button
-            type="button"
-            onClick={onOpenReclassify}
-            className="ml-auto text-[10px] text-slate-500 hover:text-slate-800 hover:underline"
-          >
-            {reclassifyOpen ? 'cancel' : 'reclassify'}
-          </button>
-        )}
-      </div>
-      {reclassifyOpen && (
-        <div className="mt-1.5 flex flex-wrap gap-1 rounded border border-dashed bg-[var(--lc-surface)] p-1.5">
-          {Object.entries(categoryMeta).map(([cat, cm]) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => onReclassify(cat)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] hover:ring-1 hover:ring-slate-900 ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.general}`}
-            >
-              {cm.emoji} {cm.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Routing outcome badges — surface what the router did per message. */}
-      {m.direction === 'inbound' && m.routings && m.routings.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {m.routings.flatMap((r) => r.outcomes.map((o, i) => (
-            <RoutingOutcomeChip key={`${r.id}-${i}`} type={o.type} notes={o.notes || undefined} />
-          )))}
-        </div>
-      )}
-
-      {/* Suggested reply drafted by the router — agent can send / edit / dismiss. */}
-      {m.direction === 'inbound' && m.suggested_reply && (
-        <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
-          <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium text-amber-900">
-            <Sparkles className="h-3 w-3" />
-            Suggested reply (agent review)
-          </div>
-          <div className="whitespace-pre-wrap text-amber-900">{m.suggested_reply}</div>
-          {onSendSuggestedReply && (
-            <div className="mt-1 flex gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 gap-1 px-2 text-[10px]"
-                onClick={() => onSendSuggestedReply(m.suggested_reply!)}
-              >
-                Send as-is
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </li>
-  )
-}
-
-function RoutingOutcomeChip({ type, notes }: { type: string; notes?: string }) {
-  const meta: Record<string, { label: string; className: string; icon?: string }> = {
-    reply_sent:              { label: 'Reply sent',            className: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: '↩' },
-    reply_drafted:           { label: 'Reply drafted',         className: 'bg-amber-100 text-amber-800 border-amber-200',       icon: '✎' },
-    reply_suppressed:        { label: 'Auto-reply suppressed', className: 'bg-slate-100 text-slate-700 border-slate-200',       icon: '⊘' },
-    opportunity_created:     { label: 'Opportunity opened',    className: 'bg-blue-100 text-blue-800 border-blue-200',          icon: '⚡' },
-    inquiry_created:         { label: 'Inquiry created',       className: 'bg-indigo-100 text-indigo-800 border-indigo-200',    icon: '?' },
-    engagement_incremented:  { label: 'Engagement counted',    className: 'bg-slate-100 text-slate-700 border-slate-200',       icon: '+' },
-    agent_notified:          { label: 'Agent notified',        className: 'bg-rose-100 text-rose-800 border-rose-200',          icon: '!' },
-    agency_owner_notified:   { label: 'Owner notified',        className: 'bg-rose-100 text-rose-800 border-rose-200',          icon: '‼' },
-    marketing_queued:        { label: 'Marketing queue',       className: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: '★' },
-    ai_watcher_subscribed:   { label: 'AI watching thread',    className: 'bg-purple-100 text-purple-800 border-purple-200',    icon: '👁' },
-    hidden:                  { label: 'Hidden (spam)',         className: 'bg-zinc-100 text-zinc-500 border-zinc-200',          icon: '×' },
-    flagged_for_agent:       { label: 'Flagged for agent',     className: 'bg-orange-100 text-orange-800 border-orange-200',    icon: '⚑' },
-    skipped:                 { label: 'Skipped',               className: 'bg-slate-100 text-slate-500 border-slate-200',       icon: '·' },
-  }
-  const m = meta[type] || { label: type, className: 'bg-slate-100 text-slate-600 border-slate-200' }
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium ${m.className}`}
-      title={notes ? `${m.label} — ${notes}` : m.label}
-    >
-      {m.icon && <span className="opacity-70">{m.icon}</span>}
-      {m.label}
-    </span>
   )
 }
 
