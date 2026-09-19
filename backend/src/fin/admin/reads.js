@@ -243,10 +243,19 @@ export async function listHolds({ environment }) {
 
 export async function listFacilities({ environment }) {
   return query(
-    `SELECT id, tenant_id, billing_account_id, currency, limit_minor,
-            net_terms_days, status, valid_from, valid_to, version
-       FROM fin.credit_facilities WHERE environment = $1
-       ORDER BY created_at DESC LIMIT 200`,
+    `SELECT f.id, f.tenant_id, f.billing_account_id, f.currency, f.limit_minor,
+            f.net_terms_days, f.status, f.valid_from, f.valid_to, f.version,
+            COALESCE(d.current_draw_minor, 0)::bigint AS current_draw_minor
+       FROM fin.credit_facilities f
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(r.reserved_minor), 0)::bigint AS current_draw_minor
+           FROM fin.facility_reservations r
+          WHERE r.facility_id = f.id
+            AND r.environment = f.environment
+            AND r.status = 'OPEN'
+       ) d ON TRUE
+      WHERE f.environment = $1
+      ORDER BY f.created_at DESC LIMIT 200`,
     [environment],
   )
 }
@@ -588,6 +597,18 @@ export async function listDunningCases({ environment }) {
        FROM fin.dunning_cases WHERE environment = $1
        ORDER BY created_at DESC LIMIT 200`,
     [environment],
+  )
+}
+
+export async function listAccountingPeriods({ environment, limit = 200 }) {
+  return query(
+    `SELECT id, legal_entity_id, period_key, status, starts_at, ends_at,
+            closed_at, closed_by_actor_id, created_at, updated_at
+       FROM fin.accounting_periods
+      WHERE environment = $1
+      ORDER BY period_key DESC
+      LIMIT $2`,
+    [environment, limit],
   )
 }
 

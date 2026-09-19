@@ -24,7 +24,7 @@ import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
 import { AgencyComparablesPage } from '@/pages/agency/pricing/AgencyComparablesPage'
 import { AgencyCreditsLayout } from '@/pages/agency/credits/AgencyCreditsLayout'
-import { AgencyCreditsWalletPlaceholder } from '@/pages/agency/credits/AgencyCreditsWalletPlaceholder'
+import { AgencyCreditsWalletPage } from '@/pages/agency/credits/AgencyCreditsWalletPage'
 import { AgencyFeatureQuotasPage } from '@/pages/agency/credits/AgencyFeatureQuotasPage'
 import {
   BadComparableReportPage,
@@ -63,6 +63,7 @@ import { HistoricalTransactionsPage } from '@/pages/HistoricalTransactionsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { RoutingSettingsPage } from '@/pages/RoutingSettingsPage'
 import { MessageTemplatesPage } from '@/pages/MessageTemplatesPage'
+import { MessageTemplateEditorPage } from '@/pages/agent/MessageTemplateEditorPage'
 // Platform-notifications admin — separate from the agent-level
 // /message-templates page above. Lives at /admin/message-templates.
 import { MessageTemplatesPage as PlatformMessageTemplatesPage } from '@/pages/admin/platform-templates/MessageTemplatesPage'
@@ -101,8 +102,10 @@ import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
 import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
+import { AreaSignalsReviewPage } from '@/pages/admin/areas/AreaSignalsReviewPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
+import { CommentClassifierPage } from '@/pages/admin/comment-classifier/CommentClassifierPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
@@ -125,9 +128,9 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
-  ContractVersionEditorPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
+  ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
+  ContractVersionEditorPage, CreditJanitorPage, CreditsPage,
+  DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
@@ -135,6 +138,7 @@ import {
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
+import { NotificationsInboxPage } from '@/pages/agent/NotificationsInboxPage'
 import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
@@ -257,6 +261,8 @@ function AppRoutes() {
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
+      <Route path="/message-templates/new" element={<MessageTemplateEditorPage />} />
+      <Route path="/message-templates/:id" element={<MessageTemplateEditorPage />} />
       {mfaRoutes}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -303,7 +309,7 @@ function AppRoutes() {
       <Route path="/agency/reports/agents" element={<AgencyAgentLeaderboardPage />} />
       <Route path="/agency/reports/campaigns" element={<AgencyCampaignPerformanceReportPage />} />
       <Route path="/agency/credits" element={<AgencyCreditsLayout />}>
-        <Route index element={<AgencyCreditsWalletPlaceholder />} />
+        <Route index element={<AgencyCreditsWalletPage />} />
         <Route path="quotas" element={<AgencyFeatureQuotasPage />} />
       </Route>
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
@@ -330,8 +336,10 @@ function AppRoutes() {
       <Route path="/admin/message-templates/new" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/areas" element={<AdminAreasPage />} />
+      <Route path="/admin/areas/:areaId/signals" element={<AreaSignalsReviewPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
+      <Route path="/admin/comment-classifier" element={<CommentClassifierPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
@@ -369,6 +377,7 @@ function AppRoutes() {
       <Route path="/admin/fin/usage" element={<UsagePage />} />
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
       <Route path="/admin/fin/credits/lots" element={<CreditLotsPage />} />
+      <Route path="/admin/fin/credits/janitor" element={<CreditJanitorPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />
       <Route path="/admin/fin/facilities" element={<FacilitiesPage />} />
       <Route path="/admin/fin/contracts" element={<ContractsPage />} />
@@ -384,16 +393,19 @@ function AppRoutes() {
       <Route path="/admin/fin/subscriptions" element={<SubscriptionsPage />} />
       <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
       <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
+      <Route path="/admin/fin/dunning" element={<DunningCasesPage />} />
       <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
       <Route path="/admin/fin/vendors/:vendorId/statements/:month" element={<VendorStatementDetailPage />} />
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
       <Route path="/admin/fin/reconciliation/:id" element={<ReconciliationRunDetailPage />} />
+      <Route path="/admin/fin/accounting/periods" element={<AccountingPeriodsPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
-      <Route path="/notifications" element={<NotificationPreferencesPage />} />
+      <Route path="/notifications" element={<NotificationsInboxPage />} />
+      <Route path="/notification-preferences" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings/settings" element={<WhatsAppIntakeSettingsPage />} />

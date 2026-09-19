@@ -19,6 +19,10 @@ export function membershipCanViewWallet(membership) {
   return packs.some((pack) => WALLET_VIEW_PACKS.has(pack))
 }
 
+export function membershipCanManageWalletSettings(membership) {
+  return Boolean(membership && ADMIN_ROLES.has(membership.role))
+}
+
 export async function resolveCallerAgencyMembership(user) {
   const memberships = await listUserAgencyMemberships(user.id)
   if (!memberships.length) return null
@@ -39,6 +43,22 @@ export async function requireAgencyWalletRead(req, res, next) {
   try {
     const membership = await resolveCallerAgencyMembership(req.user)
     if (!membership?.agency_id || !membershipCanViewWallet(membership)) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+    req.agencyId = membership.agency_id
+    req.membership = membership
+    next()
+  } catch (err) {
+    next(err)
+  }
+}
+
+
+export async function requireAgencyWalletSettingsWrite(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    const membership = await resolveCallerAgencyMembership(req.user)
+    if (!membership?.agency_id || !membershipCanManageWalletSettings(membership)) {
       return res.status(403).json({ error: 'Forbidden' })
     }
     req.agencyId = membership.agency_id

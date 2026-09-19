@@ -20,6 +20,7 @@ import type {
   PricingRecalculationJob,
   PricingTrendSnapshot,
 } from '@/types/marketPricing'
+import type { InboxNotificationsResponse } from '@/types/inboxNotifications'
 import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
 import type { Territory } from '@/types/territory'
 import type {
@@ -85,6 +86,69 @@ export interface AuditLogSearchFilters {
   q?: string
   limit?: number
   offset?: number
+}
+
+export interface AgencyWalletAllocationSlice {
+  key: string
+  label: string
+  credits: number
+  kind: 'agent' | 'pool'
+}
+
+export interface AgencyWalletTransaction {
+  id: string
+  type: string
+  amount: number
+  description?: string | null
+  created_at: string
+}
+
+export interface AgencyWalletOverview {
+  agency_id: string
+  balance: {
+    credits_remaining: number
+    credits_reserved: number
+    currency: string
+    hard_block: boolean
+  }
+  kpis: {
+    wallet_balance: number
+    mtd_spend: number
+    burn_rate_daily: number
+    days_until_exhausted: number | null
+    allocated_to_agents: number
+    total_available: number
+  }
+  allocation: {
+    slices: AgencyWalletAllocationSlice[]
+    allocated_total: number
+    unallocated_pool: number
+  }
+  transactions: AgencyWalletTransaction[]
+  settings: {
+    agency_id: string
+    low_balance_alert_threshold: number
+    updated_by: string | null
+    updated_at: string | null
+    is_default?: boolean
+  }
+  alerts: {
+    is_low_balance: boolean
+    threshold: number
+  }
+  permissions: {
+    can_manage_settings: boolean
+    can_top_up: boolean
+    can_allocate: boolean
+  }
+}
+
+export interface AgencyWalletSettings {
+  agency_id: string
+  low_balance_alert_threshold: number
+  updated_by: string | null
+  updated_at: string | null
+  is_default?: boolean
 }
 
 export type WhatsAppIntakeAnalyticsRange = '7d' | '30d' | '90d'
@@ -2476,6 +2540,12 @@ export const api = {
     return fetchJson(`/notifications${qs}`)
   },
   markNotificationRead: (id: string) => fetchJson(`/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  getMyInboxNotifications: (): Promise<InboxNotificationsResponse> =>
+    fetchJson('/auth/me/notifications'),
+  markMyInboxNotificationRead: (id: string) =>
+    fetchJson(`/auth/me/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  markMyInboxNotificationsAllRead: () =>
+    fetchJson('/auth/me/notifications/mark-all-read', { method: 'POST', body: '{}' }),
   getNotificationPrefs: () => fetchJson('/notification-preferences'),
   updateNotificationPrefs: (data: Record<string, unknown>) =>
     fetchJson('/notification-preferences', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -2594,6 +2664,7 @@ export const api = {
     formats?: Record<string, string[]>
     recipient?: string
     caption?: string
+    captions?: Record<string, string>
     intent?: string
   }) =>
     fetchJson(`/properties/${propertyId}/distribute-own`, {
@@ -2604,6 +2675,7 @@ export const api = {
         formats: options?.formats,
         recipient: options?.recipient,
         caption: options?.caption,
+        captions: options?.captions,
         intent: options?.intent || 'distribute',
       }),
     }),
@@ -3003,7 +3075,33 @@ export const api = {
     categories: string[]
     sentiments: string[]
     meta: Record<string, { label: string; emoji: string; description: string; route: string }>
+    operational?: {
+      batch_size?: number
+      ai_enabled?: boolean
+      ai_provider?: string | null
+      rules_confidence_threshold?: number
+    }
   }> => fetchJson('/comment-classifier/config'),
+
+  /** PA-CLS-001 — manual classifier batch + run history. */
+  runCommentClassifierBatch: (): Promise<Record<string, unknown>> =>
+    fetchJson('/admin/comment-classifier/run', { method: 'POST', body: '{}' }),
+
+  listCommentClassifierRuns: (params?: { limit?: string }): Promise<{
+    runs: Array<{
+      id: string
+      triggered_by_agent_id?: string | null
+      batched: number
+      updated_count: number
+      skipped_reason?: string | null
+      error_message?: string | null
+      created_at: string
+    }>
+    total: number
+  }> => {
+    const qs = params?.limit ? `?limit=${encodeURIComponent(params.limit)}` : ''
+    return fetchJson(`/admin/comment-classifier/runs${qs}`)
+  },
   reclassifyComment: (messageId: string, category: string, sentiment?: string) =>
     fetchJson(`/comments/${messageId}/reclassify`, {
       method: 'POST',
@@ -3223,6 +3321,8 @@ export const api = {
   deleteMessageTemplate: (id: string) => fetchJson(`/message-templates/${id}`, { method: 'DELETE' }),
   renderMessageTemplate: (id: string, variables: Record<string, string>) =>
     fetchJson(`/message-templates/${id}/render`, { method: 'POST', body: JSON.stringify({ variables }) }),
+  testSendMessageTemplate: (id: string, to: string, variables: Record<string, string>) =>
+    fetchJson(`/message-templates/${id}/test-send`, { method: 'POST', body: JSON.stringify({ to, variables }) }),
 
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
@@ -3404,6 +3504,15 @@ export const api = {
   updateAgencyWhatsAppListingsEntitlement: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agency/entitlements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAgencyWhatsAppListingsCredits: () => fetchJson('/agency/credits/balance'),
+  getAgencyWalletOverview: (): Promise<AgencyWalletOverview> =>
+    fetchJson('/agency/credits/wallet-overview') as Promise<AgencyWalletOverview>,
+  getAgencyWalletSettings: (): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings') as Promise<{ settings: AgencyWalletSettings }>,
+  updateAgencyWalletSettings: (lowBalanceAlertThreshold: number): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ low_balance_alert_threshold: lowBalanceAlertThreshold }),
+    }) as Promise<{ settings: AgencyWalletSettings }>,
   getAgencyFeatureQuotas: (): Promise<AgencyFeatureQuotasResponse> =>
     fetchJson('/agency/credits/feature-quotas') as Promise<AgencyFeatureQuotasResponse>,
   getAgencyWhatsAppListingsTransactions: (limit = 100) =>
@@ -4016,6 +4125,20 @@ export const api = {
       body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
       headers: {
         'If-Match': `"${opts?.ifMatch ?? 1}"`,
+        'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
+      },
+    }),
+
+  /** PA-INV-004 — issue a debit note against an issued invoice. */
+  createAdminDebitNote: (
+    invoiceId: string,
+    body: { amount_minor: number; reason_code?: string },
+  ): Promise<Record<string, unknown>> =>
+    fetchJson(`/admin/fin/invoices/${encodeURIComponent(invoiceId)}/debit-note`, {
+      method: 'POST',
+      body: JSON.stringify({ reason_code: 'ADMIN_OPS', ...body }),
+      headers: {
+        'If-Match': '"1"',
         'Idempotency-Key': (globalThis.crypto?.randomUUID?.() || `ops-${Date.now()}`),
       },
     }),

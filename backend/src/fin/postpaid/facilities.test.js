@@ -65,6 +65,35 @@ finPostgresSuite('credit facilities B §18', {}, ({ pool, world }) => {
     })
     expect(Number(amended.limitMinor)).toBe(2_000)
   })
+
+  it('rejects limit below current open draw', async () => {
+    const seeded = await seedActiveFacility(pool(), world(), { limitMinor: 10_000 })
+    const approvalId = await insertApprovalForOps(pool(), world())
+    await pool().query(
+      `INSERT INTO fin.facility_reservations (
+         id, facility_id, environment, tenant_id, hold_id,
+         reserved_minor, currency, status, expires_at, reason_code,
+         created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, $4, NULL, 8000, 'USD', 'OPEN', $5, 'TEST', $5, $5
+       )`,
+      [
+        '00000000-0000-0000-0000-0000000000d1',
+        seeded.facilityId,
+        seeded.env.environment,
+        world().tenantA.tenantId,
+        seeded.env.now,
+      ],
+    )
+    await expect(amendFacilityLimit({
+      ...seeded.env,
+      facilityId: seeded.facilityId,
+      limitMinor: 5_000,
+      actorType: 'USER',
+      actorId: world().tenantA.holderId,
+      approvalRequestId: approvalId,
+    })).rejects.toMatchObject({ code: 'FACILITY_LIMIT_EXCEEDED' })
+  })
 })
 
 async function insertApprovalForOps(pool, world) {

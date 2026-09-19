@@ -77,6 +77,7 @@ import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
 import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAllocationRulesRoutes } from './lib/credits/allocation-rules-routes.js'
 import { registerAgencyFeatureQuotaRoutes } from './lib/credits/agency-feature-quotas-routes.js'
+import { registerAgencyWalletOverviewRoutes } from './lib/credits/wallet-overview-routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
@@ -89,6 +90,7 @@ import {
 } from './lib/wave0-nav-routes.js'
 import { registerWave8ProRoutes } from './lib/wave8-pro-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
+import { recordCreditJanitorRun } from './fin/admin/credit-janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
@@ -226,6 +228,7 @@ import { registerSessionRoutes } from './lib/auth/session-routes.js'
 import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
+import { registerMessageTemplateTestSendRoute } from './lib/message-templates-test-send-route.js'
 import { attachInboxWebSocket } from './ws/inbox.js'
 import { startInboxListener } from './ws/inbox-events.js'
 import { attachPublishingWebSocket } from './ws/publishing.js'
@@ -350,6 +353,8 @@ import {
   CATEGORY_META,
   classifyByRules,
 } from './lib/comment-classifier.js'
+import { commentClassifierRunBodySchema } from './lib/comment-classifier-admin-schemas.js'
+import { listCommentClassifierRuns, recordCommentClassifierRun } from './lib/comment-classifier-runs.js'
 import {
   routeClassifiedMessage,
   registerCommentRouterRoutes,
@@ -856,6 +861,7 @@ registerPortalAdminRoutes(app, {
 registerCreditRoutes(app)
 registerCreditAllocationRulesRoutes(app)
 registerAgencyFeatureQuotaRoutes(app)
+registerAgencyWalletOverviewRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
@@ -1020,10 +1026,28 @@ async function runCommentClassifierBatch() {
   return { batched: items.length, updated }
 }
 
-app.post('/api/admin/comment-classifier/run', authMiddleware, async (req, res) => {
-  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Admin only' })
+app.post('/api/admin/comment-classifier/run', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const parsed = commentClassifierRunBodySchema.safeParse(req.body || {})
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+  }
   const result = await runCommentClassifierBatch()
-  res.json(result)
+  const batched = Number(result.batched || 0)
+  const updated = Number(result.updated || 0)
+  const run = await recordCommentClassifierRun({
+    triggeredByAgentId: req.user?.id,
+    batched,
+    updatedCount: updated,
+    skippedReason: result.skipped ? String(result.skipped) : null,
+    errorMessage: result.error ? String(result.error) : null,
+  })
+  res.json({ ...result, run })
+})
+
+app.get('/api/admin/comment-classifier/runs', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const limit = req.query.limit
+  const payload = await listCommentClassifierRuns({ limit })
+  res.json(payload)
 })
 
 app.post('/api/uploads', authMiddleware, (req, res) => {
@@ -4292,6 +4316,8 @@ app.post('/api/message-templates/:id/render', authMiddleware, validate(messageTe
   res.json(rendered)
 })
 
+registerMessageTemplateTestSendRoute(app, { authMiddleware, validate, logActivity })
+
 // ==================== CONVERSATIONS ====================
 app.get('/api/conversations', authMiddleware, async (req, res) => {
   const mine = (await findAll('conversations', (c) => c.assigned_agent_id === req.user.id))
@@ -5673,15 +5699,17 @@ app.delete('/api/my-connections/:id', authMiddleware, requireElevated(), async (
 
 app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (req, res) => {
   const prop = await assertOwnsProperty(req.user.id, req.params.propertyId)
-  const { platforms, formats, mode, recipient, caption, intent } = req.body
+  const { platforms, formats, mode, recipient, caption, captions, intent } = req.body
   if (!platforms?.length) return res.status(400).json({ error: 'Select at least one platform' })
 
   const serialized = serializeProperty(prop)
   const distributions = []
   const fatalWhatsAppFailures = []
   const autoCaption = caption || `${serialized.title} · ${serialized.city || serialized.location || ''} · $${Number(serialized.price || 0).toLocaleString()}\n\nAvailable on REB`
+  const perChannelCaptions = captions && typeof captions === 'object' ? captions : {}
 
   for (const platform of platforms) {
+    const channelCaption = String(perChannelCaptions[platform] || caption || autoCaption).trim() || autoCaption
     const conn = await findAgentPrimaryConnection(req.user.id, platform)
     if (!conn) {
       const failed = {
@@ -5761,7 +5789,7 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
         next_retry_at: status === 'pending_retry' ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null,
         intent: intent || 'distribute',
         handle: conn.settings?.handle || conn.account_name,
-        caption: autoCaption,
+        caption: channelCaption,
         format: formatMap[platform] || 'post',
         note: status === 'pending_retry'
           ? 'Queued for retry publishing. A publisher worker or manual retry can complete delivery.'
@@ -6993,7 +7021,17 @@ app.post('/api/comments/:id/reclassify', authMiddleware, async (req, res) => {
 })
 
 app.get('/api/comment-classifier/config', authMiddleware, (_req, res) => {
-  res.json({ categories: COMMENT_CATEGORIES, sentiments: COMMENT_SENTIMENTS, meta: CATEGORY_META })
+  res.json({
+    categories: COMMENT_CATEGORIES,
+    sentiments: COMMENT_SENTIMENTS,
+    meta: CATEGORY_META,
+    operational: {
+      batch_size: COMMENT_CLASSIFIER_BATCH_SIZE,
+      ai_enabled: COMMENT_CLASSIFIER_AI_ENABLED,
+      ai_provider: listingsAiModule.config?.aiProvider || null,
+      rules_confidence_threshold: 0.6,
+    },
+  })
 })
 
 /**
@@ -8894,7 +8932,9 @@ const startServer = async () => {
     if (CREDITS_JANITOR_ENABLED) {
       creditsJanitorTimer = setInterval(async () => {
         try {
-          await runCreditJanitorTick({ pool: getPool() })
+          const pool = getPool()
+          const result = await runCreditJanitorTick({ pool })
+          await recordCreditJanitorRun(pool, result).catch(() => {})
         } catch (err) {
           logger.error({ err: err.message || String(err) }, 'Credit reservation janitor failed')
         }

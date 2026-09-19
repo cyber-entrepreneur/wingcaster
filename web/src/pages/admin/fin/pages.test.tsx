@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditLotsPage, CreditsPage,
-  ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
+  ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ContractVersionEditorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
+  DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
@@ -156,13 +156,27 @@ const apiMock = vi.hoisted(() => ({
         dl: 'DL-165',
       }
     }
+    if (String(path).includes('/dunning/cases')) {
+      return { cases: [{ id: 'case-1', tenant_id: 'tenant-1', invoice_id: 'inv-1', status: 'OPEN', created_at: '2026-09-19T00:00:00.000Z' }] }
+    }
+    if (String(path).includes('/credits/janitor/status')) {
+      return {
+        status: {
+          worker: 'CREDITS_JANITOR',
+          backlog_count: 0,
+          lock_held: false,
+          last_run_at: null,
+          last_processed_count: 0,
+        },
+      }
+    }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
       facilities: [], contracts: [], invoices: [], runs: [], types: [],
       approvals: [], events: [], vendors: [], stage11: false,
       dunning_policies: [], simulator: { amount_minor: '0' },
       reports: [], attestation: { eligible_to_sign: false },
-      packages: [], subscriptions: [], features: [],
+      packages: [], subscriptions: [], features: [], periods: [],
     }
   }),
   finPost: vi.fn(async () => ({ id: 'new' })),
@@ -174,6 +188,11 @@ vi.mock('@/api/client', () => ({ api: apiMock }))
 const authMock = vi.hoisted(() => ({
   isAdmin: true,
   agent: { id: 'admin-1', platform_role: 'platform_admin' as const },
+}))
+vi.mock('@/context/StepUpContext', () => ({
+  useStepUp: () => ({
+    runElevated: async (action: () => Promise<unknown>) => action(),
+  }),
 }))
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => authMock,
@@ -196,6 +215,7 @@ describe('admin/fin pages', () => {
     ['Tenants', () => <TenantsPage />],
     ['Usage drill', () => <UsagePage />],
     ['Credit lots', () => <CreditLotsPage />],
+    ['Credit janitor', () => <CreditJanitorPage />],
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],
@@ -210,6 +230,7 @@ describe('admin/fin pages', () => {
     ['Subscriptions', () => <SubscriptionsPage />],
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
+    ['Dunning cases', () => <DunningCasesPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Vendor statement', () => (
       <Routes>
@@ -217,6 +238,7 @@ describe('admin/fin pages', () => {
       </Routes>
     )],
     ['Reconciliation', () => <ReconciliationPage />],
+    ['Accounting periods', () => <AccountingPeriodsPage />],
     ['Exceptions', () => <ExceptionsPage />],
     ['Approvals', () => <ApprovalsPage />],
     ['Audit', () => <AuditPage />],
@@ -229,6 +251,11 @@ describe('admin/fin pages', () => {
       : '/'
     const { container } = wrap(<Page />, initialPath)
     expect(container.querySelector('h1')?.textContent).toBe(title)
+  })
+
+  it('Facilities page exposes adjust limit CTA', () => {
+    wrap(<FacilitiesPage />)
+    expect(screen.getByRole('button', { name: 'Adjust limit' })).toBeTruthy()
   })
 
   it('Overview is gated for non-admins', () => {
@@ -259,7 +286,7 @@ describe('admin/fin pages', () => {
       approvals: [], events: [], vendors: [], stage11: false,
       dunning_policies: [], simulator: { amount_minor: '0' },
       reports: [], attestation: { eligible_to_sign: false },
-      packages: [], subscriptions: [], features: [],
+      packages: [], subscriptions: [], features: [], periods: [],
     }))
     wrap(<VendorCostsPage />)
     expect(await screen.findByText(/Stage 11 not merged/)).toBeTruthy()

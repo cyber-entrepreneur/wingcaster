@@ -199,7 +199,7 @@ export function Navbar() {
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel>Account</DropdownMenuLabel>
                   <DropdownMenuItem asChild>
-                    <Link to="/notifications">Notification preferences</Link>
+                    <Link to="/notification-preferences">Notification preferences</Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
