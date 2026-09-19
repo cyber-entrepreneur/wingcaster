@@ -312,6 +312,7 @@ export function AgencyManagementPage() {
   const myRole = agency.myRole || 'agent'
   const canManageMembers = ['owner', 'admin'].includes(myRole)
   const canManageSettings = ['owner', 'admin'].includes(myRole)
+  const canManagePublicProfile = ['owner', 'admin', 'marketer'].includes(myRole)
 
   return (
     <div className="min-h-screen bg-[var(--lc-bg-page)]">
@@ -329,6 +330,7 @@ export function AgencyManagementPage() {
               </div>
             </div>
             <div className="flex gap-2">
+              {canManagePublicProfile && <Link to="/agency/public-profile"><Button variant="outline" className="gap-2"><Eye className="h-4 w-4" />Public Profile</Button></Link>}
               <Link to="/agency/pricing"><Button variant="outline" className="gap-2"><DollarSign className="h-4 w-4" />Price Health</Button></Link>
               <Link to="/white-label"><Button variant="outline" className="gap-2"><Settings className="h-4 w-4" />White-Label Sites</Button></Link>
               <Link to="/integrations"><Button variant="outline" className="gap-2"><Settings className="h-4 w-4" />Integrations</Button></Link>

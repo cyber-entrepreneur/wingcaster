@@ -27,6 +27,10 @@ import type {
   OwnershipTransferOtpResult,
   OwnershipTransferStateResponse,
 } from '@/types/ownershipTransfer'
+import type {
+  AgencyPublicProfileSettingsResponse,
+  AgencyPublicProfileUpdate,
+} from '@/types/agencyPublicProfile'
 
 /** H5 — audit log entry as returned by /api/audit/log. */
 export interface AuditLogEntry {
@@ -1049,6 +1053,16 @@ export const api = {
     fetchJson(`/agencies/${encodeURIComponent(id)}/branding/reset`, {
       method: 'POST',
       body: '{}',
+    }),
+  getAgencyPublicProfileSettings: (id: string): Promise<AgencyPublicProfileSettingsResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/public-profile-settings`),
+  updateAgencyPublicProfileSettings: (
+    id: string,
+    data: AgencyPublicProfileUpdate,
+  ): Promise<AgencyPublicProfileSettingsResponse> =>
+    fetchJson(`/agencies/${encodeURIComponent(id)}/public-profile-settings`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   // Issue 190 — admin-enforced 2FA policy.

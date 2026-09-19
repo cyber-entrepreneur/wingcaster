@@ -60,6 +60,14 @@ const TABLE_MAP = {
       'brand_accent_color', 'brand_font_family', 'brand_updated_at', 'brand_updated_by',
     ],
   },
+  agency_public_profile_settings: {
+    schema: 'public',
+    table: 'agency_public_profile_settings',
+    columns: [
+      'agency_id', 'show_team', 'show_listings', 'show_reviews', 'show_closed_transactions',
+      'show_contact_form', 'hero_title', 'hero_body', 'meta_description', 'updated_by',
+    ],
+  },
   agency_applications: {
     schema: 'public',
     table: 'agency_applications',

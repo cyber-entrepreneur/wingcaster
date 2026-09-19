@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Building2, MapPin, Phone, Mail, Globe, Star, Loader2, ArrowLeft, User } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { PropertyCard } from '@/components/PropertyCard'
+import { PublicAgencyProfile } from '@/components/agency/PublicAgencyProfile'
 import { useToast } from '@/components/ui/toast'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { api } from '@/api/client'
@@ -17,6 +14,22 @@ export function PublicAgencyPage() {
   const [loading, setLoading] = useState(true)
 
   usePageTitle(agency?.name || 'Agency')
+
+  useEffect(() => {
+    const description = agency?.profile_settings?.meta_description
+    if (!description) return
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    const previous = meta?.content
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'description'
+      document.head.appendChild(meta)
+    }
+    meta.content = description
+    return () => {
+      if (previous && meta) meta.content = previous
+    }
+  }, [agency?.profile_settings?.meta_description])
 
   useEffect(() => {
     if (!id) return
@@ -48,83 +61,5 @@ export function PublicAgencyPage() {
     )
   }
 
-  const brandColor = agency.brand_primary_color || agency.primary_color || 'var(--lc-action-primary)'
-  const logoUrl = agency.logo_url || agency.logo
-
-  return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)]" style={{ fontFamily: agency.brand_font_family === 'archivo' ? 'var(--lc-font-display)' : 'var(--lc-font-ui)' }}>
-      {/* Agency Header */}
-      <div className="bg-[var(--lc-surface)] border-b">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <Link to="/agents" className="inline-flex items-center gap-1 text-sm text-muted-foreground mb-4 hover:text-primary">
-            <ArrowLeft className="h-4 w-4" />Back to Agents
-          </Link>
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-primary-faint p-4">
-              {logoUrl ? (
-                <img src={logoUrl} alt="" className="max-h-full max-w-full object-contain" />
-              ) : (
-                <Building2 className="h-16 w-16" style={{ color: brandColor }} />
-              )}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold" style={{ color: brandColor }}>{agency.name}</h1>
-              <p className="mt-2 text-muted-foreground max-w-2xl">{agency.description}</p>
-              <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                {agency.license_number && <span className="flex items-center gap-1"><Badge variant="outline">License {agency.license_number}</Badge></span>}
-                {agency.phone && <span className="flex items-center gap-1 text-muted-foreground"><Phone className="h-4 w-4" />{agency.phone}</span>}
-                {agency.email && <span className="flex items-center gap-1 text-muted-foreground"><Mail className="h-4 w-4" />{agency.email}</span>}
-                {agency.address && <span className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" />{agency.address}</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Team */}
-        <div className="mb-10">
-          <h2 className="text-xl font-bold mb-4">Our Team ({agency.members?.length || 0})</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {agency.members?.map((member: any) => (
-              <Link key={member.id} to={`/agent/${member.user_id}`}>
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={member.user?.photo} />
-                      <AvatarFallback>{member.user?.name?.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{member.user?.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
-                      {member.user?.rating && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                          <span className="text-xs">{member.user.rating}</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Listings */}
-        <div>
-          <h2 className="text-xl font-bold mb-4">Listings ({agency.listings?.length || 0})</h2>
-          {agency.listings?.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {agency.listings.map((prop: any) => (
-                <PropertyCard key={prop.id} property={prop} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No active listings from this agency.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+  return <PublicAgencyProfile agency={agency} />
 }
