@@ -421,6 +421,7 @@ import { buildContactTimeline } from './contacts/timeline.js'
 import { getCrmAnalytics, getCommunicationsAnalytics } from './analytics/crm.js'
 import { registerAgencyReportsHomeRoutes } from './analytics/agency-reports-home-routes.js'
 import { registerListingsPerformanceRoutes } from './analytics/listings-performance-routes.js'
+import { registerAgentLeaderboardRoutes } from './analytics/agent-leaderboard-routes.js'
 import {
   createCampaign,
   getCampaigns,
@@ -7890,6 +7891,7 @@ registerAgencyMessageTemplateRoutes(app, { authMiddleware })
 registerAgencySiteConfigRoutes(app, { authMiddleware })
 registerAgencyReportsHomeRoutes(app, { authMiddleware })
 registerListingsPerformanceRoutes(app, { authMiddleware })
+registerAgentLeaderboardRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
