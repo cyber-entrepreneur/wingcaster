@@ -51,6 +51,7 @@ import {
   listEligibleEscalationTargets,
   withdrawApproval,
 } from './approvals-escalate-withdraw.js'
+import { invoiceDebitNoteBodySchema } from './invoice-debit-note-schemas.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -631,6 +632,14 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/invoices/:id/debit-note', writeGuards, wrap(async (req, res) => {
+    const parsed = invoiceDebitNoteBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      })
+    }
+    req.body = { ...req.body, ...parsed.data }
     const env = input(req, { invoiceId: req.params.id })
     const drafted = await draftDebitNote({
       ...env,
