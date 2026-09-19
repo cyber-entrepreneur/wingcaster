@@ -111,21 +111,41 @@ SET idempotency_key = provider_event_id
 WHERE idempotency_key IS NULL
   AND provider_event_id IS NOT NULL;
 
-UPDATE public.events
-SET
-  actor_type = split_part(actor, ':', 1),
-  actor_id = NULLIF(split_part(actor, ':', 2), '')
-WHERE actor IS NOT NULL
-  AND actor LIKE '%:%'
-  AND actor_type IS NULL;
+-- Backfill typed actor/object only while legacy columns still exist (re-apply safe).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'events'
+      AND column_name = 'actor'
+  ) THEN
+    UPDATE public.events
+    SET
+      actor_type = split_part(actor, ':', 1),
+      actor_id = NULLIF(split_part(actor, ':', 2), '')
+    WHERE actor IS NOT NULL
+      AND actor LIKE '%:%'
+      AND actor_type IS NULL;
+  END IF;
 
-UPDATE public.events
-SET
-  object_type = split_part(object_ref, ':', 1),
-  object_id = NULLIF(split_part(object_ref, ':', 2), '')
-WHERE object_ref IS NOT NULL
-  AND object_ref LIKE '%:%'
-  AND object_type IS NULL;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'events'
+      AND column_name = 'object_ref'
+  ) THEN
+    UPDATE public.events
+    SET
+      object_type = split_part(object_ref, ':', 1),
+      object_id = NULLIF(split_part(object_ref, ':', 2), '')
+    WHERE object_ref IS NOT NULL
+      AND object_ref LIKE '%:%'
+      AND object_type IS NULL;
+  END IF;
+END $$;
 
 UPDATE public.events
 SET idempotency_key = 'legacy:' || id
