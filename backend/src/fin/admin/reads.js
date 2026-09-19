@@ -529,9 +529,9 @@ export async function getAccountingPeriod({ environment, id }) {
       `SELECT COUNT(*)::int AS count
          FROM fin.billing_periods
         WHERE environment = $1
-          AND period_start >= $2
-          AND period_end <= $3
-          AND status NOT IN ('FINAL', 'CLOSED')`,
+          AND starts_at >= $2
+          AND ends_at <= $3
+          AND status <> 'FINAL'`,
       [environment, period.starts_at, period.ends_at],
     ),
   ])

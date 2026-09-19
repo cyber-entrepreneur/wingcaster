@@ -33,8 +33,8 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
       ...env,
       legalEntityId: world().legalEntityId,
       periodKey: `admin-${randomUUID().slice(0, 8)}`,
-      startsAt: '2026-01-01T00:00:00.000Z',
-      endsAt: '2026-02-01T00:00:00.000Z',
+      startsAt: '2026-03-01T00:00:00.000Z',
+      endsAt: '2026-04-01T00:00:00.000Z',
     })
     const soft = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/soft-close`)
