@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 const toastMock = vi.hoisted(() => ({ addToast: vi.fn() }))
 vi.mock('@/components/ui/toast', () => ({
@@ -11,11 +11,12 @@ vi.mock('@/lib/usePageTitle', () => ({
   usePageTitle: () => undefined,
 }))
 
+const authMock = vi.hoisted(() => ({
+  agent: { id: 'agent-1', name: 'Agent One' },
+  loading: false,
+}))
 vi.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({
-    agent: { id: 'agent-1', name: 'Agent One' },
-    loading: false,
-  }),
+  useAuth: () => authMock,
 }))
 
 vi.mock('@/components/performance/PerformanceTab', () => ({
@@ -109,6 +110,10 @@ beforeEach(async () => {
   apiMock.createSellerReportShareToken.mockReset()
   apiMock.getSellerReport.mockResolvedValue(sampleResponse)
   ;({ SellerPerformanceReportPage } = await import('./SellerPerformanceReportPage'))
+})
+
+afterEach(() => {
+  cleanup()
 })
 
 function renderPage() {
