@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditFinMirrorPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
@@ -28,6 +28,19 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/credits/fin-mirror/status')) {
+      return {
+        status: {
+          worker: 'CREDITS_FIN_MIRROR',
+          backlog_count: 0,
+          grant_backlog_count: 0,
+          consumption_backlog_count: 0,
+          lock_held: false,
+          last_run_at: null,
+          last_processed_count: 0,
+        },
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -69,6 +82,7 @@ describe('admin/fin pages', () => {
     ['Tenants', () => <TenantsPage />],
     ['Usage drill', () => <UsagePage />],
     ['Credit lots', () => <CreditsPage />],
+    ['Fin mirror worker', () => <CreditFinMirrorPage />],
     ['Holds', () => <HoldsPage />],
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],

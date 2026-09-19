@@ -52,6 +52,7 @@ const WRITES = [
   ['post', '/api/admin/fin/accounting/periods/x/soft-close'],
   ['post', '/api/admin/fin/accounting/periods/x/hard-close'],
   ['post', '/api/admin/fin/accounting/periods/x/reopen'],
+  ['post', '/api/admin/fin/credits/fin-mirror/run'],
   ['post', '/api/admin/fin/vendors/x/rates'],
   ['post', '/api/admin/fin/vendors/x/rates/y/deprecate'],
   ['post', '/api/admin/fin/vendors/x/statements/2026-08/reconcile'],
