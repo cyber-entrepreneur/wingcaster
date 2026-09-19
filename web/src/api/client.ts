@@ -3317,6 +3317,11 @@ export const api = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/whatsapp-listings/audit-log${qs}`)
   },
+  adminWhatsAppListingsAuditLogCsvPath: (params?: Record<string, string | undefined>) => {
+    const entries = Object.entries(params || {}).filter(([, v]) => v != null && v !== '') as [string, string][]
+    const qs = entries.length ? `?${new URLSearchParams(entries)}` : ''
+    return `${API_BASE}/admin/whatsapp-listings/audit-log.csv${qs}`
+  },
   getAdminWhatsAppListingsEntitlements: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/entitlements${qs}`)
