@@ -40,7 +40,7 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     const soft = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/soft-close`)
       .set(writeHeaders(token, { idempotencyKey: `SOFT:${randomUUID()}` }))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect(soft.status).toBe(200)
     expect(soft.body.status).toBe('SOFT_CLOSED')
 
@@ -48,7 +48,7 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     const hard = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/hard-close`)
       .set(writeHeaders(token, { idempotencyKey: `HARD:${randomUUID()}` }))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect([200, 400, 409]).toContain(hard.status)
 
     const approvalId = await insertApproval(pool(), {
@@ -67,7 +67,7 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     const res = await request(app)
       .post('/api/admin/fin/accounting/periods/00000000-0000-0000-0000-000000000099/soft-close')
       .set(writeHeaders(elevate()))
-      .send({ reason_code: 'TEST' })
+      .send({})
     expect(res.status).toBeGreaterThanOrEqual(400)
   })
 })
