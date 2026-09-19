@@ -21,8 +21,8 @@ finPostgresSuite('admin/routes-credit-lots', {}, ({ url, pool, world }) => {
     const funded = await fundPurchase({
       ...env,
       purchaseIntentId: intent,
-      paidUnits: 100,
-      bonusUnits: 20,
+      paidUnits: 120,
+      bonusUnits: 0,
       considerationMinor: 12,
     })
     const lotId = funded.lotIds[0]

@@ -190,7 +190,7 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/credits/lots/:id/retire', writeGuards, wrap(async (req, res) => {
-    const parsed = retireLotBodySchema.safeParse(commandBody(req))
+    const parsed = retireLotBodySchema.safeParse(req.body || {})
     if (!parsed.success) {
       return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
     }
@@ -202,6 +202,7 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     const result = await expireLot({
       ...input(req, { lotId: req.params.id }),
       reasonCode: parsed.data.reason_code || 'LOT_RETIRE',
+      now: req.fin.now,
     })
     return res.status(200).json(result)
   }))
