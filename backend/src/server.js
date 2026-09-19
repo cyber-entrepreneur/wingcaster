@@ -76,6 +76,7 @@ import { registerFinPricingAdminRoutes } from './fin/admin/pricing/routes.js'
 import { registerFinOpsAdminRoutes } from './fin/admin/routes.js'
 import { registerCreditRoutes } from './lib/credits/routes.js'
 import { registerCreditAllocationRulesRoutes } from './lib/credits/allocation-rules-routes.js'
+import { registerAgencyFeatureQuotaRoutes } from './lib/credits/agency-feature-quotas-routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
@@ -853,6 +854,7 @@ registerPortalAdminRoutes(app, {
 })
 registerCreditRoutes(app)
 registerCreditAllocationRulesRoutes(app)
+registerAgencyFeatureQuotaRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
 registerPushTokenRoutes(app)
