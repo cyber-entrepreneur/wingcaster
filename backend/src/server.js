@@ -260,6 +260,7 @@ import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pa
 import { registerLeadFunnelRoutes } from './analytics/lead-funnel-routes.js'
 import { registerRevenueAttributionRoutes } from './analytics/revenue-attribution-routes.js'
 import { registerAgencyRoutingRuleRoutes } from './lib/routing/agency-routing-rules-routes.js'
+import { registerAgencyMessageTemplateRoutes } from './lib/templates/agency-message-templates-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
@@ -7881,6 +7882,7 @@ registerAgencyMfaPolicyRoutes(app, { authMiddleware })
 registerAgencyBrandingRoutes(app, { authMiddleware })
 registerAgencyPublicProfileSettingsRoutes(app, { authMiddleware })
 registerAgencyRoutingRuleRoutes(app, { authMiddleware })
+registerAgencyMessageTemplateRoutes(app, { authMiddleware })
 
 // Issue #192a — Personal Access Tokens for enterprise integrations (CRM, BI,
 // automation). Bearer detection in authMiddleware routes `wc_pat_...` tokens
