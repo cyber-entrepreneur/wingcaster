@@ -13,7 +13,7 @@ import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment }
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getDunningCase, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -26,6 +26,7 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { advanceDunning } from '../dunning/steps.js'
 import { cureDunning } from '../dunning/cases.js'
 import { writeOffInvoice } from '../dunning/write-off-invoice.js'
+import { requestDunningWriteOff } from '../dunning/write-off-request.js'
 import { advanceBillingPeriodClose } from '../billing/period-close.js'
 import { reopenBillingPeriod } from '../billing/periods.js'
 import { voidIssuedInvoice } from '../billing/invoice-issuer.js'
@@ -264,6 +265,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json({ cases })
   }))
 
+  app.get('/api/admin/fin/dunning/cases/:id', readGuards, wrap(async (req, res) => {
+    const dunningCase = await getDunningCase({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!dunningCase) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Dunning case not found' })
+    }
+    return res.status(200).json({ case: dunningCase })
+  }))
+
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
 
   app.post('/api/admin/fin/facilities', writeGuards, wrap(async (req, res) => {
@@ -419,6 +431,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
 
   app.post('/api/admin/fin/dunning/cases/:id/cure', writeGuards, wrap(async (req, res) => {
     const result = await cureDunning(input(req, { caseId: req.params.id }))
+    return res.status(200).json(result)
+  }))
+
+  app.post('/api/admin/fin/dunning/cases/:id/write-off/request', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const result = await requestDunningWriteOff(input(req, {
+      caseId: req.params.id,
+      amountMinor: pick(body, 'amountMinor', 'amount_minor'),
+      reasonCategory: pick(body, 'reasonCategory', 'reason_category'),
+      evidence: pick(body, 'evidence'),
+    }))
     return res.status(200).json(result)
   }))
 
