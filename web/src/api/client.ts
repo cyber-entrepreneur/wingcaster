@@ -2279,6 +2279,21 @@ export const api = {
   allocateAgencyWhatsAppListingsCredits: (agentId: string, amountUsd: number) =>
     fetchJson('/agency/credits/allocate', { method: 'POST', body: JSON.stringify({ agent_id: agentId, amount_usd: amountUsd }) }),
 
+  getAgencyCustomReportCatalog: (): Promise<CustomReportCatalogResponse> =>
+    fetchJson('/agency/reports/custom/catalog') as Promise<CustomReportCatalogResponse>,
+  listAgencyCustomReports: (): Promise<{ reports: AgencyCustomReport[]; permissions: { can_manage: boolean } }> =>
+    fetchJson('/agency/reports/custom') as Promise<{ reports: AgencyCustomReport[]; permissions: { can_manage: boolean } }>,
+  getAgencyCustomReport: (id: string): Promise<{ report: AgencyCustomReport; permissions: { can_manage: boolean } }> =>
+    fetchJson(`/agency/reports/custom/${id}`) as Promise<{ report: AgencyCustomReport; permissions: { can_manage: boolean } }>,
+  createAgencyCustomReport: (payload: { name: string; definition: CustomReportDefinition }): Promise<{ report: AgencyCustomReport }> =>
+    fetchJson('/agency/reports/custom', { method: 'POST', body: JSON.stringify(payload) }) as Promise<{ report: AgencyCustomReport }>,
+  updateAgencyCustomReport: (id: string, payload: { name: string; definition: CustomReportDefinition }): Promise<{ report: AgencyCustomReport }> =>
+    fetchJson(`/agency/reports/custom/${id}`, { method: 'PUT', body: JSON.stringify(payload) }) as Promise<{ report: AgencyCustomReport }>,
+  runAgencyCustomReport: (definition: CustomReportDefinition): Promise<CustomReportRunResponse> =>
+    fetchJson('/agency/reports/custom/run', { method: 'POST', body: JSON.stringify({ definition }) }) as Promise<CustomReportRunResponse>,
+  runSavedAgencyCustomReport: (id: string): Promise<CustomReportRunResponse> =>
+    fetchJson(`/agency/reports/custom/${id}/run`, { method: 'POST', body: '{}' }) as Promise<CustomReportRunResponse>,
+
   // Reminder policies
   getReminderPolicies: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
@@ -3126,6 +3141,56 @@ export interface PublishingDestinationRetryResult {
 export interface PublishingJobRetryAllResult extends PublishingJobPayload {
   retried_destination_ids: string[]
   skipped: Array<{ id: string; reason: string; error_class?: string | null }>
+}
+
+export interface CustomReportMetric {
+  key: string
+  label: string
+  category: string
+  aggregation: string
+}
+
+export interface CustomReportDimension {
+  key: string
+  label: string
+}
+
+export interface CustomReportDefinition {
+  metrics: string[]
+  dimensions: string[]
+  filters: {
+    date_from?: string | null
+    date_to?: string | null
+    agent_id?: string | null
+    area?: string | null
+    property_type?: string | null
+  }
+}
+
+export interface AgencyCustomReport {
+  id: string
+  agency_id: string
+  name: string
+  definition: CustomReportDefinition
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomReportCatalogResponse {
+  metrics: CustomReportMetric[]
+  dimensions: CustomReportDimension[]
+}
+
+export interface CustomReportRunResponse {
+  definition: CustomReportDefinition
+  rows: Array<{
+    dimensions: Record<string, string>
+    metrics: Record<string, number>
+  }>
+  totals: Record<string, number>
+  report?: AgencyCustomReport
 }
 
 export interface FeatureQuota {
