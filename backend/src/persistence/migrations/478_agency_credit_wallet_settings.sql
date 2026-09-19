@@ -1,10 +1,11 @@
 -- AGN-CRD-001 — Agency wallet alert threshold settings (per-agency).
+-- IDs are TEXT to match public.agencies / public.users (002_identity_org).
 
 CREATE TABLE IF NOT EXISTS public.agency_credit_wallet_settings (
-  agency_id UUID PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
+  agency_id TEXT PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
   low_balance_alert_threshold NUMERIC(12, 2) NOT NULL DEFAULT 100
     CHECK (low_balance_alert_threshold >= 0),
-  updated_by UUID REFERENCES public.users(id),
+  updated_by TEXT REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
