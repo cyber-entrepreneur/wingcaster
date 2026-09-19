@@ -8,6 +8,23 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
+  it('returns accounting period detail with close checklist', async () => {
+    const { app } = await makeOpsApp(url())
+    const env = commandEnv(world(), { reasonCode: 'TEST' })
+    const opened = await openAccountingPeriod({
+      ...env,
+      legalEntityId: world().legalEntityId,
+      periodKey: `detail-${randomUUID().slice(0, 8)}`,
+      startsAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-02-01T00:00:00.000Z',
+    })
+    const detail = await request(app).get(`/api/admin/fin/accounting/periods/${opened.periodId}`)
+    expect(detail.status).toBe(200)
+    expect(detail.body.period.id).toBe(opened.periodId)
+    expect(detail.body.period.checklist).toBeTruthy()
+    expect(typeof detail.body.period.checklist.ready_for_soft_close).toBe('boolean')
+  })
+
   it('soft-closes a past OPEN period; hard-close then reopen with override', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()
@@ -16,8 +33,8 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
       ...env,
       legalEntityId: world().legalEntityId,
       periodKey: `admin-${randomUUID().slice(0, 8)}`,
-      startsAt: '2026-01-01T00:00:00.000Z',
-      endsAt: '2026-02-01T00:00:00.000Z',
+      startsAt: '2026-03-01T00:00:00.000Z',
+      endsAt: '2026-04-01T00:00:00.000Z',
     })
     const soft = await request(app)
       .post(`/api/admin/fin/accounting/periods/${opened.periodId}/soft-close`)
