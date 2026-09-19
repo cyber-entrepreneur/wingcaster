@@ -176,6 +176,18 @@ finPostgresSuite('admin/routes-vendors.postgres', {}, ({ url, world, pool }) => 
     expect(Number(active.rates[seeded.productCode].unit_cost_minor)).toBe(18)
   })
 
+  it('Reconcile validation rejects unknown body keys', async () => {
+    const seeded = await seedVendorWorld(world(), { name: `val-${randomUUID()}` })
+    await closeMatchingStatement(world(), seeded, { quantityUnits: 2, finalize: false })
+    const { app, elevate } = await makeOpsApp(url())
+    const res = await request(app)
+      .post(`/api/admin/fin/vendors/${seeded.vendorId}/statements/2026-08/reconcile`)
+      .set(writeHeaders(elevate(), { idempotencyKey: `val-${randomUUID()}` }))
+      .send({ reason_code: 'TEST', evidence: { signed: true }, unknown_field: true })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('VALIDATION')
+  })
+
   it('Reconcile: acquires lock 1021, writes audit, releases lock', async () => {
     const seeded = await seedVendorWorld(world(), { name: `rec-${randomUUID()}` })
     const closed = await closeMatchingStatement(world(), seeded, {
