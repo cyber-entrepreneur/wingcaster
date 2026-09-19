@@ -258,6 +258,7 @@ import { registerAgencyInvitationRoutes } from './lib/agencies/invitation-routes
 import { registerOwnershipTransferRoutes } from './lib/agencies/ownership-transfer-routes.js'
 import { registerAgencyCapabilityPackRoutes } from './lib/agencies/capability-pack-routes.js'
 import { registerLeadFunnelRoutes } from './analytics/lead-funnel-routes.js'
+import { registerRevenueAttributionRoutes } from './analytics/revenue-attribution-routes.js'
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
@@ -854,6 +855,7 @@ registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
 registerAgencyCapabilityPackRoutes(app)
 registerLeadFunnelRoutes(app, { authMiddleware })
+registerRevenueAttributionRoutes(app, { authMiddleware })
 registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerSellerReportRoutes(app, { authMiddleware })
