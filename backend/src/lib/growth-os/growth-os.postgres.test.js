@@ -697,8 +697,11 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
           reason_code: ELIGIBILITY_REASON_CODES.OK_TRANSACTIONAL,
         })
 
+        // Separate contact: channel-level withdrawn blocks all whatsapp sends on that contact.
+        const whatsappTransactionalContactId = `ctc_${randomUUID()}`
+
         expect(await checkEligibility({
-          contactId,
+          contactId: whatsappTransactionalContactId,
           channel: 'whatsapp',
           purpose: 'transactional',
           now: '2026-06-01T00:00:00.000Z',
@@ -708,11 +711,11 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         })
 
         await seedWhatsAppInbound(pool, {
-          contactId,
+          contactId: whatsappTransactionalContactId,
           inboundAt: '2026-06-01T10:00:00.000Z',
         })
         const inWindow = await checkEligibility({
-          contactId,
+          contactId: whatsappTransactionalContactId,
           channel: 'whatsapp',
           purpose: 'transactional',
           now: '2026-06-01T18:00:00.000Z',
@@ -724,7 +727,7 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
         expect(inWindow.window_expires_at).toBeTruthy()
 
         expect(await checkEligibility({
-          contactId,
+          contactId: whatsappTransactionalContactId,
           channel: 'whatsapp',
           purpose: 'transactional',
           now: '2026-06-03T00:00:00.000Z',
