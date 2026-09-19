@@ -226,6 +226,7 @@ import { registerSessionRoutes } from './lib/auth/session-routes.js'
 import { revokeUserSessions, sessionIdFromToken } from './lib/auth/user-sessions.js'
 import { registerRoutes as registerSettingsIndexRoutes } from './lib/settings/index-route.js'
 import { registerInboxAgentRoutes } from './lib/inbox-agent-routes.js'
+import { registerMessageTemplateTestSendRoute } from './lib/message-templates-test-send-route.js'
 import { attachInboxWebSocket } from './ws/inbox.js'
 import { startInboxListener } from './ws/inbox-events.js'
 import { attachPublishingWebSocket } from './ws/publishing.js'
@@ -4291,6 +4292,8 @@ app.post('/api/message-templates/:id/render', authMiddleware, validate(messageTe
   const rendered = await renderTemplate(template, req.validated.variables || {})
   res.json(rendered)
 })
+
+registerMessageTemplateTestSendRoute(app, { authMiddleware, validate, logActivity })
 
 // ==================== CONVERSATIONS ====================
 app.get('/api/conversations', authMiddleware, async (req, res) => {

@@ -63,6 +63,7 @@ import { HistoricalTransactionsPage } from '@/pages/HistoricalTransactionsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { RoutingSettingsPage } from '@/pages/RoutingSettingsPage'
 import { MessageTemplatesPage } from '@/pages/MessageTemplatesPage'
+import { MessageTemplateEditorPage } from '@/pages/agent/MessageTemplateEditorPage'
 // Platform-notifications admin — separate from the agent-level
 // /message-templates page above. Lives at /admin/message-templates.
 import { MessageTemplatesPage as PlatformMessageTemplatesPage } from '@/pages/admin/platform-templates/MessageTemplatesPage'
@@ -257,6 +258,8 @@ function AppRoutes() {
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
+      <Route path="/message-templates/new" element={<MessageTemplateEditorPage />} />
+      <Route path="/message-templates/:id" element={<MessageTemplateEditorPage />} />
       {mfaRoutes}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
