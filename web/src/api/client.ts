@@ -411,6 +411,64 @@ export interface CommandItem {
   created_at: string
 }
 
+export interface AgencyLeadFunnelStage {
+  stage: string
+  count: number
+}
+
+export interface AgencyLeadFunnelSourceRow {
+  source: string
+  inquiries: number
+  viewings: number
+  opportunities: number
+  won: number
+  won_value: number
+}
+
+export interface AgencyLeadFunnelAgentRow {
+  agent_id: string
+  agent_name: string
+  inquiries: number
+  viewings: number
+  opportunities: number
+  won: number
+}
+
+export interface AgencyLeadFunnelResponse {
+  generated_at: string
+  scope: {
+    agency_id: string
+    start_date: string | null
+    end_date: string | null
+    filters: { source: string | null; agent_id: string | null; area: string | null }
+  }
+  funnel: {
+    inquiries: number
+    viewings: number
+    opportunities: number
+    closed_won: number
+    closed_lost: number
+  }
+  conversion_rates: {
+    inquiry_to_viewing: number | null
+    viewing_to_opportunity: number | null
+    opportunity_to_won: number | null
+    inquiry_to_won: number | null
+  }
+  by_stage: AgencyLeadFunnelStage[]
+  by_source: AgencyLeadFunnelSourceRow[]
+  by_agent: AgencyLeadFunnelAgentRow[]
+  sankey: {
+    nodes: { id: string; label: string; group: 'source' | 'agent' | 'outcome' }[]
+    links: { source: string; target: string; value: number }[]
+  }
+  filter_options: {
+    sources: string[]
+    agents: { id: string; name: string }[]
+    areas: string[]
+  }
+}
+
 export interface PerformanceMetricBlock {
   impressions: number
   reach: number
@@ -2390,6 +2448,16 @@ export const api = {
     fetchJson(`/analytics/crm${params ? '?' + new URLSearchParams(params).toString() : ''}`),
   getCommunicationsAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/communications${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getAgencyLeadFunnel: (params?: {
+    start_date?: string
+    end_date?: string
+    source?: string
+    agent_id?: string
+    area?: string
+  }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])).toString() : ''
+    return fetchJson(`/agency/analytics/lead-funnel${qs}`) as Promise<AgencyLeadFunnelResponse>
+  },
   trackEvent: (data: Record<string, unknown>) =>
     fetchJson('/white-label/analytics', { method: 'POST', body: JSON.stringify(data) }),
   getAnalytics: () => fetchJson('/white-label/analytics'),
