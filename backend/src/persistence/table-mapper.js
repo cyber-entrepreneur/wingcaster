@@ -332,6 +332,78 @@ const TABLE_MAP = {
   distribution_jobs: { schema: 'public', table: 'distribution_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'platform', 'status', 'payload', 'scheduled_at', 'published_at', 'provider_post_id', 'error_message', 'retry_count', 'publishing_job_id'] },
   publishing_jobs: { schema: 'public', table: 'publishing_jobs', columns: ['property_id', 'agent_id', 'agency_id', 'submitted_at', 'completed_at'] },
   distribution_attempts: { schema: 'public', table: 'distribution_attempts', columns: ['distribution_job_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at'] },
+
+  // Growth-OS Wave 0 canonical spine
+  channel_definitions: {
+    schema: 'public',
+    table: 'channel_definitions',
+    columns: ['platform', 'kind', 'global_capabilities'],
+  },
+  channel_connections: {
+    schema: 'public',
+    table: 'channel_connections',
+    columns: [
+      'channel_definition_id', 'agency_id', 'agent_id', 'integration_model',
+      'credentials_ref', 'provider_account_id', 'rate_limits', 'health',
+      'tenant_capabilities',
+    ],
+  },
+  executions: {
+    schema: 'public',
+    table: 'executions',
+    columns: [
+      'campaign_id', 'journey_node_run_id', 'agency_id', 'agent_id', 'kind',
+      'channel_connection_id', 'creative_id', 'audience_id', 'subject_type',
+      'subject_id', 'scheduled_at', 'recurrence', 'status', 'provider_ref',
+      'published_at', 'completed_at',
+    ],
+  },
+  execution_attempts: {
+    schema: 'public',
+    table: 'execution_attempts',
+    columns: [
+      'execution_id', 'status', 'response', 'error_message', 'error_class', 'attempted_at',
+    ],
+  },
+  events: {
+    schema: 'public',
+    table: 'events',
+    columns: [
+      'event_name', 'event_category', 'schema_version', 'source',
+      'actor_type', 'actor_id', 'object_type', 'object_id',
+      'context', 'occurred_at', 'ingested_at', 'contact_id',
+      'execution_id', 'campaign_id', 'channel_connection_id', 'value_micros',
+      'currency', 'idempotency_key', 'provider_event_id', 'provider_message_id',
+      'subject_identity_id', 'identity_refs',
+      'correlation_id', 'causation_event_id',
+      'agency_id', 'agent_id',
+    ],
+  },
+  metric_observations: {
+    schema: 'public',
+    table: 'metric_observations',
+    columns: [
+      'subject_type', 'subject_id', 'execution_id', 'metric_name', 'metric_value',
+      'aggregation_type', 'period_start', 'period_end', 'observed_at', 'source',
+      'provider_ref', 'dimensions', 'agency_id', 'agent_id',
+    ],
+  },
+  consent: {
+    schema: 'public',
+    table: 'consent',
+    columns: [
+      'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
+      'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
+  consent_current: {
+    schema: 'public',
+    table: 'consent_current',
+    columns: [
+      'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
+      'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },

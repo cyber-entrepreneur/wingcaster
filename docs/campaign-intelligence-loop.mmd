@@ -1,0 +1,9 @@
+flowchart LR
+    OBJ["Property + commercial objective<br/>('Market this property')"] --> BRAIN["AI Campaign Brain<br/>(architect - audience - channel/timing)"]
+    BRAIN --> EXEC["Execute across channels<br/>journeys - social - paid - web - portals"]
+    EXEC --> EVENTS["Event / data layer<br/>impression to lead to viewing to offer to transaction"]
+    EVENTS --> ATTR["Attribution engine<br/>to commission / ROI"]
+    ATTR --> LEARN["AI Learning engine<br/>property x audience x creative x channel x outcome"]
+    LEARN -. "recommendations / optimization" .-> OBJ
+    classDef moat fill:#fff5e6,stroke:#d68910;
+    class EVENTS,ATTR,LEARN moat;

@@ -1,0 +1,51 @@
+flowchart TD
+    START(["Agent"])
+    subgraph COMPOSER["Standalone Composer - P1: no campaign required"]
+      CMANUAL["Manual per-channel editors"]
+      CAI["AI Adaptive Composer<br/>(1 input, 4+ variants/channel, select/edit)"]
+    end
+    START --> COMPOSER
+    START --> CAMP
+
+    subgraph CAMP["CAMPAIGN - umbrella (NEW)"]
+      GOAL["Full object: objective-KPI-property-audience-budget-<br/>funnel to commission-attribution-learning"]
+      PLAN["Campaign Planner / Content Calendar"]
+      ORCH["Journey / Orchestration canvas<br/>(if X then Y branching)"]
+      GOAL --> PLAN --> ORCH
+    end
+
+    subgraph OWNED["Owned messaging - WARM (exists, rename Journeys)"]
+      EM["Email"]
+      SM["SMS"]
+      WH["WhatsApp"]
+    end
+    subgraph SOCIAL["Organic social - COLD (exists, consolidate)"]
+      IGp["Instagram"]
+      FBp["Facebook"]
+      Xp["X"]
+      TTp["TikTok"]
+      LIp["LinkedIn"]
+    end
+    subgraph PAID["Paid ads - COLD/bought (NET-NEW)"]
+      META["Meta"]
+      GOOG["Google: Search/Display/PMax/YouTube<br/>+ Gmail via Demand Gen"]
+      TTa["TikTok"]
+      LIa["LinkedIn"]
+    end
+    subgraph WEB["Owned web + SEO - EARNED (NET-NEW)"]
+      LP["SEO listing pages"]
+      SD["schema.org structured data"]
+      CT["content / rankings"]
+    end
+
+    ORCH --> OWNED & SOCIAL & PAID & WEB
+    COMPOSER -. "optional associate" .-> CAMP
+    COMPOSER --> OWNED & SOCIAL
+
+    MEDIA["Creative Asset Service<br/>(Bannerbear = one renderer)"]
+    MEDIA -. feeds .-> CAI & SOCIAL & OWNED & PAID
+
+    classDef newx fill:#eaf6ec,stroke:#27ae60;
+    classDef exist fill:#eef2fb,stroke:#2c6fbb;
+    class CAMP,PAID,WEB,CAI,MEDIA newx;
+    class OWNED,SOCIAL,CMANUAL exist;
