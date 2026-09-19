@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AdvanceDunningStagePage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -156,7 +156,7 @@ const apiMock = vi.hoisted(() => ({
         dl: 'DL-165',
       }
     }
-    if (String(path).includes('/dunning/cases')) {
+    if (String(path).endsWith('/dunning/cases')) {
       return { cases: [{ id: 'case-1', tenant_id: 'tenant-1', invoice_id: 'inv-1', status: 'OPEN', created_at: '2026-09-19T00:00:00.000Z' }] }
     }
     if (String(path).includes('/credits/janitor/status')) {
@@ -476,5 +476,18 @@ describe('admin/fin pages', () => {
     )
     expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Billing period close')
     expect(await screen.findByText('Advisory lock 1020')).toBeTruthy()
+  })
+
+  it('Advance dunning stage renders target stage and CTA', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/advance']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/advance" element={<AdvanceDunningStagePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Advance dunning stage')).toBeTruthy()
+    expect(await screen.findByText('Target stage:')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Advance stage' })).toBeTruthy()
   })
 })
