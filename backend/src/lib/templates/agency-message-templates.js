@@ -1,7 +1,9 @@
 import {
   createTemplate,
+  deleteTemplate,
   getTemplateById,
   getTemplates,
+  renderTemplate,
   updateTemplate,
 } from '../../message-templates.js'
 
@@ -67,6 +69,20 @@ export async function createAgencyMessageTemplate(agencyId, userId, payload) {
   return serializeTemplate(row)
 }
 
+export async function updateAgencyMessageTemplate(agencyId, templateId, payload) {
+  const existing = await getAgencyMessageTemplate(agencyId, templateId)
+  if (!existing) return null
+  const row = await updateTemplate(templateId, payload)
+  return row ? serializeTemplate(row) : null
+}
+
+export async function deleteAgencyMessageTemplate(agencyId, templateId) {
+  const existing = await getAgencyMessageTemplate(agencyId, templateId)
+  if (!existing) return false
+  await deleteTemplate(templateId)
+  return true
+}
+
 export async function publishAgencyMessageTemplate(agencyId, templateId) {
   const existing = await getAgencyMessageTemplate(agencyId, templateId)
   if (!existing) return null
@@ -74,9 +90,18 @@ export async function publishAgencyMessageTemplate(agencyId, templateId) {
   return row ? serializeTemplate(row) : null
 }
 
+export async function renderAgencyMessageTemplate(agencyId, templateId, variables = {}) {
+  const row = await getTemplateById(templateId)
+  if (!row || row.owner_type !== 'agency' || row.owner_id !== agencyId) return null
+  return renderTemplate(row, variables)
+}
+
 export default {
   listAgencyMessageTemplates,
   getAgencyMessageTemplate,
   createAgencyMessageTemplate,
+  updateAgencyMessageTemplate,
+  deleteAgencyMessageTemplate,
   publishAgencyMessageTemplate,
+  renderAgencyMessageTemplate,
 }

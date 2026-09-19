@@ -78,6 +78,7 @@ import { AgencyBrandingPage } from '@/pages/agency/settings/AgencyBrandingPage'
 import { AgencyRoutingRulesPage } from '@/pages/agency/routing/AgencyRoutingRulesPage'
 import { AgencyRoutingRuleEditorPage } from '@/pages/agency/routing/AgencyRoutingRuleEditorPage'
 import { AgencyTemplatesListPage } from '@/pages/agency/templates/AgencyTemplatesListPage'
+import { AgencyTemplateEditorPage } from '@/pages/agency/templates/AgencyTemplateEditorPage'
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
 import { LeadConversionFunnelPage } from '@/pages/agency/reports/LeadConversionFunnelPage'
 import { RevenueAttributionReportPage } from '@/pages/agency/reports/RevenueAttributionReportPage'
@@ -273,6 +274,7 @@ function AppRoutes() {
       <Route path="/agency/routing/rules/:ruleId" element={<AgencyRoutingRuleEditorPage />} />
       <Route path="/agency/templates" element={<AgencyTemplatesListPage />} />
       <Route path="/agency/templates/:templateId" element={<AgencyTemplatesListPage />} />
+      <Route path="/agency/templates/:templateId" element={<AgencyTemplateEditorPage />} />
       <Route path="/agency/pricing" element={<AgencyPricingPage />} />
       <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
       <Route path="/agency/reports/leads" element={<LeadConversionFunnelPage />} />

@@ -1,5 +1,5 @@
 /**
- * AGN-TPL-001 — agency-scoped message templates list API.
+ * AGN-TPL-002 — agency-scoped message template editor API.
  */
 import { z } from 'zod'
 import { authMiddleware } from '../../auth.js'
@@ -7,9 +7,12 @@ import { findOne } from '../../db.js'
 import { listUserAgencyMemberships } from '../../tenant-authorization.js'
 import {
   createAgencyMessageTemplate,
+  deleteAgencyMessageTemplate,
   getAgencyMessageTemplate,
   listAgencyMessageTemplates,
   publishAgencyMessageTemplate,
+  renderAgencyMessageTemplate,
+  updateAgencyMessageTemplate,
 } from './agency-message-templates.js'
 
 const ADMIN_ROLES = new Set(['owner', 'admin'])
@@ -20,7 +23,7 @@ const listQuerySchema = z.object({
   status: z.enum(['draft', 'pending', 'approved', 'rejected']).optional(),
 }).strict()
 
-const createSchema = z.object({
+const writeSchema = z.object({
   name: z.string().min(1).max(120),
   channel: z.enum(['whatsapp', 'sms', 'email']),
   category: z.enum(['greeting', 'follow_up', 'viewing', 'offer', 'general']).optional(),
@@ -28,6 +31,14 @@ const createSchema = z.object({
   body: z.string().min(1).max(10000),
   language: z.string().min(2).max(10).optional(),
   approval_status: z.enum(['draft', 'pending', 'approved', 'rejected']).optional(),
+}).strict()
+
+const updateSchema = writeSchema.partial().refine((body) => Object.keys(body).length > 0, {
+  message: 'At least one field required',
+})
+
+const renderSchema = z.object({
+  variables: z.record(z.string().max(1000)).optional(),
 }).strict()
 
 async function requireAgencyTemplateManager(req, res, next) {
@@ -39,6 +50,7 @@ async function requireAgencyTemplateManager(req, res, next) {
   const agency = await findOne('agencies', (row) => row.id === membership.agency_id)
   if (!agency) return res.status(404).json({ error: 'Agency not found' })
   req.agencyId = membership.agency_id
+  req.agency = agency
   req.membership = membership
   next()
 }
@@ -62,7 +74,7 @@ export function registerAgencyMessageTemplateRoutes(app, deps = {}) {
   })
 
   app.post('/api/agency/templates', auth, requireAgencyTemplateManager, async (req, res) => {
-    const parsed = createSchema.safeParse(req.body)
+    const parsed = writeSchema.safeParse(req.body)
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() })
     }
@@ -74,10 +86,40 @@ export function registerAgencyMessageTemplateRoutes(app, deps = {}) {
     }
   })
 
+  app.put('/api/agency/templates/:id', auth, requireAgencyTemplateManager, async (req, res) => {
+    const parsed = updateSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() })
+    }
+    try {
+      const template = await updateAgencyMessageTemplate(req.agencyId, req.params.id, parsed.data)
+      if (!template) return res.status(404).json({ error: 'Template not found' })
+      res.json(template)
+    } catch (err) {
+      res.status(400).json({ error: err.message, code: err.code })
+    }
+  })
+
+  app.delete('/api/agency/templates/:id', auth, requireAgencyTemplateManager, async (req, res) => {
+    const deleted = await deleteAgencyMessageTemplate(req.agencyId, req.params.id)
+    if (!deleted) return res.status(404).json({ error: 'Template not found' })
+    res.json({ success: true })
+  })
+
   app.post('/api/agency/templates/:id/publish', auth, requireAgencyTemplateManager, async (req, res) => {
     const template = await publishAgencyMessageTemplate(req.agencyId, req.params.id)
     if (!template) return res.status(404).json({ error: 'Template not found' })
     res.json(template)
+  })
+
+  app.post('/api/agency/templates/:id/render', auth, requireAgencyTemplateManager, async (req, res) => {
+    const parsed = renderSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() })
+    }
+    const rendered = await renderAgencyMessageTemplate(req.agencyId, req.params.id, parsed.data.variables || {})
+    if (!rendered) return res.status(404).json({ error: 'Template not found' })
+    res.json(rendered)
   })
 }
 
