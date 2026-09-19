@@ -2,10 +2,10 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  DunningCaseDetailPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
   TenantsPage, UsagePage, VendorCostsPage,
@@ -28,6 +28,18 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/dunning/cases/')) {
+      return {
+        case: {
+          id: 'c1',
+          status: 'OPEN',
+          tenant_id: 't1',
+          invoice_id: 'i1',
+          invoice_number: 'INV-1',
+          steps: [{ step_kind: 'REMIND', entered_at: '2026-01-01T00:00:00.000Z' }],
+        },
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -124,5 +136,16 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Dunning case detail renders for a platform admin', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/c1']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id" element={<DunningCaseDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Dunning case')
   })
 })
