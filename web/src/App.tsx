@@ -24,7 +24,7 @@ import { AgentPricingPage } from '@/pages/AgentPricingPage'
 import { AgencyPricingPage } from '@/pages/AgencyPricingPage'
 import { AgencyComparablesPage } from '@/pages/agency/pricing/AgencyComparablesPage'
 import { AgencyCreditsLayout } from '@/pages/agency/credits/AgencyCreditsLayout'
-import { AgencyCreditsWalletPlaceholder } from '@/pages/agency/credits/AgencyCreditsWalletPlaceholder'
+import { AgencyCreditsWalletPage } from '@/pages/agency/credits/AgencyCreditsWalletPage'
 import { AgencyFeatureQuotasPage } from '@/pages/agency/credits/AgencyFeatureQuotasPage'
 import {
   BadComparableReportPage,
@@ -303,7 +303,7 @@ function AppRoutes() {
       <Route path="/agency/reports/agents" element={<AgencyAgentLeaderboardPage />} />
       <Route path="/agency/reports/campaigns" element={<AgencyCampaignPerformanceReportPage />} />
       <Route path="/agency/credits" element={<AgencyCreditsLayout />}>
-        <Route index element={<AgencyCreditsWalletPlaceholder />} />
+        <Route index element={<AgencyCreditsWalletPage />} />
         <Route path="quotas" element={<AgencyFeatureQuotasPage />} />
       </Route>
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />

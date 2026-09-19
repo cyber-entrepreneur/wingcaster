@@ -87,6 +87,69 @@ export interface AuditLogSearchFilters {
   offset?: number
 }
 
+export interface AgencyWalletAllocationSlice {
+  key: string
+  label: string
+  credits: number
+  kind: 'agent' | 'pool'
+}
+
+export interface AgencyWalletTransaction {
+  id: string
+  type: string
+  amount: number
+  description?: string | null
+  created_at: string
+}
+
+export interface AgencyWalletOverview {
+  agency_id: string
+  balance: {
+    credits_remaining: number
+    credits_reserved: number
+    currency: string
+    hard_block: boolean
+  }
+  kpis: {
+    wallet_balance: number
+    mtd_spend: number
+    burn_rate_daily: number
+    days_until_exhausted: number | null
+    allocated_to_agents: number
+    total_available: number
+  }
+  allocation: {
+    slices: AgencyWalletAllocationSlice[]
+    allocated_total: number
+    unallocated_pool: number
+  }
+  transactions: AgencyWalletTransaction[]
+  settings: {
+    agency_id: string
+    low_balance_alert_threshold: number
+    updated_by: string | null
+    updated_at: string | null
+    is_default?: boolean
+  }
+  alerts: {
+    is_low_balance: boolean
+    threshold: number
+  }
+  permissions: {
+    can_manage_settings: boolean
+    can_top_up: boolean
+    can_allocate: boolean
+  }
+}
+
+export interface AgencyWalletSettings {
+  agency_id: string
+  low_balance_alert_threshold: number
+  updated_by: string | null
+  updated_at: string | null
+  is_default?: boolean
+}
+
 export type WhatsAppIntakeAnalyticsRange = '7d' | '30d' | '90d'
 
 export interface AgencyWhiteLabelAnalyticsKpis {
@@ -3404,6 +3467,15 @@ export const api = {
   updateAgencyWhatsAppListingsEntitlement: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/agency/entitlements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAgencyWhatsAppListingsCredits: () => fetchJson('/agency/credits/balance'),
+  getAgencyWalletOverview: (): Promise<AgencyWalletOverview> =>
+    fetchJson('/agency/credits/wallet-overview') as Promise<AgencyWalletOverview>,
+  getAgencyWalletSettings: (): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings') as Promise<{ settings: AgencyWalletSettings }>,
+  updateAgencyWalletSettings: (lowBalanceAlertThreshold: number): Promise<{ settings: AgencyWalletSettings }> =>
+    fetchJson('/agency/credits/wallet-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ low_balance_alert_threshold: lowBalanceAlertThreshold }),
+    }) as Promise<{ settings: AgencyWalletSettings }>,
   getAgencyFeatureQuotas: (): Promise<AgencyFeatureQuotasResponse> =>
     fetchJson('/agency/credits/feature-quotas') as Promise<AgencyFeatureQuotasResponse>,
   getAgencyWhatsAppListingsTransactions: (limit = 100) =>
