@@ -56,6 +56,20 @@ const apiMock = vi.hoisted(() => ({
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
     }
+    if (String(path) === '/vendors' || String(path).endsWith('/vendors')) {
+      return {
+        vendors: [{
+          id: 'vendor-1', name: 'OpenAI', code: 'openai', currency: 'USD',
+          mtd_units: 0, mtd_cost_micro_usd: 0, active_rate_versions: 1,
+        }],
+      }
+    }
+    if (String(path).includes('/vendors/')) {
+      return {
+        id: 'vendor-1', name: 'OpenAI', currency: 'USD',
+        products: [{ product_code: 'gpt-4o.input_tokens', product_class: 'TOK' }],
+      }
+    }
     if (String(path).match(/\/prices\/.+/)) {
       return {
         id: 'pr1',
@@ -178,8 +192,21 @@ describe('admin/fin pages', () => {
   })
 
   it('Vendor costs shows Stage 11 empty state', async () => {
+    apiMock.finGet.mockImplementationOnce(async () => ({
+      tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
+      facilities: [], contracts: [], invoices: [], runs: [], types: [],
+      approvals: [], events: [], vendors: [], stage11: false,
+      dunning_policies: [], simulator: { amount_minor: '0' },
+      reports: [], attestation: { eligible_to_sign: false },
+      packages: [], subscriptions: [], features: [],
+    }))
     wrap(<VendorCostsPage />)
     expect(await screen.findByText(/Stage 11 not merged/)).toBeTruthy()
+  })
+
+  it('Vendor costs exposes add rate CTA', () => {
+    wrap(<VendorCostsPage />)
+    expect(screen.getByRole('button', { name: 'Add rate' })).toBeTruthy()
   })
 
   it('Packages page exposes create CTA', () => {

@@ -6,7 +6,7 @@
 import { transaction } from '../../../db.js'
 import { FinError } from '../../errors.js'
 import { sendPreconditionFailed, setETag } from '../../middleware/if-match.js'
-import { actorFrom, pick, sessionEnvironment } from '../context.js'
+import { actorFrom, commandBody, pick, sessionEnvironment } from '../context.js'
 import {
   getVendorAdmin,
   getVendorMarginAdmin,
@@ -20,6 +20,7 @@ import {
   deprecateVendorRate,
   reconcileVendorStatement,
 } from './writes.js'
+import { applyVendorRateBodySchema } from './vendor-rate-schemas.js'
 
 function sendFinError(res, error) {
   if (error instanceof FinError && error.httpStatus === 412) {
@@ -110,10 +111,14 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
   }))
 
   app.post('/api/admin/fin/vendors/:id/rates', writeGuards, wrap(async (req, res) => {
+    const parsed = applyVendorRateBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
     const env = actorFrom(req)
     const result = await transaction((client) => applyVendorRate(client, env, {
       vendorId: req.params.id,
-      body: req.body || {},
+      body: parsed.data,
     }))
     if (result.version != null) setETag(res, result.version)
     const status = result.status === 'PENDING_APPROVAL' ? 202 : 200
