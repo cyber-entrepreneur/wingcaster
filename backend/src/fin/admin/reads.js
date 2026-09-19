@@ -636,6 +636,89 @@ export async function getDunningCase({ environment, id }) {
   return { ...row, steps }
 }
 
+export async function getAccountingPeriod({ environment, id }) {
+  const rows = await query(
+    `SELECT id, legal_entity_id, period_key, status, starts_at, ends_at,
+            closed_at, closed_by_actor_id, reconciliation_override_approval_id,
+            created_at, updated_at
+       FROM fin.accounting_periods
+      WHERE environment = $1 AND id = $2`,
+    [environment, id],
+  )
+  const period = rows[0]
+  if (!period) return null
+
+  const [latestRunRows, openApprovalsRows, pendingBillingRows] = await Promise.all([
+    query(
+      `SELECT id, status, finished_at
+         FROM fin.reconciliation_runs
+        WHERE environment = $1
+        ORDER BY started_at DESC
+        LIMIT 1`,
+      [environment],
+    ),
+    query(
+      `SELECT COUNT(*)::int AS count
+         FROM fin.approval_requests
+        WHERE environment = $1
+          AND status IN ('REQUESTED', 'APPROVED')`,
+      [environment],
+    ),
+    query(
+      `SELECT COUNT(*)::int AS count
+         FROM fin.billing_periods
+        WHERE environment = $1
+          AND period_start >= $2
+          AND period_end <= $3
+          AND status NOT IN ('FINAL', 'CLOSED')`,
+      [environment, period.starts_at, period.ends_at],
+    ),
+  ])
+
+  const latestRun = latestRunRows[0] || null
+  let unresolvedDriftCount = 0
+  let blockingDriftCount = 0
+  if (latestRun?.id) {
+    const driftRows = await query(
+      `SELECT COUNT(*)::int AS unresolved,
+              COUNT(*) FILTER (WHERE res.action LIKE 'BLOCK_%')::int AS blocking
+         FROM fin.reconciliation_resolution res
+         JOIN fin.reconciliation_drift d ON d.id = res.drift_id
+         JOIN fin.reconciliation_checks c ON c.id = d.check_id
+        WHERE c.run_id = $1
+          AND res.resolved_at IS NULL`,
+      [latestRun.id],
+    )
+    unresolvedDriftCount = driftRows[0]?.unresolved ?? 0
+    blockingDriftCount = driftRows[0]?.blocking ?? 0
+  }
+
+  const reconciliationComplete = latestRun?.status === 'COMPLETED'
+  const driftResolved = unresolvedDriftCount === 0
+  const approvalsCleared = (openApprovalsRows[0]?.count ?? 0) === 0
+  const invoicesGenerated = (pendingBillingRows[0]?.count ?? 0) === 0
+  const periodEnded = Date.parse(period.ends_at) <= Date.now()
+
+  const checklist = {
+    period_ended: periodEnded,
+    invoices_generated: invoicesGenerated,
+    reconciliation_complete: reconciliationComplete,
+    drift_resolved: driftResolved,
+    approvals_cleared: approvalsCleared,
+    unresolved_drift_count: unresolvedDriftCount,
+    blocking_drift_count: blockingDriftCount,
+    latest_reconciliation_run_id: latestRun?.id ?? null,
+    ready_for_soft_close: period.status === 'OPEN' && periodEnded,
+    ready_for_hard_close: period.status === 'SOFT_CLOSED'
+      && reconciliationComplete
+      && driftResolved
+      && blockingDriftCount === 0,
+    ready_for_reopen: period.status === 'HARD_CLOSED',
+  }
+
+  return { ...period, checklist }
+}
+
 export async function simulatePrice({ model, billableUnits, unitRateMinor, packageSizeUnits, tiers, dimensions, eventDimensions }) {
   const { computeAmountMinor } = await import('../rating/engine.js')
   const amount = computeAmountMinor(model || 'PER_UNIT', {

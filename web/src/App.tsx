@@ -128,7 +128,7 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
@@ -400,6 +400,7 @@ function AppRoutes() {
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
       <Route path="/admin/fin/reconciliation/:id" element={<ReconciliationRunDetailPage />} />
       <Route path="/admin/fin/accounting/periods" element={<AccountingPeriodsPage />} />
+      <Route path="/admin/fin/accounting/periods/:id" element={<AccountingPeriodDetailPage />} />
       <Route path="/admin/fin/dunning/:id" element={<DunningCaseDetailPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
       <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
