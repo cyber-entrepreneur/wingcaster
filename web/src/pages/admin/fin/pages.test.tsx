@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ContractVersionEditorPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
@@ -25,6 +26,12 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/packages/')) {
       return { id: 'p1', display_name: 'Starter', code: 'starter', tier: 'starter', target_audience: 'agent', versions: [] }
+    }
+    if (String(path).includes('/prices/active-catalog')) {
+      return { prices: [{ id: 'p1', code: 'social.post', currency: 'USD', unit_rate_minor: 100 }] }
+    }
+    if (String(path) === '/contracts') {
+      return { contracts: [{ id: 'c1', contract_number: 'C-1001', status: 'ACTIVE', billing_currency: 'USD', version: 1 }] }
     }
     if (String(path).includes('/contracts/')) {
       return {
@@ -81,6 +88,7 @@ describe('admin/fin pages', () => {
     ['Facilities', () => <FacilitiesPage />],
     ['Contracts', () => <ContractsPage />],
     ['Contract detail', () => <ContractDetailPage />],
+    ['Contract version editor', () => <ContractVersionEditorPage />],
     ['Pricing simulator', () => <FinPricingPage />],
     ['Packages', () => <PackagesPage />],
     ['Package', () => <PackageDetailPage />],

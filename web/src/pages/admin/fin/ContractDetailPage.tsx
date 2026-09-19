@@ -156,7 +156,12 @@ export function ContractDetailPage() {
                 {contract.ends_at ? ` → ${contract.ends_at}` : ''}
               </p>
             </div>
-            <Badge variant={statusVariant(contract.status)}>{contract.status}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={statusVariant(contract.status)}>{contract.status}</Badge>
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/admin/fin/contracts/${id}/versions/new`}>New version</Link>
+              </Button>
+            </div>
           </div>
 
           <Card>
