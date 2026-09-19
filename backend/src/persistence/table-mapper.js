@@ -49,7 +49,12 @@ const TABLE_MAP = {
   agents: {
     schema: 'public',
     table: 'agents',
-    columns: ['user_id', 'email', 'phone', 'name', 'slug', 'agency_id', 'role', 'verified', 'subscription_features', 'cta_config'],
+    columns: [
+      'user_id', 'email', 'phone', 'name', 'slug', 'agency_id', 'role', 'verified',
+      'subscription_features', 'cta_config',
+      'whatsapp_intake_enabled', 'whatsapp_intake_notification_cadence',
+      'whatsapp_intake_auto_approve_high_confidence',
+    ],
   },
   agencies: {
     schema: 'public',
