@@ -286,7 +286,7 @@ export const savedSearchCreateSchema = z.object({
   alert_enabled: z.boolean().optional().default(true),
   alert_channel: z.enum(['email', 'whatsapp', 'inapp']).optional().default('inapp'),
   alert_frequency: z.enum(['instant', 'daily', 'weekly']).optional().default('daily'),
-})
+}).strict()
 
 export const savedSearchUpdateSchema = z.object({
   name: z.string().min(2).max(160).optional(),
@@ -294,7 +294,7 @@ export const savedSearchUpdateSchema = z.object({
   alert_enabled: z.boolean().optional(),
   alert_channel: z.enum(['email', 'whatsapp', 'inapp']).optional(),
   alert_frequency: z.enum(['instant', 'daily', 'weekly']).optional(),
-})
+}).strict()
 
 export const agencyCreateSchema = z.object({
   name: z.string().min(2).max(120),

@@ -514,6 +514,11 @@ const FIXTURES: Fixture[] = [
     },
     after: async () => {
       await waitFor(() => expect(screen.getByText(/Sara Al Mansouri/i)).toBeInTheDocument())
+      // Queue auto-focuses the first row after data loads; wait so snapshots are stable.
+      await waitFor(() => {
+        const firstRow = document.querySelector('[data-row-id="app_sara"]')
+        expect(firstRow?.className).toContain('bg-[var(--lc-surface-sunken)]')
+      })
     },
   },
   {
