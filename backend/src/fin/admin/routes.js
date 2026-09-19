@@ -19,7 +19,7 @@ import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas
 import {
   getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
-  listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
+  listAccountingPeriods, listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
 import { retireLotBodySchema } from './credit-lot-schemas.js'
@@ -53,6 +53,10 @@ import {
 } from './approvals-escalate-withdraw.js'
 import { invoiceDebitNoteBodySchema } from './invoice-debit-note-schemas.js'
 import { dunningCaseActionBodySchema } from './dunning-case-schemas.js'
+import {
+  accountingPeriodActionBodySchema,
+  accountingPeriodReopenBodySchema,
+} from './accounting-period-schemas.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -105,6 +109,15 @@ function wrap(handler) {
       try { return sendFinError(res, error) } catch (err) { next(err) }
     }
   }
+}
+
+function validateBody(schema, req, res) {
+  const parsed = schema.safeParse(req.body || {})
+  if (!parsed.success) {
+    res.status(400).json({ error: 'validation_failed', details: parsed.error.flatten() })
+    return false
+  }
+  return true
 }
 
 function input(req, extra = {}) {
@@ -392,6 +405,11 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/dunning/cases', readGuards, wrap(async (req, res) => {
     const cases = await listDunningCases({ environment: sessionEnvironment(req) })
     return res.status(200).json({ cases })
+  }))
+
+  app.get('/api/admin/fin/accounting/periods', readGuards, wrap(async (req, res) => {
+    const periods = await listAccountingPeriods({ environment: sessionEnvironment(req) })
+    return res.status(200).json({ periods })
   }))
 
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
@@ -684,16 +702,19 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/soft-close', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodActionBodySchema, req, res)) return
     const result = await softClosePeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/hard-close', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodActionBodySchema, req, res)) return
     const result = await hardClosePeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))
 
   app.post('/api/admin/fin/accounting/periods/:id/reopen', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(accountingPeriodReopenBodySchema, req, res)) return
     const result = await reopenPeriod(input(req, { periodId: req.params.id }))
     return res.status(200).json(result)
   }))

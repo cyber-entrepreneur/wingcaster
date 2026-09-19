@@ -600,6 +600,18 @@ export async function listDunningCases({ environment }) {
   )
 }
 
+export async function listAccountingPeriods({ environment, limit = 200 }) {
+  return query(
+    `SELECT id, legal_entity_id, period_key, status, starts_at, ends_at,
+            closed_at, closed_by_actor_id, created_at, updated_at
+       FROM fin.accounting_periods
+      WHERE environment = $1
+      ORDER BY period_key DESC
+      LIMIT $2`,
+    [environment, limit],
+  )
+}
+
 export async function simulatePrice({ model, billableUnits, unitRateMinor, packageSizeUnits, tiers, dimensions, eventDimensions }) {
   const { computeAmountMinor } = await import('../rating/engine.js')
   const amount = computeAmountMinor(model || 'PER_UNIT', {

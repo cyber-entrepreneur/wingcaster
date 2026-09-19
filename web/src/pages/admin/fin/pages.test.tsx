@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditLotsPage, CreditsPage,
   DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -165,7 +165,7 @@ const apiMock = vi.hoisted(() => ({
       approvals: [], events: [], vendors: [], stage11: false,
       dunning_policies: [], simulator: { amount_minor: '0' },
       reports: [], attestation: { eligible_to_sign: false },
-      packages: [], subscriptions: [], features: [],
+      packages: [], subscriptions: [], features: [], periods: [],
     }
   }),
   finPost: vi.fn(async () => ({ id: 'new' })),
@@ -226,6 +226,7 @@ describe('admin/fin pages', () => {
       </Routes>
     )],
     ['Reconciliation', () => <ReconciliationPage />],
+    ['Accounting periods', () => <AccountingPeriodsPage />],
     ['Exceptions', () => <ExceptionsPage />],
     ['Approvals', () => <ApprovalsPage />],
     ['Audit', () => <AuditPage />],
