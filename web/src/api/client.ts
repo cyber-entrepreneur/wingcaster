@@ -509,6 +509,157 @@ export interface BuyerOffer {
   updated_at: string
 }
 
+export type SellerReportLayout = 'standard' | 'compact' | 'executive'
+export type SellerReportStatus = 'live' | 'frozen' | 'revoked'
+
+export interface SellerReportConfig {
+  id: string
+  property_id: string
+  agent_id: string
+  agency_id: string | null
+  state_of_play: string | null
+  agent_summary: string | null
+  show_offer_amounts: boolean
+  show_full_address: boolean
+  layout_template: SellerReportLayout
+  status: SellerReportStatus
+  frozen_snapshot: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SellerReportShareToken {
+  id: string
+  report_id: string
+  token: string
+  recipient_email: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+export interface SellerReportPayload {
+  generated_at: string
+  report: {
+    id: string | null
+    status: SellerReportStatus
+    layout_template: SellerReportLayout
+    state_of_play: string
+    agent_summary: string | null
+    show_offer_amounts: boolean
+    show_full_address: boolean
+  }
+  property: {
+    id: string
+    reference: string
+    title: string
+    listing_type?: string | null
+    property_type?: string | null
+    status?: string | null
+    price: number
+    price_unit: string
+    bedrooms?: number | null
+    bathrooms?: number | null
+    area?: number | null
+    area_unit?: string | null
+    location_label: string
+    campaign_started_at?: string | null
+    days_on_market: number
+    hero_image?: string | null
+  }
+  agent: {
+    id: string
+    name: string
+    photo_url: string | null
+    agency_name: string | null
+  } | null
+  scores: {
+    quality: number | null
+    cleanliness: number | null
+    location: number | null
+    overall: number | null
+  }
+  summary: {
+    list_price: number
+    days_on_market: number
+    posts_count: number
+    inquiries_received: number
+    qualified_inquiries: number
+    shielded_inquiries: number
+    untriaged_inquiries: number
+    viewings_count: number
+    offers_count: number
+    momentum: number
+  }
+  marketing: {
+    websites: Array<Record<string, unknown>>
+    social_posts: Array<Record<string, unknown>>
+    channels: Array<{
+      id: string
+      platform: string
+      status: string
+      published_at: string | null
+      post_url: string | null
+      views: number
+      clicks: number
+      leads: number
+    }>
+  }
+  performance: {
+    all_channels: PerformanceMetricBlock
+    per_channel: Array<PerformanceMetricBlock & { platform: string }>
+    funnel: Array<{
+      platform: string
+      views: number
+      engagements: number
+      clicks: number
+      inquiries: number
+      viewings_scheduled: number
+      closes: number
+    }>
+    time_series: {
+      days: number
+      channels: Record<string, Array<{
+        date: string
+        impressions: number
+        engagements: number
+        clicks: number
+        comments: number
+        likes: number
+        shares: number
+        saves: number
+      }>>
+    }
+  }
+  inquiries: {
+    total: number
+    qualified: number
+    shielded: number
+    untriaged: number
+  }
+  feedback: Array<{
+    id: string
+    scheduled_at?: string | null
+    outcome: string
+  }>
+  offers: Array<{
+    id: string
+    status: string
+    summary?: string
+    amount?: number
+    currency?: string
+    amount_hidden?: boolean
+    offer_date?: string
+    financing_type?: string | null
+  }>
+  is_empty: boolean
+}
+
+export interface SellerReportResponse {
+  report: SellerReportConfig
+  payload: SellerReportPayload
+  share_tokens: SellerReportShareToken[]
+}
+
 export interface BuyerOfferInput {
   contact_id?: string | null
   offeror_name: string
@@ -1537,6 +1688,35 @@ export const api = {
     }) as Promise<BuyerOffer>,
   deleteBuyerOffer: (offerId: string) =>
     fetchJson(`/buyer-offers/${offerId}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
+
+  // AGT-LST-015 — seller performance report
+  getSellerReport: (propertyId: string) =>
+    fetchJson(`/properties/${propertyId}/seller-report`) as Promise<SellerReportResponse>,
+  updateSellerReport: (propertyId: string, data: {
+    state_of_play?: string | null
+    agent_summary?: string | null
+    show_offer_amounts?: boolean
+    show_full_address?: boolean
+    layout_template?: SellerReportLayout
+  }) =>
+    fetchJson(`/properties/${propertyId}/seller-report`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }) as Promise<{ report: SellerReportConfig; payload: SellerReportPayload }>,
+  createSellerReportShareToken: (propertyId: string, data?: { recipient_email?: string | null }) =>
+    fetchJson(`/properties/${propertyId}/seller-report/share-tokens`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }) as Promise<SellerReportShareToken>,
+  revokeSellerReportShareToken: (propertyId: string, tokenId: string) =>
+    fetchJson(`/properties/${propertyId}/seller-report/share-tokens/${tokenId}`, {
+      method: 'DELETE',
+    }) as Promise<SellerReportShareToken>,
+  getPublicSellerReport: (shareToken: string) =>
+    fetchJson(`/public/seller-reports/${shareToken}`) as Promise<{
+      status: SellerReportStatus
+      payload: SellerReportPayload
+    }>,
 
   // Agents
   getAgents: () => fetchJson('/agents'),

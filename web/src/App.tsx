@@ -52,6 +52,8 @@ import { WidgetBuilderPage } from '@/pages/WidgetBuilderPage'
 import { IntegrationSettingsPage } from '@/pages/IntegrationSettingsPage'
 import { SocialChannelsPage } from '@/pages/SocialChannelsPage'
 import { NeighborhoodValuatorPage } from '@/pages/NeighborhoodValuatorPage'
+import { SellerPerformanceReportPage } from '@/pages/agent/listings/SellerPerformanceReportPage'
+import { SellerReportSharePage } from '@/pages/public/SellerReportSharePage'
 import { HistoricalTransactionsPage } from '@/pages/HistoricalTransactionsPage'
 import { CommandCenterPage } from '@/pages/CommandCenterPage'
 import { RoutingSettingsPage } from '@/pages/RoutingSettingsPage'
@@ -159,6 +161,7 @@ const BARE_CHROME_PREFIXES = [
   '/cookies',
   '/onboarding',
   '/activate',
+  '/r/',
 ] as const
 
 function usesBareChrome(pathname: string): boolean {
@@ -184,6 +187,7 @@ function AppRoutes() {
       <Route path="/listings/:id" element={<ListingProfilePage />} />
       <Route path="/listings/:id/portals/submit" element={<PortalSubmitPage />} />
       <Route path="/listings/:id/neighborhood-valuator" element={<NeighborhoodValuatorPage />} />
+      <Route path="/listings/:id/report" element={<SellerPerformanceReportPage />} />
       {/* AGT-PUB-003 / AGT-PUB-005 — WF-03 publish outcome receipt */}
       <Route path="/publish/outcome/:id" element={<PublishOutcomePage />} />
       {/* AGT-PUB-006 ledger + receipt deep-link */}
@@ -367,6 +371,7 @@ function AppRoutes() {
       <Route path="/public/agency/:id" element={<PublicAgencyPage />} />
       <Route path="/public/agent/:id" element={<PublicAgentPortfolioPage />} />
       <Route path="/public/relationships/consent" element={<RelationshipConsentPage />} />
+      <Route path="/r/:shareToken" element={<SellerReportSharePage />} />
       <Route path="/agencies/:agencySlug/apply" element={<PublicAgencyApplyPage />} />
       <Route path="/join/:invitationCode" element={<PublicAgencyApplyPage />} />
       <Route path="/site/:subdomain" element={<PublicWhiteLabelSitePage />} />
