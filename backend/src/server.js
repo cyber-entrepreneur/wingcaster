@@ -5757,12 +5757,8 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
   const perChannelCaptions = captions && typeof captions === 'object' ? captions : {}
 
   for (const platform of platforms) {
-<<<<<<< HEAD
-    const conn = await findAgentPrimaryConnection(req.user.id, platform)
-=======
     const channelCaption = String(perChannelCaptions[platform] || caption || autoCaption).trim() || autoCaption
-    const conn = await findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform && c.status === 'connected')
->>>>>>> f7dd968 (feat(publishing): AGT-PUB-002 — per-channel publish modal)
+    const conn = await findAgentPrimaryConnection(req.user.id, platform)
     if (!conn) {
       const failed = {
         id: uuidv4(),
