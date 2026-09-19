@@ -40,6 +40,8 @@ export const FIN_PACKAGE_BILLING_CYCLE = 1024
 export const WHATSAPP_INTAKE_JANITOR = 1030
 /** Shared comparable_reports + agent_price_reports daily expiry (BE-24/25). */
 export const REPORT_EXPIRY = 1031
+/** WhatsApp listing intake/extraction poll worker — one tick cluster-wide. */
+export const WHATSAPP_LISTINGS_WORKER = 1032
 
 export const LOCK_CLASSES = {
   FIN_CONTRACT_RENEWAL,
@@ -67,4 +69,5 @@ export const LOCK_CLASSES = {
   FIN_PACKAGE_BILLING_CYCLE,
   WHATSAPP_INTAKE_JANITOR,
   REPORT_EXPIRY,
+  WHATSAPP_LISTINGS_WORKER,
 }
