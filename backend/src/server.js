@@ -283,6 +283,7 @@ import {
 import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
+import { registerRoutes as registerClosedTransactionImportRoutes } from './lib/closed-transactions/import-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -357,7 +358,6 @@ import {
   listClosedTransactions,
   getClosedTransaction,
   deleteClosedTransaction,
-  importClosedTransactionsCsv,
   TRANSACTION_TYPES,
   BUYER_TYPES,
   PAYMENT_METHODS,
@@ -878,6 +878,7 @@ registerPersonalConnectionRoutes(app, { authMiddleware })
 registerCanonicalPropertyRoutes(app, { authMiddleware })
 registerAgentReviewRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
+registerClosedTransactionImportRoutes(app, { authMiddleware, logActivity })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -4845,33 +4846,6 @@ app.post('/api/contacts/:id/regenerate-summary', authMiddleware, async (req, res
   } catch (err) {
     logger.error({ err: err.message, contact_id: req.params.id }, 'Lead summary regeneration failed')
     res.status(502).json({ error: err.message })
-  }
-})
-
-app.post('/api/closed-transactions/import', authMiddleware, async (req, res) => {
-  const { csv_text: csvText } = req.body || {}
-  if (!csvText || typeof csvText !== 'string') {
-    return res.status(400).json({ error: 'csv_text (string) is required' })
-  }
-  if (csvText.length > 500_000) {
-    return res.status(400).json({ error: 'CSV too large (500KB max)' })
-  }
-  try {
-    const agent = await findOne('agents', (a) => a.id === req.user.id)
-    const agencyId = agent?.agency_id || null
-    const result = await importClosedTransactionsCsv({
-      csvText,
-      agentId: req.user.id,
-      agencyId,
-    })
-    await logActivity({
-      type: 'closed_transactions_csv_imported',
-      agent_id: req.user.id,
-      meta: { imported: result.imported, skipped: result.skipped },
-    })
-    res.json(result)
-  } catch (err) {
-    res.status(400).json({ error: err.message })
   }
 })
 
