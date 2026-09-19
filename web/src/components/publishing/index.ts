@@ -20,3 +20,5 @@ export type {
   TrackerListResponse,
   TrackerSummaryResponse,
 } from './PortalTrackerScreen/types'
+export { RetryPublishDialog } from './RetryPublishDialog'
+export type { RetryPublishDialogProps, RetryPublishDialogTarget } from './RetryPublishDialog'

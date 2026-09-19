@@ -12,6 +12,10 @@ import {
   RECEIPT_COPY,
   supportHref,
 } from '@/components/publishing/PublishReceiptScreen'
+import {
+  RetryPublishDialog,
+  type RetryPublishDialogTarget,
+} from '@/components/publishing/RetryPublishDialog'
 import { BULK_RETRYABLE_ERROR_CLASSES } from '@/components/portals'
 import { usePageTitle } from '@/lib/usePageTitle'
 
@@ -26,6 +30,7 @@ export function PublishReceiptPage() {
   const { data, loading, error, offline, refresh, setData } = usePublishJob(jobId)
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set())
   const [retryAllLoading, setRetryAllLoading] = useState(false)
+  const [retryDialogTarget, setRetryDialogTarget] = useState<RetryPublishDialogTarget | null>(null)
   const [liveAnnouncement, setLiveAnnouncement] = useState('')
   const prevSnapshot = useRef<string | null>(null)
 
@@ -58,27 +63,28 @@ export function PublishReceiptPage() {
     navigate(supportHref(data.job, data.destinations))
   }
 
-  const handleRetryDestination = async (destinationId: string) => {
-    if (!jobId || offline) return
-    setRetryingIds((prev) => new Set(prev).add(destinationId))
-    try {
-      const result = await api.retryPublishingDestination(jobId, destinationId)
-      if (result.job && result.destinations) {
-        setData({ job: result.job, destinations: result.destinations })
-      } else {
-        await refresh()
-      }
-      setLiveAnnouncement('Retry started')
-    } catch (err) {
-      const message = (err as Error)?.message || 'Retry failed'
-      addToast({ title: message, variant: 'error' })
-    } finally {
-      setRetryingIds((prev) => {
-        const next = new Set(prev)
-        next.delete(destinationId)
-        return next
-      })
+  const handleRetryDestination = (destinationId: string) => {
+    if (!jobId || offline || !data) return
+    const destination = data.destinations.find((d) => d.id === destinationId)
+    if (!destination || !data.job.listing_id) return
+    setRetryDialogTarget({
+      kind: 'destination',
+      jobId,
+      listingId: data.job.listing_id,
+      destination,
+    })
+  }
+
+  const handleRetryDialogComplete = async (
+    result: Awaited<ReturnType<typeof api.retryPublishingDestination>>,
+  ) => {
+    if (result.job && result.destinations) {
+      setData({ job: result.job, destinations: result.destinations })
+    } else {
+      await refresh()
     }
+    setLiveAnnouncement('Retry started')
+    setRetryDialogTarget(null)
   }
 
   const handleRetryAll = async () => {
@@ -162,11 +168,18 @@ export function PublishReceiptPage() {
           retryAllLoading={retryAllLoading}
           liveAnnouncement={liveAnnouncement}
           onCopyJobId={() => void handleCopyJobId()}
-          onRetryDestination={(id) => void handleRetryDestination(id)}
+          onRetryDestination={handleRetryDestination}
           onRetryAll={() => void handleRetryAll()}
           onContactSupport={handleContactSupport}
         />
       ) : null}
+
+      <RetryPublishDialog
+        open={Boolean(retryDialogTarget)}
+        target={retryDialogTarget}
+        onClose={() => setRetryDialogTarget(null)}
+        onRetried={(result) => void handleRetryDialogComplete(result as Awaited<ReturnType<typeof api.retryPublishingDestination>>)}
+      />
     </div>
   )
 }
