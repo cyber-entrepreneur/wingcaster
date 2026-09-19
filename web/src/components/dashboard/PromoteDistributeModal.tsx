@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Check, Globe, Loader2, Megaphone, Send, Settings, Share2, X,
+  CalendarClock, Check, Globe, Loader2, Megaphone, Send, Settings, Share2, X,
   Instagram, MessageCircle, Video, Twitter, Facebook, Linkedin,
 } from 'lucide-react'
+import { SchedulePublishDialog } from '@/components/publishing/SchedulePublishDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +53,7 @@ export function PromoteDistributeModal({
   const [recipient, setRecipient] = useState(whatsappRecipient || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -61,6 +63,7 @@ export function PromoteDistributeModal({
     setFiMessage(mode === 'promote' ? 'Please promote this listing on REB pages' : '')
     setRecipient(whatsappRecipient || '')
     setError('')
+    setScheduleOpen(false)
   }, [open, mode, property?.id, whatsappRecipient])
 
   const connected = useMemo(
@@ -286,8 +289,21 @@ export function PromoteDistributeModal({
           </div>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
+          {selectedOwn.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setScheduleOpen(true)}
+              disabled={loading}
+              className="gap-2"
+              data-testid="promote-schedule-cta"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Schedule for later
+            </Button>
+          )}
           <Button
             onClick={handleSubmit}
             disabled={loading || (selectedOwn.length === 0 && selectedFi.length === 0)}
@@ -298,6 +314,20 @@ export function PromoteDistributeModal({
           </Button>
         </div>
       </div>
+
+      {scheduleOpen && selectedOwn.length > 0 && (
+        <SchedulePublishDialog
+          propertyId={property.id}
+          portals={selectedOwn}
+          message={caption.trim() || defaultCaption()}
+          onClose={() => setScheduleOpen(false)}
+          onScheduled={() => {
+            setScheduleOpen(false)
+            onDone()
+            onClose()
+          }}
+        />
+      )}
     </div>
   )
 }

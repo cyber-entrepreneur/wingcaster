@@ -83,6 +83,7 @@ export function SchedulePublishDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Schedule publish"
+        data-screen="AGT-PUB-007"
         className="flex w-full max-w-md flex-col rounded-lg bg-[var(--lc-surface)] shadow-xl"
       >
         <div className="flex items-start justify-between border-b p-4">

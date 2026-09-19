@@ -39,8 +39,9 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 describe('SchedulePublishDialog', () => {
-  it('shows the agent timezone and defaults to a future time', () => {
+  it('shows the agent timezone, AGT-PUB-007 marker, and defaults to a future time', () => {
     renderDialog()
+    expect(screen.getByRole('dialog', { name: /Schedule publish/i })).toHaveAttribute('data-screen', 'AGT-PUB-007')
     expect(screen.getByText(/Your timezone:/)).toBeInTheDocument()
     // Default is +1h → Schedule is enabled
     expect(screen.getByRole('button', { name: /^Schedule$/ })).not.toBeDisabled()
