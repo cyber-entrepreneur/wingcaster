@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
+  Archive, ArchiveRestore, ArrowLeft, Bath, Bed, Building2, Calendar, Camera, ChevronRight, Copy, Edit3, ExternalLink,
   GitCompareArrows, Globe2, Loader2, Mail, MapPin, Maximize, Megaphone, MessageCircle, MoreHorizontal,
   Phone, Share2, Sparkles, Trash2, Video, X, PlusCircle,
   type LucideIcon,
@@ -31,6 +31,7 @@ import { MarketContextCard } from '@/components/market-pricing/MarketContextCard
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
 import { ListingFormModal } from '@/components/ListingFormModal'
+import { ArchiveListingModal, type ArchiveReason } from '@/components/listings/ArchiveListingModal'
 import type { Property } from '@/types'
 import type {
   PricingAnalysis,
@@ -105,6 +106,8 @@ export function ListingProfilePage() {
   const [statusBusy, setStatusBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false)
+  const [unarchiveBusy, setUnarchiveBusy] = useState(false)
   const [shareMsg, setShareMsg] = useState('')
   const [hasDispositionCase, setHasDispositionCase] = useState(false)
 
@@ -195,21 +198,42 @@ export function ListingProfilePage() {
 
   async function setStatus(next: ListingStatus) {
     if (!property || statusBusy) return
+    if (next === 'archived' && status !== 'archived') {
+      setArchiveModalOpen(true)
+      return
+    }
     setStatusBusy(true)
     try {
       const updated = await api.updateProperty(property.id, { status: next })
       setProperty((prev) => (prev ? { ...prev, ...updated, status: next } : prev))
       addToast({ title: `Status set to ${LISTING_STATUS_META[next].label}`, variant: 'success' })
-      // Flipping to archived typically means the deal closed — prompt for
-      // the closure form (agent can skip; never blocking). Captures training
-      // data from day 1 for the future AVM (do NOT wait for Stage 3).
-      if (next === 'archived' && status !== 'archived') {
-        setClosureModalOpen(true)
-      }
     } catch (err: unknown) {
       addToast({ title: 'Could not update status', description: apiErrorMessage(err), variant: 'error' })
     } finally {
       setStatusBusy(false)
+    }
+  }
+
+  async function handleUnarchive() {
+    if (!property || unarchiveBusy || status !== 'archived') return
+    setUnarchiveBusy(true)
+    try {
+      const updated = await api.updateProperty(property.id, { status: 'published' })
+      setProperty((prev) => (prev ? { ...prev, ...updated, status: 'published' } : prev))
+      addToast({ title: 'Listing unarchived', description: 'Restored to Published.', variant: 'success' })
+    } catch (err: unknown) {
+      addToast({ title: 'Could not unarchive', description: apiErrorMessage(err), variant: 'error' })
+    } finally {
+      setUnarchiveBusy(false)
+    }
+  }
+
+  function handleArchived(reason: ArchiveReason) {
+    if (!property) return
+    setArchiveModalOpen(false)
+    setProperty((prev) => (prev ? { ...prev, status: 'archived' } : prev))
+    if (reason === 'sold' || reason === 'rented') {
+      setClosureModalOpen(true)
     }
   }
 
@@ -291,6 +315,28 @@ export function ListingProfilePage() {
         <div className="flex flex-wrap items-center gap-2">
           {isOwner && (
             <>
+              {status === 'archived' ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleUnarchive}
+                  disabled={unarchiveBusy}
+                >
+                  {unarchiveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArchiveRestore className="h-4 w-4" />}
+                  Unarchive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setArchiveModalOpen(true)}
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </Button>
+              )}
               <StatusSetter status={status} onChange={setStatus} busy={statusBusy} />
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
                 <Edit3 className="h-4 w-4" />
@@ -345,6 +391,22 @@ export function ListingProfilePage() {
           <Button asChild size="sm" variant="outline" className="shrink-0">
             <Link to={`/listings/${property.id}/disposition`}>Review case</Link>
           </Button>
+        </div>
+      )}
+      {status === 'archived' && (
+        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <span className="font-medium">This listing is archived</span>
+          <span className="text-muted-foreground"> — hidden from public sites and portals. </span>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={handleUnarchive}
+              disabled={unarchiveBusy}
+              className="font-medium text-[var(--lc-action-primary)] underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Unarchive to restore
+            </button>
+          )}
         </div>
       )}
 
@@ -641,6 +703,16 @@ export function ListingProfilePage() {
         />
       )}
 
+      {archiveModalOpen && (
+        <ArchiveListingModal
+          open={archiveModalOpen}
+          listingId={property.id}
+          listingTitle={property.title}
+          onClose={() => setArchiveModalOpen(false)}
+          onArchived={handleArchived}
+        />
+      )}
+
       {closureModalOpen && (
         <RecordClosureModal
           listingId={property.id}
@@ -686,7 +758,7 @@ function StatusSetter({
         <>
           <button className="fixed inset-0 z-10 cursor-default" aria-label="close" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-[var(--lc-surface)] p-1 shadow-lg">
-            {LISTING_STATUSES.map((s) => {
+            {LISTING_STATUSES.filter((s) => s !== 'archived').map((s) => {
               const m = LISTING_STATUS_META[s]
               const active = s === status
               return (
