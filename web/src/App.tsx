@@ -49,6 +49,7 @@ import { AccountRecoveryCompletePage } from '@/pages/AccountRecoveryCompletePage
 import { ScheduledDeletionConfirmationPage } from '@/pages/public/ScheduledDeletionConfirmationPage'
 import { AgencyManagementPage } from '@/pages/AgencyManagementPage'
 import { WhiteLabelBuilderPage } from '@/pages/WhiteLabelBuilderPage'
+import { AgencyWhiteLabelAnalyticsPage } from '@/pages/agency/white-label/AgencyWhiteLabelAnalyticsPage'
 import { WidgetBuilderPage } from '@/pages/WidgetBuilderPage'
 import { IntegrationSettingsPage } from '@/pages/IntegrationSettingsPage'
 import { SocialChannelsPage } from '@/pages/SocialChannelsPage'
@@ -293,6 +294,7 @@ function AppRoutes() {
       <Route path="/agency/reports/agents" element={<AgencyAgentLeaderboardPage />} />
       <Route path="/agency/reports/campaigns" element={<AgencyCampaignPerformanceReportPage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
+      <Route path="/agency/white-label/analytics" element={<AgencyWhiteLabelAnalyticsPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />
       <Route path="/plans" element={<PlansPage />} />
       <Route path="/my-subscription" element={<MySubscriptionPage />} />
