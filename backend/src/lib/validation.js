@@ -484,3 +484,8 @@ export const messageTemplateUpdateSchema = z.object({
 export const messageTemplateRenderSchema = z.object({
   variables: z.record(z.string().max(1000)).optional().default({}),
 })
+
+export const messageTemplateTestSendSchema = z.object({
+  to: z.string().email(),
+  variables: z.record(z.string().max(1000)).optional().default({}),
+})

@@ -2169,6 +2169,8 @@ export const api = {
   deleteMessageTemplate: (id: string) => fetchJson(`/message-templates/${id}`, { method: 'DELETE' }),
   renderMessageTemplate: (id: string, variables: Record<string, string>) =>
     fetchJson(`/message-templates/${id}/render`, { method: 'POST', body: JSON.stringify({ variables }) }),
+  testSendMessageTemplate: (id: string, to: string, variables: Record<string, string>) =>
+    fetchJson(`/message-templates/${id}/test-send`, { method: 'POST', body: JSON.stringify({ to, variables }) }),
 
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
