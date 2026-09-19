@@ -2,9 +2,9 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
+  ApprovalsPage, AuditPage, AdvanceDunningStagePage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
@@ -28,6 +28,17 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/dunning/cases/')) {
+      return {
+        case: {
+          id: 'd1',
+          tenant_id: 't1',
+          invoice_id: 'inv1',
+          invoice_number: 'INV-001',
+          status: 'OPEN',
+        },
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -124,5 +135,18 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Advance dunning stage renders target stage and CTA', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/advance']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/advance" element={<AdvanceDunningStagePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Advance dunning stage')).toBeTruthy()
+    expect(await screen.findByText('Target stage:')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Advance stage' })).toBeTruthy()
   })
 })

@@ -13,7 +13,7 @@ import { actorFrom, commandBody, pick, resolveAdminContext, sessionEnvironment }
 import { loadOverviewKpis } from './kpis.js'
 import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getDunningCase, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -262,6 +262,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/dunning/cases', readGuards, wrap(async (req, res) => {
     const cases = await listDunningCases({ environment: sessionEnvironment(req) })
     return res.status(200).json({ cases })
+  }))
+
+  app.get('/api/admin/fin/dunning/cases/:id', readGuards, wrap(async (req, res) => {
+    const dunningCase = await getDunningCase({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!dunningCase) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Dunning case not found' })
+    }
+    return res.status(200).json({ case: dunningCase })
   }))
 
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
