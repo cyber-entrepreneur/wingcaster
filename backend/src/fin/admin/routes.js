@@ -17,7 +17,7 @@ import {
 } from './exception-items.js'
 import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getBillingPeriodDetail, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listAccountingPeriods, getAccountingPeriod, listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
   getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -647,6 +647,15 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       invoiceId: pick(req.body, 'invoiceId', 'invoice_id'),
     }))
     return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/billing/periods/:id', readGuards, wrap(async (req, res) => {
+    const period = await getBillingPeriodDetail({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!period) return res.status(404).json({ error: 'Billing period not found' })
+    return res.status(200).json({ period })
   }))
 
   app.post('/api/admin/fin/billing/periods/:id/close', writeGuards, wrap(async (req, res) => {

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -209,6 +209,19 @@ const apiMock = vi.hoisted(() => ({
             approvals_cleared: true,
             ready_for_soft_close: true,
           },
+        },
+      }
+    }
+    if (String(path).includes('/billing/periods/')) {
+      return {
+        period: {
+          id: 'bp1',
+          period_key: '2026-01',
+          status: 'OPEN',
+          tenant_id: 't1',
+          lock: { held: false },
+          ready_for_close: true,
+          ready_for_reopen: false,
         },
       }
     }
@@ -451,5 +464,17 @@ describe('admin/fin pages', () => {
     )
     expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Accounting period')
     expect(await screen.findByText('Close checklist')).toBeTruthy()
+  })
+
+  it('Billing period close renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/billing/periods/bp1/close']}>
+        <Routes>
+          <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Billing period close')
+    expect(await screen.findByText('Advisory lock 1020')).toBeTruthy()
   })
 })
