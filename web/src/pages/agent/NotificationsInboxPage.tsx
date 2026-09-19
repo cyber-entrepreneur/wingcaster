@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Bell,
@@ -67,7 +67,7 @@ export function NotificationsInboxPage() {
   const [markingAll, setMarkingAll] = useState(false)
   const [usingCache, setUsingCache] = useState(false)
 
-  useEffect(() => {
+  const loadNotifications = useCallback(async () => {
     if (!agent) {
       setLoading(false)
       return
@@ -76,35 +76,37 @@ export function NotificationsInboxPage() {
     setError(null)
     setUsingCache(false)
 
-    void (async () => {
-      if (!online) {
-        const cached = readInboxCache()
-        setRows(cached)
-        setUsingCache(cached.length > 0)
-        setLoading(false)
-        return
-      }
+    if (!online) {
+      const cached = readInboxCache()
+      setRows(cached)
+      setUsingCache(cached.length > 0)
+      setLoading(false)
+      return
+    }
 
-      setLoading(true)
-      try {
-        const res = await api.getMyInboxNotifications()
-        const next = res.notifications ?? []
-        setRows(next)
-        writeInboxCache(next)
-      } catch (err: unknown) {
-        const cached = readInboxCache()
-        if (cached.length > 0) {
-          setRows(cached)
-          setUsingCache(true)
-        } else {
-          setRows([])
-          setError(err instanceof Error ? err.message : 'Failed to load notifications')
-        }
-      } finally {
-        setLoading(false)
+    setLoading(true)
+    try {
+      const res = await api.getMyInboxNotifications()
+      const next = res.notifications ?? []
+      setRows(next)
+      writeInboxCache(next)
+    } catch (err: unknown) {
+      const cached = readInboxCache()
+      if (cached.length > 0) {
+        setRows(cached)
+        setUsingCache(true)
+      } else {
+        setRows([])
+        setError(err instanceof Error ? err.message : 'Failed to load notifications')
       }
-    })()
+    } finally {
+      setLoading(false)
+    }
   }, [agent?.id, online])
+
+  useEffect(() => {
+    void loadNotifications()
+  }, [loadNotifications])
 
   const filtered = useMemo(
     () =>
@@ -126,7 +128,7 @@ export function NotificationsInboxPage() {
       await api.markMyInboxNotificationsAllRead()
       writeInboxCache(rows.map((r) => ({ ...r, unread: false })))
     } catch {
-      void load()
+      void loadNotifications()
     } finally {
       setMarkingAll(false)
     }
@@ -275,20 +277,7 @@ export function NotificationsInboxPage() {
               size="sm"
               variant="outline"
               className="mt-3 min-h-tap"
-              onClick={() => {
-                setLoading(true)
-                void api.getMyInboxNotifications()
-                  .then((res) => {
-                    const next = res.notifications ?? []
-                    setRows(next)
-                    writeInboxCache(next)
-                    setError(null)
-                  })
-                  .catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : 'Failed to load notifications')
-                  })
-                  .finally(() => setLoading(false))
-              }}
+              onClick={() => void loadNotifications()}
             >
               Retry
             </Button>
