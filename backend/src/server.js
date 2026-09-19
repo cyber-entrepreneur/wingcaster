@@ -4472,11 +4472,12 @@ app.post('/api/conversations/:id/assign', authMiddleware, async (req, res) => {
   if (!await assertAssignableConversationAgent(req.user.id, conversation, agentId)) {
     return res.status(403).json({ error: 'Forbidden' })
   }
+  const note = typeof req.body.note === 'string' ? req.body.note.trim() : ''
   const updated = await assignConversation(conversation.id, agentId)
   await logActivity({
     type: 'conversation_assigned',
     agent_id: req.user.id,
-    meta: { conversation_id: conversation.id, assigned_to: agentId },
+    meta: { conversation_id: conversation.id, assigned_to: agentId, note: note || undefined },
   })
   res.json(withChannelSource(updated))
 })

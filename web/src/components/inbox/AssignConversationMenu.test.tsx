@@ -56,7 +56,7 @@ describe('AssignConversationMenu', () => {
     await user.click(screen.getByRole('button', { name: /Assign/i }))
     await user.click(await screen.findByRole('menuitemradio', { name: /Amir Mate/i }))
 
-    await waitFor(() => expect(apiMock.assignConversation).toHaveBeenCalledWith('c1', 'a-mate'))
+    await waitFor(() => expect(apiMock.assignConversation).toHaveBeenCalledWith('c1', 'a-mate', undefined))
     expect(onAssigned).toHaveBeenCalledWith('a-mate')
   })
 
@@ -88,6 +88,25 @@ describe('AssignConversationMenu', () => {
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(apiMock.getAssignableAgents).toHaveBeenCalledTimes(2))
     expect(await screen.findByRole('menuitemradio', { name: /Amir Mate/i })).toBeInTheDocument()
+  })
+
+  it('hides for solo agents with only self in the picker', async () => {
+    apiMock.getAssignableAgents.mockResolvedValue({ agents: [agent('a-self', { name: 'Zoe Self', is_self: true })] })
+    renderMenu()
+    await waitFor(() => expect(apiMock.getAssignableAgents).toHaveBeenCalled())
+    expect(screen.queryByTestId('assign-conversation-menu')).not.toBeInTheDocument()
+  })
+
+  it('passes an optional assignment note to the API', async () => {
+    renderMenu()
+    await waitFor(() => expect(apiMock.getAssignableAgents).toHaveBeenCalled())
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Assign/i }))
+    await user.type(screen.getByPlaceholderText(/Context for the teammate/i), 'Please follow up today')
+    await user.click(await screen.findByRole('menuitemradio', { name: /Amir Mate/i }))
+    await waitFor(() =>
+      expect(apiMock.assignConversation).toHaveBeenCalledWith('c1', 'a-mate', 'Please follow up today'),
+    )
   })
 
   it('mirrors the document direction for RTL', async () => {

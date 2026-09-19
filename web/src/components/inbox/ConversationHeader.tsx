@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -5,7 +6,6 @@ import {
   Loader2,
   MoreVertical,
   Phone,
-  User,
   X,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -35,7 +35,8 @@ export type ConversationHeaderProps = {
   showBack?: boolean
   onBack?: () => void
   onMarkRead?: () => void
-  onAssignMe?: () => void
+  /** AGT-INB-004 assign picker — hidden for solo agents by the child control. */
+  assignSlot?: ReactNode
   onClose?: () => void
   onReopen?: () => void
   closing?: boolean
@@ -67,7 +68,7 @@ export function ConversationHeader({
   showBack,
   onBack,
   onMarkRead,
-  onAssignMe,
+  assignSlot,
   onClose,
   onReopen,
   closing,
@@ -154,11 +155,7 @@ export function ConversationHeader({
               <CheckCheck className="h-3.5 w-3.5" /> Read
             </Button>
           ) : null}
-          {onAssignMe ? (
-            <Button variant="ghost" size="sm" onClick={onAssignMe} className="min-h-11 gap-1 text-xs">
-              <User className="h-3.5 w-3.5" /> Assign me
-            </Button>
-          ) : null}
+          {assignSlot}
           {status === 'closed' ? (
             onReopen ? (
               <Button variant="outline" size="sm" onClick={onReopen} className="min-h-11 text-xs">
@@ -183,7 +180,9 @@ export function ConversationHeader({
             {unreadCount > 0 && onMarkRead ? (
               <DropdownMenuItem onClick={onMarkRead}>Mark read</DropdownMenuItem>
             ) : null}
-            {onAssignMe ? <DropdownMenuItem onClick={onAssignMe}>Assign me</DropdownMenuItem> : null}
+            {assignSlot ? (
+              <div className="px-2 py-1" role="presentation">{assignSlot}</div>
+            ) : null}
             <DropdownMenuSeparator />
             {status === 'closed'
               ? onReopen && <DropdownMenuItem onClick={onReopen}>Reopen</DropdownMenuItem>

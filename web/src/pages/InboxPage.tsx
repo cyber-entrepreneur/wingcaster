@@ -45,6 +45,7 @@ import {
   type InboxMessage,
 } from '@/components/inbox'
 import { AssignConversationMenu } from '@/components/inbox/AssignConversationMenu'
+import { BulkAssignConversationDialog } from '@/components/inbox/BulkAssignConversationDialog'
 
 type SortMode = 'newest' | 'oldest' | 'priority'
 
@@ -159,6 +160,7 @@ export function InboxPage() {
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
   const replayingOutbox = useRef(false)
 
   const loadConversations = async () => {
@@ -625,33 +627,19 @@ export function InboxPage() {
     }
   }
 
-  const handleAssignMe = async () => {
-    if (!activeConversation || !agent) return
-    try {
-      await api.assignConversation(activeConversation.id, agent.id)
-      await loadThread(activeConversation.id)
-      await loadConversations()
-      addToast({ title: 'Conversation assigned', variant: 'success' })
-    } catch (e: unknown) {
-      const err = e as { message?: string }
-      addToast({
-        title: 'Failed to assign',
-        description: err.message || 'Could not assign conversation',
-        variant: 'error',
-      })
-    }
-  }
-
   const runBulk = async (action: 'mark_read' | 'mark_unread' | 'assign' | 'archive') => {
     const ids = expandSelectionIds(selectedIds)
     if (ids.length === 0) return
+    if (action === 'assign') {
+      setBulkAssignOpen(true)
+      return
+    }
     setBulkBusy(true)
     const snapshot = conversations
     try {
       await api.bulkConversations({
         conversation_ids: ids,
         action,
-        assign_to_agent_id: action === 'assign' ? agent?.id : undefined,
       })
       await loadConversations()
       clearSelection()
@@ -904,7 +892,16 @@ export function InboxPage() {
                 showBack
                 onBack={handleBack}
                 onMarkRead={handleMarkRead}
-                onAssignMe={handleAssignMe}
+                assignSlot={
+                  <AssignConversationMenu
+                    conversationId={activeConversation!.id}
+                    assignedAgentId={activeConversation!.assigned_agent_id}
+                    onAssigned={() => {
+                      void loadThread(activeConversation!.id)
+                      void loadConversations()
+                    }}
+                  />
+                }
                 onClose={handleClose}
                 onReopen={handleReopen}
                 closing={closing}
@@ -916,17 +913,6 @@ export function InboxPage() {
                 selectedConversationId={selectedId}
                 onSelectChannel={handleSelect}
               />
-
-              <div className="flex items-center justify-end border-b border-[var(--lc-border)] px-4 py-2">
-                <AssignConversationMenu
-                  conversationId={activeConversation!.id}
-                  assignedAgentId={activeConversation!.assigned_agent_id}
-                  onAssigned={() => {
-                    void loadThread(activeConversation!.id)
-                    void loadConversations()
-                  }}
-                />
-              </div>
 
               <div className="flex-1 overflow-y-auto p-4" aria-live="polite" aria-label="Message thread">
                 {threadLoading && messages.length === 0 ? (
@@ -994,6 +980,15 @@ export function InboxPage() {
         templates={templates}
         templatesLoading={templatesLoading}
         onRequestTemplates={loadTemplates}
+      />
+      <BulkAssignConversationDialog
+        open={bulkAssignOpen}
+        onOpenChange={setBulkAssignOpen}
+        conversationIds={expandSelectionIds(selectedIds)}
+        onAssigned={() => {
+          void loadConversations()
+          clearSelection()
+        }}
       />
     </CrmShell>
   )
