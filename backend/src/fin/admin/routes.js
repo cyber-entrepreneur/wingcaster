@@ -59,6 +59,8 @@ import {
 } from './accounting-period-schemas.js'
 import { creditJanitorRunBodySchema } from './credit-janitor-schemas.js'
 import { loadCreditJanitorStatus, runCreditJanitorAdmin } from './credit-janitor.js'
+import { creditFinMirrorRunBodySchema } from './credit-fin-mirror-schemas.js'
+import { loadCreditFinMirrorStatus, runCreditFinMirrorAdmin } from './credit-fin-mirror.js'
 
 const ApprovalIdParams = z.object({ id: z.string().uuid() }).strict()
 
@@ -233,6 +235,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.post('/api/admin/fin/credits/janitor/run', writeGuards, wrap(async (req, res) => {
     if (!validateBody(creditJanitorRunBodySchema, req, res)) return
     const result = await runCreditJanitorAdmin(getPool(), req.fin?.now || adminNow())
+    return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/credits/fin-mirror/status', readGuards, wrap(async (_req, res) => {
+    const status = await loadCreditFinMirrorStatus(getPool())
+    return res.status(200).json({ status })
+  }))
+
+  app.post('/api/admin/fin/credits/fin-mirror/run', writeGuards, wrap(async (req, res) => {
+    if (!validateBody(creditFinMirrorRunBodySchema, req, res)) return
+    const result = await runCreditFinMirrorAdmin(getPool(), req.fin?.now || adminNow())
     return res.status(200).json(result)
   }))
 
