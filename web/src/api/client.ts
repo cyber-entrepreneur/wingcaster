@@ -20,6 +20,7 @@ import type {
   PricingRecalculationJob,
   PricingTrendSnapshot,
 } from '@/types/marketPricing'
+import type { InboxNotificationsResponse } from '@/types/inboxNotifications'
 import type { NotificationEventRow, NotificationPreferenceRow } from '@/types/subscriptionNotifications'
 import type { Territory } from '@/types/territory'
 import type {
@@ -2476,6 +2477,12 @@ export const api = {
     return fetchJson(`/notifications${qs}`)
   },
   markNotificationRead: (id: string) => fetchJson(`/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  getMyInboxNotifications: (): Promise<InboxNotificationsResponse> =>
+    fetchJson('/auth/me/notifications'),
+  markMyInboxNotificationRead: (id: string) =>
+    fetchJson(`/auth/me/notifications/${id}/read`, { method: 'POST', body: '{}' }),
+  markMyInboxNotificationsAllRead: () =>
+    fetchJson('/auth/me/notifications/mark-all-read', { method: 'POST', body: '{}' }),
   getNotificationPrefs: () => fetchJson('/notification-preferences'),
   updateNotificationPrefs: (data: Record<string, unknown>) =>
     fetchJson('/notification-preferences', { method: 'PATCH', body: JSON.stringify(data) }),

@@ -135,6 +135,7 @@ import {
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
+import { NotificationsInboxPage } from '@/pages/agent/NotificationsInboxPage'
 import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
 import { InspectorPage } from '@/pages/inspector/InspectorPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
@@ -393,7 +394,8 @@ function AppRoutes() {
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
-      <Route path="/notifications" element={<NotificationPreferencesPage />} />
+      <Route path="/notifications" element={<NotificationsInboxPage />} />
+      <Route path="/notification-preferences" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings" element={<AgentWhatsAppListingsPage />} />
       <Route path="/agent/whatsapp-listings/settings" element={<WhatsAppIntakeSettingsPage />} />
