@@ -4,6 +4,7 @@ import { requirePlatformAdmin } from '../../../lib/auth-guards.js'
 import { AreaStatus } from '../domain/types.js'
 import { aiSynthesis } from '../domain/scoring/ai-synthesis.js'
 import { scoringCalculateBodySchema } from './scoring-calculate-schemas.js'
+import { scoringOverrideBodySchema } from './scoring-override-schemas.js'
 
 const aiConfigFields = {
   name: z.string().trim().min(2).max(120),
@@ -527,20 +528,42 @@ export function registerAdminRoutes(
     }
   })
 
-  // Manual override
-  app.post('/api/admin/scoring/override', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  // Manual override (PA-SCR-004)
+  app.get('/api/admin/scoring/areas/:areaId/current-scores', authMiddleware, requirePlatformAdmin, async (req, res) => {
     try {
-      const { area_id, dimension_id, score, rationale, reason } = req.body
-      if (!area_id || !dimension_id || score == null) {
-        return res.status(400).json({ error: 'area_id, dimension_id, and score are required' })
+      const area = await areaService.getById(req.params.areaId)
+      if (!area) return res.status(404).json({ error: 'Area not found' })
+      const scores = await scoreService.getCurrentScores(area.id)
+      return res.json({ area_id: area.id, scores })
+    } catch (err) {
+      logger.error({ err: err.message }, 'Failed to load current scores')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  app.post('/api/admin/scoring/override', authMiddleware, requirePlatformAdmin, requireElevated(), async (req, res) => {
+    try {
+      const parsed = scoringOverrideBodySchema.safeParse(req.body || {})
+      if (!parsed.success) {
+        return validationError(res, parsed)
       }
+      const area = await areaService.getById(parsed.data.area_id)
+      if (!area) return res.status(404).json({ error: 'Area not found' })
+      const dimensions = await dimensionService.list({ isActive: true })
+      if (!dimensions.some((row) => row.id === parsed.data.dimension_id)) {
+        return res.status(404).json({ error: 'Dimension not found or inactive' })
+      }
+
+      const evidenceNote = parsed.data.evidence
+        ? JSON.stringify(parsed.data.evidence)
+        : null
       const recorded = await scoreService.manualOverride({
-        areaId: area_id,
-        dimensionId: dimension_id,
-        score,
-        rationale,
+        areaId: parsed.data.area_id,
+        dimensionId: parsed.data.dimension_id,
+        score: parsed.data.score,
+        rationale: parsed.data.rationale || evidenceNote,
         overriddenBy: req.user.id,
-        reason,
+        reason: parsed.data.reason,
       })
       res.json(recorded)
     } catch (err) {

@@ -3488,6 +3488,8 @@ export const api = {
   }> => fetchJson(`/admin/areas/${areaId}/refresh-google-signals`, { method: 'POST', body: '{}' }),
   overrideAdminScore: (data: Record<string, unknown>) =>
     fetchJson('/admin/scoring/override', { method: 'POST', body: JSON.stringify(data) }),
+  getAdminAreaCurrentScores: (areaId: string) =>
+    fetchJson(`/admin/scoring/areas/${encodeURIComponent(areaId)}/current-scores`),
   getAdminGoogleUsage: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/admin/google-usage${qs}`)
