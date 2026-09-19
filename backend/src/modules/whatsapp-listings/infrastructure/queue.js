@@ -13,6 +13,8 @@ import { Collections, findAllModule, findOneModule, removeModule, insertModule, 
 import { SessionState, DraftStatus } from '../domain/types.js'
 import { runWhatsAppIntakeJanitorTick } from '../binding/janitor.js'
 import { runTierUtilizationAlert } from '../binding/tier-alert.js'
+import { getPool } from '../../../persistence/postgres-adapter.js'
+import { WHATSAPP_LISTINGS_WORKER } from '../../../fin/foundation/advisory-locks.js'
 
 const MAX_RETRIES = 5
 const BASE_BACKOFF_MS = 5000
@@ -27,18 +29,41 @@ export function createQueue({ pipeline, config, logger }) {
   }
 
   async function tick() {
-    if (running) return
+    // Fast per-instance guard: never overlap ticks within this process.
+    if (running) return { skipped: true, reason: 'ALREADY_RUNNING' }
     running = true
+    // Cross-instance guard: with >1 replica every instance polls the same
+    // (single) database, so without this they would double-process sessions —
+    // duplicate extractions/credit charges and duplicate user-facing WhatsApp
+    // messages. A coarse cluster-wide advisory lock means exactly one tick runs
+    // at a time. Mirrors runWhatsAppIntakeJanitorTick / the fin/* workers.
+    let lockClient
     try {
-      await processIntakeWindows()
-      await processRetries()
-      await processApprovalTimeouts()
-      await pruneDedupeRecords()
-      await processExpiredCodes()
-      await processTierUtilization()
+      lockClient = await getPool().connect()
+      const locked = await lockClient.query(
+        'SELECT pg_try_advisory_lock($1, $2) AS ok',
+        [WHATSAPP_LISTINGS_WORKER, 0],
+      )
+      if (!locked.rows[0]?.ok) {
+        logger.debug('WhatsApp listing worker tick skipped; lock held by another instance')
+        return { skipped: true, reason: 'LOCK_HELD' }
+      }
+      try {
+        await processIntakeWindows()
+        await processRetries()
+        await processApprovalTimeouts()
+        await pruneDedupeRecords()
+        await processExpiredCodes()
+        await processTierUtilization()
+        return { skipped: false }
+      } finally {
+        await lockClient.query('SELECT pg_advisory_unlock($1, $2)', [WHATSAPP_LISTINGS_WORKER, 0]).catch(() => {})
+      }
     } catch (err) {
       logger.error({ err: err.message || String(err) }, 'WhatsApp listing worker tick failed')
+      return { skipped: false, error: err.message || String(err) }
     } finally {
+      if (lockClient) lockClient.release()
       running = false
     }
   }
