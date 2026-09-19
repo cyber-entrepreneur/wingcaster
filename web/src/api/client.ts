@@ -2085,8 +2085,14 @@ export const api = {
     }),
   updateContact: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  mergeContacts: (sourceId: string, targetContactId: string) =>
-    fetchJson(`/contacts/${sourceId}/merge`, { method: 'POST', body: JSON.stringify({ target_contact_id: targetContactId }) }),
+  mergeContacts: (
+    sourceId: string,
+    payload: {
+      target_contact_id: string
+      field_selections?: Partial<Record<'name' | 'email' | 'phone' | 'status' | 'source', 'source' | 'target'>>
+    },
+  ) =>
+    fetchJson(`/contacts/${sourceId}/merge`, { method: 'POST', body: JSON.stringify(payload) }),
   getContactTimeline: (id: string) => fetchJson(`/contacts/${id}/timeline`),
   getContactNotes: (id: string) => fetchJson(`/contacts/${id}/notes`),
   createContactNote: (id: string, content: string) =>

@@ -272,6 +272,7 @@ import {
   registerRoutes as registerAgentReviewRoutes,
   serializePublicReview,
 } from './lib/reviews/agent-review-routes.js'
+import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import {
@@ -382,7 +383,6 @@ import {
   closeConversation,
   reopenConversation,
   markConversationReadByAgent,
-  mergeContacts,
 } from './conversations/orchestrator.js'
 import {
   readChannel,
@@ -4054,22 +4054,6 @@ app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:wr
   res.json(await findOne('contacts', (c) => c.id === contact.id))
 })
 
-app.post('/api/contacts/:id/merge', authMiddleware, async (req, res) => {
-  const source = await assertOwnsContact(req.user.id, req.params.id)
-  const target = await assertOwnsContact(req.user.id, req.body.target_contact_id)
-  try {
-    const merged = await mergeContacts(source.id, target.id)
-    await logActivity({
-      type: 'contacts_merged',
-      agent_id: req.user.id,
-      meta: { source_id: source.id, target_id: target.id, merged_contact_id: merged.id },
-    })
-    res.json(merged)
-  } catch (e) {
-    res.status(400).json({ error: e.message })
-  }
-})
-
 // ==================== GDPR & DATA SUBJECT RIGHTS ====================
 async function exportContactData(contactId) {
   const contact = await findOne('contacts', (c) => c.id === contactId)
@@ -7704,6 +7688,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
 
 // BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
 registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
+registerContactMergeRoutes(app, { authMiddleware, logActivity })
 
 async function notifyAccountRecoveryApplicant({
   recoveryCase,
