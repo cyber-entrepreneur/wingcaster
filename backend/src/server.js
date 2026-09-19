@@ -283,6 +283,7 @@ import {
 import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
+import { registerRoutes as registerNotificationDeadLetterRoutes } from './lib/notifications/dead-letter-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -878,6 +879,7 @@ registerPersonalConnectionRoutes(app, { authMiddleware })
 registerCanonicalPropertyRoutes(app, { authMiddleware })
 registerAgentReviewRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
+registerNotificationDeadLetterRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({
@@ -3992,18 +3994,8 @@ app.post('/api/notifications/:id/retry', authMiddleware, async (req, res) => {
   res.json({ success: result.ok, status: result.status, error: result.error })
 })
 
-app.get('/api/admin/notifications/dead-letter', authMiddleware, async (req, res) => {
-  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const dead = (await findAll('consumer_notification_retries', (r) => r.status === 'dead_letter' || r.status === 'failed'))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  res.json({ items: dead, total: dead.length })
-})
-
-app.post('/api/admin/notifications/retry-pending', authMiddleware, async (req, res) => {
-  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Forbidden' })
-  const result = await processPendingNotificationRetries({ limit: Number(req.body?.limit || 20) })
-  res.json(result)
-})
+// PA-NDL-001 dead-letter queue + retry-pending live in
+// ./lib/notifications/dead-letter-routes.js (registered below).
 
 app.get('/api/notification-preferences', authMiddleware, async (req, res) => {
   const prefs = await getOrCreateNotificationPrefs(req.user.id)
