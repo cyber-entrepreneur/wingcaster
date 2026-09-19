@@ -88,6 +88,7 @@ import {
 import { registerWave8ProRoutes } from './lib/wave8-pro-routes.js'
 import { runCreditJanitorTick } from './lib/credits/janitor.js'
 import { runCreditFinMirrorTick } from './lib/credits/fin-mirror-worker.js'
+import { recordCreditFinMirrorRun } from './fin/admin/credit-fin-mirror.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
 import { resolveRequestCreditTenant, creditContextFromRequest, creditTenantIdForScope } from './lib/credits/tenant-context.js'
@@ -8909,7 +8910,9 @@ const startServer = async () => {
     if (CREDITS_MIRROR_ENABLED) {
       creditsMirrorTimer = setInterval(async () => {
         try {
-          await runCreditFinMirrorTick({ pool: getPool() })
+          const pool = getPool()
+          const result = await runCreditFinMirrorTick({ pool })
+          await recordCreditFinMirrorRun(pool, result).catch(() => {})
         } catch (err) {
           logger.error({ err: err.message || String(err) }, 'Credit fin-mirror worker failed')
         }
