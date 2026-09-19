@@ -274,7 +274,7 @@ describe('admin/fin pages', () => {
       approvals: [], events: [], vendors: [], stage11: false,
       dunning_policies: [], simulator: { amount_minor: '0' },
       reports: [], attestation: { eligible_to_sign: false },
-      packages: [], subscriptions: [], features: [],
+      packages: [], subscriptions: [], features: [], periods: [],
     }))
     wrap(<VendorCostsPage />)
     expect(await screen.findByText(/Stage 11 not merged/)).toBeTruthy()
