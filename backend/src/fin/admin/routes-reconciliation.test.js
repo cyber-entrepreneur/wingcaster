@@ -10,7 +10,7 @@ finPostgresSuite('admin/routes-reconciliation', {}, ({ url }) => {
     const ran = await request(app)
       .post('/api/admin/fin/reconciliation/run')
       .set(writeHeaders(token))
-      .send({ reason_code: 'TEST', environment: 'TEST', now: '1999-01-01T00:00:00.000Z' })
+      .send({ scope_kind: 'platform', reason_code: 'TEST' })
     expect(ran.status).toBe(200)
     expect(
       ran.body.skipped === true
@@ -22,6 +22,30 @@ finPostgresSuite('admin/routes-reconciliation', {}, ({ url }) => {
     const list = await request(app).get('/api/admin/fin/reconciliation/runs')
     expect(list.status).toBe(200)
     expect(Array.isArray(list.body.runs)).toBe(true)
+  })
+
+  it('rejects run body without scope_kind', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const res = await request(app)
+      .post('/api/admin/fin/reconciliation/run')
+      .set(writeHeaders(elevate()))
+      .send({ reason_code: 'TEST' })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('VALIDATION')
+  })
+
+  it('runs tenant-scoped reconciliation', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const res = await request(app)
+      .post('/api/admin/fin/reconciliation/run')
+      .set(writeHeaders(elevate()))
+      .send({
+        scope_kind: 'tenant',
+        tenant_id: '00000000-0000-0000-0000-000000000001',
+        reason_code: 'TEST',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.skipped === true || Boolean(res.body.runId)).toBe(true)
   })
 
   it('resolveDrift returns 501 with DL-165', async () => {
