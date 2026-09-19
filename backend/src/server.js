@@ -351,6 +351,8 @@ import {
   CATEGORY_META,
   classifyByRules,
 } from './lib/comment-classifier.js'
+import { commentClassifierRunBodySchema } from './lib/comment-classifier-admin-schemas.js'
+import { listCommentClassifierRuns, recordCommentClassifierRun } from './lib/comment-classifier-runs.js'
 import {
   routeClassifiedMessage,
   registerCommentRouterRoutes,
@@ -1022,10 +1024,28 @@ async function runCommentClassifierBatch() {
   return { batched: items.length, updated }
 }
 
-app.post('/api/admin/comment-classifier/run', authMiddleware, async (req, res) => {
-  if (!await isPlatformAdmin(req.user.id)) return res.status(403).json({ error: 'Admin only' })
+app.post('/api/admin/comment-classifier/run', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const parsed = commentClassifierRunBodySchema.safeParse(req.body || {})
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
+  }
   const result = await runCommentClassifierBatch()
-  res.json(result)
+  const batched = Number(result.batched || 0)
+  const updated = Number(result.updated || 0)
+  const run = await recordCommentClassifierRun({
+    triggeredByAgentId: req.user?.id,
+    batched,
+    updatedCount: updated,
+    skippedReason: result.skipped ? String(result.skipped) : null,
+    errorMessage: result.error ? String(result.error) : null,
+  })
+  res.json({ ...result, run })
+})
+
+app.get('/api/admin/comment-classifier/runs', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  const limit = req.query.limit
+  const payload = await listCommentClassifierRuns({ limit })
+  res.json(payload)
 })
 
 app.post('/api/uploads', authMiddleware, (req, res) => {
@@ -6995,7 +7015,17 @@ app.post('/api/comments/:id/reclassify', authMiddleware, async (req, res) => {
 })
 
 app.get('/api/comment-classifier/config', authMiddleware, (_req, res) => {
-  res.json({ categories: COMMENT_CATEGORIES, sentiments: COMMENT_SENTIMENTS, meta: CATEGORY_META })
+  res.json({
+    categories: COMMENT_CATEGORIES,
+    sentiments: COMMENT_SENTIMENTS,
+    meta: CATEGORY_META,
+    operational: {
+      batch_size: COMMENT_CLASSIFIER_BATCH_SIZE,
+      ai_enabled: COMMENT_CLASSIFIER_AI_ENABLED,
+      ai_provider: listingsAiModule.config?.aiProvider || null,
+      rules_confidence_threshold: 0.6,
+    },
+  })
 })
 
 /**
