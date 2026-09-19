@@ -522,6 +522,58 @@ export interface AgencyReportsHomeResponse {
   }
 }
 
+/** AGN-REP-002 — agency listings performance report row. */
+export interface AgencyListingsPerformanceRow {
+  id: string
+  title: string
+  city: string | null
+  neighborhood: string | null
+  property_type: string | null
+  status: string
+  agent_id: string | null
+  agent_name: string | null
+  views: number
+  clicks: number
+  saves: number
+  inquiries: number
+  viewings: number
+  conversions: number
+  conversion_rate: number | null
+  engagement: number
+}
+
+/** AGN-REP-002 — agency listings performance report payload. */
+export interface AgencyListingsPerformanceResponse {
+  generated_at: string
+  agency_id: string
+  filters: {
+    start_date: string | null
+    end_date: string | null
+    agent_id: string | null
+    area: string | null
+    property_type: string | null
+  }
+  overview: {
+    listings: number
+    active_listings: number
+    total_views: number
+    total_saves: number
+    total_inquiries: number
+    total_viewings: number
+    total_conversions: number
+    conversion_rate: number | null
+  }
+  rows: AgencyListingsPerformanceRow[]
+  by_channel: Array<{ label: string; value: number }>
+  by_device: Array<{ label: string; value: number }>
+  top_listings: Array<{ id: string; title: string; views: number; inquiries: number }>
+  filter_options: {
+    agents: Array<{ id: string; name: string }>
+    areas: string[]
+    property_types: string[]
+  }
+}
+
 /** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
@@ -2910,6 +2962,16 @@ export const api = {
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/crm${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getAgencyListingsPerformance: (params?: {
+    start_date?: string
+    end_date?: string
+    agent_id?: string
+    area?: string
+    property_type?: string
+  }) =>
+    fetchJson(
+      `/agency/analytics/listings-performance${params ? '?' + new URLSearchParams(params).toString() : ''}`,
+    ) as Promise<AgencyListingsPerformanceResponse>,
   getAgencyReportsHome: () =>
     fetchJson('/agency/analytics/reports-home') as Promise<AgencyReportsHomeResponse>,
   getCommunicationsAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
