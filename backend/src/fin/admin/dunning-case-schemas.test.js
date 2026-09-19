@@ -6,6 +6,12 @@ describe('dunningCaseActionBodySchema (PA-DUN-001)', () => {
     expect(dunningCaseActionBodySchema.parse({})).toEqual({})
   })
 
+  it('accepts reason_code for audit stamping', () => {
+    expect(dunningCaseActionBodySchema.parse({ reason_code: 'ADMIN_OPS' })).toEqual({
+      reason_code: 'ADMIN_OPS',
+    })
+  })
+
   it('rejects unknown fields', () => {
     expect(() => dunningCaseActionBodySchema.parse({ force: true })).toThrow()
   })
