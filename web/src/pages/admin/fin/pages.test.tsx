@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditLotsPage, CreditsPage,
-  ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
+  DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
@@ -156,6 +156,9 @@ const apiMock = vi.hoisted(() => ({
         dl: 'DL-165',
       }
     }
+    if (String(path).includes('/dunning/cases')) {
+      return { cases: [{ id: 'case-1', tenant_id: 'tenant-1', invoice_id: 'inv-1', status: 'OPEN', created_at: '2026-09-19T00:00:00.000Z' }] }
+    }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
       facilities: [], contracts: [], invoices: [], runs: [], types: [],
@@ -174,6 +177,11 @@ vi.mock('@/api/client', () => ({ api: apiMock }))
 const authMock = vi.hoisted(() => ({
   isAdmin: true,
   agent: { id: 'admin-1', platform_role: 'platform_admin' as const },
+}))
+vi.mock('@/context/StepUpContext', () => ({
+  useStepUp: () => ({
+    runElevated: async (action: () => Promise<unknown>) => action(),
+  }),
 }))
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => authMock,
@@ -210,6 +218,7 @@ describe('admin/fin pages', () => {
     ['Subscriptions', () => <SubscriptionsPage />],
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
+    ['Dunning cases', () => <DunningCasesPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Vendor statement', () => (
       <Routes>
