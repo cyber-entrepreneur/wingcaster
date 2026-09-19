@@ -9,6 +9,26 @@ import { insertControls } from '../funding/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-dunning', {}, ({ url, world, pool }) => {
+  it('returns dunning case detail with step timeline', async () => {
+    const { app } = await makeOpsApp(url())
+    await insertControls(pool(), {
+      subjectType: 'BILLING_ACCOUNT',
+      subjectId: world().tenantA.billingAccountId,
+    })
+    const issued = await seedIssuedInvoice(pool(), world(), { amountMinor: 40 })
+    const opened = await openDunningCase({
+      ...commandEnv(world(), { reasonCode: 'AR_OVERDUE' }),
+      invoiceId: issued.invoiceId,
+      billingAccountId: world().tenantA.billingAccountId,
+      invoiceStatus: 'ISSUED',
+      dueAt: issued.dueAt,
+    })
+    const detail = await request(app).get(`/api/admin/fin/dunning/cases/${opened.caseId}`)
+    expect(detail.status).toBe(200)
+    expect(detail.body.case.id).toBe(opened.caseId)
+    expect(Array.isArray(detail.body.case.steps)).toBe(true)
+  })
+
   it('advances an open case; unknown case errors', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()

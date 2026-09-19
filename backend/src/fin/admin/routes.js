@@ -15,7 +15,7 @@ import { deferredExceptionPayload, loadExceptions } from './exceptions.js'
 import {
   getApprovalAuditTrail, getBillingPeriod, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
-  listContracts, listDunningCases, listFacilities, listHolds, listInvoices,
+  listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
   listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
 import {
@@ -262,6 +262,15 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   app.get('/api/admin/fin/dunning/cases', readGuards, wrap(async (req, res) => {
     const cases = await listDunningCases({ environment: sessionEnvironment(req) })
     return res.status(200).json({ cases })
+  }))
+
+  app.get('/api/admin/fin/dunning/cases/:id', readGuards, wrap(async (req, res) => {
+    const detail = await getDunningCase({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!detail) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json({ case: detail })
   }))
 
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })
