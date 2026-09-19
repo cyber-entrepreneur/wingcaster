@@ -2,7 +2,8 @@
  * AGT-CMP-003 — Campaign builder single-page (Pro).
  * 3-column layout: goal + audience / content / channels + schedule + inline preview.
  */
-import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Megaphone, Plus, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,10 +22,16 @@ import {
   TRIGGERS,
 } from './campaign-builder-shared'
 import { useCampaignBuilderForm } from './useCampaignBuilderForm'
+import { campaignFormFromGoal } from './campaign-goals'
 
 export function CampaignBuilderProView() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   usePageTitle('New Campaign (Pro)')
+
+  // AGT-CMP-001: seed from a goal preset (`?goal=`) on first render.
+  const goalParam = searchParams.get('goal')
+  const initialForm = useMemo(() => campaignFormFromGoal(goalParam), [goalParam])
 
   const {
     form,
@@ -45,7 +52,7 @@ export function CampaignBuilderProView() {
     saving,
     handleSave,
     canSave,
-  } = useCampaignBuilderForm()
+  } = useCampaignBuilderForm(initialForm)
 
   const previewStep = form.steps[0]
   const previewTemplate = templates.find((t) => t.id === previewStep?.template_id)

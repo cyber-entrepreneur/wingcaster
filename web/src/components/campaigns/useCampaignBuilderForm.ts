@@ -15,13 +15,13 @@ import {
   stepsAreValid,
 } from './campaign-builder-shared'
 
-export function useCampaignBuilderForm() {
+export function useCampaignBuilderForm(initialForm?: CampaignFormState) {
   const navigate = useNavigate()
   const { addToast } = useToast()
 
   const [saving, setSaving] = useState(false)
   const [tagInput, setTagInput] = useState('')
-  const [form, setForm] = useState<CampaignFormState>({ ...INITIAL_FORM_STATE })
+  const [form, setForm] = useState<CampaignFormState>(() => initialForm ?? { ...INITIAL_FORM_STATE })
   const [templates, setTemplates] = useState<CampaignTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
 

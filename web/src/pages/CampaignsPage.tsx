@@ -1,7 +1,8 @@
 /**
  * CampaignsPage — CRUD list of campaigns with enrollment status.
+ * AGT-CMP-001 — Guided mode uses template-first goal picker; Pro links to full builder.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Loader2,
@@ -27,6 +28,9 @@ import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
+import { CampaignGoalPicker } from '@/components/campaigns/CampaignGoalPicker'
+import { buildCampaignNewHref } from '@/components/campaigns/campaign-goals'
+import { useUiMode } from '@/hooks/useUiMode'
 
 interface Campaign {
   id: string
@@ -57,10 +61,13 @@ const CHANNEL_ICON: Record<string, React.ReactNode> = {
 export function CampaignsPage() {
   const { agent } = useAuth()
   const { addToast } = useToast()
+  const { effectiveMode } = useUiMode()
+  const isPro = effectiveMode === 'pro'
   usePageTitle('Campaigns')
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | Campaign['status']>('all')
 
   useEffect(() => {
     if (!agent) return
@@ -101,17 +108,26 @@ export function CampaignsPage() {
     total: campaigns.length,
   }
 
+  const visibleCampaigns = useMemo(() => {
+    if (statusFilter === 'all') return campaigns
+    return campaigns.filter((c) => c.status === statusFilter)
+  }, [campaigns, statusFilter])
+
+  const newCampaignHref = buildCampaignNewHref('custom', isPro)
+
   return (
     <CrmShell>
       <CmdPageHeader
         title="Campaigns"
         subtitle="Drip sequences and nurture journeys"
         actions={
-          <Link to="/campaigns/new">
-            <Button size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" /> New campaign
-            </Button>
-          </Link>
+          isPro ? (
+            <Link to={newCampaignHref}>
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" /> New campaign
+              </Button>
+            </Link>
+          ) : null
         }
       />
 
@@ -133,6 +149,32 @@ export function CampaignsPage() {
         ]}
       />
 
+      {!isPro && (
+        <div className="border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-4 py-4 sm:px-6">
+          <CampaignGoalPicker />
+        </div>
+      )}
+
+      {campaigns.length > 0 && (
+        <div className="flex flex-wrap gap-2 border-b border-[var(--lc-border)] bg-[var(--lc-surface)] px-4 py-2 sm:px-6">
+          {(['all', 'active', 'draft', 'paused', 'archived'] as const).map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setStatusFilter(status)}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors',
+                statusFilter === status
+                  ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                  : 'bg-[var(--lc-surface-sunken)] text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {status === 'all' ? 'All' : status}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Campaign list */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -143,18 +185,22 @@ export function CampaignsPage() {
           <CmdEmptyState
             icon={<Megaphone className="h-8 w-8" />}
             title="No campaigns yet"
-            description="Create your first campaign to start nurturing leads automatically."
-            action={
-              <Link to="/campaigns/new">
-                <Button size="sm" className="gap-1.5">
-                  <Plus className="h-4 w-4" /> New campaign
-                </Button>
-              </Link>
+            description={
+              isPro
+                ? 'Create your first campaign to start nurturing leads automatically.'
+                : 'Choose a goal above to launch your first nurture sequence.'
             }
+            action={undefined}
+          />
+        ) : visibleCampaigns.length === 0 ? (
+          <CmdEmptyState
+            icon={<Megaphone className="h-8 w-8" />}
+            title="No campaigns match this filter"
+            description="Try another status filter or create a new campaign."
           />
         ) : (
           <div className="divide-y divide-[var(--lc-border)]">
-            {campaigns.map((c) => (
+            {visibleCampaigns.map((c) => (
               <div
                 key={c.id}
                 className="flex items-center gap-4 bg-[var(--lc-surface)] px-6 py-4 transition-colors hover:bg-[var(--lc-bg-page)]"
