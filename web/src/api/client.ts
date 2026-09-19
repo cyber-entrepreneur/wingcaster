@@ -1952,7 +1952,33 @@ export const api = {
     categories: string[]
     sentiments: string[]
     meta: Record<string, { label: string; emoji: string; description: string; route: string }>
+    operational?: {
+      batch_size?: number
+      ai_enabled?: boolean
+      ai_provider?: string | null
+      rules_confidence_threshold?: number
+    }
   }> => fetchJson('/comment-classifier/config'),
+
+  /** PA-CLS-001 — manual classifier batch + run history. */
+  runCommentClassifierBatch: (): Promise<Record<string, unknown>> =>
+    fetchJson('/admin/comment-classifier/run', { method: 'POST', body: '{}' }),
+
+  listCommentClassifierRuns: (params?: { limit?: string }): Promise<{
+    runs: Array<{
+      id: string
+      triggered_by_agent_id?: string | null
+      batched: number
+      updated_count: number
+      skipped_reason?: string | null
+      error_message?: string | null
+      created_at: string
+    }>
+    total: number
+  }> => {
+    const qs = params?.limit ? `?limit=${encodeURIComponent(params.limit)}` : ''
+    return fetchJson(`/admin/comment-classifier/runs${qs}`)
+  },
   reclassifyComment: (messageId: string, category: string, sentiment?: string) =>
     fetchJson(`/comments/${messageId}/reclassify`, {
       method: 'POST',
