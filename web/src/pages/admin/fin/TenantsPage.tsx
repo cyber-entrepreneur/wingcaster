@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import { FinAdminGate, FinTable } from './shell'
 
 export function TenantsPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
   useEffect(() => {
     void api.finGet('/tenants').then((body) => setRows((body.tenants || []) as Array<Record<string, unknown>>))
@@ -13,6 +15,9 @@ export function TenantsPage() {
       <FinTable
         columns={['id', 'public_tenant_id', 'status', 'remaining_units', 'credit_exposure_minor', 'ar_outstanding_minor', 'dunning_status']}
         rows={rows}
+        onRowClick={(row) => {
+          if (row.id) navigate(`/admin/fin/tenants/${String(row.id)}`)
+        }}
       />
     </FinAdminGate>
   )

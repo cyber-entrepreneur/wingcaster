@@ -9,7 +9,7 @@ import {
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PaymentsPage, PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
+  SubscriptionsPage, TenantDetailPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -527,5 +527,17 @@ describe('admin/fin pages', () => {
     expect(await screen.findByText('Write off dunning case')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeDisabled()
     expect(screen.getByLabelText('Evidence')).toBeTruthy()
+  })
+
+  it('Tenant detail renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/tenants/t1']}>
+        <Routes>
+          <Route path="/admin/fin/tenants/:id" element={<TenantDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Tenant detail')
+    expect(await screen.findByText('Credit & exposure')).toBeTruthy()
   })
 })
