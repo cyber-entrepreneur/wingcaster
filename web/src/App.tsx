@@ -104,7 +104,7 @@ import {
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
+  SubscriptionsPage, TenantDetailPage, TenantsPage, UsagePage, VendorCostsPage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { mfaRoutes, mfaSettingsChildRoutes } from '@/pages/security/mfa/routes'
@@ -311,6 +311,7 @@ function AppRoutes() {
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
+      <Route path="/admin/fin/tenants/:id" element={<TenantDetailPage />} />
       <Route path="/admin/fin/usage" element={<UsagePage />} />
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
       <Route path="/admin/fin/holds" element={<HoldsPage />} />

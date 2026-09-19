@@ -2,13 +2,13 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
   ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage, ReconciliationPage, SubscriptionDetailPage, SubscriptionsPage,
-  TenantsPage, UsagePage, VendorCostsPage,
+  TenantDetailPage, TenantsPage, UsagePage, VendorCostsPage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -28,6 +28,16 @@ const apiMock = vi.hoisted(() => ({
     }
     if (String(path).includes('/subscriptions/')) {
       return { id: 's1', status: 'ACTIVE', package_display_name: 'Starter', version_number: 1, properties_committed: 1, active_properties_count: 0 }
+    }
+    if (String(path).includes('/tenants/')) {
+      return {
+        id: 't1',
+        public_tenant_id: 'tenant-a',
+        status: 'ACTIVE',
+        remaining_units: 10,
+        ar_outstanding_minor: 500,
+        dunning_status: null,
+      }
     }
     return {
       tiles: {}, keys: [], tenants: [], rows: [], lots: [], holds: [],
@@ -124,5 +134,17 @@ describe('admin/fin pages', () => {
     wrap(<SubscriptionDetailPage />)
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change plan' })).toBeTruthy()
+  })
+
+  it('Tenant detail renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/tenants/t1']}>
+        <Routes>
+          <Route path="/admin/fin/tenants/:id" element={<TenantDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Tenant detail')
+    expect(await screen.findByText('Credit & exposure')).toBeTruthy()
   })
 })
