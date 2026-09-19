@@ -28,6 +28,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  Star,
   Target,
   Truck,
   Users,
@@ -127,6 +128,7 @@ const AGENT_NAV: DrawerNavGroup[] = [
       { id: 'campaigns', label: 'Campaigns', href: '/campaigns', icon: Megaphone },
       { id: 'templates', label: 'Templates', href: '/templates', icon: LayoutTemplate },
       { id: 'analytics', label: 'Analytics', href: '/analytics', icon: BarChart3 },
+      { id: 'reviews', label: 'Reviews', href: '/agent/reviews', icon: Star },
     ],
   },
   {

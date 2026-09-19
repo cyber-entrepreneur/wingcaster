@@ -266,6 +266,45 @@ export interface PropertyDispositionResponse {
   can_resolve: boolean
 }
 
+export type ReviewFlagReason =
+  | 'spam'
+  | 'abusive'
+  | 'privacy'
+  | 'conflict'
+  | 'false_claim'
+  | 'other'
+
+export interface ManagedAgentReview {
+  id: string
+  rating: number
+  title: string | null
+  comment: string
+  reviewer: { name: string }
+  verified_transaction: boolean
+  status: string
+  response: string | null
+  responded_at: string | null
+  flag: {
+    status: 'none' | 'pending' | 'resolved' | 'dismissed'
+    reason: ReviewFlagReason | null
+    details: string | null
+    flagged_at: string | null
+  }
+  created_at: string
+  updated_at: string
+}
+
+export interface ManagedAgentReviewsResponse {
+  summary: {
+    total: number
+    average: number
+    distribution: Record<1 | 2 | 3 | 4 | 5, number>
+    awaiting_response: number
+    flagged: number
+  }
+  reviews: ManagedAgentReview[]
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -1426,6 +1465,21 @@ export const api = {
   getAgentReviews: (id: string) => fetchJson(`/agents/${id}/reviews`),
   createReview: (agentId: string, data: Record<string, unknown>) =>
     fetchJson(`/agents/${agentId}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
+  getMyAgentReviews: (): Promise<ManagedAgentReviewsResponse> =>
+    fetchJson('/agent/reviews'),
+  respondToAgentReview: (reviewId: string, body: string): Promise<ManagedAgentReview> =>
+    fetchJson(`/agent/reviews/${reviewId}/response`, {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    }),
+  flagAgentReview: (
+    reviewId: string,
+    input: { reason: ReviewFlagReason; details?: string | null },
+  ): Promise<ManagedAgentReview> =>
+    fetchJson(`/agent/reviews/${reviewId}/flag`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
   // Zillow-style features
   getPriceHistory: (id: string) => fetchJson(`/properties/${id}/price-history`),
