@@ -243,10 +243,19 @@ export async function listHolds({ environment }) {
 
 export async function listFacilities({ environment }) {
   return query(
-    `SELECT id, tenant_id, billing_account_id, currency, limit_minor,
-            net_terms_days, status, valid_from, valid_to, version
-       FROM fin.credit_facilities WHERE environment = $1
-       ORDER BY created_at DESC LIMIT 200`,
+    `SELECT f.id, f.tenant_id, f.billing_account_id, f.currency, f.limit_minor,
+            f.net_terms_days, f.status, f.valid_from, f.valid_to, f.version,
+            COALESCE(d.current_draw_minor, 0)::bigint AS current_draw_minor
+       FROM fin.credit_facilities f
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(r.reserved_minor), 0)::bigint AS current_draw_minor
+           FROM fin.facility_reservations r
+          WHERE r.facility_id = f.id
+            AND r.environment = f.environment
+            AND r.status = 'OPEN'
+       ) d ON TRUE
+      WHERE f.environment = $1
+      ORDER BY f.created_at DESC LIMIT 200`,
     [environment],
   )
 }

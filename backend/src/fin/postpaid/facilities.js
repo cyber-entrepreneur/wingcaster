@@ -257,6 +257,22 @@ export async function amendFacilityLimit(input) {
     if (!facility || !['ACTIVE', 'PAUSED'].includes(facility.status)) {
       throw finError('FACILITY_NOT_ACTIVE', { category: CATEGORY.PRECONDITION })
     }
+    const { rows: drawRows } = await client.query(
+      `SELECT COALESCE(SUM(reserved_minor), 0)::bigint AS current_draw_minor
+         FROM fin.facility_reservations
+        WHERE facility_id = $1 AND environment = $2 AND status = 'OPEN'`,
+      [facilityId, env.environment],
+    )
+    const currentDraw = BigInt(drawRows[0]?.current_draw_minor ?? 0)
+    if (limitMinor < currentDraw) {
+      throw finError('FACILITY_LIMIT_EXCEEDED', {
+        category: CATEGORY.VALIDATION,
+        details: {
+          reason: 'limit_below_current_draw',
+          current_draw_minor: currentDraw.toString(),
+        },
+      })
+    }
     await client.query(
       `UPDATE fin.credit_facilities
           SET limit_minor = $2, reason_code = $3, updated_at = $4,

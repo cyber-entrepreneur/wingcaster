@@ -94,4 +94,27 @@ finPostgresSuite('admin/routes-facilities', {}, ({ world, url, pool }) => {
     expect(res.status).toBe(400)
     expect(res.body.code).toBe('VALIDATION')
   })
+
+  it('rejects limit amendment without approval_request_id', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const created = await request(app)
+      .post('/api/admin/fin/facilities')
+      .set(writeHeaders(token, { idempotencyKey: `FACILITY:${randomUUID()}` }))
+      .send({
+        reason_code: 'TEST',
+        tenant_id: world().tenantA.tenantId,
+        billing_account_id: world().tenantA.billingAccountId,
+        currency: 'USD',
+        limit_minor: 1000,
+        net_terms_days: 30,
+      })
+    expect(created.status).toBe(200)
+    const res = await request(app)
+      .post(`/api/admin/fin/facilities/${created.body.facilityId}/limit`)
+      .set(writeHeaders(token))
+      .send({ limit_minor: 2000, reason_code: 'FACILITY_LIMIT_INCREASE' })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('VALIDATION')
+  })
 })

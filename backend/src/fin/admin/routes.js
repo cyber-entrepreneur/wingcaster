@@ -42,6 +42,7 @@ import { hardClosePeriod, reopenPeriod, softClosePeriod } from '../accounting/pe
 import { registerFinVendorAdminRoutes } from './vendors/routes.js'
 import { createFacilityBodySchema } from './facility-schemas.js'
 import { runReconciliationBodySchema, scopeFromRunBody } from './reconciliation-schemas.js'
+import { amendFacilityLimitBodySchema } from './facility-limit-schemas.js'
 import { buildExecutePreview } from './approvals/execute-preview.js'
 import { executeApproval } from './approvals/execute.js'
 import {
@@ -429,7 +430,16 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
   }))
 
   app.post('/api/admin/fin/facilities/:id/limit', writeGuards, wrap(async (req, res) => {
-    const result = await amendFacilityLimit(input(req, { facilityId: req.params.id }))
+    const parsed = amendFacilityLimitBodySchema.safeParse(commandBody(req))
+    if (!parsed.success) {
+      return res.status(400).json({ code: 'VALIDATION', issues: parsed.error.issues })
+    }
+    const result = await amendFacilityLimit(input(req, {
+      facilityId: req.params.id,
+      limitMinor: parsed.data.limit_minor,
+      approvalRequestId: parsed.data.approval_request_id,
+      reasonCode: parsed.data.reason_code,
+    }))
     if (result.version != null) setETag(res, result.version)
     return res.status(200).json(result)
   }))
