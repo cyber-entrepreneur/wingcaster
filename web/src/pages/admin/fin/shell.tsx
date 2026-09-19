@@ -17,6 +17,7 @@ export const FIN_NAV = [
   { path: '/admin/fin/package-approvals', label: 'Package approvals' },
   { path: '/admin/fin/subscriptions', label: 'Subscriptions' },
   { path: '/admin/fin/invoices', label: 'Invoices' },
+  { path: '/admin/fin/dunning', label: 'Dunning' },
   { path: '/admin/fin/vendor-costs', label: 'Vendor Costs' },
   { path: '/admin/fin/reconciliation', label: 'Reconciliation' },
   { path: '/admin/fin/exceptions', label: 'Exceptions' },

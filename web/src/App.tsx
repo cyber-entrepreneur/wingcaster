@@ -102,7 +102,7 @@ import {
 } from '@/pages/admin/valuation'
 import {
   ApprovalsPage, AuditPage, ConfigurationPage, ContractsPage, CreditsPage,
-  ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
+  DunningCasesPage, ExceptionsPage, FacilitiesPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PricingPage as FinPricingPage, ReconciliationPage, SubscriptionDetailPage,
   SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage,
@@ -326,6 +326,7 @@ function AppRoutes() {
       <Route path="/admin/fin/subscriptions" element={<SubscriptionsPage />} />
       <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
       <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
+      <Route path="/admin/fin/dunning" element={<DunningCasesPage />} />
       <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
       <Route path="/admin/fin/exceptions" element={<ExceptionsPage />} />
