@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -126,6 +127,9 @@ export function AdminAreasPage() {
                   </Button>
                   {area.status === 'scoring_enabled' && (
                     <>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/admin/areas/${area.id}/signals`}>Review signals</Link>
+                      </Button>
                       <Button size="sm" variant="outline" disabled={busyAreaId === area.id} onClick={() => refreshSignals(area)}>
                         {busyAreaId === area.id && busyAction === 'refresh' ? 'Fetching…' : 'Fetch Google signals'}
                       </Button>
