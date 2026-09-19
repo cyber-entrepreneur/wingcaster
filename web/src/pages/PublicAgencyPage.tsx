@@ -48,8 +48,11 @@ export function PublicAgencyPage() {
     )
   }
 
+  const brandColor = agency.brand_primary_color || agency.primary_color || 'var(--lc-action-primary)'
+  const logoUrl = agency.logo_url || agency.logo
+
   return (
-    <div className="min-h-screen bg-[var(--lc-bg-page)]">
+    <div className="min-h-screen bg-[var(--lc-bg-page)]" style={{ fontFamily: agency.brand_font_family === 'archivo' ? 'var(--lc-font-display)' : 'var(--lc-font-ui)' }}>
       {/* Agency Header */}
       <div className="bg-[var(--lc-surface)] border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -57,11 +60,15 @@ export function PublicAgencyPage() {
             <ArrowLeft className="h-4 w-4" />Back to Agents
           </Link>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="rounded-xl bg-primary-faint p-6">
-              <Building2 className="h-16 w-16 text-primary" />
+            <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-primary-faint p-4">
+              {logoUrl ? (
+                <img src={logoUrl} alt="" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <Building2 className="h-16 w-16" style={{ color: brandColor }} />
+              )}
             </div>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold">{agency.name}</h1>
+              <h1 className="text-3xl font-bold" style={{ color: brandColor }}>{agency.name}</h1>
               <p className="mt-2 text-muted-foreground max-w-2xl">{agency.description}</p>
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 {agency.license_number && <span className="flex items-center gap-1"><Badge variant="outline">License {agency.license_number}</Badge></span>}

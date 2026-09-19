@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, Users, Plus, Settings, Mail, Shield, UserMinus, Loader2, Check, X, Crown, UserCog, User, Eye, DollarSign, AlertTriangle, PauseCircle, PlayCircle } from 'lucide-react'
+import { Building2, Users, Plus, Settings, Mail, Shield, UserMinus, Loader2, Check, X, Crown, UserCog, User, Eye, DollarSign, AlertTriangle, PauseCircle, PlayCircle, Palette } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -499,18 +499,21 @@ export function AgencyManagementPage() {
           {canManageSettings && (
             <TabsContent value="settings">
               <Card>
-                <CardHeader><CardTitle>Agency Settings</CardTitle><CardDescription>Update your agency profile</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div><Label>Name</Label><Input defaultValue={agency.name} /></div>
-                    <div><Label>License Number</Label><Input defaultValue={agency.license_number || ''} /></div>
-                    <div><Label>Phone</Label><Input defaultValue={agency.phone || ''} /></div>
-                    <div><Label>Email</Label><Input defaultValue={agency.email || ''} /></div>
-                  </div>
-                  <div><Label>Address</Label><Input defaultValue={agency.address || ''} /></div>
-                  <div><Label>Description</Label><textarea defaultValue={agency.description || ''} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => api.updateAgency(agency.id, agency).then(() => loadAgency())}>Save Changes</Button>
+                <CardHeader><CardTitle>Agency Settings</CardTitle><CardDescription>Manage agency-wide identity and controls.</CardDescription></CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4 rounded-lg border bg-[var(--lc-surface-sunken)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <Palette className="mt-1 h-5 w-5 text-primary" aria-hidden="true" />
+                      <div>
+                        <h3 className="font-semibold">Identity and branding</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Agency name, description, logo, favicon, brand colors, and font.
+                        </p>
+                      </div>
+                    </div>
+                    <Button asChild variant="outline">
+                      <Link to="/agency/settings/branding">Manage brand</Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

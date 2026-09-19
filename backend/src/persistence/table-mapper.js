@@ -55,8 +55,9 @@ const TABLE_MAP = {
     schema: 'public',
     table: 'agencies',
     columns: [
-      'owner_id', 'name', 'slug', 'license_number', 'site_hosting_type', 'cta_config',
-      'accepting_applications',
+      'owner_id', 'name', 'slug', 'license_number', 'description', 'site_hosting_type', 'cta_config',
+      'accepting_applications', 'logo_url', 'favicon_url', 'brand_primary_color',
+      'brand_accent_color', 'brand_font_family', 'brand_updated_at', 'brand_updated_by',
     ],
   },
   agency_applications: {
