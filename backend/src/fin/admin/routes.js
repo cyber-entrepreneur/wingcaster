@@ -19,7 +19,7 @@ import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas
 import {
   getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
-  listAccountingPeriods, listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
+  listAccountingPeriods, getAccountingPeriod, listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
   getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
 } from './reads.js'
 import { retireLotBodySchema } from './credit-lot-schemas.js'
@@ -445,6 +445,15 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     })
     if (!detail) return res.status(404).json({ code: 'NOT_FOUND' })
     return res.status(200).json({ case: detail })
+  }))
+
+  app.get('/api/admin/fin/accounting/periods/:id', readGuards, wrap(async (req, res) => {
+    const period = await getAccountingPeriod({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!period) return res.status(404).json({ code: 'NOT_FOUND' })
+    return res.status(200).json({ period })
   }))
 
   registerFinVendorAdminRoutes(app, { readGuards, writeGuards })

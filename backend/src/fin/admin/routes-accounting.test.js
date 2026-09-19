@@ -25,6 +25,24 @@ finPostgresSuite('admin/routes-accounting', {}, ({ url, world, pool }) => {
     expect(list.body.periods.some((row) => row.id === opened.periodId)).toBe(true)
   })
 
+  it('returns accounting period detail with close checklist', async () => {
+    const { app } = await makeOpsApp(url())
+    const env = commandEnv(world(), { reasonCode: 'TEST' })
+    const opened = await openAccountingPeriod({
+      ...env,
+      legalEntityId: world().legalEntityId,
+      periodKey: `detail-${randomUUID().slice(0, 8)}`,
+      // Distinct window from the list test — uq_accounting_periods_window is (env, entity, starts_at, ends_at).
+      startsAt: '2026-05-01T00:00:00.000Z',
+      endsAt: '2026-06-01T00:00:00.000Z',
+    })
+    const detail = await request(app).get(`/api/admin/fin/accounting/periods/${opened.periodId}`)
+    expect(detail.status).toBe(200)
+    expect(detail.body.period.id).toBe(opened.periodId)
+    expect(detail.body.period.checklist).toBeTruthy()
+    expect(typeof detail.body.period.checklist.ready_for_soft_close).toBe('boolean')
+  })
+
   it('soft-closes a past OPEN period; hard-close then reopen with override', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AuditPage, AccountingPeriodsPage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
@@ -192,6 +192,23 @@ const apiMock = vi.hoisted(() => ({
           invoice_id: 'i1',
           invoice_number: 'INV-1',
           steps: [{ step_kind: 'REMIND', entered_at: '2026-01-01T00:00:00.000Z' }],
+        },
+      }
+    }
+    if (String(path).includes('/accounting/periods/')) {
+      return {
+        period: {
+          id: 'p1',
+          period_key: '2026-01',
+          status: 'OPEN',
+          checklist: {
+            period_ended: true,
+            invoices_generated: true,
+            reconciliation_complete: false,
+            drift_resolved: true,
+            approvals_cleared: true,
+            ready_for_soft_close: true,
+          },
         },
       }
     }
@@ -422,5 +439,17 @@ describe('admin/fin pages', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Dunning case')
+  })
+
+  it('Accounting period detail renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/accounting/periods/p1']}>
+        <Routes>
+          <Route path="/admin/fin/accounting/periods/:id" element={<AccountingPeriodDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Accounting period')
+    expect(await screen.findByText('Close checklist')).toBeTruthy()
   })
 })
