@@ -68,6 +68,7 @@ export function createInspectorService({ adapter, config, logger }) {
       photo_urls: payload.photo_urls ? JSON.stringify(payload.photo_urls) : null,
       dimension_scores: JSON.stringify(payload.dimension_scores || {}),
       notes: payload.notes || null,
+      signature: payload.signature || null,
       status: SubmissionStatus.PENDING_REVIEW,
       reviewed_by: null,
       reviewed_at: null,
