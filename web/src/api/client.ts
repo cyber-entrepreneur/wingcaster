@@ -494,6 +494,34 @@ export interface AgencyMfaPolicy {
   is_default: boolean
 }
 
+/** AGN-REP-001 — agency reports home preview card. */
+export interface AgencyReportsHomeCard {
+  id: string
+  report_id: string
+  title: string
+  href: string
+  kpi_label: string
+  kpi_value: number
+  secondary_label?: string | null
+  secondary_value?: number | null
+  trend: number[]
+}
+
+/** AGN-REP-001 — agency reports home summary payload. */
+export interface AgencyReportsHomeResponse {
+  generated_at: string
+  agency_id: string
+  window_days: number
+  cards: AgencyReportsHomeCard[]
+  totals: {
+    listings: number
+    inquiries: number
+    opportunities: number
+    agents: number
+    campaigns: number
+  }
+}
+
 /** Issue 192a — Personal Access Token row shape (no `hashed_secret`; server never returns it). */
 export interface ApiTokenRecord {
   id: string
@@ -2878,6 +2906,8 @@ export const api = {
   // Analytics
   getCrmAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/crm${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getAgencyReportsHome: () =>
+    fetchJson('/agency/analytics/reports-home') as Promise<AgencyReportsHomeResponse>,
   getCommunicationsAnalytics: (params?: { start_date?: string; end_date?: string; scope?: 'all'; agency_id?: string }) =>
     fetchJson(`/analytics/communications${params ? '?' + new URLSearchParams(params).toString() : ''}`),
   getAgencyLeadFunnel: (params?: {

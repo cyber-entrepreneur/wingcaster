@@ -83,6 +83,7 @@ import { AgencyWhiteLabelCopyPage } from '@/pages/agency/white-label/AgencyWhite
 import { AgencyOnboardingPage } from '@/pages/agency/AgencyOnboardingPage'
 import { LeadConversionFunnelPage } from '@/pages/agency/reports/LeadConversionFunnelPage'
 import { RevenueAttributionReportPage } from '@/pages/agency/reports/RevenueAttributionReportPage'
+import { AgencyReportsHomePage } from '@/pages/agency/reports/AgencyReportsHomePage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { WhatsAppIntakeSettingsPage } from '@/pages/agent/whatsapp-listings/WhatsAppIntakeSettingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
@@ -281,6 +282,7 @@ function AppRoutes() {
       <Route path="/agency/pricing/comparables" element={<AgencyComparablesPage />} />
       <Route path="/agency/reports/leads" element={<LeadConversionFunnelPage />} />
       <Route path="/agency/reports/revenue" element={<RevenueAttributionReportPage />} />
+      <Route path="/agency/reports" element={<AgencyReportsHomePage />} />
       <Route path="/white-label" element={<WhiteLabelBuilderPage />} />
       <Route path="/widgets" element={<WidgetBuilderPage />} />
       <Route path="/plans" element={<PlansPage />} />
