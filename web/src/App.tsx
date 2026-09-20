@@ -128,7 +128,7 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
   ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
@@ -407,6 +407,7 @@ function AppRoutes() {
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
+      <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
       <Route path="/notifications" element={<NotificationsInboxPage />} />
       <Route path="/notification-preferences" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />
