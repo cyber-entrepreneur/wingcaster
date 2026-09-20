@@ -137,7 +137,7 @@ import {
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
   PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
   SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
+  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { NotificationsInboxPage } from '@/pages/agent/NotificationsInboxPage'
@@ -412,6 +412,7 @@ function AppRoutes() {
       <Route path="/admin/fin/audit" element={<AuditPage />} />
       <Route path="/admin/fin/dunning/:id/advance" element={<AdvanceDunningStagePage />} />
       <Route path="/admin/fin/dunning/:id/cure" element={<CureDunningCasePage />} />
+      <Route path="/admin/fin/dunning/:id/write-off" element={<WriteOffDunningCasePage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
       <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
       <Route path="/notifications" element={<NotificationsInboxPage />} />

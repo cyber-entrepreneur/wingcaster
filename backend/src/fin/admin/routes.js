@@ -32,6 +32,7 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { advanceDunning } from '../dunning/steps.js'
 import { cureDunning } from '../dunning/cases.js'
 import { writeOffInvoice } from '../dunning/write-off-invoice.js'
+import { requestDunningWriteOff } from '../dunning/write-off-request.js'
 import { advanceBillingPeriodClose } from '../billing/period-close.js'
 import { reopenBillingPeriod } from '../billing/periods.js'
 import { voidIssuedInvoice } from '../billing/invoice-issuer.js'
@@ -638,6 +639,17 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
       return res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() })
     }
     const result = await cureDunning(input(req, { caseId: req.params.id }))
+    return res.status(200).json(result)
+  }))
+
+  app.post('/api/admin/fin/dunning/cases/:id/write-off/request', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const result = await requestDunningWriteOff(input(req, {
+      caseId: req.params.id,
+      amountMinor: pick(body, 'amountMinor', 'amount_minor'),
+      reasonCategory: pick(body, 'reasonCategory', 'reason_category'),
+      evidence: pick(body, 'evidence'),
+    }))
     return res.status(200).json(result)
   }))
 
