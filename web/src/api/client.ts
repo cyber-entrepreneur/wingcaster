@@ -824,6 +824,86 @@ export interface AgencyCampaignPerformanceResponse {
   }
 }
 
+/** Wave 2C — attribution model vocabulary. */
+export type AttributionModel = 'last' | 'first' | 'linear' | 'position' | 'data_driven'
+
+export interface AgencyAttributionFunnelMetrics {
+  leads: number
+  qualified: number
+  viewings: number
+  offers: number
+  reservations: number
+  transactions: number
+  commissions: number
+  gtv_micros: number
+  commission_micros: number
+  marketing_cost_micros: number
+  roas: number | null
+  roi: number | null
+  currency: string | null
+}
+
+export interface AgencyAttributionPerformanceResponse {
+  generated_at: string
+  agency_id: string | null
+  agent_id: string | null
+  model: AttributionModel
+  configured: boolean
+  code: string | null
+  overview: AgencyAttributionFunnelMetrics
+  by_campaign: Array<AgencyAttributionFunnelMetrics & { campaign_id: string }>
+  by_execution: Array<
+    AgencyAttributionFunnelMetrics & { execution_id: string; campaign_id: string | null }
+  >
+  conversions: Array<{
+    id: string
+    contact_id: string | null
+    from_stage: string | null
+    to_stage: string
+    occurred_at: string
+    value_micros: number | null
+    currency: string | null
+  }>
+}
+
+export interface AgencyAttributionChainResponse {
+  conversion: {
+    id: string
+    contact_id: string | null
+    from_stage: string | null
+    to_stage: string
+    occurred_at: string
+    value_micros: number | null
+    currency: string | null
+  }
+  model: AttributionModel
+  configured: boolean
+  code: string | null
+  touchpoint_execution_ids: string[]
+  executions: Array<{
+    id: string
+    kind: string | null
+    status: string | null
+    campaign_id: string | null
+    subject_type?: string | null
+    subject_id?: string | null
+  }>
+  credits: Array<{
+    id: string
+    conversion_id: string
+    execution_id: string
+    model: string
+    credit_weight: number
+  }>
+  credits_by_model: Record<string, Array<{
+    id: string
+    conversion_id: string
+    execution_id: string
+    model: string
+    credit_weight: number
+  }>>
+}
+
 /** AGN-CRD-004 — standing credit allocation rules for an agency wallet. */
 export type AgencyCreditAllocationMode =
   | 'manual'
@@ -3551,6 +3631,45 @@ export const api = {
     fetchJson(
       `/agency/analytics/campaign-performance${params ? '?' + new URLSearchParams(params).toString() : ''}`,
     ) as Promise<AgencyCampaignPerformanceResponse>,
+  getAgencyAttributionPerformance: (params?: {
+    model?: AttributionModel
+    campaign_id?: string
+    execution_id?: string
+    agent_id?: string
+  }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v != null && v !== '')
+            .map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : ''
+    return fetchJson(`/agency/analytics/attribution-performance${qs}`) as Promise<AgencyAttributionPerformanceResponse>
+  },
+  getAgencyAttributionChain: (
+    conversionId: string,
+    params?: { model?: AttributionModel },
+  ) => {
+    const qs = params?.model ? `?model=${encodeURIComponent(params.model)}` : ''
+    return fetchJson(
+      `/agency/analytics/attribution-chain/${encodeURIComponent(conversionId)}${qs}`,
+    ) as Promise<AgencyAttributionChainResponse>
+  },
+  materialiseAgencyAttribution: (body?: {
+    contact_id?: string
+    correlation_id?: string
+    attribute?: boolean
+    models?: AttributionModel[]
+  }) =>
+    fetchJson('/agency/attribution/materialise', {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  recomputeAgencyAttribution: (body: { model: AttributionModel; conversion_id?: string }) =>
+    fetchJson('/agency/attribution/recompute', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getAgencyAgentLeaderboard: (params?: {
     start_date?: string
     end_date?: string
