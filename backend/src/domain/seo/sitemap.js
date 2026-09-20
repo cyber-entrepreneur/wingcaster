@@ -7,12 +7,7 @@ import { escapeXml } from '../../lib/xml.js'
 import { isAgencySiteVisible, isMarketplaceVisible } from '../../platformModel.js'
 import { getPublicAppBase } from '../../whiteLabel.js'
 import { getSeoPage } from './repository.js'
-
-function photos(property) {
-  if (Array.isArray(property.photos)) return property.photos
-  if (typeof property.photos === 'string') return property.photos.split('|').filter(Boolean)
-  return []
-}
+import { getAgencySiteContextBySubdomain } from './site-context.js'
 
 function lastMod(property, seoPage) {
   const candidate = seoPage?.updated_at || property.updated_at || property.listed_date
@@ -22,23 +17,21 @@ function lastMod(property, seoPage) {
 }
 
 /**
- * Build sitemap XML for a white-label site subdomain.
+ * Build sitemap XML for a white-label site subdomain (agencies.slug).
  */
 export async function buildSiteSitemap(subdomain, { appBase } = {}) {
   const base = (appBase || getPublicAppBase()).replace(/\/$/, '')
-  const site = await findOne('white_label_sites', (s) => s.subdomain === subdomain && s.status === 'active')
-  if (!site) return null
+  const siteContext = await getAgencySiteContextBySubdomain(subdomain)
+  if (!siteContext) return null
 
-  const agency = await findOne('agencies', (a) => a.id === site.agency_id)
-  if (!agency) return null
-
+  const agency = siteContext.agency
   const members = await findAll('agency_members', (m) => m.agency_id === agency.id && m.status === 'active')
   const memberIds = members.map((m) => m.user_id)
   const allProps = await findAll('properties', (p) => memberIds.includes(p.agent_id) || p.agency_id === agency.id)
   const indexable = allProps.filter((p) => isAgencySiteVisible(p, agency.id))
 
-  const siteBase = site.custom_domain
-    ? `https://${String(site.custom_domain).replace(/^https?:\/\//, '')}`
+  const siteBase = siteContext.custom_domain
+    ? `https://${String(siteContext.custom_domain).replace(/^https?:\/\//, '')}`
     : `${base}/site/${subdomain}`
 
   let xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -57,7 +50,7 @@ export async function buildSiteSitemap(subdomain, { appBase } = {}) {
   }
 
   xml += '</urlset>'
-  return { xml, site, agency, count: indexable.length }
+  return { xml, site: siteContext, agency, count: indexable.length }
 }
 
 /**

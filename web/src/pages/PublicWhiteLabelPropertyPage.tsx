@@ -41,7 +41,6 @@ export function PublicWhiteLabelPropertyPage() {
     const ogEntries = seo.og_tags && typeof seo.og_tags === 'object' ? Object.entries(seo.og_tags) : []
     const prevOg: Array<{ el: HTMLMetaElement; content: string }> = []
     for (const [key, value] of ogEntries) {
-      const prop = key.startsWith('twitter:') ? 'name' : 'property'
       const attr = key.startsWith('twitter:') ? 'name' : 'property'
       let el = document.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)
       if (el) prevOg.push({ el, content: el.content })

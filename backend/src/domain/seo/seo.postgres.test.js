@@ -22,8 +22,22 @@ import { SEO_EVENT_GENERATED } from './constants.js'
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../persistence/migrations')
 
+async function seedAgencySiteConfig(pool, { agencyId, slug, customDomain = null }) {
+  await pool.query(
+    `INSERT INTO public.agency_site_config (
+       id, agency_id, custom_domain, published_at, copy_fields, data
+     )
+     VALUES ($1, $2, $3, NOW(), '{}'::jsonb, '{}'::jsonb)
+     ON CONFLICT (agency_id) DO UPDATE
+       SET published_at = EXCLUDED.published_at,
+           custom_domain = COALESCE(EXCLUDED.custom_domain, public.agency_site_config.custom_domain)`,
+    [`asc_${randomUUID()}`, agencyId, customDomain],
+  )
+}
+
 async function seedAgencyAgent(pool, { agencyId, agentId, propertyId }) {
   const userId = randomUUID()
+  const agencySlug = `site-${agencyId.slice(-8)}`
   await pool.query(
     `INSERT INTO public.users (id, email, name, data)
      VALUES ($1, $2, 'Wave2F', '{}'::jsonb)
@@ -31,10 +45,10 @@ async function seedAgencyAgent(pool, { agencyId, agentId, propertyId }) {
     [userId, `${userId}@wave2f.test`],
   )
   await pool.query(
-    `INSERT INTO public.agencies (id, name, site_hosting_type, data)
-     VALUES ($1, $2, 'whitelabel', '{}'::jsonb)
+    `INSERT INTO public.agencies (id, owner_id, name, slug, site_hosting_type, data)
+     VALUES ($1, $2, $3, $4, 'whitelabel', '{}'::jsonb)
      ON CONFLICT (id) DO NOTHING`,
-    [agencyId, `Agency ${agencyId}`],
+    [agencyId, userId, `Agency ${agencyId}`, agencySlug],
   )
   await pool.query(
     `INSERT INTO public.agents (id, user_id, email, name, agency_id, data)
@@ -54,12 +68,7 @@ async function seedAgencyAgent(pool, { agencyId, agentId, propertyId }) {
       'Spacious apartment with marina views, modern finishes, and premium amenities in the heart of Dubai Marina district.',
     ],
   )
-  await pool.query(
-    `INSERT INTO public.white_label_sites (id, agency_id, name, subdomain, status, brand_config, created_at)
-     VALUES ($1, $2, 'Test Site', $3, 'active', '{}', NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [`wls_${randomUUID()}`, agencyId, `site-${agencyId.slice(-6)}`],
-  )
+  await seedAgencySiteConfig(pool, { agencyId, slug: agencySlug })
 }
 
 skipIfNoPostgres()('SEO Real-PG', () => {
@@ -167,11 +176,14 @@ skipIfNoPostgres()('SEO Real-PG', () => {
          VALUES ($1, $2, 'Free Agent Listing Downtown', 'A nice place.', 'active', 'Dubai', '{}'::jsonb)`,
         [propertyId, freeAgentId],
       )
+      const soloAgencyId = `agy_${randomUUID()}`
+      const soloSlug = `agent-${freeAgentId.slice(-8)}`
       await pool.query(
-        `INSERT INTO public.white_label_sites (id, agent_id, name, subdomain, status, brand_config, created_at)
-         VALUES ($1, $2, 'Agent Site', $3, 'active', '{}', NOW())`,
-        [`wls_${randomUUID()}`, freeAgentId, `agent-${freeAgentId.slice(-6)}`],
+        `INSERT INTO public.agencies (id, owner_id, name, slug, site_hosting_type, data)
+         VALUES ($1, $2, 'Free Agent Site', $3, 'whitelabel', '{}'::jsonb)`,
+        [soloAgencyId, freeUserId, soloSlug],
       )
+      await seedAgencySiteConfig(pool, { agencyId: soloAgencyId, slug: soloSlug })
 
       const { findOne } = await import('../../persistence/index.js')
       const property = await findOne('properties', (p) => p.id === propertyId)

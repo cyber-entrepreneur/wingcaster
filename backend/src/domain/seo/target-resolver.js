@@ -6,18 +6,7 @@ import { findAll, findOne } from '../../persistence/index.js'
 import { getActiveAgencyForUser } from '../../platformModel.js'
 import { withTenant } from '../../lib/growth-os/index.js'
 import { getSeoTargetPreference } from './repository.js'
-
-async function agentHasWhiteLabelSite(agentId) {
-  const sites = await findAll('white_label_sites', (s) => s.agent_id === agentId && s.status === 'active')
-  return sites.length > 0 ? sites[0] : null
-}
-
-async function agencyHasWhiteLabelSite(agencyId) {
-  const site = await findOne('white_label_sites', (s) => s.agency_id === agencyId && s.status === 'active')
-  if (site) return site
-  const config = await findOne('agency_site_config', (c) => c.agency_id === agencyId)
-  return config ? { agency_id: agencyId, subdomain: null, custom_domain: config.custom_domain } : null
-}
+import { getAgencySiteContext, getAgentOwnWhiteLabelSite } from './site-context.js'
 
 async function agentHasExternalSite(agentId, agencyId) {
   const agent = await findOne('agents', (a) => a.id === agentId)
@@ -76,7 +65,7 @@ export async function resolveSeoTarget({
   const effectiveAgencyId = agency?.id || property.agency_id || null
 
   if (isAgencyTagged(property, agency)) {
-    const site = await agencyHasWhiteLabelSite(effectiveAgencyId)
+    const site = await getAgencySiteContext(effectiveAgencyId)
     return {
       target_surface: 'agency_white_label',
       resolved: true,
@@ -89,9 +78,7 @@ export async function resolveSeoTarget({
     }
   }
 
-  const whiteLabelSite = await agentHasWhiteLabelSite(agentId)
-  const agencySite = effectiveAgencyId ? await agencyHasWhiteLabelSite(effectiveAgencyId) : null
-  const ownWhiteLabel = whiteLabelSite || (agencySite && !isAgencyTagged(property, agency) ? agencySite : null)
+  const ownWhiteLabel = await getAgentOwnWhiteLabelSite(agentId)
   const external = await agentHasExternalSite(agentId, effectiveAgencyId)
 
   const available = []
