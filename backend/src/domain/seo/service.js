@@ -11,7 +11,7 @@ import {
 } from '../../lib/growth-os/index.js'
 import { findOne } from '../../persistence/index.js'
 import { getPublicAppBase } from '../../whiteLabel.js'
-import { SEO_EVENT_GENERATED, SEO_EXECUTION_KIND } from './constants.js'
+import { SEO_EVENT_GENERATED, SEO_EVENT_SOURCE, SEO_EXECUTION_KIND } from './constants.js'
 import { buildRealEstateListingJsonLd, validateJsonLd } from './jsonld.js'
 import { buildCanonicalUrl, buildOgTags, slugify } from './meta.js'
 import { computeSeoRecommendations } from './recommendations.js'
@@ -180,25 +180,29 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
     agentId: effectiveAgentId,
   })
 
+  const occurredAt = new Date().toISOString()
   const idempotencyKey = buildIdempotencyKey({
+    source: SEO_EVENT_SOURCE,
+    objectType: 'execution',
+    objectId: execution.id,
     eventName: SEO_EVENT_GENERATED,
-    executionId: execution.id,
-    subjectType: 'property',
-    subjectId: propertyId,
+    occurredAt,
   })
 
   await ingestEvent({
     eventName: SEO_EVENT_GENERATED,
+    source: SEO_EVENT_SOURCE,
     agencyId: effectiveAgencyId,
     agentId: effectiveAgentId,
     actorType: 'agent',
     actorId: effectiveAgentId,
     objectType: 'execution',
     objectId: execution.id,
-    subjectType: 'property',
-    subjectId: propertyId,
+    executionId: execution.id,
+    occurredAt,
     idempotencyKey,
     data: {
+      property_id: propertyId,
       target_surface: target.target_surface,
       canonical_url: canonicalUrl,
       seo_page_id: seoPage.id,

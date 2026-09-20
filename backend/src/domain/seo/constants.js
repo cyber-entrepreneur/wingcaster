@@ -18,6 +18,7 @@ export const SEO_TARGET_SURFACES = Object.freeze([
 
 export const SEO_EXECUTION_KIND = 'seo_page'
 export const SEO_EVENT_GENERATED = 'seo.page.generated'
+export const SEO_EVENT_SOURCE = 'seo'
 
 export const TITLE_MIN_LENGTH = 30
 export const TITLE_MAX_LENGTH = 60

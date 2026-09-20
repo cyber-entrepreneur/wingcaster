@@ -8,6 +8,7 @@ export {
   SEO_TARGET_SURFACES,
   SEO_EXECUTION_KIND,
   SEO_EVENT_GENERATED,
+  SEO_EVENT_SOURCE,
 } from './constants.js'
 export { buildRealEstateListingJsonLd, validateJsonLd } from './jsonld.js'
 export { buildCanonicalUrl, buildOgTags, slugify, validateTitleLength, validateMetaLength } from './meta.js'
