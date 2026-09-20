@@ -68,7 +68,7 @@ const DEFAULT_GROUPS: Record<NavPersona, SearchResultGroup[]> = {
       heading: 'actions',
       items: [
         { id: 'new-listing', label: 'Create new listing', href: '/listings/new' },
-        { id: 'start-campaign', label: 'Start a campaign', href: '/campaigns/new' },
+        { id: 'start-journey', label: 'Start a journey', href: '/journeys/new' },
       ],
     },
   ],

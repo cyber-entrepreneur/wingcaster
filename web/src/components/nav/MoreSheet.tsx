@@ -32,6 +32,7 @@ export type BottomTabCopy = {
   'sheet.group.setup': string
   'sheet.group.account': string
   'sheet.row.campaigns': string
+  'sheet.row.journeys': string
   'sheet.row.templates': string
   'sheet.row.pricing': string
   'sheet.row.analytics': string
@@ -63,6 +64,7 @@ export const BOTTOM_TAB_COPY: Record<BottomTabLocale, BottomTabCopy> = {
     'sheet.group.setup': 'Setup',
     'sheet.group.account': 'Account',
     'sheet.row.campaigns': 'Campaigns',
+    'sheet.row.journeys': 'Journeys',
     'sheet.row.templates': 'Templates',
     'sheet.row.pricing': 'Pricing & plans',
     'sheet.row.analytics': 'Analytics',
@@ -91,6 +93,7 @@ export const BOTTOM_TAB_COPY: Record<BottomTabLocale, BottomTabCopy> = {
     'sheet.group.setup': 'الإعداد',
     'sheet.group.account': 'الحساب',
     'sheet.row.campaigns': 'الحملات',
+    'sheet.row.journeys': 'الرحلات',
     'sheet.row.templates': 'القوالب',
     'sheet.row.pricing': 'التسعير والخطط',
     'sheet.row.analytics': 'التحليلات',
@@ -159,7 +162,7 @@ function buildGroups(showTeam: boolean, onSignOut?: () => void): SheetGroup[] {
       id: 'business',
       labelKey: 'sheet.group.business',
       rows: [
-        { id: 'campaigns', labelKey: 'sheet.row.campaigns', href: '/campaigns', icon: Megaphone },
+        { id: 'journeys', labelKey: 'sheet.row.journeys', href: '/journeys', icon: Megaphone },
         { id: 'templates', labelKey: 'sheet.row.templates', href: '/templates', icon: LayoutTemplate },
         { id: 'pricing', labelKey: 'sheet.row.pricing', href: '/plans', icon: CreditCard },
         { id: 'analytics', labelKey: 'sheet.row.analytics', href: '/analytics', icon: BarChart3 },

@@ -125,7 +125,7 @@ const AGENT_NAV: DrawerNavGroup[] = [
   {
     id: 'grow',
     items: [
-      { id: 'campaigns', label: 'Campaigns', href: '/campaigns', icon: Megaphone },
+      { id: 'journeys', label: 'Journeys', href: '/journeys', icon: Megaphone },
       { id: 'templates', label: 'Templates', href: '/templates', icon: LayoutTemplate },
       { id: 'analytics', label: 'Analytics', href: '/analytics', icon: BarChart3 },
       { id: 'reviews', label: 'Reviews', href: '/agent/reviews', icon: Star },

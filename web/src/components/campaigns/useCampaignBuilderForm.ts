@@ -78,22 +78,23 @@ export function useCampaignBuilderForm(initialForm?: CampaignFormState) {
   const handleSave = async (status: 'draft' | 'active') => {
     setSaving(true)
     try {
-      await api.createCampaign({
+      await api.createJourney({
         name: form.name.trim(),
         description: form.description.trim(),
         status,
         trigger: form.trigger,
         target_channel: form.target_channel,
         tags_filter: form.tags_filter,
+        audience_rules: form.audience_rules,
         steps: form.steps,
       })
       addToast({
-        title: `Campaign ${status === 'active' ? 'launched' : 'saved as draft'}`,
+        title: `Journey ${status === 'active' ? 'launched' : 'saved as draft'}`,
         variant: 'success',
       })
-      navigate('/campaigns')
+      navigate('/journeys')
     } catch (e: any) {
-      addToast({ title: 'Could not save campaign', description: e.message, variant: 'error' })
+      addToast({ title: 'Could not save journey', description: e.message, variant: 'error' })
     } finally {
       setSaving(false)
     }
