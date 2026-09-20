@@ -739,7 +739,8 @@ const TABLE_MAP = {
     table: 'inspection_submissions',
     columns: [
       'assignment_id', 'agent_id', 'area_id', 'gps_latitude', 'gps_longitude', 'photo_urls',
-      'dimension_scores', 'notes', 'status', 'reviewed_by', 'reviewed_at', 'review_notes', 'submitted_at',
+      'dimension_scores', 'notes', 'signature', 'status', 'reviewed_by', 'reviewed_at', 'review_notes',
+      'submitted_at',
     ],
   },
   google_api_usage_log: {
