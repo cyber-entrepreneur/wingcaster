@@ -48,6 +48,9 @@ import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
 import { JourneyRunInspectorPage } from '@/pages/JourneyRunInspectorPage'
 import { AudiencesPage } from '@/pages/AudiencesPage'
 import { AudienceBuilderPage } from '@/pages/AudienceBuilderPage'
+import { ExperimentsPage } from '@/pages/ExperimentsPage'
+import { ExperimentBuilderPage } from '@/pages/ExperimentBuilderPage'
+import { ExperimentResultsPage } from '@/pages/ExperimentResultsPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
@@ -284,6 +287,10 @@ function AppRoutes() {
       <Route path="/audiences" element={<AudiencesPage />} />
       <Route path="/audiences/new" element={<AudienceBuilderPage />} />
       <Route path="/audiences/:id" element={<AudienceBuilderPage />} />
+      <Route path="/experiments" element={<ExperimentsPage />} />
+      <Route path="/experiments/new" element={<ExperimentBuilderPage />} />
+      <Route path="/experiments/:id" element={<ExperimentBuilderPage />} />
+      <Route path="/experiments/:id/results" element={<ExperimentResultsPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
       <Route path="/message-templates/new" element={<MessageTemplateEditorPage />} />
       <Route path="/message-templates/:id" element={<MessageTemplateEditorPage />} />

@@ -222,7 +222,9 @@ export function resolveBranchTarget(graph, node, contact, state, recentEvents = 
 }
 
 /**
- * Deterministic experiment assignment for node-level splits (Wave 2D stats later).
+ * Deterministic experiment assignment for node-level splits without a persisted
+ * Experiment row. When config.experiment_id points at experiments, the engine
+ * delegates to domain/experiments assignment-engine instead.
  */
 export function assignExperimentVariant(config, contactId) {
   const variants = Array.isArray(config?.variants) ? config.variants : []

@@ -11,6 +11,7 @@ import {
   withTenant,
 } from '../../lib/growth-os/index.js'
 import { findOne } from '../../persistence/index.js'
+import { resolveJourneyExperimentNode, resolveVariantForExecution } from '../experiments/index.js'
 import {
   assignExperimentVariant,
   getNode,
@@ -337,18 +338,27 @@ export async function processNode(run, version, contact, { agencyId, agentId, no
   }
 
   if (node.type === 'experiment') {
-    const assignment = assignExperimentVariant(node.config || {}, contact.id)
-    const next = assignment.next || getOutgoing(graph, node.id)[0]
+    const resolved = await resolveJourneyExperimentNode({
+      nodeConfig: node.config || {},
+      contactId: contact.id,
+      agencyId,
+      agentId,
+      fallbackAssign: assignExperimentVariant,
+    })
+    const next = resolved.next || getOutgoing(graph, node.id)[0]
     const state = {
       ...run.state,
-      [`experiment_${node.id}`]: assignment.variant,
+      [`experiment_${node.id}`]: resolved.variant,
     }
     run = await updateJourneyRun(run.id, { state }, { agencyId, agentId })
     const reason = {
       type: 'experiment',
-      variant: assignment.variant,
-      assignment_reason: assignment.assignment_reason,
-      experiment_id: node.config?.experiment_id || null,
+      variant: resolved.variant,
+      assignment_reason: resolved.assignment_reason,
+      model_version: resolved.model_version,
+      experiment_id: resolved.experiment_id || node.config?.experiment_id || null,
+      assignment_id: resolved.assignment?.id || null,
+      persisted: resolved.persisted,
     }
     const nr = await recordNodeRun({
       journeyRunId: run.id,
@@ -429,22 +439,48 @@ export async function processNode(run, version, contact, { agencyId, agentId, no
       return { done: true, run: updated, nodeRuns, transitions, suppressed: true }
     }
 
+    const baseData = {
+      channel,
+      purpose,
+      subject: node.config?.subject || '',
+      body: node.config?.body || '',
+      template_id: node.config?.template_id || null,
+    }
+
+    let creativeId = node.config?.creative_id || null
+    let executionData = baseData
+    if (node.config?.experiment_id && contact?.id) {
+      const resolved = await resolveVariantForExecution({
+        experimentId: node.config.experiment_id,
+        contactId: contact.id,
+        creativeId,
+        agencyId,
+        agentId,
+        baseData,
+      })
+      executionData = resolved.data
+      if (resolved.creative_variant_id) {
+        executionData = {
+          ...executionData,
+          creative_variant_id: resolved.creative_variant_id,
+        }
+      }
+      // Holdout keeps default creative; treatment may swap creative id via variant payload
+      if (!resolved.holdout && resolved.creative_variant_id) {
+        // creative_id on execution stays the parent creative; variant stamped in data
+      }
+    }
+
     const execution = await createExecution({
       kind: 'message',
       status: 'draft',
       agencyId,
       agentId,
       journeyNodeRunId: null,
-      creativeId: node.config?.creative_id || null,
+      creativeId,
       subjectType: 'contact',
       subjectId: contact.id,
-      data: {
-        channel,
-        purpose,
-        subject: node.config?.subject || '',
-        body: node.config?.body || '',
-        template_id: node.config?.template_id || null,
-      },
+      data: executionData,
     })
 
     const nr = await recordNodeRun({

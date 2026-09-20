@@ -1115,6 +1115,93 @@ export interface AgencyAttributionChainResponse {
   }>>
 }
 
+/** Wave 2D — Experimentation (A/B/n + holdouts). */
+export type ExperimentDimension =
+  | 'creative'
+  | 'copy'
+  | 'cta'
+  | 'channel'
+  | 'timing'
+  | 'journey_path'
+export type ExperimentAllocation = 'even' | 'bandit'
+export type ExperimentStatus = 'draft' | 'running' | 'concluded'
+
+export interface ExperimentVariant {
+  key: string
+  label?: string
+  weight?: number
+  next?: string | null
+  creative_variant_id?: string | null
+  journey_path?: string | null
+  is_control?: boolean
+  payload?: Record<string, unknown>
+}
+
+export interface Experiment {
+  id: string
+  campaign_id: string | null
+  dimension: ExperimentDimension
+  variants: ExperimentVariant[]
+  allocation: ExperimentAllocation
+  holdout_pct: number
+  goal_event: string
+  status: ExperimentStatus
+  result: Record<string, unknown>
+  agency_id: string | null
+  agent_id: string | null
+  data: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ExperimentAssignment {
+  id: string
+  experiment_id: string
+  contact_id: string
+  variant: string
+  assigned_at: string
+  assignment_reason: string
+  model_version: string
+  agency_id: string | null
+  agent_id: string | null
+  data: Record<string, unknown>
+}
+
+export interface ExperimentVariantResult {
+  variant: string
+  assigned: number
+  conversions: number
+  conversion_rate: number | null
+  is_control: boolean
+  vs_control: {
+    rate_a: number | null
+    rate_b: number | null
+    lift: number | null
+    z: number | null
+    p_value: number | null
+    significant_at_95: boolean
+    confidence: number | null
+    reason: string
+    ci_95?: [number, number]
+  } | null
+}
+
+export interface ExperimentResults {
+  computed_at: string
+  method: string
+  goal_event: string
+  to_stage: string
+  control_variant: string | null
+  assignment_count: number
+  matched_conversions: number
+  variants: ExperimentVariantResult[]
+  sequential: { code: string }
+  bandit: { code: string }
+  winner_variant?: string | null
+  promotion?: { promoted: boolean; variant?: string; reason?: string }
+  concluded_at?: string
+}
+
 /** Wave 2B — publishing control plane / content calendar. */
 export type ExecutionKind = 'message' | 'social_post' | 'paid_ad' | 'portal_submit' | 'seo_page'
 export type ExecutionStatus =
@@ -4329,6 +4416,71 @@ export const api = {
   deleteAudience: (id: string) => fetchJson(`/audiences/${id}`, { method: 'DELETE' }),
   resolveAudience: (id: string, data?: Record<string, unknown>) =>
     fetchJson(`/audiences/${id}/resolve`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  // Experiments (Wave 2D)
+  getExperiments: (params?: {
+    campaign_id?: string
+    status?: ExperimentStatus
+    dimension?: ExperimentDimension
+  }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v != null && v !== '')
+            .map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : ''
+    return fetchJson(`/agency/experiments${qs}`) as Promise<{ experiments: Experiment[] }>
+  },
+  getExperiment: (id: string) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}`) as Promise<Experiment>,
+  createExperiment: (data: {
+    campaign_id?: string | null
+    dimension: ExperimentDimension
+    variants: ExperimentVariant[]
+    allocation?: ExperimentAllocation
+    holdout_pct?: number
+    goal_event: string
+    status?: ExperimentStatus
+    data?: Record<string, unknown>
+  }) =>
+    fetchJson('/agency/experiments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }) as Promise<Experiment>,
+  updateExperiment: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }) as Promise<Experiment>,
+  startExperiment: (id: string) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+      body: '{}',
+    }) as Promise<Experiment>,
+  assignExperimentContact: (id: string, contactId: string) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ contact_id: contactId }),
+    }),
+  getExperimentAssignments: (id: string) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}/assignments`) as Promise<{
+      assignments: ExperimentAssignment[]
+    }>,
+  getExperimentResults: (id: string, params?: { persist?: boolean }) => {
+    const qs = params?.persist ? '?persist=1' : ''
+    return fetchJson(
+      `/agency/experiments/${encodeURIComponent(id)}/results${qs}`,
+    ) as Promise<ExperimentResults>
+  },
+  concludeExperiment: (
+    id: string,
+    body?: { winner_variant?: string | null; require_significance?: boolean },
+  ) =>
+    fetchJson(`/agency/experiments/${encodeURIComponent(id)}/conclude`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }) as Promise<{ experiment: Experiment; results: ExperimentResults }>,
 
   // Journeys (Wave 1A canonical) + legacy Campaigns aliases
   getJourneys: (params?: Record<string, string>) => {

@@ -507,6 +507,24 @@ const TABLE_MAP = {
       'experiment_id', 'sort_order',
     ],
   },
+
+  // Growth-OS Wave 2D — experimentation
+  experiments: {
+    schema: 'public',
+    table: 'experiments',
+    columns: [
+      'agency_id', 'agent_id', 'campaign_id', 'dimension', 'variants',
+      'allocation', 'holdout_pct', 'goal_event', 'status', 'result',
+    ],
+  },
+  experiment_assignments: {
+    schema: 'public',
+    table: 'experiment_assignments',
+    columns: [
+      'experiment_id', 'contact_id', 'variant', 'assigned_at',
+      'assignment_reason', 'model_version', 'agency_id', 'agent_id',
+    ],
+  },
   creative_renditions: {
     schema: 'public',
     table: 'creative_renditions',

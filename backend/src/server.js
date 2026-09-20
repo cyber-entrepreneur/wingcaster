@@ -464,6 +464,7 @@ import {
 } from './campaigns.js'
 import { registerAudienceRoutes } from './domain/audiences/routes.js'
 import { registerAttributionRoutes } from './domain/attribution/index.js'
+import { registerExperimentRoutes } from './domain/experiments/index.js'
 import { registerContactPolicyRoutes } from './lib/growth-os/contact-policy-routes.js'
 import { registerPublishingCalendarRoutes } from './domain/publishing-calendar/index.js'
 import { registerPaidAdsRoutes } from './domain/paid-ads/index.js'
@@ -3334,6 +3335,7 @@ app.post('/api/campaigns/run-scheduler', authMiddleware, async (req, res) => {
 
 registerAudienceRoutes(app, { authMiddleware, logActivity })
 registerAttributionRoutes(app, { authMiddleware })
+registerExperimentRoutes(app, { authMiddleware })
 registerContactPolicyRoutes(app, { authMiddleware, logActivity })
 registerPublishingCalendarRoutes(app, { authMiddleware })
 registerPaidAdsRoutes(app, { authMiddleware, logActivity })
