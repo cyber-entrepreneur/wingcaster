@@ -1,4 +1,5 @@
 import { findAll } from '../db.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -48,10 +49,14 @@ export async function getCampaignPerformance({
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
-  const [allCampaigns, allEnrollments, allMessages, allAgents] = await Promise.all([
-    findAll('campaigns'),
-    findAll('campaign_enrollments'),
-    findAll('campaign_messages'),
+  // Push agency + agent scope onto campaigns in SQL (channel needs step
+  // inspection, so it stays in JS). Enrollments and messages are only ever kept
+  // for the resulting campaigns, so they are loaded scoped by campaign_id IN (…)
+  // once the campaign set is known. No date is pushed onto messages: the JS
+  // window is over `sent_at || created_at`, which SQL can't reproduce as a
+  // single-column predicate. agents is a full lookup load.
+  const [allCampaigns, allAgents] = await Promise.all([
+    findAll('campaigns', buildScopeFilter({ columns: { agency_id: agencyId, agent_id: agentId } })),
     findAll('agents'),
   ])
 
@@ -64,6 +69,11 @@ export async function getCampaignPerformance({
   }
 
   const campaignIds = new Set(campaigns.map((row) => row.id))
+  const campaignIdScope = buildScopeFilter({ columns: { campaign_id: [...campaignIds] } })
+  const [allEnrollments, allMessages] = await Promise.all([
+    findAll('campaign_enrollments', campaignIdScope),
+    findAll('campaign_messages', campaignIdScope),
+  ])
   const enrollments = allEnrollments.filter((row) => campaignIds.has(row.campaign_id))
   const messages = allMessages.filter((row) => campaignIds.has(row.campaign_id))
 

@@ -1,5 +1,6 @@
 import { findAll } from '../db.js'
 import { getPipelineSummary } from '../opportunities.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -69,16 +70,31 @@ export async function getCrmAnalytics({ agentId, agencyId, startDate, endDate } 
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
-  const allOpportunities = await findAll('opportunities')
+  // Scope is pushed down to SQL (agency OR agent — mirroring applyScopeFilters'
+  // precedence — plus the created_at window). applyScopeFilters still runs as
+  // the behavioural authority; the pushed-down filter only narrows the load.
+  const allOpportunities = await findAll('opportunities', buildScopeFilter({
+    columns: agencyId ? { agency_id: agencyId } : { agent_id: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const opportunities = applyScopeFilters({ items: allOpportunities, agentId, agencyId, startDate: start, endDate: end, dateKey: 'created_at' })
 
-  const allContacts = await findAll('contacts')
+  const allContacts = await findAll('contacts', buildScopeFilter({
+    columns: agencyId ? { agency_id: agencyId } : { assigned_agent_id: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const contacts = applyScopeFilters({ items: allContacts, agentId, agencyId, agentKey: 'assigned_agent_id', startDate: start, endDate: end, dateKey: 'created_at' })
 
-  const allTasks = await findAll('tasks')
+  const allTasks = await findAll('tasks', buildScopeFilter({
+    columns: agencyId ? { agency_id: agencyId } : { assigned_to: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const tasks = applyScopeFilters({ items: allTasks, agentId, agencyId, startDate: start, endDate: end, dateKey: 'created_at' })
 
-  const allViewings = await findAll('viewings')
+  const allViewings = await findAll('viewings', buildScopeFilter({
+    columns: agencyId ? { agency_id: agencyId } : { agent_id: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const viewings = applyScopeFilters({ items: allViewings, agentId, agencyId, startDate: start, endDate: end, dateKey: 'created_at' })
 
   const pipeline = agentId ? await getPipelineSummary(agentId) : computePipelineSummary(opportunities)
@@ -198,10 +214,20 @@ export async function getCommunicationsAnalytics({ agentId, agencyId, startDate,
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
-  const allConversations = await findAll('conversations')
+  // conversations / conversation_messages have no typed agency_id column, so
+  // agency scope stays in applyScopeFilters (it reads agency_id off the JSONB
+  // blob). We still push the agent column (when agent-scoped) and the created_at
+  // window down to SQL. applyScopeFilters remains the behavioural authority.
+  const allConversations = await findAll('conversations', buildScopeFilter({
+    columns: agencyId ? {} : { assigned_agent_id: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const conversations = applyScopeFilters({ items: allConversations, agentId, agencyId, agentKey: 'assigned_agent_id', startDate: start, endDate: end, dateKey: 'created_at' })
 
-  const allMessages = await findAll('conversation_messages')
+  const allMessages = await findAll('conversation_messages', buildScopeFilter({
+    columns: agencyId ? {} : { created_by_agent_id: agentId },
+    dateColumn: 'created_at', startDate: start, endDate: end,
+  }))
   const messages = applyScopeFilters({ items: allMessages, agentId, agencyId, agentKey: 'created_by_agent_id', startDate: start, endDate: end, dateKey: 'created_at' })
 
   // Volume by channel

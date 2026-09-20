@@ -135,4 +135,77 @@ skipIfNoPostgres()('Postgres adapter', () => {
     })
     expect(result).toBe(2)
   })
+
+  describe('structured filter pushdown', () => {
+    // website_analytics is a real mapped table with a NOT NULL, un-FK'd
+    // agency_id and a settable created_at — ideal for exercising the WHERE
+    // builder without seeding parent rows.
+    const agencyA = `agc_pushdown_a_${randomUUID().slice(0, 8)}`
+    const agencyB = `agc_pushdown_b_${randomUUID().slice(0, 8)}`
+
+    beforeAll(async () => {
+      await postgresAdapter.insert('website_analytics', {
+        agency_id: agencyA, page: '/one', referrer: 'google', created_at: '2026-01-10T00:00:00Z',
+      })
+      await postgresAdapter.insert('website_analytics', {
+        agency_id: agencyA, page: '/two', created_at: '2026-02-10T00:00:00Z',
+      })
+      await postgresAdapter.insert('website_analytics', {
+        agency_id: agencyB, page: '/three', referrer: 'bing', created_at: '2026-01-15T00:00:00Z',
+      })
+    })
+
+    it('applies an equality filter in SQL', async () => {
+      const rows = await postgresAdapter.findAll('website_analytics', { agency_id: agencyA })
+      expect(rows).toHaveLength(2)
+      expect(rows.every((r) => r.agency_id === agencyA)).toBe(true)
+    })
+
+    it('applies an IN (array) filter in SQL', async () => {
+      const both = await postgresAdapter.findAll('website_analytics', { agency_id: [agencyA, agencyB] })
+      expect(both.filter((r) => [agencyA, agencyB].includes(r.agency_id))).toHaveLength(3)
+
+      const justB = await postgresAdapter.findAll('website_analytics', { agency_id: [agencyB] })
+      expect(justB).toHaveLength(1)
+      expect(justB[0].agency_id).toBe(agencyB)
+    })
+
+    it('matches nothing for an empty array', async () => {
+      const rows = await postgresAdapter.findAll('website_analytics', { agency_id: [] })
+      expect(rows).toHaveLength(0)
+    })
+
+    it('applies a half-open date range in SQL', async () => {
+      const rows = await postgresAdapter.findAll('website_analytics', {
+        agency_id: agencyA,
+        created_at: { gte: '2026-02-01T00:00:00Z', lt: '2026-03-01T00:00:00Z' },
+      })
+      expect(rows).toHaveLength(1)
+      expect(rows[0].page).toBe('/two')
+    })
+
+    it('applies an IS NULL filter in SQL', async () => {
+      const rows = await postgresAdapter.findAll('website_analytics', {
+        agency_id: agencyA,
+        referrer: null,
+      })
+      expect(rows).toHaveLength(1)
+      expect(rows[0].page).toBe('/two')
+    })
+
+    it('rejects a filter on a non-column field', async () => {
+      await expect(
+        postgresAdapter.findAll('website_analytics', { not_a_column: 'x' }),
+      ).rejects.toThrow(/not a mapped column/)
+    })
+
+    it('still honours a function filter as an in-JS predicate', async () => {
+      const rows = await postgresAdapter.findAll(
+        'website_analytics',
+        (r) => r.agency_id === agencyB,
+      )
+      expect(rows).toHaveLength(1)
+      expect(rows[0].agency_id).toBe(agencyB)
+    })
+  })
 })

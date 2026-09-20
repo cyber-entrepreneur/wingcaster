@@ -1,4 +1,5 @@
 import { findAll } from '../db.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -46,10 +47,16 @@ export async function getLeadFunnel({
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
-  const [allInquiries, allViewings, allOpportunities, allProperties, allAgents] = await Promise.all([
-    findAll('inquiries'),
-    findAll('viewings'),
-    findAll('opportunities'),
+  // Fact table: push agency + agent + created_at window into SQL. source/area
+  // stay in JS (source needs normalization; area needs a property join). The
+  // agents/properties lookups are loaded in full on purpose — scoping agents by
+  // agency_id would drop member-agents whose agents.agency_id is null, changing
+  // displayed names.
+  const [allInquiries, allProperties, allAgents] = await Promise.all([
+    findAll('inquiries', buildScopeFilter({
+      columns: { agency_id: agencyId, agent_id: agentId },
+      dateColumn: 'created_at', startDate: start, endDate: end,
+    })),
     findAll('properties'),
     findAll('agents'),
   ])
@@ -71,6 +78,15 @@ export async function getLeadFunnel({
   })
 
   const inquiryIds = new Set(scopedInquiries.map((row) => row.id))
+
+  // Viewings/opportunities are only ever kept when they belong to a scoped
+  // inquiry, so push agency + inquiry_id IN (…) down to SQL. An empty inquiry
+  // set pushes `... AND FALSE`, matching the JS membership check.
+  const scopeByInquiry = { columns: { agency_id: agencyId, inquiry_id: [...inquiryIds] } }
+  const [allViewings, allOpportunities] = await Promise.all([
+    findAll('viewings', buildScopeFilter(scopeByInquiry)),
+    findAll('opportunities', buildScopeFilter(scopeByInquiry)),
+  ])
 
   const scopedViewings = allViewings.filter(
     (row) => row.agency_id === agencyId && row.inquiry_id && inquiryIds.has(row.inquiry_id),
