@@ -29,6 +29,7 @@ const WAVE1D_FILES = [
   '646_growth_os_audiences.sql',
   '647_growth_os_audience_memberships.sql',
   '648_campaigns_audience_expand.sql',
+  '649_growth_os_audience_contact_read_grants.sql',
 ]
 
 async function seedAgencyAgent(pool, { agencyId, agentId }) {
@@ -258,9 +259,11 @@ skipIfNoPostgres()('wave 1d audiences', () => {
   it('lists audiences for tenant', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
+      const pool = getPool()
       try {
         const agencyId = `agy_${randomUUID()}`
         const agentId = `agt_${randomUUID()}`
+        await seedAgencyAgent(pool, { agencyId, agentId })
         await createAudience({ name: 'A', agencyId, agentId })
         await createAudience({ name: 'B', agencyId, agentId })
         const rows = await listAudiences({ agencyId, agentId })
