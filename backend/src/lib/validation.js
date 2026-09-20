@@ -420,7 +420,10 @@ export const taskUpdateSchema = z.object({
   due_at: z.string().datetime().optional(),
   status: z.enum(['pending', 'completed', 'cancelled', 'snoozed']).optional(),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  type: z.enum(['call', 'email', 'follow_up', 'viewing', 'meeting']).optional(),
   assigned_to: z.string().max(80).optional().nullable(),
+  contact_id: z.string().max(80).optional().nullable(),
+  opportunity_id: z.string().max(80).optional().nullable(),
 }).strict()
 
 export const opportunityCreateSchema = z.object({
