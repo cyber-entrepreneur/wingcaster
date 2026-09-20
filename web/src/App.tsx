@@ -107,6 +107,8 @@ import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
 import { CommentClassifierPage } from '@/pages/admin/comment-classifier/CommentClassifierPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
+import { CanonicalResolutionQueuePage } from '@/pages/admin/pricing/CanonicalResolutionQueuePage'
+import { CanonicalResolutionDetailPage } from '@/pages/admin/pricing/CanonicalResolutionDetailPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
   PortalRegistryListPage,
@@ -341,6 +343,8 @@ function AppRoutes() {
       <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
       <Route path="/admin/comment-classifier" element={<CommentClassifierPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/pricing/canonical" element={<CanonicalResolutionQueuePage />} />
+      <Route path="/admin/pricing/canonical/:id" element={<CanonicalResolutionDetailPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
