@@ -299,6 +299,7 @@ import { registerRoutes as registerContactRelationshipRoutes } from './lib/conta
 import { registerRoutes as registerAuditRetentionPolicyRoutes } from './lib/audit/retention-policy-routes.js'
 import { loadRetentionPolicy } from './lib/audit/retention-policy.js'
 import { registerRoutes as registerNotificationDeadLetterRoutes } from './lib/notifications/dead-letter-routes.js'
+import { registerRoutes as registerGoogleUsageRoutes } from './lib/google/usage-routes.js'
 import {
   getGraphConfig,
   isGraphConfigured,
@@ -924,6 +925,7 @@ registerClosedTransactionImportRoutes(app, { authMiddleware, logActivity })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 registerAuditRetentionPolicyRoutes(app, { authMiddleware })
 registerNotificationDeadLetterRoutes(app, { authMiddleware })
+registerGoogleUsageRoutes(app, { authMiddleware })
 
 setCommentRouterHook(async (message) => {
   await routeClassifiedMessage({

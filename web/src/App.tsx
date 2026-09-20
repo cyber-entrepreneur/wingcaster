@@ -113,6 +113,7 @@ import { AreaSignalsReviewPage } from '@/pages/admin/areas/AreaSignalsReviewPage
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
 import { CommentClassifierPage } from '@/pages/admin/comment-classifier/CommentClassifierPage'
+import { GoogleUsagePage } from '@/pages/admin/google/GoogleUsagePage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
 import { CanonicalResolutionQueuePage } from '@/pages/admin/pricing/CanonicalResolutionQueuePage'
 import { CanonicalResolutionDetailPage } from '@/pages/admin/pricing/CanonicalResolutionDetailPage'
@@ -362,6 +363,7 @@ function AppRoutes() {
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
       <Route path="/admin/comment-classifier" element={<CommentClassifierPage />} />
+      <Route path="/admin/google-usage" element={<GoogleUsagePage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
       <Route path="/admin/pricing/canonical" element={<CanonicalResolutionQueuePage />} />
       <Route path="/admin/pricing/canonical/:id" element={<CanonicalResolutionDetailPage />} />
