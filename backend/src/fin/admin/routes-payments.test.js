@@ -6,6 +6,19 @@ import { seedIssuedInvoice } from '../billing/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-payments', {}, ({ url, world, pool }) => {
+  it('GET payments list includes applied invoice summary field', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const list = await request(app)
+      .get('/api/admin/fin/payments')
+      .set('Authorization', `Bearer ${token}`)
+    expect(list.status).toBe(200)
+    expect(Array.isArray(list.body.payments)).toBe(true)
+    if (list.body.payments.length) {
+      expect(list.body.payments[0]).toHaveProperty('applied_invoices')
+    }
+  })
+
   it('records a payment then reverses the unallocated remainder', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()

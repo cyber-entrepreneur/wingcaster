@@ -435,10 +435,18 @@ export async function getBillingPeriodDetail({ environment, id }) {
 
 export async function listPayments({ environment }) {
   return query(
-    `SELECT id, tenant_id, billing_account_id, status, amount_minor, currency,
-            provider, provider_event_id, received_at, version
-       FROM fin.payments WHERE environment = $1
-       ORDER BY created_at DESC LIMIT 200`,
+    `SELECT p.id, p.tenant_id, p.billing_account_id, p.status, p.amount_minor, p.currency,
+            p.provider, p.provider_event_id, p.received_at, p.version,
+            COALESCE((
+              SELECT string_agg(i.invoice_number, ', ' ORDER BY i.invoice_number)
+                FROM fin.invoice_payment_allocations a
+                JOIN fin.invoices i ON i.id = a.invoice_id
+               WHERE a.payment_id = p.id
+            ), '') AS applied_invoices
+       FROM fin.payments p
+      WHERE p.environment = $1
+      ORDER BY p.received_at DESC
+      LIMIT 200`,
     [environment],
   )
 }
