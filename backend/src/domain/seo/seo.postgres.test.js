@@ -76,6 +76,22 @@ skipIfNoPostgres()('SEO Real-PG', () => {
     vi.restoreAllMocks()
   })
 
+  it('migration 792 grants properties SELECT to growth_os_app_role', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      const sql = await readFile(join(migrationsDir, '792_seo_read_grants.sql'), 'utf8')
+      await pool.query(sql)
+      await pool.query(sql)
+
+      const grant = await pool.query(
+        `SELECT has_table_privilege('growth_os_app_role', 'public.properties', 'SELECT') AS ok`,
+      )
+      expect(grant.rows[0].ok).toBe(true)
+      await closeDb()
+    })
+  })
+
   it('migration 790 is idempotent and admits seo.page.generated', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })

@@ -100,7 +100,7 @@ export async function resolveSeoTarget({
   return {
     target_surface: targetSurface,
     resolved: true,
-    can_toggle: ownWhiteLabel && external,
+    can_toggle: Boolean(ownWhiteLabel && external),
     available_surfaces: available.length ? available : ['bazaar'],
     subdomain: ownWhiteLabel?.subdomain || null,
     custom_domain: ownWhiteLabel?.custom_domain || null,

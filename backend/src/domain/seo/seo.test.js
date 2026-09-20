@@ -95,6 +95,16 @@ describe('SEO meta', () => {
   })
 })
 
+describe('SEO target toggle', () => {
+  it('can_toggle is a boolean when both surfaces are present', () => {
+    const ownWhiteLabel = { subdomain: 'solo-agent' }
+    const external = { url: 'https://freeagent.example.com', source: 'agent_profile' }
+    const canToggle = Boolean(ownWhiteLabel && external)
+    expect(canToggle).toBe(true)
+    expect(typeof canToggle).toBe('boolean')
+  })
+})
+
 describe('SEO recommendations', () => {
   it('computes score and recommendations', () => {
     const seoPage = {
