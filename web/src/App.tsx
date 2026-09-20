@@ -98,6 +98,7 @@ import { AgencyReportsHomePage } from '@/pages/agency/reports/AgencyReportsHomeP
 import { AgencyListingsPerformanceReportPage } from '@/pages/agency/reports/AgencyListingsPerformanceReportPage'
 import { AgencyAgentLeaderboardPage } from '@/pages/agency/reports/AgencyAgentLeaderboardPage'
 import { AgencyCampaignPerformanceReportPage } from '@/pages/agency/reports/AgencyCampaignPerformanceReportPage'
+import { AgencyAttributionPerformancePage } from '@/pages/agency/reports/AgencyAttributionPerformancePage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { WhatsAppIntakeSettingsPage } from '@/pages/agent/whatsapp-listings/WhatsAppIntakeSettingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
@@ -320,6 +321,7 @@ function AppRoutes() {
       <Route path="/agency/reports/listings" element={<AgencyListingsPerformanceReportPage />} />
       <Route path="/agency/reports/agents" element={<AgencyAgentLeaderboardPage />} />
       <Route path="/agency/reports/campaigns" element={<AgencyCampaignPerformanceReportPage />} />
+      <Route path="/agency/reports/attribution" element={<AgencyAttributionPerformancePage />} />
       <Route path="/agency/credits" element={<AgencyCreditsLayout />}>
         <Route index element={<AgencyCreditsWalletPage />} />
         <Route path="quotas" element={<AgencyFeatureQuotasPage />} />

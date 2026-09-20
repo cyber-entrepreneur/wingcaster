@@ -183,6 +183,14 @@ export function AgencyCampaignPerformanceReportPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-[var(--lc-text-muted)]">
               Marketing campaign KPIs across agents with enrollments, delivery, and completion rates.
+              For funnel → commission → ROAS with attribution models, open{' '}
+              <Link
+                to="/agency/reports/attribution"
+                className="text-[var(--lc-text-primary)] underline underline-offset-2"
+              >
+                Attribution &amp; commission
+              </Link>
+              .
             </p>
           </div>
           <Button type="button" variant="secondary" onClick={exportReport} disabled={!data?.rows.length}>

@@ -297,6 +297,22 @@ const TABLE_MAP = {
       'offers_received_count', 'viewings_conducted', 'rejected_offer_max', 'rejected_offer_min',
       'buyer_type', 'buyer_nationality', 'payment_method', 'down_payment_percent', 'mortgage_provider',
       'close_reason', 'agent_notes', 'attribution_source', 'origin', 'is_backfilled', 'source_note',
+      'commission_micros', 'gtv_micros',
+    ],
+  },
+  conversions: {
+    schema: 'public',
+    table: 'conversions',
+    columns: [
+      'contact_id', 'from_stage', 'to_stage', 'occurred_at', 'value_micros', 'currency',
+      'source_event_id', 'agency_id', 'agent_id',
+    ],
+  },
+  attribution_credits: {
+    schema: 'public',
+    table: 'attribution_credits',
+    columns: [
+      'conversion_id', 'execution_id', 'model', 'credit_weight', 'agency_id', 'agent_id',
     ],
   },
 
@@ -624,6 +640,7 @@ const TABLE_MAP = {
       'rejected_offer_max', 'rejected_offer_min', 'buyer_type', 'buyer_nationality',
       'payment_method', 'down_payment_percent', 'mortgage_provider', 'close_reason',
       'agent_notes', 'attribution_source', 'origin', 'is_backfilled', 'source_note',
+      'commission_micros', 'gtv_micros',
     ],
   },
   closed_transaction_imports: {
