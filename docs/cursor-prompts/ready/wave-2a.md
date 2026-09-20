@@ -2,7 +2,7 @@
 > Paste this ENTIRE file into one Cursor agent. Everything needed is here.
 
 ## THIS MODULE IN THE WAVE (coordination)
-- **Prerequisite:** Wave 0 + Wave 1 merged to `main`. Migration max on `main` is **649**; your block **700–719**.
+- **Prerequisite:** Wave 0 + Wave 1 merged to `main`. Migration max on `main` is **773**; your block **700–719**.
 - **You own:** paid `ChannelDefinition(kind='paid')` rows + `Execution(kind='paid_ad')` usage + adapters. No new canonical tables required beyond paid config.
 - **Ships behind feature flags OFF** until Meta/Google approvals land (external clock).
 
@@ -22,7 +22,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 - **New tenant tables copy the strict-RLS pattern EXACTLY** (mirror mig 551 + 543): FORCE RLS, policy `FOR ALL TO growth_os_app_role` requiring GUC set-and-matching, GRANT to that role, access via `withTenant`. **Reading an existing un-RLS'd table must be SQL-scoped by agency_id/agent_id (throw if scope missing) — never `findAll` unbounded** (Wave 1D fix).
 - **Wave 1 on `main` you build on:** `backend/src/domain/{journeys,creative,audiences}`, `backend/src/lib/social-publishing`; tables journeys/creatives/creative_variants/creative_renditions/approval_requests/audiences/audience_memberships; web `components/audiences/*`, `components/creative/AiAdaptiveComposer`.
 - **Events** via `ingestEvent` (idempotent on `idempotency_key`, v2 vocab, under `withTenant` → resolve tenant first). Cumulative metrics → `metric_observations`, never `events`.
-- **Migration max on `main` is 649** — take your block; re-check the live max first.
+- **Migration max on `main` is 773** — take your block; re-check the live max first.
 
 ### ABSOLUTE NON-NEGOTIABLES (any violation = PR rejected)
 1. No stubs/`TODO`/`throw 'not implemented'`/placeholders/mock-in-real-path; all implemented + tested.
@@ -37,7 +37,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 10. Verify like CI, report truthfully; green ≠ correct.
 
 ### REPO CONVENTIONS
-ESM; `Object.assign(new Error(msg), { code })`; existing logger. Migrations `NNN_*.sql` (max 649; your block). Register new tables in `backend/src/persistence/table-mapper.js`. API client `web/src/api/client.ts` (`fetchJson`); routes `backend/src/server.js`.
+ESM; `Object.assign(new Error(msg), { code })`; existing logger. Migrations `NNN_*.sql` (max 773; your block). Register new tables in `backend/src/persistence/table-mapper.js`. API client `web/src/api/client.ts` (`fetchJson`); routes `backend/src/server.js`.
 
 ### VERIFICATION (paste real output)
 `backend/`: `npm ci` → `npm run test` → `npm run test:pg:docker` (Real-PG, CI gate). `web/`: `npm ci` → `npm run build` → `npm run test`. Windows over-parallelises vitest → false `withTestDb` timeouts; narrow to your new `*.postgres.test.js` to confirm true pass/fail.
