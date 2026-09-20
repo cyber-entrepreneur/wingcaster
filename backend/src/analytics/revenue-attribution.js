@@ -1,5 +1,6 @@
 import { findAll } from '../db.js'
 import { ATTRIBUTION_SOURCES } from '../closed-transactions.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -41,12 +42,25 @@ export async function getRevenueAttribution({
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
-  const [transactions, agents, campaigns, enrollments] = await Promise.all([
-    findAll('closed_transactions'),
+  // Push agency + agent + channel + closed_at window into SQL for the fact
+  // table, and scope campaigns to the agency. campaign_enrollments has no
+  // agency_id column, so it is scoped by campaign_id IN (…) once the agency's
+  // campaigns are known. agents is a full lookup load on purpose (agents.
+  // agency_id alone under-identifies agency membership). The existing JS
+  // filtering below stays the behavioural authority (campaign attribution in
+  // particular is resolved in JS via contactCampaign).
+  const [transactions, agents, campaigns] = await Promise.all([
+    findAll('closed_transactions', buildScopeFilter({
+      columns: { agency_id: agencyId, agent_id: agentId, attribution_source: channel },
+      dateColumn: 'closed_at', startDate: start, endDate: end,
+    })),
     findAll('agents'),
-    findAll('campaigns'),
-    findAll('campaign_enrollments'),
+    findAll('campaigns', buildScopeFilter({ columns: { agency_id: agencyId } })),
   ])
+
+  const enrollments = await findAll('campaign_enrollments', buildScopeFilter({
+    columns: { campaign_id: campaigns.map((row) => row.id) },
+  }))
 
   const agentNames = new Map(agents.map((row) => [row.id, row.name || row.email || row.id]))
   const campaignNames = new Map(

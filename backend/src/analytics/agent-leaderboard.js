@@ -1,4 +1,5 @@
 import { findAll } from '../db.js'
+import { buildScopeFilter } from './scope.js'
 
 const METRICS = ['revenue', 'closings', 'response_time', 'conversion_rate']
 
@@ -177,27 +178,31 @@ export async function getAgentLeaderboard({
   const end = parseDate(endDate) || defaults.end
   const previous = previousWindow(start, end)
 
-  const [
-    allAgents,
-    allAgencyMembers,
-    allInquiries,
-    allOpportunities,
-    allProperties,
-    allConversations,
-    allMessages,
-  ] = await Promise.all([
+  // Resolve the agency's agents first (agents loaded in full — activeAgentsForAgency
+  // also matches agents linked via agency_members, which an agency_id filter would
+  // drop). Then push the discovered scope down: agency_id onto the fact tables,
+  // the agent-id set onto conversations, and the conversation-id set onto messages.
+  const [allAgents, allAgencyMembers] = await Promise.all([
     findAll('agents'),
-    findAll('agency_members'),
-    findAll('inquiries'),
-    findAll('opportunities'),
-    findAll('properties'),
-    findAll('conversations'),
-    findAll('conversation_messages'),
+    findAll('agency_members', buildScopeFilter({ columns: { agency_id: agencyId } })),
   ])
 
   const agents = activeAgentsForAgency(allAgencyMembers, allAgents, agencyId)
   const agentIds = new Set(agents.map((row) => row.id))
+
+  const agencyScope = buildScopeFilter({ columns: { agency_id: agencyId } })
+  const [allInquiries, allOpportunities, allProperties, allConversations] = await Promise.all([
+    findAll('inquiries', agencyScope),
+    findAll('opportunities', agencyScope),
+    findAll('properties', agencyScope),
+    findAll('conversations', buildScopeFilter({ columns: { assigned_agent_id: [...agentIds] } })),
+  ])
+
   const conversations = allConversations.filter((row) => agentIds.has(row.assigned_agent_id))
+
+  const allMessages = await findAll('conversation_messages', buildScopeFilter({
+    columns: { conversation_id: conversations.map((row) => row.id) },
+  }))
 
   const messagesByConversation = new Map()
   for (const message of allMessages) {

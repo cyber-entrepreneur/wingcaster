@@ -1,4 +1,5 @@
 import { findAll } from '../db.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -62,26 +63,29 @@ export async function getAgencyReportsHome({ agencyId } = {}) {
   const windowStart = new Date(now)
   windowStart.setUTCDate(windowStart.getUTCDate() - 30)
 
+  // Push agency scope into SQL for every table that carries a typed agency
+  // column (ai_usage_daily uses tenant_id). agents is loaded in full because
+  // activeAgentsForAgency also matches agents linked purely via agency_members,
+  // which an agency_id filter would drop. The JS filters below stay authoritative.
+  const agencyScope = buildScopeFilter({ columns: { agency_id: agencyId } })
   const [
     allProperties,
     allInquiries,
     allOpportunities,
     allAgents,
     allCampaigns,
-    allEnrollments,
     allWebsiteAnalytics,
     allAiUsage,
     allAgencyMembers,
   ] = await Promise.all([
-    findAll('properties'),
-    findAll('inquiries'),
-    findAll('opportunities'),
+    findAll('properties', agencyScope),
+    findAll('inquiries', agencyScope),
+    findAll('opportunities', agencyScope),
     findAll('agents'),
-    findAll('campaigns'),
-    findAll('campaign_enrollments'),
-    findAll('website_analytics'),
-    findAll('ai_usage_daily'),
-    findAll('agency_members'),
+    findAll('campaigns', agencyScope),
+    findAll('website_analytics', agencyScope),
+    findAll('ai_usage_daily', buildScopeFilter({ columns: { tenant_id: agencyId } })),
+    findAll('agency_members', agencyScope),
   ])
 
   const properties = allProperties.filter((row) => row.agency_id === agencyId)
@@ -93,6 +97,10 @@ export async function getAgencyReportsHome({ agencyId } = {}) {
   const agents = activeAgentsForAgency(allAgencyMembers, allAgents, agencyId)
 
   const campaignIds = new Set(campaigns.map((row) => row.id))
+  // Enrollments have no agency_id column; scope them by the agency's campaigns.
+  const allEnrollments = await findAll('campaign_enrollments', buildScopeFilter({
+    columns: { campaign_id: [...campaignIds] },
+  }))
   const enrollments = allEnrollments.filter((row) => campaignIds.has(row.campaign_id))
 
   const recentInquiries = inquiries.filter((row) => isInRange(row.created_at, windowStart, now))

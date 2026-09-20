@@ -150,17 +150,127 @@ function rowToItem(collection, row) {
   return fromRow(collection, row)
 }
 
+/**
+ * A `filter` that is a plain object (not a function, array, Date or Buffer)
+ * is a *structured* filter: instead of loading the whole table and running a
+ * JS predicate over it, we translate it into a parameterized SQL WHERE clause
+ * and let Postgres do the narrowing. This is what lets read-heavy callers
+ * (analytics aggregations, tenant-scoped list endpoints) push agency/agent/
+ * date-window scope down to the database instead of pulling every row across
+ * every tenant into Node and filtering in memory.
+ *
+ * A function `filter` keeps the historical behavior exactly (SELECT * then
+ * `Array.prototype.filter`), so the ~400 existing call sites are unaffected.
+ */
+function isStructuredFilter(filter) {
+  return (
+    filter !== null &&
+    typeof filter === 'object' &&
+    !Array.isArray(filter) &&
+    !(filter instanceof Date) &&
+    !Buffer.isBuffer(filter)
+  )
+}
+
+const RANGE_OPERATORS = { gte: '>=', gt: '>', lte: '<=', lt: '<' }
+
+/**
+ * Translate a structured filter into `{ clauses, params }` against real,
+ * typed columns of `collection`. Supported per key:
+ *   - scalar / null            → `"col" = $n`  /  `"col" IS NULL`
+ *   - array                    → `"col" = ANY($n)` (empty array → matches none)
+ *   - { gte, gt, lte, lt }     → range comparisons (half-open windows, etc.)
+ *
+ * Only columns that actually exist on the mapped table may be filtered. A key
+ * that is not a real column throws rather than silently degrading to a full
+ * scan — a scope filter that doesn't push down is a latent tenant-data / perf
+ * bug, and failing loudly surfaces it in tests instead of production.
+ */
+function buildStructuredWhere(collection, filter, startIndex) {
+  const allowed = new Set(columnNames(collection).filter((c) => c !== 'data'))
+  const clauses = []
+  const params = []
+  let index = startIndex
+
+  for (const [key, value] of Object.entries(filter)) {
+    if (!allowed.has(key)) {
+      throw new Error(
+        `findAll("${collection}"): cannot push down filter on "${key}" — not a mapped column`,
+      )
+    }
+    const column = `"${key}"`
+
+    if (value === null) {
+      clauses.push(`${column} IS NULL`)
+      continue
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        // `col = ANY('{}')` already matches nothing, but spelling it out avoids
+        // depending on array-type inference for an empty list.
+        clauses.push('FALSE')
+        continue
+      }
+      clauses.push(`${column} = ANY($${index})`)
+      // Arrays are passed through to node-postgres verbatim; it serializes the
+      // JS array to a Postgres array for `= ANY(...)`. Do NOT run these through
+      // serializeParam — that would JSON-stringify the whole array.
+      params.push(value)
+      index += 1
+      continue
+    }
+    if (typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+      const ops = Object.keys(value)
+      if (ops.length === 0 || ops.some((op) => !(op in RANGE_OPERATORS))) {
+        throw new Error(
+          `findAll("${collection}"): unsupported filter spec for "${key}" — expected scalar, array, null, or { gte|gt|lte|lt }`,
+        )
+      }
+      for (const op of ops) {
+        clauses.push(`${column} ${RANGE_OPERATORS[op]} $${index}`)
+        params.push(serializeParam(value[op]))
+        index += 1
+      }
+      continue
+    }
+
+    clauses.push(`${column} = $${index}`)
+    params.push(serializeParam(value))
+    index += 1
+  }
+
+  return { clauses, params, nextIndex: index }
+}
+
 export async function findAll(collection, filter) {
   await loadDb()
   const mapping = resolveTable(collection)
   const table = quotedTable(collection)
-  const sql = isLegacy(mapping)
-    ? `SELECT * FROM ${table} WHERE "collection" = $1`
-    : `SELECT * FROM ${table}`
-  const params = isLegacy(mapping) ? [collection] : []
+  const legacy = isLegacy(mapping)
+
+  const whereParts = []
+  const params = []
+  let index = 1
+  if (legacy) {
+    whereParts.push(`"collection" = $${index}`)
+    params.push(collection)
+    index += 1
+  }
+
+  const structured = isStructuredFilter(filter)
+  if (structured) {
+    const built = buildStructuredWhere(collection, filter, index)
+    whereParts.push(...built.clauses)
+    params.push(...built.params)
+    index = built.nextIndex
+  }
+
+  const sql = `SELECT * FROM ${table}${whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : ''}`
   const { rows } = await runLogged('findAll', collection, sql, params)
   const items = rows.map((row) => rowToItem(collection, row))
-  return filter ? items.filter(filter) : items
+  // A function filter still runs in JS (unchanged legacy contract). A structured
+  // filter has already been applied in SQL, so nothing further is needed.
+  return typeof filter === 'function' ? items.filter(filter) : items
 }
 
 export async function findOne(collection, filter) {

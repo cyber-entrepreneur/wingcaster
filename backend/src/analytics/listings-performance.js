@@ -1,5 +1,6 @@
 import { findAll } from '../db.js'
 import { aggregateListingEvents } from '../platformModel.js'
+import { buildScopeFilter } from './scope.js'
 
 function parseDate(date) {
   if (!date) return null
@@ -43,19 +44,19 @@ export async function getListingsPerformance({
   const start = parseDate(startDate)
   const end = parseDate(endDate)
 
+  // Properties carry agency/agent/property_type as typed columns, so push those
+  // into SQL (area is a substring match and stays in JS). agents is a full
+  // lookup load; listing_events (legacy JSONB) and profile_followers (entity
+  // fields live in the JSONB blob) can't push their scope to typed columns.
   const [
     allProperties,
-    allInquiries,
-    allViewings,
-    allOpportunities,
     allAgents,
     allListingEvents,
     allProfileFollowers,
   ] = await Promise.all([
-    findAll('properties'),
-    findAll('inquiries'),
-    findAll('viewings'),
-    findAll('opportunities'),
+    findAll('properties', buildScopeFilter({
+      columns: { agency_id: agencyId, agent_id: agentId, property_type: propertyType },
+    })),
     findAll('agents'),
     findAll('listing_events'),
     findAll('profile_followers'),
@@ -72,6 +73,21 @@ export async function getListingsPerformance({
   })
 
   const propertyIds = new Set(scopedProperties.map((row) => row.id))
+
+  // Inquiries/viewings/opportunities are only kept for scoped properties, so
+  // push property_id IN (…) down to SQL. created_at windows push too for the
+  // tables the JS filters on created_at directly; viewings coalesce
+  // scheduled_at || created_at, which stays a JS-only window.
+  const propertyIdList = [...propertyIds]
+  const [allInquiries, allViewings, allOpportunities] = await Promise.all([
+    findAll('inquiries', buildScopeFilter({
+      columns: { property_id: propertyIdList }, dateColumn: 'created_at', startDate: start, endDate: end,
+    })),
+    findAll('viewings', buildScopeFilter({ columns: { property_id: propertyIdList } })),
+    findAll('opportunities', buildScopeFilter({
+      columns: { property_id: propertyIdList }, dateColumn: 'created_at', startDate: start, endDate: end,
+    })),
+  ])
 
   const scopedInquiries = allInquiries.filter((row) => {
     if (!propertyIds.has(row.property_id)) return false
