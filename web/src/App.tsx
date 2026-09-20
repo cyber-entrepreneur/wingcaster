@@ -103,6 +103,7 @@ import { AgencyListingsPerformanceReportPage } from '@/pages/agency/reports/Agen
 import { AgencyAgentLeaderboardPage } from '@/pages/agency/reports/AgencyAgentLeaderboardPage'
 import { AgencyCampaignPerformanceReportPage } from '@/pages/agency/reports/AgencyCampaignPerformanceReportPage'
 import { AgencyAttributionPerformancePage } from '@/pages/agency/reports/AgencyAttributionPerformancePage'
+import { ContentCalendarPage } from '@/pages/ContentCalendarPage'
 import { AgentWhatsAppListingsPage } from '@/pages/agent/whatsapp-listings/AgentWhatsAppListingsPage'
 import { WhatsAppIntakeSettingsPage } from '@/pages/agent/whatsapp-listings/WhatsAppIntakeSettingsPage'
 import { ApplicationOutcomePage } from '@/pages/agent/ApplicationOutcomePage'
@@ -230,6 +231,7 @@ function AppRoutes() {
       {/* AGT-PUB-006 ledger + receipt deep-link */}
       <Route path="/publishing/receipts/:id" element={<PublishOutcomePage />} />
       <Route path="/publishing/tracker" element={<PortalTrackerPage />} />
+      <Route path="/calendar" element={<ContentCalendarPage />} />
       {/* AGT-APP-001 — must precede /agent/:id so "profile" is not captured as an id */}
       <Route path="/agent/profile" element={<AgentPublicProfileEditorPage />} />
       <Route path="/agent/:id" element={<AgentProfilePage />} />

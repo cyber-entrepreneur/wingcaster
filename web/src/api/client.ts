@@ -1026,6 +1026,124 @@ export interface AgencyAttributionChainResponse {
   }>>
 }
 
+/** Wave 2B — publishing control plane / content calendar. */
+export type ExecutionKind = 'message' | 'social_post' | 'paid_ad' | 'portal_submit' | 'seo_page'
+export type ExecutionStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'in_review'
+  | 'queued'
+  | 'processing'
+  | 'published'
+  | 'failed'
+  | 'cancelled'
+
+export interface CalendarExecution {
+  id: string
+  kind: ExecutionKind | string
+  status: ExecutionStatus | string
+  scheduled_at: string | null
+  recurrence: string | null
+  campaign_id: string | null
+  agent_id: string | null
+  agency_id: string | null
+  channel_connection_id: string | null
+  creative_id: string | null
+  audience_id: string | null
+  subject_type: string | null
+  subject_id: string | null
+  provider_ref: string | null
+  published_at: string | null
+  completed_at: string | null
+  created_at?: string
+  updated_at?: string
+  reschedulable: boolean
+  data: Record<string, unknown>
+}
+
+export interface PublishingCalendarResponse {
+  executions: CalendarExecution[]
+  total: number
+  truncated: boolean
+  filters: Record<string, string | null | undefined>
+  meta: {
+    unsupported_filters: string[]
+    reschedulable_statuses: string[]
+  }
+}
+
+export interface PublishingValidationIssue {
+  code: string
+  severity: 'blocker' | 'warning'
+  message: string
+  meta?: Record<string, unknown>
+}
+
+export interface PublishingValidationResponse {
+  execution_id: string
+  ok: boolean
+  blockers: PublishingValidationIssue[]
+  warnings: PublishingValidationIssue[]
+}
+
+export interface PublishingPreviewResponse {
+  execution: Pick<
+    CalendarExecution,
+    | 'id'
+    | 'kind'
+    | 'status'
+    | 'scheduled_at'
+    | 'campaign_id'
+    | 'subject_type'
+    | 'subject_id'
+    | 'creative_id'
+    | 'channel_connection_id'
+    | 'agent_id'
+    | 'agency_id'
+  >
+  connection: { id: string; health: string; provider_account_id: string | null } | null
+  platform: string | null
+  capabilities: Record<string, unknown>
+  creative: Record<string, unknown> | null
+  variants: Array<{
+    id: string
+    label: string | null
+    copy: Record<string, unknown>
+    renditions: Array<{
+      id: string
+      channel_key: string | null
+      asset_url: string | null
+      dimensions: unknown
+      status: string | null
+    }>
+  }>
+  channels: Array<{
+    channel_key: string
+    platform: string | null
+    caption: string | null
+    media_urls: string[]
+    variant_id: string | null
+    label: string | null
+    renditions?: Array<{
+      id: string
+      channel_key: string | null
+      asset_url: string | null
+    }>
+  }>
+  side_effects: boolean
+}
+
+export interface PublishingBulkActionResponse {
+  results: Array<{
+    id: string
+    ok: boolean
+    code?: string
+    message?: string
+    status?: string
+    execution?: CalendarExecution
+  }>
+}
+
 /** AGN-CRD-004 — standing credit allocation rules for an agency wallet. */
 export type AgencyCreditAllocationMode =
   | 'manual'
@@ -3923,6 +4041,60 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  getPublishingCalendar: (params?: {
+    from?: string
+    to?: string
+    status?: string
+    kind?: string
+    campaign_id?: string
+    property_id?: string
+    agent_id?: string
+    channel_connection_id?: string
+    office?: string
+    limit?: number
+  }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v != null && v !== '')
+            .map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : ''
+    return fetchJson(`/agency/publishing/calendar${qs}`) as Promise<PublishingCalendarResponse>
+  },
+  reschedulePublishingExecution: (
+    id: string,
+    body: { scheduled_at: string; recurrence?: string | null },
+  ) =>
+    fetchJson(`/agency/publishing/executions/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }) as Promise<{ execution: CalendarExecution }>,
+  validatePublishingExecution: (id: string) =>
+    fetchJson(`/agency/publishing/executions/${encodeURIComponent(id)}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }) as Promise<PublishingValidationResponse>,
+  previewPublishingExecution: (id: string) =>
+    fetchJson(
+      `/agency/publishing/executions/${encodeURIComponent(id)}/preview`,
+    ) as Promise<PublishingPreviewResponse>,
+  bulkReschedulePublishingExecutions: (body: {
+    execution_ids: string[]
+    scheduled_at: string
+    recurrence?: string | null
+  }) =>
+    fetchJson('/agency/publishing/executions/bulk-reschedule', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }) as Promise<PublishingBulkActionResponse>,
+  bulkCancelPublishingExecutions: (body: { execution_ids: string[] }) =>
+    fetchJson('/agency/publishing/executions/bulk-cancel', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }) as Promise<PublishingBulkActionResponse>,
+
   getAgencyAgentLeaderboard: (params?: {
     start_date?: string
     end_date?: string

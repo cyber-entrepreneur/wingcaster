@@ -131,6 +131,7 @@ import { PublicAgentPortfolioPage } from '@/pages/PublicAgentPortfolioPage'
 import { AreaProfilePage } from '@/pages/AreaProfilePage'
 import { NeighborhoodValuatorPage } from '@/pages/NeighborhoodValuatorPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
+import { ContentCalendarPage } from '@/pages/ContentCalendarPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
 import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
 import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
@@ -191,6 +192,7 @@ const pages: Array<[string, ComponentType]> = [
   ['Area profile', AreaProfilePage],
   ['Neighborhood valuator', NeighborhoodValuatorPage],
   ['CRM analytics', CrmAnalyticsPage],
+  ['Content calendar', ContentCalendarPage],
   ['Contact detail', ContactDetailPage],
   ['Contact relationships', RelationshipsEditorPage],
   ['Relationship consent', RelationshipConsentPage],

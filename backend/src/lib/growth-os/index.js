@@ -25,6 +25,8 @@ export {
   EXECUTION_KINDS,
   EXECUTION_STATUSES,
   TRANSITIONS,
+  RESCHEDULABLE_STATUSES,
+  isReschedulable,
 } from './executions.js'
 
 export {
