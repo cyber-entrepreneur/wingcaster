@@ -28,6 +28,7 @@ import { RecordClosureModal } from '@/components/closed-transactions/RecordClosu
 import { OffersPanel } from '@/components/listings/OffersPanel'
 import { ListingPublicationsTab } from '@/components/listings/ListingPublicationsTab'
 import { ListingCommentsTab } from '@/components/listings/ListingCommentsTab'
+import { ListingShareSheet } from '@/components/listings/ListingShareSheet'
 import { MarketContextCard } from '@/components/market-pricing/MarketContextCard'
 import { TrendMiniChart } from '@/components/market-pricing/TrendMiniChart'
 import { ComparableListModal } from '@/components/market-pricing/ComparableListModal'
@@ -109,8 +110,8 @@ export function ListingProfilePage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [archiveModalOpen, setArchiveModalOpen] = useState(false)
   const [unarchiveBusy, setUnarchiveBusy] = useState(false)
-  const [shareMsg, setShareMsg] = useState('')
   const [hasDispositionCase, setHasDispositionCase] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   // Market pricing (existing engine — surfaced in Overview tab)
   const [pricingAnalysis, setPricingAnalysis] = useState<PricingAnalysis | null>(null)
@@ -240,18 +241,6 @@ export function ListingProfilePage() {
 
   const [closureModalOpen, setClosureModalOpen] = useState(false)
 
-  async function copyShareLink() {
-    if (!property) return
-    const url = `${window.location.origin}/listings/${property.id}`
-    try {
-      await navigator.clipboard.writeText(url)
-      setShareMsg('Internal link copied')
-      setTimeout(() => setShareMsg(''), 2000)
-    } catch {
-      setShareMsg('Copy failed — press Ctrl+C on the URL bar')
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -332,7 +321,7 @@ export function ListingProfilePage() {
               </Button>
             </>
           )}
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={copyShareLink}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShareOpen(true)}>
             <Share2 className="h-4 w-4" />
             Share
           </Button>
@@ -357,11 +346,6 @@ export function ListingProfilePage() {
           )}
         </div>
       </div>
-      {shareMsg && (
-        <div className="mb-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
-          {shareMsg}
-        </div>
-      )}
       {hasDispositionCase && (
         <div
           role="status"
@@ -410,6 +394,11 @@ export function ListingProfilePage() {
           <CanonicalPropertyBanner listingId={property.id} />
         </Suspense>
       ) : null}
+      <ListingShareSheet
+        propertyId={property.id}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
 
       {/* Gallery */}
       <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
