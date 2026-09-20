@@ -2,7 +2,7 @@
 > Paste this ENTIRE file into one Cursor agent. Everything needed is here.
 
 ## THIS MODULE IN THE WAVE (coordination)
-- **Prerequisite:** Wave 0 + Wave 1 merged to `main`. Migration max **649**; your block **720–729** (mostly read-model/UI; migrations only for indexes/views).
+- **Prerequisite:** Wave 0 + Wave 1 merged to `main`. Migration max **773**; your block **720–729** (mostly read-model/UI; migrations only for indexes/views).
 - **You own no new canonical tables** — you read/reschedule Wave 0 `executions` across all kinds.
 
 ---
@@ -21,7 +21,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 - **New tenant tables copy the strict-RLS pattern EXACTLY** (mig 551 + 543); reading an existing un-RLS'd table must be SQL-scoped by agency_id/agent_id (throw if scope missing) — never `findAll` unbounded (Wave 1D fix).
 - **Wave 1 on `main`:** `backend/src/domain/{journeys,creative,audiences}`, `backend/src/lib/social-publishing`; tables journeys/creatives*/audiences*; web `components/audiences/*`, `components/creative/AiAdaptiveComposer`.
 - **Events** via `ingestEvent` (idempotent, v2 vocab, under `withTenant` → resolve tenant first). Cumulative metrics → `metric_observations`.
-- **Migration max on `main` is 649.**
+- **Migration max on `main` is 773.**
 
 ### ABSOLUTE NON-NEGOTIABLES (any violation = PR rejected)
 1. No stubs/`TODO`/`throw 'not implemented'`/placeholders/mock-in-real-path; all implemented + tested.
@@ -36,7 +36,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 10. Verify like CI, report truthfully; green ≠ correct.
 
 ### REPO CONVENTIONS
-ESM; `Object.assign(new Error(msg), { code })`; logger. Migrations `NNN_*.sql` (max 649; your block). Register tables in `table-mapper.js`. API client `web/src/api/client.ts`; routes `backend/src/server.js`.
+ESM; `Object.assign(new Error(msg), { code })`; logger. Migrations `NNN_*.sql` (max 773; your block). Register tables in `table-mapper.js`. API client `web/src/api/client.ts`; routes `backend/src/server.js`.
 
 ### VERIFICATION (paste real output)
 `backend/`: `npm ci` → `npm run test` → `npm run test:pg:docker`. `web/`: `npm ci` → `npm run build` → `npm run test`. Narrow to new `*.postgres.test.js` to dodge the Windows vitest over-parallelisation flake.
