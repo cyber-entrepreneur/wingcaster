@@ -278,6 +278,7 @@ import { registerWhiteLabelAnalyticsRoutes } from './white-label/analytics-route
 import { registerRoutes as registerPublishingJobRoutes } from './lib/publishing/jobs-routes.js'
 import { registerRoutes as registerBuyerOfferRoutes } from './listings/buyer-offers-routes.js'
 import { registerRoutes as registerSellerReportRoutes } from './listings/seller-report-routes.js'
+import { registerRoutes as registerContactExportRoutes } from './contacts/contact-export-routes.js'
 import { registerRoutes as registerScheduledPublishRoutes } from './lib/publishing/scheduled-publish-routes.js'
 import { registerRoutes as registerAssignableAgentsRoutes } from './lib/conversations/assignable-agents-routes.js'
 import { registerRoutes as registerPropertyDispositionRoutes } from './lib/listings/property-disposition-routes.js'
@@ -906,6 +907,7 @@ registerRevenueAttributionRoutes(app, { authMiddleware })
 registerPublishingJobRoutes(app, { authMiddleware })
 registerBuyerOfferRoutes(app, { authMiddleware })
 registerSellerReportRoutes(app, { authMiddleware })
+registerContactExportRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerAssignableAgentsRoutes(app, { authMiddleware })
 registerPropertyDispositionRoutes(app, { authMiddleware })
