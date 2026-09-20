@@ -289,7 +289,10 @@ skipIfNoPostgres()('wave 2d experimentation', () => {
           subjectId: contactId,
           data: execResolved.data,
         })
-        expect(execution.data.experiment_variant).toBe(resolved.variant)
+        // createExecution spreads data attrs onto the row (not nested under .data)
+        expect(execution.experiment_variant).toBe(resolved.variant)
+        expect(execution.experiment_id).toBe(experiment.id)
+        expect(execution.experiment_assignment_id).toBe(resolved.assignment.id)
       } finally {
         await closeDb()
       }
@@ -340,12 +343,12 @@ skipIfNoPostgres()('wave 2d experimentation', () => {
         expect(controlContacts.length).toBeGreaterThan(20)
         expect(treatmentContacts.length).toBeGreaterThan(20)
 
-        // Convert ~10% of control, ~40% of treatment
+        // Convert ~10% of control, ~40% of treatment via Events → Conversions
         const convertSlice = async (ids, rate, label) => {
           const n = Math.floor(ids.length * rate)
           for (let i = 0; i < n; i += 1) {
             const contactId = ids[i]
-            const event = await ingestEvent({
+            const ingested = await ingestEvent({
               eventName: 'lead.created',
               source: 'test:wave2d',
               agencyId,
@@ -354,6 +357,9 @@ skipIfNoPostgres()('wave 2d experimentation', () => {
               idempotencyKey: `wave2d:${label}:${contactId}`,
               occurredAt: new Date().toISOString(),
             })
+            const event = ingested?.event || ingested
+            expect(event?.id).toBeTruthy()
+            expect(event?.event_name).toBe('lead.created')
             await materialiseConversionFromEvent(event, { agencyId, agentId })
           }
         }
