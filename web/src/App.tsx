@@ -110,6 +110,7 @@ import { PortalSubmitPage } from '@/pages/agent/PortalSubmitPage'
 import { whatsappIntakeRoutes } from '@/pages/agent/whatsapp-intake/routes'
 import { AdminAreasPage } from '@/pages/admin/areas/AdminAreasPage'
 import { AreaSignalsReviewPage } from '@/pages/admin/areas/AreaSignalsReviewPage'
+import { AdminAreaDetailPage } from '@/pages/admin/areas/AdminAreaDetailPage'
 import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
 import { CommentClassifierPage } from '@/pages/admin/comment-classifier/CommentClassifierPage'
@@ -360,6 +361,8 @@ function AppRoutes() {
       <Route path="/admin/message-templates/:id" element={<PlatformTemplateEditPage />} />
       <Route path="/admin/areas" element={<AdminAreasPage />} />
       <Route path="/admin/areas/:areaId/signals" element={<AreaSignalsReviewPage />} />
+      <Route path="/admin/areas/new" element={<AdminAreaDetailPage mode="create" />} />
+      <Route path="/admin/areas/:id" element={<AdminAreaDetailPage />} />
       <Route path="/admin/scoring" element={<AdminScoringPage />} />
       <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
       <Route path="/admin/comment-classifier" element={<CommentClassifierPage />} />

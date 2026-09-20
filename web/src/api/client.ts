@@ -483,6 +483,65 @@ export interface WhatsAppIntakeAgentSettingsPatch {
   whatsapp_listings_auto_publish_social?: boolean
 }
 
+/** PA-ARE-002 — platform-admin area profile row. */
+export interface AdminArea {
+  id: string
+  name: string
+  name_ar?: string | null
+  slug: string
+  level: string
+  parent_id?: string | null
+  center_latitude: number
+  center_longitude: number
+  boundary_geojson?: string | null
+  proximity_radii_json?: string | null
+  summary?: string | null
+  summary_ar?: string | null
+  lifestyle_profile?: string | null
+  investment_outlook?: string | null
+  activity_score?: number | null
+  activity_trend?: string | null
+  family_profile_skew?: string | null
+  estimated_population_density?: string | null
+  status: string
+  published_at?: string | null
+  last_google_signals_refresh_at?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AdminAreaSource {
+  id: string
+  area_id: string
+  source_type_id: string
+  name?: string | null
+  handle?: string | null
+  url?: string | null
+  api_endpoint?: string | null
+  feed_url?: string | null
+  is_monitored?: boolean
+  last_fetched_at?: string | null
+}
+
+export interface AdminSourceType {
+  id: string
+  name: string
+  slug: string
+  archetype: string
+  input_method: string
+  is_active: boolean
+}
+
+export interface AdminAreaDetailResponse {
+  area: AdminArea
+  sources: AdminAreaSource[]
+  google_budget: {
+    monthly_spend_usd: number
+    budget_usd_monthly: number
+    quota_exceeded: boolean
+  }
+}
+
 export interface DataExportRecord {
   id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -4180,10 +4239,19 @@ export const api = {
   },
   createAdminArea: (data: Record<string, unknown>) =>
     fetchJson('/admin/areas', { method: 'POST', body: JSON.stringify(data) }),
-  getAdminArea: (id: string) => fetchJson(`/admin/areas/${id}`),
+  getAdminArea: (id: string) => fetchJson(`/admin/areas/${id}`) as Promise<AdminArea>,
+  getAdminAreaDetail: (id: string) => fetchJson(`/admin/areas/${id}/detail`) as Promise<AdminAreaDetailResponse>,
   updateAdminArea: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/admin/areas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    fetchJson(`/admin/areas/${id}`, { method: 'PUT', body: JSON.stringify(data) }) as Promise<AdminArea>,
   deleteAdminArea: (id: string) => fetchJson(`/admin/areas/${id}`, { method: 'DELETE' }),
+  listAdminAreaSources: (areaId: string) =>
+    fetchJson(`/admin/areas/${areaId}/sources`) as Promise<{ items: AdminAreaSource[] }>,
+  createAdminAreaSource: (areaId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/areas/${areaId}/sources`, { method: 'POST', body: JSON.stringify(data) }) as Promise<AdminAreaSource>,
+  updateAdminAreaSource: (areaId: string, sourceId: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/areas/${areaId}/sources/${sourceId}`, { method: 'PUT', body: JSON.stringify(data) }) as Promise<AdminAreaSource>,
+  deleteAdminAreaSource: (areaId: string, sourceId: string) =>
+    fetchJson(`/admin/areas/${areaId}/sources/${sourceId}`, { method: 'DELETE' }),
   enableAreaScoring: (id: string) =>
     fetchJson(`/admin/areas/${id}/enable-scoring`, { method: 'POST', body: '{}' }),
   disableAreaScoring: (id: string) =>
