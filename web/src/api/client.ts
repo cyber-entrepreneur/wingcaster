@@ -510,6 +510,29 @@ export interface AdminArea {
   updated_at?: string
 }
 
+/** AGT-TSK-003 — appointment reminder policy. */
+export type ReminderPolicyChannel = 'email' | 'whatsapp' | 'inapp'
+export type ReminderAppointmentType = 'viewing' | 'call' | 'booking' | 'meeting'
+
+export interface ReminderPolicyRule {
+  offset_minutes: number
+  channels: ReminderPolicyChannel[]
+  message_template?: string
+  active?: boolean
+}
+
+export interface ReminderPolicy {
+  id: string
+  name: string
+  owner_type: 'agent' | 'agency'
+  owner_id: string
+  appointment_type: ReminderAppointmentType
+  rules: ReminderPolicyRule[]
+  is_default?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface AdminAreaSource {
   id: string
   area_id: string
@@ -540,6 +563,15 @@ export interface AdminAreaDetailResponse {
     budget_usd_monthly: number
     quota_exceeded: boolean
   }
+}
+
+export interface ReminderPolicyInput {
+  name: string
+  owner_type?: 'agent' | 'agency'
+  owner_id?: string
+  appointment_type: ReminderAppointmentType
+  rules: ReminderPolicyRule[]
+  is_default?: boolean
 }
 
 export interface DataExportRecord {
@@ -4344,16 +4376,16 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  // Reminder policies
+  // Reminder policies (AGT-TSK-003)
   getReminderPolicies: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
-    return fetchJson(`/reminder-policies${qs}`)
+    return fetchJson(`/reminder-policies${qs}`) as Promise<ReminderPolicy[]>
   },
-  createReminderPolicy: (data: Record<string, unknown>) =>
-    fetchJson('/reminder-policies', { method: 'POST', body: JSON.stringify(data) }),
-  updateReminderPolicy: (id: string, data: Record<string, unknown>) =>
-    fetchJson(`/reminder-policies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteReminderPolicy: (id: string) => fetchJson(`/reminder-policies/${id}`, { method: 'DELETE' }),
+  createReminderPolicy: (data: ReminderPolicyInput) =>
+    fetchJson('/reminder-policies', { method: 'POST', body: JSON.stringify(data) }) as Promise<ReminderPolicy>,
+  updateReminderPolicy: (id: string, data: Partial<ReminderPolicyInput>) =>
+    fetchJson(`/reminder-policies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }) as Promise<ReminderPolicy>,
+  deleteReminderPolicy: (id: string) => fetchJson(`/reminder-policies/${id}`, { method: 'DELETE' }) as Promise<{ success: boolean }>,
 
   // Admin audit log
   getAdminAuditLog: (params?: Record<string, string>) => {
