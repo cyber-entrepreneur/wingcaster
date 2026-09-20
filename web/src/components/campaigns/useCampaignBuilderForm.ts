@@ -87,6 +87,7 @@ export function useCampaignBuilderForm(initialForm?: CampaignFormState) {
         tags_filter: form.tags_filter,
         audience_rules: form.audience_rules,
         steps: form.steps,
+        ...(form.editor_mode === 'canvas' && form.graph ? { graph: form.graph } : {}),
       })
       addToast({
         title: `Journey ${status === 'active' ? 'launched' : 'saved as draft'}`,

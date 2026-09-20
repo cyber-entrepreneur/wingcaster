@@ -6,7 +6,10 @@ export {
   getOutgoing,
   getEntryNode,
   evaluateCondition,
+  evaluateAttributeCondition,
+  evaluateEventCondition,
   resolveBranchTarget,
+  assignExperimentVariant,
 } from './graph.js'
 
 export {
@@ -21,6 +24,8 @@ export {
   updateJourneyRun,
   recordNodeRun,
   listNodeRuns,
+  recordTransition,
+  listTransitions,
 } from './repository.js'
 
 export {
@@ -29,4 +34,5 @@ export {
   advanceRun,
   traverseRun,
   getRunWithNodeRuns,
+  assertReentryAllowed,
 } from './engine.js'

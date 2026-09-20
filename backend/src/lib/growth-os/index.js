@@ -53,3 +53,15 @@ export {
   CONSENT_LEGAL_BASES,
   ELIGIBILITY_REASON_CODES,
 } from './consent.js'
+
+export {
+  resolveContactPolicy,
+  getContactPolicy,
+  listContactPolicies,
+  upsertContactPolicy,
+  checkFrequencyCap,
+  isInQuietHours,
+  isInDoNotContactWindow,
+  CONTACT_POLICY_SCOPES,
+  normalizeRules,
+} from './contact-policy.js'

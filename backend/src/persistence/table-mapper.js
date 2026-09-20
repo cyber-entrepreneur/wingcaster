@@ -344,6 +344,7 @@ const TABLE_MAP = {
       'agency_id', 'agent_id', 'name', 'description', 'status', 'trigger',
       'entry_audience_id', 'goal_event', 'suppression', 'legacy_campaign_id',
       'tags_filter', 'target_channel', 'audience_rules', 'created_by',
+      'reentry_rules', 'exit_criteria',
     ],
   },
   journey_versions: {
@@ -365,6 +366,21 @@ const TABLE_MAP = {
     columns: [
       'journey_run_id', 'node_id', 'node_type', 'agency_id', 'agent_id',
       'input', 'result', 'execution_id', 'creative_id', 'occurred_at',
+    ],
+  },
+  journey_transitions: {
+    schema: 'public',
+    table: 'journey_transitions',
+    columns: [
+      'journey_run_id', 'from_node', 'to_node', 'reason',
+      'agency_id', 'agent_id', 'occurred_at',
+    ],
+  },
+  contact_policies: {
+    schema: 'public',
+    table: 'contact_policies',
+    columns: [
+      'agency_id', 'agent_id', 'scope', 'name', 'rules',
     ],
   },
 

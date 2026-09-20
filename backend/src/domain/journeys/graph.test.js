@@ -38,6 +38,22 @@ describe('journey graph', () => {
     expect(evaluateCondition({ field: 'status', operator: 'is_not', value: 'client' }, contact)).toBe(true)
   })
 
+  it('evaluates event engagement conditions', () => {
+    const events = [{ event_name: 'message.replied', occurred_at: new Date().toISOString() }]
+    expect(evaluateCondition({
+      kind: 'event',
+      event_name: 'message.replied',
+      window_hours: 48,
+      operator: 'occurred',
+    }, {}, {}, events)).toBe(true)
+    expect(evaluateCondition({
+      kind: 'event',
+      event_name: 'message.replied',
+      window_hours: 48,
+      operator: 'not_occurred',
+    }, {}, {}, [])).toBe(true)
+  })
+
   it('supports branch-capable graph structure', () => {
     const graph = {
       nodes: [
