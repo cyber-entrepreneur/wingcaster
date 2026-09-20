@@ -192,7 +192,13 @@ export function AgentPricingPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Evidence status</CardTitle><CardDescription>Your recent sold-price submissions and their review state.</CardDescription></CardHeader>
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle>Evidence status</CardTitle>
+                <CardDescription>Your recent sold-price submissions and their review state.</CardDescription>
+              </div>
+              <Link to="/agent/pricing/reports" className="shrink-0 text-sm font-medium text-[var(--lc-text-brand)] hover:underline">All reports</Link>
+            </CardHeader>
             <CardContent className="space-y-3">
               {portfolio?.reports.slice(0, 10).map((item) => (
                 <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
