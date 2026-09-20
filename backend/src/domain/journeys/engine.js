@@ -168,7 +168,7 @@ export async function processNode(run, version, contact, { agencyId, agentId, no
       approvedTemplate: node.config?.template_id || null,
     })
 
-    if (!eligibility.eligible) {
+    if (!eligibility.allowed) {
       const nr = await recordNodeRun({
         journeyRunId: run.id,
         nodeId: node.id,

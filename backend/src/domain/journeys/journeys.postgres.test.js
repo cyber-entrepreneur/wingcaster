@@ -11,7 +11,9 @@ import { closeDb, configure, query } from '../../persistence/index.js'
 import { getPool } from '../../persistence/postgres-adapter.js'
 import {
   checkEligibility,
+  createChannelConnection,
   ELIGIBILITY_REASON_CODES,
+  ensureChannelDefinition,
   listExecutions,
   listEvents,
   setConsent,
@@ -74,12 +76,24 @@ async function seedAgencyAgent(pool, { agencyId, agentId }) {
   )
 }
 
-async function seedContact(pool, { contactId, agencyId, agentId }) {
+async function seedMessagingChannel({ platform, agencyId = null, agentId = null }) {
+  const def = await ensureChannelDefinition({ platform, kind: 'owned_messaging' })
+  await createChannelConnection({
+    channelDefinitionId: def.id,
+    agencyId,
+    agentId,
+    credentialsRef: `secret:fixture:${platform}`,
+    health: 'connected',
+  })
+  return def
+}
+
+async function seedContact(pool, { contactId, agencyId, agentId, tags = ['buyer'] }) {
   await pool.query(
-    `INSERT INTO public.contacts (id, name, email, assigned_agent_id, agency_id, data)
-     VALUES ($1, 'Test Contact', $2, $3, $4, '{"tags":["buyer"]}'::jsonb)
+    `INSERT INTO public.contacts (id, name, email, assigned_agent_id, agency_id, tags, data)
+     VALUES ($1, 'Test Contact', $2, $3, $4, $5::jsonb, '{}'::jsonb)
      ON CONFLICT (id) DO NOTHING`,
-    [contactId, `${contactId}@test.com`, agentId, agencyId],
+    [contactId, `${contactId}@test.com`, agentId, agencyId, JSON.stringify(tags)],
   )
 }
 
@@ -158,6 +172,7 @@ skipIfNoPostgres()('journeys wave 1a', () => {
         const contactId = `cnt_${randomUUID()}`
         await seedAgencyAgent(pool, { agencyId, agentId })
         await seedContact(pool, { contactId, agencyId, agentId })
+        await seedMessagingChannel({ platform: 'email', agencyId, agentId })
 
         await setConsent({
           contactId,
@@ -226,6 +241,7 @@ skipIfNoPostgres()('journeys wave 1a', () => {
         const contactId = `cnt_${randomUUID()}`
         await seedAgencyAgent(pool, { agencyId, agentId })
         await seedContact(pool, { contactId, agencyId, agentId })
+        await seedMessagingChannel({ platform: 'email', agencyId, agentId })
 
         const { current_version: version } = await createJourney({
           name: 'Consent deny test',
@@ -242,7 +258,7 @@ skipIfNoPostgres()('journeys wave 1a', () => {
           agencyId,
           agentId,
         })
-        expect(eligibility.eligible).toBe(false)
+        expect(eligibility.allowed).toBe(false)
         expect(eligibility.reason_code).toBe(ELIGIBILITY_REASON_CODES.DENY_NO_CONSENT)
 
         const run = await enrollContact({
