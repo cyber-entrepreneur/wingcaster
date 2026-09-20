@@ -161,7 +161,7 @@ const pages: Array<[string, ComponentType]> = [
   ['Tasks', TasksPage],
   ['Contacts', ContactsPage],
   ['Opportunities', OpportunitiesPage],
-  ['Campaigns', CampaignsPage],
+  ['Journeys', CampaignsPage],
   ['Campaign builder', CampaignBuilderPage],
   ['Command center', CommandCenterPage],
   ['Social channels', SocialChannelsPage],
