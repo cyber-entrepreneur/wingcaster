@@ -21,7 +21,8 @@ Read `docs/campaign-and-social-publishing-reconciliation.md` Part 2 (the three-p
 5. **Eligibility (the compliance line):**
    - **Public posts** (IG/FB/X/TikTok/LinkedIn feed) → check **`channels` connection health** only. No per-contact consent.
    - **WhatsApp listing-to-a-recipient** send → this IS messaging to a person → **must** pass `consent.checkEligibility({contactId, channel:'whatsapp', purpose:'marketing'})` (Wave 0).
-6. Emit **Events** (Wave 0 `events.js`) for publish outcomes (`delivery` category) so attribution can consume them later.
+6. Emit **Events** (Wave 0 `events.js` `ingestEvent`, under `withTenant`) for publish outcomes — `post.published`/`post.failed`/`message.submitted`/`message.delivered`/`message.failed` per the taxonomy — so 2C attribution can consume them. Resolve the tenant before ingest (strict RLS).
+7. **Connection state via Wave 0 `channels.js`** (canonical `channel_connections`, kept current by Wave 0's forward-sync triggers): use `getChannelConnection`/`resolveCapabilities`/health for routing and the "is this platform connected?" check. Actual provider **credential resolution stays via the existing `resolveConnectionCredentials`** path (creds live behind `credentials_ref`); don't duplicate secrets into canonical tables.
 
 ## OUT OF SCOPE
 Paid ads (Wave 2). Portal submission internals beyond representing them as canonical Executions. Creative rendering (1C) — consume a `creative_id`/media URL if provided, else today's `media_urls`/`property.photos`.
