@@ -459,6 +459,7 @@ import {
 } from './campaigns.js'
 import { registerAudienceRoutes } from './domain/audiences/routes.js'
 import { registerAttributionRoutes } from './domain/attribution/index.js'
+import { registerContactPolicyRoutes } from './lib/growth-os/contact-policy-routes.js'
 import {
   createJourney,
   getJourney,
@@ -3327,6 +3328,7 @@ app.post('/api/campaigns/run-scheduler', authMiddleware, async (req, res) => {
 
 registerAudienceRoutes(app, { authMiddleware, logActivity })
 registerAttributionRoutes(app, { authMiddleware })
+registerContactPolicyRoutes(app, { authMiddleware, logActivity })
 
 // ==================== JOURNEYS (Wave 1A canonical orchestration) ====================
 app.get('/api/journeys', authMiddleware, async (req, res) => {
@@ -3358,6 +3360,8 @@ app.post('/api/journeys', authMiddleware, async (req, res) => {
       graph: req.body.graph || null,
       entryAudienceId: req.body.entry_audience_id || null,
       goalEvent: req.body.goal_event || null,
+      reentryRules: req.body.reentry_rules || null,
+      exitCriteria: req.body.exit_criteria || null,
       agencyId: agent?.agency_id || null,
       agentId: req.user.id,
       createdBy: req.user.id,

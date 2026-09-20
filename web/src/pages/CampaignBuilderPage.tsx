@@ -39,6 +39,7 @@ import {
 } from '@/components/campaigns/campaign-builder-shared'
 import { useCampaignBuilderForm } from '@/components/campaigns/useCampaignBuilderForm'
 import { campaignFormFromGoal } from '@/components/campaigns/campaign-goals'
+import { emptyJourneyGraph, JourneyCanvas, type JourneyGraph } from '@/components/journeys/JourneyCanvas'
 
 function WizardProgressBar({ current }: { current: number }) {
   return (
@@ -290,13 +291,51 @@ function CampaignBuilderWizard() {
 
           {wizardStep === 2 && (
             <div className="space-y-6">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold">Message steps</h2>
-                  <p className="text-sm text-muted-foreground">Define the sequence. Each step fires after the previous one's delay.</p>
+                  <h2 className="text-lg font-semibold">Journey steps</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Linear sequence or branching canvas (condition / exit / experiment).
+                  </p>
+                </div>
+                <div className="flex gap-1 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] p-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-3 py-1 text-xs font-medium',
+                      (form.editor_mode || 'linear') === 'linear'
+                        ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'text-[var(--lc-text-muted)]',
+                    )}
+                    onClick={() => setField('editor_mode', 'linear')}
+                  >
+                    Linear
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-3 py-1 text-xs font-medium',
+                      form.editor_mode === 'canvas'
+                        ? 'bg-[var(--lc-action-primary)] text-[var(--lc-action-primary-text)]'
+                        : 'text-[var(--lc-text-muted)]',
+                    )}
+                    onClick={() => {
+                      setField('editor_mode', 'canvas')
+                      if (!form.graph) setField('graph', emptyJourneyGraph())
+                    }}
+                  >
+                    Canvas
+                  </button>
                 </div>
               </div>
 
+              {form.editor_mode === 'canvas' ? (
+                <JourneyCanvas
+                  graph={(form.graph as JourneyGraph | null) || emptyJourneyGraph()}
+                  onChange={(g) => setField('graph', g)}
+                />
+              ) : (
+                <>
               <div className="rounded-lg border border-[var(--lc-border)] bg-[var(--lc-bg-page)] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start from a template</p>
                 <div className="flex flex-wrap gap-2">
@@ -331,6 +370,8 @@ function CampaignBuilderWizard() {
                   <Plus className="h-4 w-4" /> Add step
                 </Button>
               </div>
+                </>
+              )}
             </div>
           )}
 

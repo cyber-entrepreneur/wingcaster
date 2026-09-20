@@ -24,6 +24,8 @@ export async function createJourney({
   agentId = null,
   createdBy = null,
   legacyCampaignId = null,
+  reentryRules = null,
+  exitCriteria = null,
 }) {
   if (!name?.trim()) throw Object.assign(new Error('Journey name is required'), { code: 'MISSING_NAME' })
   if (!VALID_STATUSES.has(status)) {
@@ -51,6 +53,8 @@ export async function createJourney({
       audience_rules: Array.isArray(audienceRules) ? audienceRules : [],
       created_by: createdBy || agentId,
       suppression: {},
+      reentry_rules: reentryRules || { allow: false, cooldown_hours: 0, max_entries: 1 },
+      exit_criteria: exitCriteria || {},
     })
 
     const version = await insert('journey_versions', {
@@ -121,6 +125,7 @@ export async function updateJourney(id, patch, { agencyId = null, agentId = null
     const allowed = [
       'name', 'description', 'status', 'trigger', 'tags_filter',
       'target_channel', 'audience_rules', 'entry_audience_id', 'goal_event', 'suppression',
+      'reentry_rules', 'exit_criteria',
     ]
     const next = { ...journey, updated_at: new Date().toISOString() }
     for (const key of allowed) {
@@ -233,6 +238,37 @@ export async function recordNodeRun({
 export async function listNodeRuns({ journeyRunId, agencyId = null, agentId = null } = {}) {
   return withTenant(agencyId, agentId, async () => {
     let rows = await findAll('journey_node_runs')
+    if (journeyRunId) rows = rows.filter((r) => r.journey_run_id === journeyRunId)
+    rows.sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime())
+    return rows
+  })
+}
+
+export async function recordTransition({
+  journeyRunId,
+  fromNode = null,
+  toNode = null,
+  reason = {},
+  agencyId = null,
+  agentId = null,
+}) {
+  return withTenant(agencyId, agentId, () =>
+    insert('journey_transitions', {
+      id: prefixedId('jtr_'),
+      journey_run_id: journeyRunId,
+      from_node: fromNode,
+      to_node: toNode,
+      reason,
+      agency_id: agencyId,
+      agent_id: agentId,
+      occurred_at: new Date().toISOString(),
+    }),
+  )
+}
+
+export async function listTransitions({ journeyRunId, agencyId = null, agentId = null } = {}) {
+  return withTenant(agencyId, agentId, async () => {
+    let rows = await findAll('journey_transitions')
     if (journeyRunId) rows = rows.filter((r) => r.journey_run_id === journeyRunId)
     rows.sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime())
     return rows

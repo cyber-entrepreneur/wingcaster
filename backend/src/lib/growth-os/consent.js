@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { insert, query } from '../../persistence/index.js'
+import { checkFrequencyCap } from './contact-policy.js'
 import { withTenant } from './with-tenant.js'
 
 const WHATSAPP_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -241,10 +242,6 @@ async function getWhatsAppServiceWindow({ contactId, now }) {
   }
 }
 
-async function checkFrequencyCap() {
-  return { capped: false }
-}
-
 /**
  * @returns {Promise<{ allowed: boolean, reason_code: string, required_action?: string, window_expires_at?: string }>}
  */
@@ -345,9 +342,19 @@ export async function checkEligibility({
       return deny(ELIGIBILITY_REASON_CODES.DENY_WHATSAPP_NO_TEMPLATE)
     }
     if (window.open) {
-      const frequency = await checkFrequencyCap({ contactId, channel: normalizedChannel, purpose })
+      const frequency = await checkFrequencyCap({
+        contactId,
+        channel: normalizedChannel,
+        purpose,
+        agencyId,
+        agentId,
+        now,
+      })
       if (frequency.capped) {
-        return deny(ELIGIBILITY_REASON_CODES.DENY_FREQUENCY_CAPPED)
+        return deny(ELIGIBILITY_REASON_CODES.DENY_FREQUENCY_CAPPED, {
+          frequency_detail: frequency.detail,
+          frequency_reason: frequency.reason,
+        })
       }
       return allow(ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED, {
         window_expires_at: window.expiresAt,
@@ -355,10 +362,20 @@ export async function checkEligibility({
     }
   }
 
-  // 5. Frequency / pressure cap (defaults to allow in Wave 0).
-  const frequency = await checkFrequencyCap({ contactId, channel: normalizedChannel, purpose })
+  // 5. Frequency / pressure cap via ContactPolicy (Wave 2E).
+  const frequency = await checkFrequencyCap({
+    contactId,
+    channel: normalizedChannel,
+    purpose,
+    agencyId,
+    agentId,
+    now,
+  })
   if (frequency.capped) {
-    return deny(ELIGIBILITY_REASON_CODES.DENY_FREQUENCY_CAPPED)
+    return deny(ELIGIBILITY_REASON_CODES.DENY_FREQUENCY_CAPPED, {
+      frequency_detail: frequency.detail,
+      frequency_reason: frequency.reason,
+    })
   }
 
   return allow(ELIGIBILITY_REASON_CODES.OK_CONSENT_GRANTED)

@@ -650,6 +650,69 @@ export interface AgencyMfaPolicy {
   is_default: boolean
 }
 
+/** Wave 2E — ContactPolicy rules + row. */
+export interface ContactPolicyRules {
+  frequency_caps?: Array<{
+    channel: 'email' | 'sms' | 'whatsapp'
+    purpose?: 'marketing' | 'transactional' | 'nurture'
+    max_sends: number
+    window_hours: number
+  }>
+  quiet_hours?: {
+    timezone?: string
+    windows: Array<{ days?: number[]; start: string; end: string }>
+  } | null
+  do_not_contact_windows?: Array<{
+    start?: string
+    end?: string
+    channels?: string[]
+    reason?: string
+  }>
+  campaign_priority?: Array<Record<string, unknown>>
+  negotiation_suppression?: boolean
+}
+
+export interface ContactPolicy {
+  id: string
+  agency_id?: string | null
+  agent_id?: string | null
+  scope: 'agency' | 'agent'
+  name: string
+  rules: ContactPolicyRules
+  created_at?: string
+  updated_at?: string
+  data?: Record<string, unknown>
+}
+
+export interface JourneyNodeRunRow {
+  id: string
+  journey_run_id: string
+  node_id: string
+  node_type: string
+  input?: Record<string, unknown>
+  result?: Record<string, unknown>
+  execution_id?: string | null
+  occurred_at?: string
+}
+
+export interface JourneyTransitionRow {
+  id: string
+  journey_run_id: string
+  from_node?: string | null
+  to_node?: string | null
+  reason?: Record<string, unknown>
+  occurred_at?: string
+}
+
+export interface JourneyRunDetail {
+  id: string
+  contact_id: string
+  status: string
+  state?: Record<string, unknown>
+  node_runs?: JourneyNodeRunRow[]
+  transitions?: JourneyTransitionRow[]
+}
+
 /** AGN-REP-001 — agency reports home preview card. */
 export interface AgencyReportsHomeCard {
   id: string
@@ -3809,6 +3872,22 @@ export const api = {
   getJourneyRun: (runId: string) => fetchJson(`/journey-runs/${runId}`),
   advanceJourneyRun: (journeyId: string, runId: string) =>
     fetchJson(`/journeys/${journeyId}/runs/${runId}/advance`, { method: 'POST', body: '{}' }),
+
+  // ContactPolicy (Wave 2E)
+  getContactPolicies: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/contact-policies${qs}`) as Promise<ContactPolicy[]>
+  },
+  getContactPolicy: (id: string) =>
+    fetchJson(`/contact-policies/${id}`) as Promise<ContactPolicy>,
+  upsertContactPolicy: (data: {
+    id?: string
+    scope?: 'agency' | 'agent'
+    name?: string
+    rules: ContactPolicyRules
+    data?: Record<string, unknown>
+  }) =>
+    fetchJson('/contact-policies', { method: 'PUT', body: JSON.stringify(data) }) as Promise<ContactPolicy>,
 
   // Campaigns / Drip sequences (legacy — prefer journeys)
   getCampaigns: (params?: Record<string, string>) => {

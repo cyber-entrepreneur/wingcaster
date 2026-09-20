@@ -1,8 +1,9 @@
 /**
  * Journey graph utilities — DAG node/edge model for branch-capable orchestration.
+ * Wave 2E: attribute + event/engagement condition predicates, experiment splits.
  */
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 export const NODE_TYPES = new Set([
   'trigger', 'wait', 'send', 'condition', 'branch',
@@ -48,6 +49,7 @@ export function stepsToGraph(steps = [], targetChannel = 'email') {
         body: step.body || '',
         template_id: step.template_id || null,
         creative_id: step.creative_id || null,
+        purpose: step.purpose || 'marketing',
       },
     })
     edges.push({ from: waitId, to: sendId })
@@ -87,6 +89,7 @@ export function graphToSteps(graph, targetChannel = 'email') {
           subject: sendNode.config?.subject || '',
           body: sendNode.config?.body || '',
           creative_id: sendNode.config?.creative_id || null,
+          purpose: sendNode.config?.purpose || 'marketing',
         })
         current = outgoing.get(sendNode.id)?.[0]
         continue
@@ -112,7 +115,10 @@ export function getEntryNode(graph) {
   return next[0] || null
 }
 
-export function evaluateCondition(config, contact, state = {}) {
+/**
+ * Attribute predicates (status/tags/source/territory/state fields).
+ */
+export function evaluateAttributeCondition(config, contact, state = {}) {
   const field = config?.field
   const operator = config?.operator || 'is'
   const expected = config?.value
@@ -128,26 +134,136 @@ export function evaluateCondition(config, contact, state = {}) {
   } else if (field === 'territory') {
     actual = contact?.territory || contact?.data?.territory
   } else {
-    actual = state[field]
+    actual = state[field] ?? contact?.[field]
   }
 
   if (operator === 'is') return String(actual) === String(expected)
   if (operator === 'is_not') return String(actual) !== String(expected)
   if (operator === 'contains') return String(actual || '').includes(String(expected))
+  if (operator === 'gt') return Number(actual) > Number(expected)
+  if (operator === 'gte') return Number(actual) >= Number(expected)
+  if (operator === 'lt') return Number(actual) < Number(expected)
+  if (operator === 'lte') return Number(actual) <= Number(expected)
   return false
 }
 
-export function resolveBranchTarget(graph, node, contact, state) {
+/**
+ * Event/engagement predicates — e.g. "message.replied within 48h".
+ */
+export function evaluateEventCondition(config, recentEvents = [], now = Date.now()) {
+  const eventName = config?.event_name
+  if (!eventName) return false
+  const windowHours = Number(config?.window_hours)
+  const since = Number.isFinite(windowHours) && windowHours > 0
+    ? now - windowHours * 60 * 60 * 1000
+    : null
+  const operator = config?.operator || 'occurred'
+
+  const matched = (recentEvents || []).some((ev) => {
+    if (ev.event_name !== eventName) return false
+    if (since == null) return true
+    return new Date(ev.occurred_at).getTime() >= since
+  })
+
+  if (operator === 'not_occurred' || operator === 'absent') return !matched
+  return matched
+}
+
+/**
+ * Evaluate a condition config. Supports attribute (default) and event kinds.
+ */
+export function evaluateCondition(config, contact, state = {}, recentEvents = [], now = Date.now()) {
+  const kind = config?.kind || (config?.event_name ? 'event' : 'attribute')
+  if (kind === 'event') {
+    return evaluateEventCondition(config, recentEvents, now)
+  }
+  return evaluateAttributeCondition(config, contact, state)
+}
+
+export function resolveBranchTarget(graph, node, contact, state, recentEvents = [], now = Date.now()) {
   const config = node.config || {}
   if (node.type === 'condition') {
-    const result = evaluateCondition(config, contact, state)
-    return result ? config.true_next : config.false_next
+    const result = evaluateCondition(config, contact, state, recentEvents, now)
+    return {
+      next: result ? config.true_next : config.false_next,
+      reason: {
+        type: 'condition',
+        kind: config.kind || (config.event_name ? 'event' : 'attribute'),
+        matched: result,
+        predicate: {
+          field: config.field,
+          event_name: config.event_name,
+          operator: config.operator,
+          value: config.value,
+          window_hours: config.window_hours,
+        },
+      },
+    }
   }
   if (node.type === 'branch') {
     const key = config.branch_key
     const value = state[key]
     const mapping = config.branches || {}
-    return mapping[value] || config.default_next || getOutgoing(graph, node.id)[0]
+    const next = mapping[value] || config.default_next || getOutgoing(graph, node.id)[0]
+    return {
+      next,
+      reason: {
+        type: 'branch',
+        branch_key: key,
+        branch_value: value,
+        matched_key: mapping[value] != null,
+      },
+    }
   }
-  return getOutgoing(graph, node.id)[0]
+  return {
+    next: getOutgoing(graph, node.id)[0],
+    reason: { type: 'passthrough' },
+  }
+}
+
+/**
+ * Deterministic experiment assignment for node-level splits (Wave 2D stats later).
+ */
+export function assignExperimentVariant(config, contactId) {
+  const variants = Array.isArray(config?.variants) ? config.variants : []
+  const holdoutPct = Math.max(0, Math.min(100, Number(config?.holdout_pct) || 0))
+  const seed = `${config?.experiment_id || 'node'}:${contactId || 'anon'}`
+  const hash = createHash('sha256').update(seed).digest()
+  const bucket = hash.readUInt32BE(0) % 10000
+
+  if (holdoutPct > 0 && bucket < holdoutPct * 100) {
+    return {
+      variant: 'holdout',
+      next: config.holdout_next || null,
+      assignment_reason: 'holdout',
+    }
+  }
+
+  if (!variants.length) {
+    return {
+      variant: null,
+      next: config.default_next || null,
+      assignment_reason: 'no_variants',
+    }
+  }
+
+  const totalWeight = variants.reduce((sum, v) => sum + Math.max(0, Number(v.weight) || 0), 0) || variants.length
+  const pick = (hash.readUInt32BE(4) % 10000) / 10000 * totalWeight
+  let cursor = 0
+  for (const variant of variants) {
+    cursor += Math.max(0, Number(variant.weight) || (totalWeight / variants.length))
+    if (pick <= cursor) {
+      return {
+        variant: variant.key || variant.id || variant.name,
+        next: variant.next || null,
+        assignment_reason: 'weighted_hash',
+      }
+    }
+  }
+  const last = variants[variants.length - 1]
+  return {
+    variant: last.key || last.id || last.name,
+    next: last.next || null,
+    assignment_reason: 'weighted_hash_fallback',
+  }
 }

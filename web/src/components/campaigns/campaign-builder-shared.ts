@@ -41,6 +41,12 @@ export interface CampaignFormState {
   tags_filter: string[]
   audience_rules: AudienceRule[]
   steps: CampaignStep[]
+  /** Wave 2E branching graph; when set, preferred over linear steps on save. */
+  graph?: {
+    nodes: Array<{ id: string; type: string; config: Record<string, unknown>; x?: number; y?: number }>
+    edges: Array<{ from: string; to: string }>
+  } | null
+  editor_mode?: 'linear' | 'canvas'
 }
 
 export const TRIGGERS = [
@@ -150,6 +156,8 @@ export const INITIAL_FORM_STATE: CampaignFormState = {
   tags_filter: [],
   audience_rules: [],
   steps: [{ ...EMPTY_STEP }],
+  graph: null,
+  editor_mode: 'linear',
 }
 
 export function stepsAreValid(steps: CampaignStep[]): boolean {
@@ -157,5 +165,9 @@ export function stepsAreValid(steps: CampaignStep[]): boolean {
 }
 
 export function formCanSave(form: CampaignFormState): boolean {
-  return form.name.trim().length >= 2 && stepsAreValid(form.steps)
+  if (form.name.trim().length < 2) return false
+  if (form.editor_mode === 'canvas') {
+    return Boolean(form.graph?.nodes?.some((n) => n.type === 'send' || n.type === 'exit'))
+  }
+  return stepsAreValid(form.steps)
 }

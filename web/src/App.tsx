@@ -45,6 +45,7 @@ import { AgentPublicProfileEditorPage } from '@/pages/agent/AgentPublicProfileEd
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
+import { JourneyRunInspectorPage } from '@/pages/JourneyRunInspectorPage'
 import { AudiencesPage } from '@/pages/AudiencesPage'
 import { AudienceBuilderPage } from '@/pages/AudienceBuilderPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
@@ -86,6 +87,7 @@ import { AuditLogPage } from '@/pages/admin/audit/AuditLogPage'
 import { AuditRetentionPolicyPage } from '@/pages/admin/audit/AuditRetentionPolicyPage'
 import { AgencySecurityPolicyPage } from '@/pages/agency/settings/AgencySecurityPolicyPage'
 import { AgencyBrandingPage } from '@/pages/agency/settings/AgencyBrandingPage'
+import { AgencyContactPolicyPage } from '@/pages/agency/settings/AgencyContactPolicyPage'
 import { AgencyRoutingRulesPage } from '@/pages/agency/routing/AgencyRoutingRulesPage'
 import { AgencyRoutingRuleEditorPage } from '@/pages/agency/routing/AgencyRoutingRuleEditorPage'
 import { AgencyTemplatesListPage } from '@/pages/agency/templates/AgencyTemplatesListPage'
@@ -269,6 +271,7 @@ function AppRoutes() {
       <Route path="/journeys" element={<CampaignsPage />} />
       <Route path="/journeys/new" element={<CampaignBuilderPage />} />
       <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
+      <Route path="/journeys/runs/:runId" element={<JourneyRunInspectorPage />} />
       <Route path="/campaigns" element={<Navigate to="/journeys" replace />} />
       <Route path="/campaigns/new" element={<Navigate to="/journeys/new" replace />} />
       <Route path="/campaigns/:id" element={<Navigate to="/journeys" replace />} />
@@ -308,6 +311,7 @@ function AppRoutes() {
       <Route path="/agency/settings/audit" element={<AuditLogPage />} />
       <Route path="/agency/settings/security" element={<AgencySecurityPolicyPage />} />
       <Route path="/agency/settings/branding" element={<AgencyBrandingPage />} />
+      <Route path="/agency/settings/contact-policy" element={<AgencyContactPolicyPage />} />
       <Route path="/agency/routing" element={<AgencyRoutingRulesPage />} />
       <Route path="/agency/routing/rules/:ruleId" element={<AgencyRoutingRuleEditorPage />} />
       <Route path="/agency/templates" element={<AgencyTemplatesListPage />} />

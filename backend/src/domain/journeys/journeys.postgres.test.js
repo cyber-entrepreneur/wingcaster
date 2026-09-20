@@ -215,7 +215,7 @@ skipIfNoPostgres()('journeys wave 1a', () => {
         })
 
         const { run: finalRun, nodeRuns } = await traverseRun(run.id, { agencyId, agentId })
-        expect(finalRun.status).toBe('completed')
+        expect(['completed', 'exited']).toContain(finalRun.status)
         expect(nodeRuns.some((nr) => nr.node_type === 'wait')).toBe(true)
         expect(nodeRuns.some((nr) => nr.node_type === 'condition')).toBe(true)
         expect(nodeRuns.some((nr) => nr.node_type === 'send')).toBe(true)
