@@ -161,16 +161,18 @@ export function PromoteDistributeModal({
           captionPayload[p] = (captions[p] || baseCaption).trim() || baseCaption
         }
         const fallbackCaption = selectedOwn.length === 1 ? captionPayload[selectedOwn[0]] : baseCaption
-        const rows = await api.distributeOwn(property.id, selectedOwn, {
-          mode: 'publish',
-          recipient: recipient || undefined,
+        const channels = selectedOwn.map((platform) => ({
+          platform,
+          caption: captionPayload[platform] || fallbackCaption,
+        }))
+        const { results } = await api.publishListingToSocial(property.id, {
+          channels,
           caption: fallbackCaption,
-          captions: captionPayload,
-          intent: mode,
+          ...(selectedOwn.includes('whatsapp') && recipient ? { recipient } : {}),
         })
-        const failed = (rows || []).filter((r: { status: string }) => r.status === 'failed')
+        const failed = (results || []).filter((r) => r.status === 'failed')
         if (failed.length) {
-          setError(failed.map((f: { platform: string; error: string }) => `${f.platform}: ${f.error}`).join('\n'))
+          setError(failed.map((f) => `${f.platform}: ${f.error || 'Publish failed'}`).join('\n'))
           setLoading(false)
           return
         }

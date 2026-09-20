@@ -143,6 +143,10 @@ import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
 import { recordDistributionAttempt } from './lib/publishing/record-attempt.js'
 import {
+  publishListingToSocialChannels,
+  retryLegacyDistribution,
+} from './lib/social-publishing/index.js'
+import {
   NotFoundError,
   assertAssignableConversationAgent,
   assertOwnsCampaign,
@@ -5120,7 +5124,6 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
   const retryAttempts = Number(previousMeta.retry_attempts || 0) + 1
   const property = await findOne('properties', p => p.id === row.property_id)
   const serialized = property ? serializeProperty(property) : null
-  const conn = row.connection_id ? await findOne('marketplace_connections', c => c.id === row.connection_id) : null
 
   let status = row.status
   let externalId = row.external_id || null
@@ -5139,74 +5142,34 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
       throw new Error('Property no longer exists for this distribution')
     }
 
-    if (row.platform === 'whatsapp') {
-      if (!isWhatsAppConfigured()) {
-        throw new Error('WhatsApp Cloud API credentials are not configured on the server')
-      }
-      const recipient = meta.recipient || conn?.settings?.notify_number || getWhatsAppConfig().defaultRecipient
-      if (!recipient) {
-        throw new Error('Add a WhatsApp recipient number in Channel Settings (or WHATSAPP_DEFAULT_RECIPIENT in .env)')
-      }
-      const sent = await sendListingToWhatsApp(serialized, recipient, {
+    const retried = await retryLegacyDistribution(row, {
+      serializedProperty: serialized,
+      creditContext: {
         tenantId: creditTenantIdForScope('personal', row.agent_id),
         relatedEntityId: serialized.id,
         callType: 'retry_publish',
-      })
-      externalId = sent.message_id
-      status = 'published'
-      publishedAt = nowIso
-      Object.assign(meta, {
-        delivery: 'cloud_api',
-        recipient: sent.recipient,
-        message_id: sent.message_id,
-        published_via: 'retry_worker',
-        next_retry_at: null,
-      })
-      delete meta.details
-    } else if (row.platform === 'instagram') {
-      const imageUrls = meta.media_urls?.length ? meta.media_urls : (serialized.photos || [])
-      const caption = meta.caption || `${serialized.title} · ${serialized.city || serialized.location || ''}`
-      const formats = row.formats || meta.formats || []
-      const creditContext = {
-        tenantId: creditTenantIdForScope('personal', row.agent_id),
-        relatedEntityId: serialized.id,
-        callType: 'retry_publish',
-      }
-      let publishResult
-      if (formats.includes('carousel') && imageUrls.length > 1) {
-        publishResult = await publishInstagramCarousel({ imageUrls, caption, creditContext })
-      } else if (formats.includes('reel') && imageUrls[0]?.includes('video')) {
-        publishResult = await publishInstagramReel({ videoUrl: imageUrls[0], caption, creditContext })
-      } else if (formats.includes('story') && imageUrls.length) {
-        publishResult = await publishInstagramStory({ imageUrl: imageUrls[0], creditContext })
-      } else if (imageUrls.length) {
-        publishResult = await publishInstagramFeed({
-          imageUrl: imageUrls[0],
-          caption,
-          creditContext,
-        })
-      } else {
-        throw new Error('No media URLs available for Instagram publish')
-      }
-      externalId = publishResult.provider_message_id
-      status = 'published'
-      publishedAt = nowIso
-      Object.assign(meta, {
-        delivery: publishResult.simulated ? 'instagram_dev_simulator' : 'instagram_graph_api',
-        published_via: 'retry_worker',
-        provider: publishResult.provider,
-        simulated: publishResult.simulated || false,
-        next_retry_at: null,
-      })
-    } else {
-      status = 'failed'
-      error = `Retry publishing is not implemented for ${row.platform}`
-      Object.assign(meta, {
-        delivery: null,
-        published_via: null,
-        next_retry_at: null,
-      })
-    }
+      },
+      source,
+    })
+    status = retried.status
+    externalId = retried.external_id || null
+    publishedAt = retried.published_at || (status === 'published' ? nowIso : null)
+    error = retried.error || null
+    Object.assign(meta, {
+      ...(retried.meta || {}),
+      published_via: 'retry_worker_consolidated',
+      next_retry_at: null,
+      queued: false,
+      consolidated_distribution_id: retried.id,
+    })
+    await update('distributions', d => d.id === row.id, d => ({
+      ...d,
+      status,
+      error,
+      external_id: externalId,
+      published_at: publishedAt,
+      meta,
+    }))
   } catch (e) {
     status = row.platform === 'whatsapp' ? 'failed' : 'pending_retry'
     error = e.message
@@ -5224,38 +5187,24 @@ async function retryDistributionDelivery(row, { requestedBy, source = 'manual' }
       status = 'failed'
       error = `${e.message} (max retry attempts reached)`
     }
+    await update('distributions', d => d.id === row.id, d => ({
+      ...d,
+      status,
+      error,
+      external_id: externalId,
+      published_at: publishedAt,
+      meta,
+    }))
   }
 
-  await update('distributions', d => d.id === row.id, d => ({
-    ...d,
-    status,
-    error,
-    external_id: externalId,
-    published_at: publishedAt,
-    meta,
-  }))
-
-  await recordDistributionAttempt({
-    distributionJobId: row.id,
-    status,
-    error: error ? { message: error, details: meta.details || null } : null,
-    errorMessage: error,
-    response: externalId ? { external_id: externalId } : null,
-    extra: {
-      source,
-      retry_attempts: retryAttempts,
-      platform: row.platform,
-    },
-  })
-
-  const updated = await findOne('distributions', d => d.id === row.id)
+  const updated = await findOne('distributions', d => d.id === row.id) || row
   await logActivity({
     type: status === 'published' ? 'distribution_retry_published' : 'distribution_retry_failed',
     property_id: row.property_id,
     agent_id: row.agent_id,
     meta: {
       platform: row.platform,
-      distribution_id: row.id,
+      distribution_id: updated.id,
       status,
       error,
       requested_by: requestedBy,
@@ -5872,160 +5821,86 @@ app.delete('/api/my-connections/:id', authMiddleware, requireElevated(), async (
 
 app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (req, res) => {
   const prop = await assertOwnsProperty(req.user.id, req.params.propertyId)
-  const { platforms, formats, mode, recipient, caption, captions, intent } = req.body
+  const { platforms, formats, mode, recipient, caption, captions, intent, contact_id: contactId } = req.body
   if (!platforms?.length) return res.status(400).json({ error: 'Select at least one platform' })
 
   const serialized = serializeProperty(prop)
-  const distributions = []
-  const fatalWhatsAppFailures = []
   const autoCaption = caption || `${serialized.title} · ${serialized.city || serialized.location || ''} · $${Number(serialized.price || 0).toLocaleString()}\n\nAvailable on REB`
   const perChannelCaptions = captions && typeof captions === 'object' ? captions : {}
 
-  for (const platform of platforms) {
-    const channelCaption = String(perChannelCaptions[platform] || caption || autoCaption).trim() || autoCaption
-    const conn = await findAgentPrimaryConnection(req.user.id, platform)
-    if (!conn) {
-      const failed = {
+  if (mode === 'draft') {
+    const distributions = []
+    for (const platform of platforms) {
+      const row = {
         id: uuidv4(),
         property_id: req.params.propertyId,
         agent_id: req.user.id,
         platform,
         owner_type: 'agent',
-        status: 'failed',
-        error: 'Platform not connected. Connect it under Channel Settings first.',
+        status: 'draft',
         formats: formats?.[platform] || [],
+        meta: { intent: intent || 'distribute', delivery: 'draft_only' },
         created_at: new Date().toISOString(),
       }
-      await insert('distributions', failed)
-      distributions.push(failed)
-      if (platform === 'whatsapp') {
-        fatalWhatsAppFailures.push({ platform, error: failed.error })
-      }
-      continue
+      await insert('distributions', row)
+      distributions.push(row)
     }
-
-    const approvalRequired = conn.settings?.approval_required && mode !== 'publish'
-    let status = approvalRequired || mode === 'draft' ? 'draft' : 'published'
-    let externalId = null
-    let error = null
-    let meta = {}
-
-    if (platform === 'whatsapp') {
-      const card = buildListingChatCard(serialized)
-      meta = { format: 'chat_card', preview: card.body, listing_url: card.listingUrl, intent: intent || 'distribute' }
-
-      if (status === 'draft') {
-        meta.delivery = 'draft_only'
-      } else if (!isWhatsAppConfigured()) {
-        status = 'failed'
-        error = 'WhatsApp Cloud API credentials are not configured on the server'
-      } else {
-        const to = recipient || conn.settings?.notify_number || getWhatsAppConfig().defaultRecipient
-        if (!to) {
-          status = 'failed'
-          error = 'Add a WhatsApp recipient number in Channel Settings (or WHATSAPP_DEFAULT_RECIPIENT in .env)'
-        } else {
-          try {
-            const sent = await sendListingToWhatsApp(serialized, to, creditContextFromRequest(req, {
-              relatedEntityId: serialized.id,
-              callType: 'listing_card',
-            }))
-            externalId = sent.message_id
-            meta = {
-              ...meta,
-              recipient: sent.recipient,
-              message_id: sent.message_id,
-              delivery: 'cloud_api',
-            }
-          } catch (e) {
-            status = 'failed'
-            error = e.message
-            meta.details = e.details || null
-          }
-        }
-      }
-    } else {
-      // Instagram / Telegram / TikTok / X — queue for retries (Decision C).
-      // WhatsApp is the only hard-fail channel; social channels enter pending_retry queue.
-      if (status !== 'draft') status = 'pending_retry'
-      externalId = null
-      const formatMap = {
-        instagram: 'feed_image',
-        telegram: 'channel_post',
-        tiktok: 'photo_post',
-        x: 'image_post',
-      }
-      meta = {
-        delivery: 'agent_social_retry_queue',
-        queued: status === 'pending_retry',
-        retry_attempts: 0,
-        next_retry_at: status === 'pending_retry' ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null,
-        intent: intent || 'distribute',
-        handle: conn.settings?.handle || conn.account_name,
-        caption: channelCaption,
-        format: formatMap[platform] || 'post',
-        note: status === 'pending_retry'
-          ? 'Queued for retry publishing. A publisher worker or manual retry can complete delivery.'
-          : 'Saved as draft.',
-      }
-    }
-
-    const row = {
-      id: uuidv4(),
-      property_id: req.params.propertyId,
-      agent_id: req.user.id,
-      platform,
-      owner_type: 'agent',
-      connection_id: conn.id,
-      account_name: conn.account_name,
-      status,
-      error,
-      formats: formats?.[platform] || (platform === 'whatsapp' ? ['chat_card'] : [meta.format].filter(Boolean)),
-      external_id: externalId,
-      meta,
-      views: 0,
-      leads: 0,
-      clicks: 0,
-      cost: 0,
-      published_at: status === 'published' ? new Date().toISOString() : null,
-      created_at: new Date().toISOString(),
-    }
-    await insert('distributions', row)
-    // Record an attempt when we actually hit a provider (WhatsApp live send)
-    // or permanently failed before queueing. Pure draft / pending_retry queue
-    // rows are not attempts yet — the retry worker records those.
-    if (platform === 'whatsapp' && status !== 'draft') {
-      await recordDistributionAttempt({
-        distributionJobId: row.id,
-        status,
-        error: error ? { message: error, details: meta.details || null } : null,
-        errorMessage: error,
-        response: externalId ? { external_id: externalId, ...meta } : meta,
-        extra: { platform, source: 'distribute_own' },
-      })
-    }
-    await logActivity({
-      type: status === 'published'
-        ? 'distribution_published'
-        : status === 'failed'
-          ? 'distribution_failed'
-          : status === 'pending_retry'
-            ? 'distribution_queued_retry'
-            : 'distribution_draft',
-      property_id: row.property_id,
-      agent_id: req.user.id,
-      meta: { platform, distribution_id: row.id, status, error, external_id: externalId, intent: intent || 'distribute' },
-    })
-    distributions.push(row)
-
-    if (platform === 'whatsapp' && status === 'failed') {
-      fatalWhatsAppFailures.push({ platform, error: error || 'WhatsApp delivery failed' })
-    }
+    return res.json(distributions)
   }
+
+  const channels = platforms.map((platform) => ({
+    platform,
+    format: (formats?.[platform] || [])[0] || null,
+    caption: String(perChannelCaptions[platform] || caption || autoCaption).trim() || autoCaption,
+  }))
+
+  const memberships = await listUserAgencyMemberships(req.user.id)
+  const agencyId = memberships.find((m) => m.status === 'active')?.agency_id || null
+  const { results, distributions } = await publishListingToSocialChannels({
+    property: prop,
+    serializedProperty: serialized,
+    agentId: req.user.id,
+    agencyId,
+    channels,
+    captions: perChannelCaptions,
+    defaultCaption: autoCaption,
+    recipient,
+    contactId,
+    creditContext: creditContextFromRequest(req, {
+      relatedEntityId: serialized.id,
+      callType: 'listing_card',
+    }),
+    intent: intent || 'distribute',
+    source: 'distribute_own',
+  })
+
+  for (const dist of distributions) {
+    await logActivity({
+      type: dist.status === 'published'
+        ? 'distribution_published'
+        : dist.status === 'failed'
+          ? 'distribution_failed'
+          : 'distribution_queued_retry',
+      property_id: dist.property_id,
+      agent_id: req.user.id,
+      meta: {
+        platform: dist.platform,
+        distribution_id: dist.id,
+        status: dist.status,
+        error: dist.error,
+        external_id: dist.external_id,
+        intent: intent || 'distribute',
+      },
+    })
+  }
+
+  const fatalWhatsAppFailures = results
+    .filter((r) => r.platform === 'whatsapp' && r.status === 'failed')
+    .map((r) => ({ platform: r.platform, error: r.error || 'WhatsApp delivery failed' }))
 
   if (fatalWhatsAppFailures.length > 0) {
     return res.status(400).json({
-      error: 'WhatsApp delivery failed. Social channels were queued for retry where applicable.',
+      error: 'WhatsApp delivery failed. Other channels were processed where applicable.',
       fatal_channel: 'whatsapp',
       failures: fatalWhatsAppFailures,
       distributions,
@@ -6036,17 +5911,14 @@ app.post('/api/properties/:propertyId/distribute-own', authMiddleware, async (re
 })
 
 /**
- * Direct-publish path: fans out to platform-specific publish scaffolds.
- * Unlike /distribute-own (which queues for retry on social channels), this
- * endpoint hits the real IG / FB / X / TikTok / LinkedIn publish functions
- * directly. Missing provider credentials fail the affected channel.
+ * Consolidated direct-publish path (Wave 1B): real adapters + canonical Executions.
  */
 app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) => {
   const property = await findOne('properties', p => p.id === req.params.id)
   if (!property) return res.status(404).json({ error: 'Listing not found' })
   if (property.agent_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' })
 
-  const { channels, caption } = req.body || {}
+  const { channels, caption, contact_id: contactId, recipient } = req.body || {}
   if (!Array.isArray(channels) || channels.length === 0) {
     return res.status(400).json({ error: 'channels[] must have at least one entry' })
   }
@@ -6054,247 +5926,66 @@ app.post('/api/listings/:id/publish-social', authMiddleware, async (req, res) =>
   const mediaUrls = Array.isArray(req.body?.media_urls) && req.body.media_urls.length > 0
     ? req.body.media_urls
     : Array.isArray(property.photos) ? property.photos : []
-  const firstImage = mediaUrls.find((u) => typeof u === 'string' && !/\.(mp4|webm|mov)(\?|$)/i.test(u)) || mediaUrls[0]
-  const firstVideo = mediaUrls.find((u) => typeof u === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(u))
   const text = String(caption || '').trim() || `${property.title} — ${[property.city, property.neighborhood].filter(Boolean).join(', ')}`
-  const creditContext = creditContextFromRequest(req, {
-    relatedEntityId: property.id,
-    callType: 'publish',
+  const memberships = await listUserAgencyMemberships(req.user.id)
+  const agencyId = memberships.find((m) => m.status === 'active')?.agency_id || null
+
+  const { results, distributions } = await publishListingToSocialChannels({
+    property,
+    agentId: req.user.id,
+    agencyId,
+    channels,
+    defaultCaption: text,
+    mediaUrls,
+    recipient,
+    contactId,
+    creativeId: req.body?.creative_id || null,
+    creditContext: creditContextFromRequest(req, {
+      relatedEntityId: property.id,
+      callType: 'publish',
+    }),
+    intent: 'publish',
+    source: 'publish_social',
   })
 
-  const results = []
-  for (const raw of channels) {
-    const platform = raw?.platform
-    const format = raw?.format || null
-    if (!platform) {
-      results.push({ platform, status: 'failed', error: 'platform is required' })
-      continue
-    }
-
-    const conn = await findOne(
-      'marketplace_connections',
-      c => c.agent_id === req.user.id && c.platform === platform && c.status === 'connected',
-    )
-    if (!conn) {
-      results.push({
-        platform,
-        status: 'failed',
-        error: `${platform} is not connected. Connect it in Settings → Integrations.`,
-        error_code: 'NOT_CONNECTED',
-      })
-      continue
-    }
-
-    // Resolve per-tenant creds. Enterprise platforms use Wingcaster's env
-    // token + the tenant's target ID; OAuth platforms use the tenant's own
-    // stored access token.
-    const creds = resolveConnectionCredentials(conn)
-    const model = PLATFORM_INTEGRATION_MODEL[platform] || 'enterprise'
-
-    // Only check the shared-env credentials when the tenant does NOT already
-    // have its own usable publish token. Tenants that stored an override token
-    // (or completed OAuth) must not be 503'd because the Wingcaster env is
-    // unset — the adapter will use their own creds. See
-    // lib/publish-readiness.js#tenantHasPublishToken for the rules.
-    if (!tenantHasPublishToken(platform, creds)) {
-      try {
-        assertPublishChannelConfigured(platform)
-      } catch (error) {
-        results.push({ platform, status: 'failed', error: error.message, error_code: error.code })
-        continue
-      }
-    }
-
-    let publishResult = null
-    let publishError = null
-    try {
-      switch (platform) {
-        case 'instagram': {
-          if (!creds.ig_business_account_id) {
-            throw Object.assign(
-              new Error('Instagram Business Account ID missing on this tenant\'s connection'),
-              { code: 'MISSING_TENANT_TARGET' },
-            )
-          }
-          const igArgs = {
-            businessAccountId: creds.ig_business_account_id,
-            accessToken: creds.ig_page_access_token_override || undefined,
-          }
-          if (format === 'reel' && firstVideo) {
-            publishResult = await publishInstagramReel({ videoUrl: firstVideo, caption: text, ...igArgs, creditContext })
-          } else if (format === 'story' && firstImage) {
-            publishResult = await publishInstagramStory({ imageUrl: firstImage, ...igArgs, creditContext })
-          } else if (mediaUrls.length > 1) {
-            publishResult = await publishInstagramCarousel({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...igArgs, creditContext })
-          } else if (firstImage) {
-            publishResult = await publishInstagramFeed({ imageUrl: firstImage, caption: text, ...igArgs, creditContext })
-          } else {
-            throw Object.assign(new Error('Instagram publish requires at least one image or video'), { code: 'MISSING_MEDIA' })
-          }
-          break
-        }
-        case 'facebook': {
-          if (!creds.fb_page_id) {
-            throw Object.assign(
-              new Error('Facebook Page ID missing on this tenant\'s connection'),
-              { code: 'MISSING_TENANT_TARGET' },
-            )
-          }
-          const fbArgs = {
-            pageId: creds.fb_page_id,
-            accessToken: creds.fb_page_access_token_override || undefined,
-          }
-          if (firstImage) {
-            publishResult = await publishFacebookPagePhoto({ imageUrl: firstImage, caption: text, ...fbArgs, creditContext })
-          } else {
-            publishResult = await publishFacebookPagePost({ message: text, linkUrl: raw?.link_url || null, ...fbArgs, creditContext })
-          }
-          break
-        }
-        case 'x': {
-          // OAuth model — the tenant's own token must be stored on the connection.
-          if (!creds.oauth_access_token) {
-            throw Object.assign(
-              new Error('X is not connected for this tenant. Complete OAuth in Settings → Channels.'),
-              { code: 'MISSING_OAUTH_TOKEN' },
-            )
-          }
-          publishResult = await publishXTweet({ text, bearerToken: creds.oauth_access_token, creditContext })
-          break
-        }
-        case 'tiktok': {
-          if (!creds.oauth_access_token) {
-            throw Object.assign(
-              new Error('TikTok is not connected for this tenant. Complete OAuth in Settings → Channels.'),
-              { code: 'MISSING_OAUTH_TOKEN' },
-            )
-          }
-          const ttArgs = { accessToken: creds.oauth_access_token }
-          if (firstVideo) {
-            publishResult = await publishTikTokVideo({ videoUrl: firstVideo, caption: text, ...ttArgs, creditContext })
-          } else if (mediaUrls.length > 0) {
-            publishResult = await publishTikTokPhoto({ imageUrls: mediaUrls.slice(0, 10), caption: text, ...ttArgs, creditContext })
-          } else {
-            throw Object.assign(new Error('TikTok publish requires at least one photo or video'), { code: 'MISSING_MEDIA' })
-          }
-          break
-        }
-        case 'linkedin': {
-          if (!creds.li_author_urn) {
-            throw Object.assign(
-              new Error('LinkedIn Author URN missing on this tenant\'s connection'),
-              { code: 'MISSING_TENANT_TARGET' },
-            )
-          }
-          publishResult = await publishLinkedInPost({
-            commentary: text,
-            authorUrn: creds.li_author_urn,
-            accessToken: creds.li_access_token_override || undefined,
-            creditContext,
-          })
-          break
-        }
-        default:
-          throw Object.assign(new Error(`Direct publish for ${platform} is not yet implemented`), {
-            code: 'NOT_SUPPORTED',
-          })
-      }
-    } catch (e) {
-      publishError = e
-    }
-    // Silence unused-var warnings — `model` is exposed on the row for observability.
-    void model
-
-    const status = publishError ? 'failed' : 'published'
-    const externalId =
-      publishResult?.publish_id ||
-      publishResult?.post_id ||
-      publishResult?.tweet_id ||
-      publishResult?.post_urn ||
-      null
-    const externalUrl = publishResult?.external_url || null
-    const row = {
-      id: uuidv4(),
-      property_id: property.id,
-      agent_id: req.user.id,
-      platform,
-      owner_type: 'agent',
-      status,
-      external_id: externalId,
-      error: publishError?.message || null,
-      error_code: publishError?.code || null,
-      formats: format ? [format] : [],
-      connection_id: conn.id,
-      meta: {
-        format: format || null,
-        caption: text,
-        media_count: mediaUrls.length,
-        external_url: externalUrl,
-        simulated: publishResult?.simulated || false,
-        provider: publishResult?.provider || null,
-        intent: 'publish',
-      },
-      views: 0,
-      leads: 0,
-      clicks: 0,
-      cost: 0,
-      published_at: status === 'published' ? new Date().toISOString() : null,
-      created_at: new Date().toISOString(),
-    }
-    await insert('distributions', row)
-    await recordDistributionAttempt({
-      distributionJobId: row.id,
-      status,
-      error: publishError || null,
-      errorMessage: publishError?.message || null,
-      response: publishResult || (externalId ? { external_id: externalId, external_url: externalUrl } : null),
-      extra: { platform, source: 'publish_social', format: format || null },
-    })
+  for (const dist of distributions) {
     await logActivity({
-      type: status === 'published' ? 'distribution_published' : 'distribution_failed',
+      type: dist.status === 'published' ? 'distribution_published' : 'distribution_failed',
       property_id: property.id,
       agent_id: req.user.id,
       meta: {
-        platform,
-        distribution_id: row.id,
-        status,
-        external_id: externalId,
-        provider: publishResult?.provider || null,
-        error: publishError?.message || null,
+        platform: dist.platform,
+        distribution_id: dist.id,
+        status: dist.status,
+        external_id: dist.external_id,
+        error: dist.error,
       },
     })
+  }
 
-    // Emit publish usage event only for successful publishes. Per-platform
-    // action_key maps directly to the §6 event catalog. X.link vs X.plain
-    // is decided by presence of a URL in the caption.
-    if (status === 'published') {
-      const hasUrl = /\bhttps?:\/\//i.test(text || '')
-      const actionKey =
-        platform === 'instagram' ? 'publish.meta.instagram' :
-        platform === 'facebook'  ? 'publish.meta.facebook'  :
-        platform === 'linkedin'  ? 'publish.linkedin'       :
-        platform === 'tiktok'    ? 'publish.tiktok'         :
-        platform === 'x'         ? (hasUrl ? 'publish.x.link' : 'publish.x.plain') :
-                                   null
-      if (actionKey) {
-        emitUsageEventAsync({
-          actionKey, tenantId: req.user.id, quantity: 1,
-          channel: platform, listingId: property.id, distributionId: row.id,
-          metadata: { format: format || null, has_url: hasUrl, external_id: externalId },
-        })
-      }
+  for (const result of results) {
+    if (result.status !== 'published') continue
+    const dist = distributions.find((d) => d.id === result.distribution_id)
+    const captionText = dist?.meta?.caption || text
+    const hasUrl = /\bhttps?:\/\//i.test(captionText || '')
+    const actionKey =
+      result.platform === 'instagram' ? 'publish.meta.instagram' :
+      result.platform === 'facebook'  ? 'publish.meta.facebook'  :
+      result.platform === 'linkedin'  ? 'publish.linkedin'       :
+      result.platform === 'tiktok'    ? 'publish.tiktok'         :
+      result.platform === 'x'         ? (hasUrl ? 'publish.x.link' : 'publish.x.plain') :
+                                        null
+    if (actionKey) {
+      emitUsageEventAsync({
+        actionKey,
+        tenantId: req.user.id,
+        quantity: 1,
+        channel: result.platform,
+        listingId: property.id,
+        distributionId: result.distribution_id,
+        metadata: { has_url: hasUrl, external_id: result.external_id },
+      })
     }
-
-    results.push({
-      platform,
-      status,
-      external_id: externalId,
-      external_url: externalUrl,
-      provider: publishResult?.provider || null,
-      simulated: publishResult?.simulated || false,
-      error: publishError?.message || null,
-      error_code: publishError?.code || null,
-    })
   }
 
   const credentialsMissing = results.some((result) => result.error_code === 'PUBLISH_CREDENTIALS_MISSING')

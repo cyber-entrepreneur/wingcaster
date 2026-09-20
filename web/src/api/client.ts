@@ -2654,9 +2654,12 @@ export const api = {
   publishListingToSocial: (
     propertyId: string,
     payload: {
-      channels: Array<{ platform: string; format?: string; link_url?: string }>
+      channels: Array<{ platform: string; format?: string; link_url?: string; caption?: string }>
       caption: string
       media_urls?: string[]
+      recipient?: string
+      contact_id?: string
+      creative_id?: string
     },
   ): Promise<{
     results: Array<{
