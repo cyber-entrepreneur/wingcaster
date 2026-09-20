@@ -1,6 +1,7 @@
 export { FeatureRegistryPage } from './FeatureRegistryPage'
 export { OverviewPage } from './OverviewPage'
 export { TenantsPage } from './TenantsPage'
+export { TenantDetailPage } from './TenantDetailPage'
 export { UsagePage } from './UsagePage'
 export { CreditsPage } from './CreditsPage'
 export { CreditLotsPage } from './CreditLotsPage'
