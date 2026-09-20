@@ -3,10 +3,52 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { findAll } from '../../persistence/index.js'
+import { query } from '../../persistence/index.js'
+import { fromRow } from '../../persistence/table-mapper.js'
 import { checkEligibility, ELIGIBILITY_REASON_CODES, withTenant } from '../../lib/growth-os/index.js'
 import { getAudience, upsertMembership } from './repository.js'
 import { filterContactsByRules, parseAudienceRules } from './rules-engine.js'
+
+function assertTenantScope({ agencyId, agentId }) {
+  const hasAgency = agencyId != null && agencyId !== ''
+  const hasAgent = agentId != null && agentId !== ''
+  if (!hasAgency && !hasAgent) {
+    throw Object.assign(
+      new Error('agencyId or agentId is required for audience contact resolution'),
+      { code: 'MISSING_TENANT_SCOPE' },
+    )
+  }
+}
+
+/**
+ * Load CRM contacts scoped to the active tenant. contacts has no RLS — never
+ * use findAll('contacts') under withTenant (cross-tenant leak vector).
+ */
+async function queryTenantContacts({ agencyId, agentId, contactIds = null }) {
+  assertTenantScope({ agencyId, agentId })
+
+  const clauses = []
+  const params = []
+
+  if (agencyId != null && agencyId !== '') {
+    params.push(agencyId)
+    clauses.push(`agency_id = $${params.length}`)
+  }
+  if (agentId != null && agentId !== '') {
+    params.push(agentId)
+    clauses.push(`assigned_agent_id = $${params.length}`)
+  }
+
+  let sql = `SELECT * FROM public.contacts WHERE (${clauses.join(' OR ')})`
+
+  if (contactIds != null && contactIds.length > 0) {
+    params.push(contactIds)
+    sql += ` AND id = ANY($${params.length}::text[])`
+  }
+
+  const rows = await query(sql, params)
+  return rows.map((row) => fromRow('contacts', row))
+}
 
 function emptyBreakdown() {
   return {
@@ -45,22 +87,16 @@ function eligibilityToMembershipState(eligibility) {
 }
 
 async function loadMatchedContacts(audience, { agencyId, agentId }) {
+  assertTenantScope({ agencyId, agentId })
   const parsed = parseAudienceRules(audience.rules)
 
   if (audience.type === 'static') {
-    const ids = new Set(parsed.static_contact_ids)
-    if (ids.size === 0) return []
-    const contacts = await findAll('contacts')
-    return contacts.filter((c) => ids.has(c.id))
+    const ids = parsed.static_contact_ids
+    if (ids.length === 0) return []
+    return queryTenantContacts({ agencyId, agentId, contactIds: ids })
   }
 
-  let contacts = await findAll('contacts')
-  if (agentId) {
-    contacts = contacts.filter((c) => c.assigned_agent_id === agentId)
-  } else if (agencyId) {
-    contacts = contacts.filter((c) => c.agency_id === agencyId)
-  }
-
+  const contacts = await queryTenantContacts({ agencyId, agentId })
   return filterContactsByRules(contacts, audience.rules)
 }
 
@@ -88,6 +124,8 @@ export async function resolveAudience(
     skipChannelHealth = true,
   } = {},
 ) {
+  assertTenantScope({ agencyId, agentId })
+
   return withTenant(agencyId, agentId, async () => {
     const audience = await getAudience(audienceId, { agencyId, agentId })
     if (!audience) {

@@ -256,6 +256,73 @@ skipIfNoPostgres()('wave 1d audiences', () => {
     })
   })
 
+  it('does not include another tenant contacts in resolution', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      const agencyA = `agy_${randomUUID()}`
+      const agentA = `agt_${randomUUID()}`
+      const agencyB = `agy_${randomUUID()}`
+      const agentB = `agt_${randomUUID()}`
+      const contactA = `cnt_${randomUUID()}`
+      const contactB = `cnt_${randomUUID()}`
+      try {
+        await seedAgencyAgent(pool, { agencyId: agencyA, agentId: agentA })
+        await seedAgencyAgent(pool, { agencyId: agencyB, agentId: agentB })
+        await seedContact(pool, { contactId: contactA, agentId: agentA, agencyId: agencyA, tags: ['buyer'] })
+        await seedContact(pool, { contactId: contactB, agentId: agentB, agencyId: agencyB, tags: ['buyer'] })
+
+        const audienceB = await createAudience({
+          name: 'Tenant B buyers',
+          rules: { tags_filter: ['buyer'] },
+          agencyId: agencyB,
+          agentId: agentB,
+        })
+
+        const result = await resolveAudience(audienceB.id, {
+          channel: 'email',
+          purpose: 'marketing',
+          agencyId: agencyB,
+          agentId: agentB,
+          skipChannelHealth: true,
+        })
+
+        expect(result.matched).toBe(1)
+        expect(result.memberIds.matched).toContain(contactB)
+        expect(result.memberIds.matched).not.toContain(contactA)
+      } finally {
+        await closeDb()
+      }
+    })
+  })
+
+  it('rejects resolution when tenant scope is missing', async () => {
+    await withTestDb(async (url) => {
+      configure({ databaseUrl: url, force: true })
+      const pool = getPool()
+      const agencyId = `agy_${randomUUID()}`
+      const agentId = `agt_${randomUUID()}`
+      try {
+        await seedAgencyAgent(pool, { agencyId, agentId })
+        const audience = await createAudience({
+          name: 'Scoped',
+          rules: { tags_filter: ['buyer'] },
+          agencyId,
+          agentId,
+        })
+
+        await expect(resolveAudience(audience.id, {
+          channel: 'email',
+          purpose: 'marketing',
+          agencyId: null,
+          agentId: null,
+        })).rejects.toMatchObject({ code: 'MISSING_TENANT_SCOPE' })
+      } finally {
+        await closeDb()
+      }
+    })
+  })
+
   it('lists audiences for tenant', async () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
