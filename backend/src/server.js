@@ -348,6 +348,7 @@ import {
 import {
   createModule as createSocialCardsModule,
 } from './modules/social-cards/index.js'
+import { registerCreativeRoutes } from './domain/creative/index.js'
 import {
   COMMENT_CATEGORIES,
   COMMENT_SENTIMENTS,
@@ -774,6 +775,8 @@ if (socialCardsModule.enabled) {
   await socialCardsModule.prepare()
   socialCardsModule.registerRoutes(app, { authMiddleware, emitUsageEventAsync })
 }
+
+registerCreativeRoutes(app, { authMiddleware })
 
 // Phase 7a — billing infrastructure. Every meterable action emits a usage
 // event via emitUsageEventAsync(). Emitter wire-up into existing endpoints

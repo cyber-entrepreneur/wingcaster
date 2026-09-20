@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SocialCardStudio } from '@/components/social-cards/SocialCardStudio'
+import { AiAdaptiveComposer } from '@/components/creative/AiAdaptiveComposer'
 import { PerformanceTab } from '@/components/performance/PerformanceTab'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
 import { OffersPanel } from '@/components/listings/OffersPanel'
@@ -537,6 +538,7 @@ export function ListingProfilePage() {
         </TabsContent>
 
         <TabsContent value="comms" className="space-y-6">
+          <AiAdaptiveComposer property={property} />
           <SocialCardStudio property={property} />
           <PublishSocialTab property={property} />
           <InsightsSection listingId={property.id} />

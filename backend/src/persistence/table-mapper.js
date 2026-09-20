@@ -404,6 +404,38 @@ const TABLE_MAP = {
       'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
     ],
   },
+  creatives: {
+    schema: 'public',
+    table: 'creatives',
+    columns: [
+      'agency_id', 'agent_id', 'subject_type', 'subject_id', 'source',
+      'approval_state', 'status', 'channel_keys',
+    ],
+  },
+  creative_variants: {
+    schema: 'public',
+    table: 'creative_variants',
+    columns: [
+      'agency_id', 'agent_id', 'creative_id', 'label', 'copy',
+      'experiment_id', 'sort_order',
+    ],
+  },
+  creative_renditions: {
+    schema: 'public',
+    table: 'creative_renditions',
+    columns: [
+      'agency_id', 'agent_id', 'creative_variant_id', 'channel_key',
+      'width', 'height', 'provider', 'asset_url', 'status',
+    ],
+  },
+  approval_requests: {
+    schema: 'public',
+    table: 'approval_requests',
+    columns: [
+      'agency_id', 'agent_id', 'subject_type', 'subject_id', 'subject_version',
+      'requested_by', 'state', 'reviewers', 'decision_history',
+    ],
+  },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },
   sync_connections: { schema: 'public', table: 'sync_connections', columns: ['agent_id', 'agency_id', 'platform', 'config', 'last_sync_at'] },
   sync_logs: { schema: 'public', table: 'sync_logs', columns: ['sync_connection_id', 'status', 'details'] },

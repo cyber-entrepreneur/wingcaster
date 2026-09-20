@@ -1300,6 +1300,48 @@ export interface SocialCardAsset {
   created_at: string
 }
 
+export interface CreativeRendition {
+  id: string
+  creative_variant_id: string
+  channel_key: string
+  width: number
+  height: number
+  provider: string
+  asset_url: string | null
+  status: string
+}
+
+export interface CreativeVariant {
+  id: string
+  creative_id: string
+  label: string
+  copy: Record<string, string>
+  experiment_id?: string | null
+  sort_order?: number
+  renditions?: CreativeRendition[]
+}
+
+export interface CreativeRecord {
+  id: string
+  subject_type: string
+  subject_id: string
+  source: 'manual' | 'ai'
+  approval_state: 'not_required' | 'pending' | 'approved' | 'rejected'
+  status: string
+  channel_keys: string[]
+}
+
+export interface CreativeBundle {
+  creative: CreativeRecord
+  variants: CreativeVariant[]
+  approval_request?: {
+    id: string
+    state: string
+    subject_type: string
+    subject_id: string
+  } | null
+}
+
 /**
  * Conversation list/detail shapes with dual-read channel + source
  * (BE-BLOCKER-04 migration window — prefer channel/source, fall back via readChannel/readSource).
@@ -2769,6 +2811,59 @@ export const api = {
   }> => fetchJson('/social-cards/bannerbear/status'),
   syncBannerbearCatalog: (): Promise<{ synced: number }> =>
     fetchJson('/social-cards/bannerbear/sync', { method: 'POST', body: '{}' }),
+
+  listListingCreatives: (listingId: string): Promise<{ creatives: CreativeRecord[] }> =>
+    fetchJson(`/listings/${listingId}/creatives`),
+  generateListingCreative: (
+    listingId: string,
+    payload: {
+      description: string
+      channel_keys: string[]
+      template_id?: string
+      provider?: 'local' | 'bannerbear'
+    },
+  ): Promise<CreativeBundle> =>
+    fetchJson(`/listings/${listingId}/creatives/generate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getCreative: (id: string): Promise<CreativeBundle> =>
+    fetchJson(`/creatives/${id}`),
+  updateCreativeVariant: (
+    id: string,
+    payload: { copy: Record<string, string> },
+  ): Promise<{ variant: CreativeVariant }> =>
+    fetchJson(`/creative-variants/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  approveCreative: (
+    id: string,
+    payload: { decision?: 'approved' | 'rejected'; note?: string },
+  ): Promise<CreativeBundle> =>
+    fetchJson(`/creatives/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  publishCreative: (
+    id: string,
+    payload: {
+      selections: Array<{ variant_id: string; channel_key: string }>
+    },
+  ): Promise<{
+    creative_id: string
+    results: Array<{
+      variant_id: string
+      channel_key: string
+      platform: string
+      status: string
+      error?: string
+    }>
+  }> =>
+    fetchJson(`/creatives/${id}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   /* ------ Closed transactions (AVM training data capture) ------ */
   getClosedTransactionsConfig: (): Promise<{
