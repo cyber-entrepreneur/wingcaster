@@ -175,7 +175,7 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
     data: { execution_id: execution.id, target_surface: target.target_surface },
   })
 
-  await transitionExecution(execution.id, 'published', {
+  const publishedExecution = await transitionExecution(execution.id, 'published', {
     agencyId: effectiveAgencyId,
     agentId: effectiveAgentId,
   })
@@ -184,7 +184,7 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
   const idempotencyKey = buildIdempotencyKey({
     source: SEO_EVENT_SOURCE,
     objectType: 'execution',
-    objectId: execution.id,
+    objectId: publishedExecution.id,
     eventName: SEO_EVENT_GENERATED,
     occurredAt,
   })
@@ -197,8 +197,8 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
     actorType: 'agent',
     actorId: effectiveAgentId,
     objectType: 'execution',
-    objectId: execution.id,
-    executionId: execution.id,
+    objectId: publishedExecution.id,
+    executionId: publishedExecution.id,
     occurredAt,
     idempotencyKey,
     data: {
@@ -215,7 +215,7 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
   })
 
   return {
-    execution,
+    execution: publishedExecution,
     seo_page: seoPage,
     target,
     recommendations,
