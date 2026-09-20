@@ -322,6 +322,21 @@ const TABLE_MAP = {
       'conversion_id', 'execution_id', 'model', 'credit_weight', 'agency_id', 'agent_id',
     ],
   },
+  seo_pages: {
+    schema: 'public',
+    table: 'seo_pages',
+    columns: [
+      'property_id', 'agency_id', 'agent_id', 'slug', 'title', 'meta_description',
+      'canonical_url', 'og_tags', 'schema_jsonld', 'status', 'indexed_at',
+    ],
+  },
+  seo_target_preferences: {
+    schema: 'public',
+    table: 'seo_target_preferences',
+    columns: [
+      'agent_id', 'property_id', 'agency_id', 'target_surface', 'external_site_url',
+    ],
+  },
 
   // Conversations
   conversations: {

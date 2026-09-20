@@ -27,6 +27,7 @@ import { PerformanceTab } from '@/components/performance/PerformanceTab'
 import { RecordClosureModal } from '@/components/closed-transactions/RecordClosureModal'
 import { OffersPanel } from '@/components/listings/OffersPanel'
 import { ListingPublicationsTab } from '@/components/listings/ListingPublicationsTab'
+import { ListingSeoTab } from '@/components/listings/ListingSeoTab'
 import { ListingCommentsTab } from '@/components/listings/ListingCommentsTab'
 import { ListingShareSheet } from '@/components/listings/ListingShareSheet'
 import { MarketContextCard } from '@/components/market-pricing/MarketContextCard'
@@ -76,9 +77,9 @@ interface AreaDetailResponse {
   scores: Array<{ score: number | null }>
 }
 
-type TabKey = 'overview' | 'publications' | 'comms' | 'comments' | 'email' | 'viewings' | 'area' | 'analytics'
+type TabKey = 'overview' | 'publications' | 'seo' | 'comms' | 'comments' | 'email' | 'viewings' | 'area' | 'analytics'
 
-const TAB_KEYS: TabKey[] = ['overview', 'publications', 'comms', 'comments', 'email', 'viewings', 'area', 'analytics']
+const TAB_KEYS: TabKey[] = ['overview', 'publications', 'seo', 'comms', 'comments', 'email', 'viewings', 'area', 'analytics']
 
 function parseTabParam(value: string | null): TabKey {
   if (value === 'performance') return 'analytics'
@@ -464,6 +465,7 @@ export function ListingProfilePage() {
           <TabsTrigger value="publications">
             Publications
           </TabsTrigger>
+          <TabsTrigger value="seo">SEO</TabsTrigger>
           <TabsTrigger value="comms">
             Comms
             <Badge variant="outline" className="ml-2 text-[10px]">Phase 4</Badge>
@@ -525,6 +527,10 @@ export function ListingProfilePage() {
 
         <TabsContent value="publications">
           <ListingPublicationsTab listingId={property.id} />
+        </TabsContent>
+
+        <TabsContent value="seo">
+          <ListingSeoTab listingId={property.id} />
         </TabsContent>
 
         <TabsContent value="comms" className="space-y-6">

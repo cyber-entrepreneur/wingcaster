@@ -469,6 +469,7 @@ import { registerExperimentRoutes } from './domain/experiments/index.js'
 import { registerContactPolicyRoutes } from './lib/growth-os/contact-policy-routes.js'
 import { registerPublishingCalendarRoutes } from './domain/publishing-calendar/index.js'
 import { registerPaidAdsRoutes } from './domain/paid-ads/index.js'
+import { registerSeoRoutes } from './domain/seo/index.js'
 import {
   createJourney,
   getJourney,
@@ -3341,6 +3342,7 @@ registerExperimentRoutes(app, { authMiddleware })
 registerContactPolicyRoutes(app, { authMiddleware, logActivity })
 registerPublishingCalendarRoutes(app, { authMiddleware })
 registerPaidAdsRoutes(app, { authMiddleware, logActivity })
+registerSeoRoutes(app, { authMiddleware })
 
 // ==================== JOURNEYS (Wave 1A canonical orchestration) ====================
 app.get('/api/journeys', authMiddleware, async (req, res) => {
@@ -8277,11 +8279,20 @@ app.get('/api/public/sites/by-subdomain/:subdomain/properties/:propertyId', asyn
   const prop = inventory.find(p => p.id === req.params.propertyId)
   if (!prop) return res.status(404).json({ error: 'Property not found on this site' })
   const agent = await findOne('agents', a => a.id === prop.agent_id)
+  const { getSeoPage } = await import('./domain/seo/repository.js')
+  const seoPage = await getSeoPage(prop.id, { agencyId: agency.id, agentId: prop.agent_id })
   res.json({
     site: { ...site, brand_config: typeof site.brand_config === 'string' ? JSON.parse(site.brand_config || '{}') : (site.brand_config || {}) },
     agency,
     property: serializeProperty(prop),
     agent: agent ? serializeAgent(agent) : null,
+    seo: seoPage ? {
+      title: seoPage.title,
+      meta_description: seoPage.meta_description,
+      canonical_url: seoPage.canonical_url,
+      og_tags: seoPage.og_tags,
+      schema_jsonld: seoPage.schema_jsonld,
+    } : null,
   })
 })
 
@@ -8331,16 +8342,23 @@ app.get('/api/robots.txt', async (req, res) => {
 // ==================== FEED ====================
 app.get('/api/feed/properties.xml', async (req, res) => {
   const props = await findAll('properties')
+  const { getSeoPage } = await import('./domain/seo/repository.js')
   let xml = '<?xml version="1.0" encoding="UTF-8"?><properties>'
-  props.forEach(p => {
+  for (const p of props) {
+    const seoPage = await getSeoPage(p.id, { agencyId: p.agency_id, agentId: p.agent_id })
     xml += '<property>'
     xml += `<id>${escapeXml(p.id)}</id>`
-    xml += `<title>${escapeXml(p.title)}</title>`
+    xml += `<title>${escapeXml(seoPage?.title || p.title)}</title>`
     xml += `<price>${escapeXml(p.price)}</price>`
     xml += `<location>${escapeXml(p.location)}</location>`
-    xml += `<type>${escapeXml(p.type)}</type>`
+    xml += `<type>${escapeXml(p.type || p.property_type)}</type>`
+    if (seoPage?.canonical_url) xml += `<url>${escapeXml(seoPage.canonical_url)}</url>`
+    if (seoPage?.meta_description) xml += `<description>${escapeXml(seoPage.meta_description)}</description>`
+    if (seoPage?.schema_jsonld?.['@type']) {
+      xml += `<seo_jsonld>${escapeXml(JSON.stringify(seoPage.schema_jsonld))}</seo_jsonld>`
+    }
     xml += '</property>'
-  })
+  }
   xml += '</properties>'
   res.set('Content-Type', 'application/xml')
   res.send(xml)
