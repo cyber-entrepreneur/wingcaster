@@ -3,6 +3,7 @@
  * Reads: auth + platform_admin + resolveAdminContext + CSP.
  * Writes: existing writeGuards (elevated + If-Match + limiter).
  */
+import { z } from 'zod'
 import { transaction } from '../../../db.js'
 import { FinError } from '../../errors.js'
 import { sendPreconditionFailed, setETag } from '../../middleware/if-match.js'
@@ -22,6 +23,14 @@ import {
 } from './writes.js'
 import { applyVendorRateBodySchema } from './vendor-rate-schemas.js'
 import { reconcileVendorStatementBodySchema } from './vendor-statement-schemas.js'
+
+const VendorIdParams = z.object({ id: z.string().uuid() }).strict()
+
+function validateVendorId(req, res, next) {
+  const parsed = VendorIdParams.safeParse({ id: req.params.id })
+  if (!parsed.success) return res.status(400).json({ code: 'INVALID_VENDOR_ID' })
+  next()
+}
 
 function sendFinError(res, error) {
   if (error instanceof FinError && error.httpStatus === 412) {
@@ -62,7 +71,7 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
     return res.status(200).json(payload)
   }))
 
-  app.get('/api/admin/fin/vendors/:id', readGuards, wrap(async (req, res) => {
+  app.get('/api/admin/fin/vendors/:id', [...readGuards, validateVendorId], wrap(async (req, res) => {
     const row = await transaction((client) => getVendorAdmin(client, {
       ...envNow(req),
       id: req.params.id,
@@ -71,7 +80,7 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
     return res.status(200).json(row)
   }))
 
-  app.get('/api/admin/fin/vendors/:id/rates', readGuards, wrap(async (req, res) => {
+  app.get('/api/admin/fin/vendors/:id/rates', [...readGuards, validateVendorId], wrap(async (req, res) => {
     const payload = await transaction((client) => listVendorRatesAdmin(client, {
       ...envNow(req),
       vendorId: req.params.id,
@@ -81,7 +90,7 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
     return res.status(200).json(payload)
   }))
 
-  app.get('/api/admin/fin/vendors/:id/statements', readGuards, wrap(async (req, res) => {
+  app.get('/api/admin/fin/vendors/:id/statements', [...readGuards, validateVendorId], wrap(async (req, res) => {
     const payload = await transaction((client) => listVendorStatementsAdmin(client, {
       ...envNow(req),
       vendorId: req.params.id,
@@ -101,7 +110,7 @@ export function registerFinVendorAdminRoutes(app, { readGuards, writeGuards } = 
     return res.status(200).json(payload)
   }))
 
-  app.get('/api/admin/fin/vendors/:id/margin', readGuards, wrap(async (req, res) => {
+  app.get('/api/admin/fin/vendors/:id/margin', [...readGuards, validateVendorId], wrap(async (req, res) => {
     const payload = await transaction((client) => getVendorMarginAdmin(client, {
       ...envNow(req),
       vendorId: req.params.id,
