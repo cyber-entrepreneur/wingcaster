@@ -448,6 +448,7 @@ import {
   runCampaignScheduler,
   autoEnrollContactsForCampaign,
 } from './campaigns.js'
+import { registerAudienceRoutes } from './domain/audiences/routes.js'
 import {
   createReminderPolicy,
   getReminderPolicies,
@@ -3297,6 +3298,8 @@ app.post('/api/campaigns/run-scheduler', authMiddleware, async (req, res) => {
     res.status(500).json({ error: e.message })
   }
 })
+
+registerAudienceRoutes(app, { authMiddleware, logActivity })
 
 app.get('/api/analytics/crm', authMiddleware, async (req, res) => {
   const scopeAll = req.query.scope === 'all' && await isPlatformAdmin(req.user.id)
