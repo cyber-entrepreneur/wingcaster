@@ -15,14 +15,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const store = vi.hoisted(() => ({ data: {} }))
 
+// The routes push scoping down to SQL via *structured* (object) filters, e.g.
+// findAll('access_requests', { requester_id, status: 'open', agency_id: null }).
+// Mirror the postgres-adapter contract here: a function filter runs as a JS
+// predicate; an object filter matches rows where every key equals the given
+// value (null included), which is exactly the WHERE clause the adapter emits.
+const matcher = vi.hoisted(() => (pred) => {
+  if (typeof pred === 'function') return pred
+  if (pred && typeof pred === 'object') {
+    return (row) => Object.entries(pred).every(([key, value]) => (row[key] ?? null) === (value ?? null))
+  }
+  return () => true
+})
+
 const db = vi.hoisted(() => ({
   findAll: vi.fn((collection, pred) => {
     const rows = store.data[collection] || []
-    return Promise.resolve(pred ? rows.filter(pred) : [...rows])
+    return Promise.resolve(pred ? rows.filter(matcher(pred)) : [...rows])
   }),
   findOne: vi.fn((collection, pred) => {
     const rows = store.data[collection] || []
-    return Promise.resolve(rows.find(pred) || undefined)
+    return Promise.resolve(rows.find(matcher(pred)) || undefined)
   }),
   insert: vi.fn((collection, row) => {
     ;(store.data[collection] ||= []).push(row)

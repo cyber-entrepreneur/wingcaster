@@ -44,23 +44,29 @@ function serialize(row) {
   }
 }
 
-/** Two open requests collide when they target the same thing for the same user. */
-function sameTarget(row, { scope, agencyId, resourceId }) {
-  return (
-    row.status === 'open' &&
-    row.scope === scope &&
-    (row.agency_id ?? null) === (agencyId ?? null) &&
-    (row.resource_id ?? null) === (resourceId ?? null)
-  )
+/**
+ * The owning user for a request. `access_requests` has no row-level security
+ * (it is reached through the legacy app role, not the Growth-OS tenant layer),
+ * so every read MUST be scoped in SQL to this non-null id — never loaded whole
+ * and filtered in JS. authMiddleware guarantees `req.user`, so an absent id is
+ * a wiring bug, not a client condition: fail loud rather than silently scope to
+ * `requester_id IS NULL` (which would match nothing and mask the bug).
+ */
+function requesterId(req) {
+  const id = req.user?.id
+  if (!id) throw new Error('access-request route reached without an authenticated user')
+  return id
 }
 
 async function resolveRecipientIds({ scope, agencyId }) {
   if (scope === 'platform') {
-    const admins = await findAll('users', (u) => u.platform_role === 'platform_admin')
+    // Scoped in SQL (WHERE platform_role = $1) rather than loading every user.
+    const admins = await findAll('users', { platform_role: 'platform_admin' })
     return admins.map((u) => u.id).filter(Boolean)
   }
   if (agencyId) {
-    const agency = await findOne('agencies', (a) => a.id === agencyId)
+    // Scoped in SQL (WHERE id = $1) rather than loading every agency.
+    const agency = await findOne('agencies', { id: agencyId })
     return agency?.owner_id ? [agency.owner_id] : []
   }
   return []
@@ -100,60 +106,78 @@ async function notifyRecipients(recipientIds, request) {
 export function registerRoutes(app, { authMiddleware } = {}) {
   if (!authMiddleware) throw new Error('access-request-routes requires authMiddleware')
 
-  app.post('/api/access-requests', authMiddleware, async (req, res) => {
-    const parsed = createSchema.safeParse(req.body)
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid access request', details: parsed.error.flatten() })
+  app.post('/api/access-requests', authMiddleware, async (req, res, next) => {
+    try {
+      const parsed = createSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid access request', details: parsed.error.flatten() })
+      }
+      const body = parsed.data
+      const owner = requesterId(req)
+
+      // Idempotent: re-filing the same open request returns the existing one so
+      // the UI can show "already requested" instead of stacking duplicates. The
+      // whole collision predicate is pushed down to SQL (owner + status + target)
+      // so we never load the caller's — let alone the whole table's — history.
+      const existing = await findOne('access_requests', {
+        requester_id: owner,
+        status: 'open',
+        scope: body.scope,
+        agency_id: body.agency_id ?? null,
+        resource_id: body.resource_id ?? null,
+      })
+      if (existing) {
+        return res.status(200).json({ request: serialize(existing), already_requested: true })
+      }
+
+      const now = new Date().toISOString()
+      const row = {
+        id: uuidv4(),
+        requester_id: owner,
+        requester_name: req.user.name ?? null,
+        scope: body.scope,
+        agency_id: body.agency_id ?? null,
+        resource_type: body.resource_type ?? null,
+        resource_id: body.resource_id ?? null,
+        area_label: body.area_label ?? null,
+        reason: body.reason ?? null,
+        status: 'open',
+        created_at: now,
+        updated_at: now,
+      }
+      await insert('access_requests', row)
+
+      const recipientIds = await resolveRecipientIds({ scope: body.scope, agencyId: body.agency_id ?? null })
+      await notifyRecipients(recipientIds, row)
+
+      res.status(201).json({ request: serialize(row), already_requested: false })
+    } catch (err) {
+      next(err)
     }
-    const body = parsed.data
-    const requesterId = req.user.id
-
-    // Idempotent: re-filing the same open request returns the existing one so
-    // the UI can show "already requested" instead of stacking duplicates.
-    const mine = await findAll('access_requests', (r) => r.requester_id === requesterId)
-    const existing = mine.find((r) =>
-      sameTarget(r, { scope: body.scope, agencyId: body.agency_id ?? null, resourceId: body.resource_id ?? null }),
-    )
-    if (existing) {
-      return res.status(200).json({ request: serialize(existing), already_requested: true })
-    }
-
-    const now = new Date().toISOString()
-    const row = {
-      id: uuidv4(),
-      requester_id: requesterId,
-      requester_name: req.user.name ?? null,
-      scope: body.scope,
-      agency_id: body.agency_id ?? null,
-      resource_type: body.resource_type ?? null,
-      resource_id: body.resource_id ?? null,
-      area_label: body.area_label ?? null,
-      reason: body.reason ?? null,
-      status: 'open',
-      created_at: now,
-      updated_at: now,
-    }
-    await insert('access_requests', row)
-
-    const recipientIds = await resolveRecipientIds({ scope: body.scope, agencyId: body.agency_id ?? null })
-    await notifyRecipients(recipientIds, row)
-
-    res.status(201).json({ request: serialize(row), already_requested: false })
   })
 
-  app.get('/api/access-requests/mine', authMiddleware, async (req, res) => {
-    const rows = await findAll('access_requests', (r) => r.requester_id === req.user.id)
-    rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-    res.json({ requests: rows.map(serialize) })
+  app.get('/api/access-requests/mine', authMiddleware, async (req, res, next) => {
+    try {
+      // Owner-scoped in SQL (WHERE requester_id = $1); newest first.
+      const rows = await findAll('access_requests', { requester_id: requesterId(req) })
+      rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      res.json({ requests: rows.map(serialize) })
+    } catch (err) {
+      next(err)
+    }
   })
 
-  app.get('/api/access-requests/:id', authMiddleware, async (req, res) => {
-    const row = await findOne('access_requests', (r) => r.id === req.params.id)
-    // Leak-safe: a request the caller does not own is indistinguishable from
-    // one that does not exist.
-    if (!row || row.requester_id !== req.user.id) {
-      return res.status(404).json({ error: 'Access request not found' })
+  app.get('/api/access-requests/:id', authMiddleware, async (req, res, next) => {
+    try {
+      // Owner scoping is applied in SQL: a request the caller does not own is
+      // never loaded, so it is indistinguishable from one that does not exist.
+      const row = await findOne('access_requests', { id: req.params.id, requester_id: requesterId(req) })
+      if (!row) {
+        return res.status(404).json({ error: 'Access request not found' })
+      }
+      res.json({ request: serialize(row) })
+    } catch (err) {
+      next(err)
     }
-    res.json({ request: serialize(row) })
   })
 }
