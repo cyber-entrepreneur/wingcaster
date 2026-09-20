@@ -295,6 +295,7 @@ import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/mer
 import { registerRoutes as registerSavedSearchRoutes } from './lib/campaigns/saved-search-routes.js'
 import { registerRoutes as registerClosedTransactionImportRoutes } from './lib/closed-transactions/import-routes.js'
 import { registerRoutes as registerReminderPolicyRoutes } from './lib/reminders/reminder-policy-routes.js'
+import { registerRoutes as registerAccessRequestRoutes } from './lib/access-request-routes.js'
 import { startScheduledPublishJob } from './workers/scheduled-publish-worker.js'
 import { registerRoutes as registerContactRelationshipRoutes } from './lib/contacts/relationships-routes.js'
 import { registerRoutes as registerAuditRetentionPolicyRoutes } from './lib/audit/retention-policy-routes.js'
@@ -920,6 +921,7 @@ registerSavedSearchRoutes(app, {
   logActivity,
 })
 registerClosedTransactionImportRoutes(app, { authMiddleware, logActivity })
+registerAccessRequestRoutes(app, { authMiddleware })
 registerContactRelationshipRoutes(app, { auth: authMiddleware })
 registerAuditRetentionPolicyRoutes(app, { authMiddleware })
 registerNotificationDeadLetterRoutes(app, { authMiddleware })
