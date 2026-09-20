@@ -59,6 +59,7 @@ import { AgencyWhiteLabelAnalyticsPage } from '@/pages/agency/white-label/Agency
 import { WidgetBuilderPage } from '@/pages/WidgetBuilderPage'
 import { IntegrationSettingsPage } from '@/pages/IntegrationSettingsPage'
 import { SocialChannelsPage } from '@/pages/SocialChannelsPage'
+import { PaidCampaignBuilderPage } from '@/pages/PaidCampaignBuilderPage'
 import { NeighborhoodValuatorPage } from '@/pages/NeighborhoodValuatorPage'
 import { SellerPerformanceReportPage } from '@/pages/agent/listings/SellerPerformanceReportPage'
 import { SellerReportSharePage } from '@/pages/public/SellerReportSharePage'
@@ -276,6 +277,7 @@ function AppRoutes() {
       <Route path="/journeys/new" element={<CampaignBuilderPage />} />
       <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
       <Route path="/journeys/runs/:runId" element={<JourneyRunInspectorPage />} />
+      <Route path="/campaigns/paid/new" element={<PaidCampaignBuilderPage />} />
       <Route path="/campaigns" element={<Navigate to="/journeys" replace />} />
       <Route path="/campaigns/new" element={<Navigate to="/journeys/new" replace />} />
       <Route path="/campaigns/:id" element={<Navigate to="/journeys" replace />} />

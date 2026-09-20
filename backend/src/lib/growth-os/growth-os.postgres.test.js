@@ -332,8 +332,9 @@ skipIfNoPostgres()('growth-os wave0 foundation', () => {
     await withTestDb(async (url) => {
       configure({ databaseUrl: url, force: true })
       try {
+        // ad.delivered is a registered Wave 2A name — use a still-unknown name here.
         await expect(ingestEvent({
-          eventName: 'ad.delivered',
+          eventName: 'ad.not_a_real_event',
           eventCategory: 'delivery',
           providerEventId: `prov_${randomUUID()}`,
         })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })

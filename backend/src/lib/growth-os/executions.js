@@ -91,7 +91,9 @@ export async function createExecution({
       scheduled_at: scheduledAt,
       recurrence,
       provider_ref: providerRef,
-      data,
+      // Non-column attrs must be top-level so toRow/fromRow round-trip them
+      // (nesting under `data` is stripped by fromRow's delete result.data).
+      ...(data && typeof data === 'object' && !Array.isArray(data) ? data : {}),
     }),
   )
 }

@@ -464,6 +464,7 @@ import { registerAudienceRoutes } from './domain/audiences/routes.js'
 import { registerAttributionRoutes } from './domain/attribution/index.js'
 import { registerContactPolicyRoutes } from './lib/growth-os/contact-policy-routes.js'
 import { registerPublishingCalendarRoutes } from './domain/publishing-calendar/index.js'
+import { registerPaidAdsRoutes } from './domain/paid-ads/index.js'
 import {
   createJourney,
   getJourney,
@@ -3331,6 +3332,7 @@ registerAudienceRoutes(app, { authMiddleware, logActivity })
 registerAttributionRoutes(app, { authMiddleware })
 registerContactPolicyRoutes(app, { authMiddleware, logActivity })
 registerPublishingCalendarRoutes(app, { authMiddleware })
+registerPaidAdsRoutes(app, { authMiddleware, logActivity })
 
 // ==================== JOURNEYS (Wave 1A canonical orchestration) ====================
 app.get('/api/journeys', authMiddleware, async (req, res) => {

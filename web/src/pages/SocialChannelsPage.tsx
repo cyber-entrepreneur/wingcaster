@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PersonalConnectionsPanel } from '@/components/social-channels/PersonalConnectionsPanel'
+import { PaidChannelsPanel } from '@/components/paid-ads/PaidChannelsPanel'
 import { useUiMode } from '@/hooks/useUiMode'
 
 type FieldSpec = { key: string; label: string; required: boolean; secret: boolean }
@@ -91,7 +92,12 @@ export function SocialChannelsPage() {
     for (const c of connections) map[c.platform] = c
     return map
   }, [connections])
-  const activeTab = shouldRenderPro && searchParams.get('tab') === 'accounts' ? 'accounts' : 'channels'
+  const activeTab =
+    searchParams.get('tab') === 'paid'
+      ? 'paid'
+      : shouldRenderPro && searchParams.get('tab') === 'accounts'
+        ? 'accounts'
+        : 'channels'
 
   if (authLoading || loading) {
     return (
@@ -134,12 +140,14 @@ export function SocialChannelsPage() {
         onValueChange={(value) => {
           const next = new URLSearchParams(searchParams)
           if (value === 'accounts') next.set('tab', 'accounts')
+          else if (value === 'paid') next.set('tab', 'paid')
           else next.delete('tab')
           setSearchParams(next, { replace: true })
         }}
       >
-        <TabsList className={`grid w-full sm:w-auto ${shouldRenderPro ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <TabsList className={`grid w-full sm:w-auto ${shouldRenderPro ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="channels">Channel setup</TabsTrigger>
+          <TabsTrigger value="paid">Paid ads</TabsTrigger>
           {shouldRenderPro ? <TabsTrigger value="accounts">My accounts</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="channels" className="mt-4">
@@ -158,6 +166,9 @@ export function SocialChannelsPage() {
               )
             })}
           </div>
+        </TabsContent>
+        <TabsContent value="paid" className="mt-4">
+          <PaidChannelsPanel />
         </TabsContent>
         {shouldRenderPro ? (
           <TabsContent value="accounts" className="mt-4">
