@@ -18,7 +18,71 @@ export function PublicWhiteLabelPropertyPage() {
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState('')
 
-  usePageTitle(data?.property?.title || 'Property')
+  const seoTitle = data?.seo?.title || data?.property?.title
+  usePageTitle(seoTitle || 'Property')
+
+  useEffect(() => {
+    if (!data?.seo) return
+    const { seo } = data
+    const prevTitle = document.title
+    if (seo.title) document.title = seo.title
+
+    let metaDesc = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    const prevDesc = metaDesc?.content
+    if (seo.meta_description) {
+      if (!metaDesc) {
+        metaDesc = document.createElement('meta')
+        metaDesc.name = 'description'
+        document.head.appendChild(metaDesc)
+      }
+      metaDesc.content = seo.meta_description
+    }
+
+    const ogEntries = seo.og_tags && typeof seo.og_tags === 'object' ? Object.entries(seo.og_tags) : []
+    const prevOg: Array<{ el: HTMLMetaElement; content: string }> = []
+    for (const [key, value] of ogEntries) {
+      const attr = key.startsWith('twitter:') ? 'name' : 'property'
+      let el = document.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)
+      if (el) prevOg.push({ el, content: el.content })
+      else {
+        el = document.createElement('meta')
+        el.setAttribute(attr, key)
+        document.head.appendChild(el)
+      }
+      el.content = String(value)
+    }
+
+    let jsonLdEl = document.getElementById('wc-seo-jsonld') as HTMLScriptElement | null
+    const hadJsonLd = Boolean(jsonLdEl)
+    if (seo.schema_jsonld?.['@type']) {
+      if (!jsonLdEl) {
+        jsonLdEl = document.createElement('script')
+        jsonLdEl.id = 'wc-seo-jsonld'
+        jsonLdEl.type = 'application/ld+json'
+        document.head.appendChild(jsonLdEl)
+      }
+      jsonLdEl.textContent = JSON.stringify(seo.schema_jsonld)
+    }
+
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+    const prevCanonical = canonical?.href
+    if (seo.canonical_url) {
+      if (!canonical) {
+        canonical = document.createElement('link')
+        canonical.rel = 'canonical'
+        document.head.appendChild(canonical)
+      }
+      canonical.href = seo.canonical_url
+    }
+
+    return () => {
+      document.title = prevTitle
+      if (metaDesc && prevDesc) metaDesc.content = prevDesc
+      prevOg.forEach(({ el, content }) => { el.content = content })
+      if (jsonLdEl && !hadJsonLd) jsonLdEl.remove()
+      if (canonical && prevCanonical) canonical.href = prevCanonical
+    }
+  }, [data?.seo])
 
   useEffect(() => {
     if (!subdomain || !propertyId) return

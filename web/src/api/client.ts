@@ -3493,6 +3493,17 @@ export const api = {
   launchPaidAdExecution: (id: string) =>
     fetchJson(`/paid-ads/executions/${id}/launch`, { method: 'POST', body: '{}' }),
 
+  // SEO (Wave 2F)
+  getListingSeo: (propertyId: string) => fetchJson(`/seo/properties/${propertyId}`),
+  updateListingSeo: (propertyId: string, payload: Record<string, unknown>) =>
+    fetchJson(`/seo/properties/${propertyId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  generateListingSeo: (propertyId: string) =>
+    fetchJson(`/seo/properties/${propertyId}/generate`, { method: 'POST', body: '{}' }),
+  getListingSeoExport: (propertyId: string) => fetchJson(`/seo/properties/${propertyId}/export`),
+  getListingSeoTarget: (propertyId: string) => fetchJson(`/seo/properties/${propertyId}/target`),
+  setListingSeoTarget: (propertyId: string, payload: { target_surface: string; external_site_url?: string | null }) =>
+    fetchJson(`/seo/properties/${propertyId}/target`, { method: 'PUT', body: JSON.stringify(payload) }),
+
   publishListingToSocial: (
     propertyId: string,
     payload: {

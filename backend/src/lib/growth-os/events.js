@@ -28,6 +28,7 @@ const EVENT_NAME_CATEGORIES = {
   'post.failed': 'delivery',
   'portal.submitted': 'delivery',
   'ad.delivered': 'delivery',
+  'seo.page.generated': 'delivery',
   'email.opened': 'engagement',
   'email.clicked': 'engagement',
   'message.read': 'engagement',
