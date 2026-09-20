@@ -8,6 +8,11 @@ import { openDunningCase } from '../dunning/cases.js'
 import { insertControls } from '../funding/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
+const readHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  Accept: 'application/json',
+})
+
 finPostgresSuite('admin/routes-dunning', {}, ({ url, world, pool }) => {
   it('returns dunning case detail with step timeline', async () => {
     const { app } = await makeOpsApp(url())
