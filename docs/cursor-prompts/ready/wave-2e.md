@@ -2,7 +2,7 @@
 > Paste this ENTIRE file into one Cursor agent. Everything needed is here.
 
 ## THIS MODULE IN THE WAVE (coordination)
-- **Prerequisite:** Wave 0 + Wave 1 merged to `main` (Wave 1A shipped the branch-capable journey schema + engine in `backend/src/domain/journeys/`). Migration max **649**; your block **770–789**.
+- **Prerequisite:** Wave 0 + Wave 1 merged to `main` (Wave 1A shipped the branch-capable journey schema + engine in `backend/src/domain/journeys/`). Migration max **732**; your block **770–789**.
 - **You own:** `contact_policies` + the extended journey runtime. You **implement the `checkFrequencyCap` stub** left in Wave 0 `consent.js`.
 
 ---
@@ -20,7 +20,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 - **`withTenant(agencyId, agentId, fn)` MANDATORY**; RLS strict (mig 551); outside it the app role sees zero rows; propagation via `AsyncLocalStorage`.
 - **New tenant tables copy the strict-RLS pattern EXACTLY** (mig 551 + 543); un-RLS'd reads SQL-scoped by tenant (throw if missing) — never `findAll` unbounded (Wave 1D fix).
 - **Wave 1A journey engine on `main`:** `backend/src/domain/journeys/` (graph node types trigger·wait·send·condition·branch·lead_score·goal·exit·experiment; `journey_runs`/`journey_node_runs`; send nodes call `checkEligibility` and emit `journey.node.suppressed`). Extend it — don't fork it.
-- **Events** via `ingestEvent` (idempotent, v2 vocab, under `withTenant`). **Migration max on `main` is 649.**
+- **Events** via `ingestEvent` (idempotent, v2 vocab, under `withTenant`). **Migration max on `main` is 732.**
 
 ### ABSOLUTE NON-NEGOTIABLES (any violation = PR rejected)
 1. No stubs/`TODO`/`throw 'not implemented'`/placeholders/mock-in-real-path; all implemented + tested. (This module REMOVES a stub — `checkFrequencyCap` — replace it with a real implementation.)
@@ -35,7 +35,7 @@ Senior engineer on **WingCaster** — B2B real-estate marketing SaaS. Backend **
 10. Verify like CI, report truthfully; green ≠ correct.
 
 ### REPO CONVENTIONS
-ESM; `Object.assign(new Error(msg), { code })`; logger. Migrations `NNN_*.sql` (max 649; your block). Register tables in `table-mapper.js`. API client `web/src/api/client.ts`; routes `backend/src/server.js`.
+ESM; `Object.assign(new Error(msg), { code })`; logger. Migrations `NNN_*.sql` (max 732; your block). Register tables in `table-mapper.js`. API client `web/src/api/client.ts`; routes `backend/src/server.js`.
 
 ### VERIFICATION (paste real output)
 `backend/`: `npm ci` → `npm run test` → `npm run test:pg:docker`. `web/`: `npm ci` → `npm run build` → `npm run test`. Narrow to new `*.postgres.test.js` for true pass/fail.
