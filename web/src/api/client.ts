@@ -1300,6 +1300,48 @@ export interface SocialCardAsset {
   created_at: string
 }
 
+export interface CreativeRendition {
+  id: string
+  creative_variant_id: string
+  channel_key: string
+  width: number
+  height: number
+  provider: string
+  asset_url: string | null
+  status: string
+}
+
+export interface CreativeVariant {
+  id: string
+  creative_id: string
+  label: string
+  copy: Record<string, string>
+  experiment_id?: string | null
+  sort_order?: number
+  renditions?: CreativeRendition[]
+}
+
+export interface CreativeRecord {
+  id: string
+  subject_type: string
+  subject_id: string
+  source: 'manual' | 'ai'
+  approval_state: 'not_required' | 'pending' | 'approved' | 'rejected'
+  status: string
+  channel_keys: string[]
+}
+
+export interface CreativeBundle {
+  creative: CreativeRecord
+  variants: CreativeVariant[]
+  approval_request?: {
+    id: string
+    state: string
+    subject_type: string
+    subject_id: string
+  } | null
+}
+
 /**
  * Conversation list/detail shapes with dual-read channel + source
  * (BE-BLOCKER-04 migration window — prefer channel/source, fall back via readChannel/readSource).
@@ -2612,9 +2654,12 @@ export const api = {
   publishListingToSocial: (
     propertyId: string,
     payload: {
-      channels: Array<{ platform: string; format?: string; link_url?: string }>
+      channels: Array<{ platform: string; format?: string; link_url?: string; caption?: string }>
       caption: string
       media_urls?: string[]
+      recipient?: string
+      contact_id?: string
+      creative_id?: string
     },
   ): Promise<{
     results: Array<{
@@ -2769,6 +2814,59 @@ export const api = {
   }> => fetchJson('/social-cards/bannerbear/status'),
   syncBannerbearCatalog: (): Promise<{ synced: number }> =>
     fetchJson('/social-cards/bannerbear/sync', { method: 'POST', body: '{}' }),
+
+  listListingCreatives: (listingId: string): Promise<{ creatives: CreativeRecord[] }> =>
+    fetchJson(`/listings/${listingId}/creatives`),
+  generateListingCreative: (
+    listingId: string,
+    payload: {
+      description: string
+      channel_keys: string[]
+      template_id?: string
+      provider?: 'local' | 'bannerbear'
+    },
+  ): Promise<CreativeBundle> =>
+    fetchJson(`/listings/${listingId}/creatives/generate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getCreative: (id: string): Promise<CreativeBundle> =>
+    fetchJson(`/creatives/${id}`),
+  updateCreativeVariant: (
+    id: string,
+    payload: { copy: Record<string, string> },
+  ): Promise<{ variant: CreativeVariant }> =>
+    fetchJson(`/creative-variants/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  approveCreative: (
+    id: string,
+    payload: { decision?: 'approved' | 'rejected'; note?: string },
+  ): Promise<CreativeBundle> =>
+    fetchJson(`/creatives/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  publishCreative: (
+    id: string,
+    payload: {
+      selections: Array<{ variant_id: string; channel_key: string }>
+    },
+  ): Promise<{
+    creative_id: string
+    results: Array<{
+      variant_id: string
+      channel_key: string
+      platform: string
+      status: string
+      error?: string
+    }>
+  }> =>
+    fetchJson(`/creatives/${id}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   /* ------ Closed transactions (AVM training data capture) ------ */
   getClosedTransactionsConfig: (): Promise<{
@@ -3415,7 +3513,24 @@ export const api = {
   resolveAudience: (id: string, data?: Record<string, unknown>) =>
     fetchJson(`/audiences/${id}/resolve`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
 
-  // Campaigns / Drip sequences
+  // Journeys (Wave 1A canonical) + legacy Campaigns aliases
+  getJourneys: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/journeys${qs}`)
+  },
+  getJourney: (id: string) => fetchJson(`/journeys/${id}`),
+  createJourney: (data: Record<string, unknown>) =>
+    fetchJson('/journeys', { method: 'POST', body: JSON.stringify(data) }),
+  updateJourney: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/journeys/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  enrollContactInJourney: (id: string, contactId: string) =>
+    fetchJson(`/journeys/${id}/enroll`, { method: 'POST', body: JSON.stringify({ contact_id: contactId }) }),
+  getJourneyRuns: (id: string) => fetchJson(`/journeys/${id}/runs`),
+  getJourneyRun: (runId: string) => fetchJson(`/journey-runs/${runId}`),
+  advanceJourneyRun: (journeyId: string, runId: string) =>
+    fetchJson(`/journeys/${journeyId}/runs/${runId}/advance`, { method: 'POST', body: '{}' }),
+
+  // Campaigns / Drip sequences (legacy — prefer journeys)
   getCampaigns: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/campaigns${qs}`)
@@ -3841,6 +3956,30 @@ export const api = {
   getAdminPricingReports: () => fetchJson('/admin/pricing/reports'),
   reviewAdminPricingReport: (id: string, data: Record<string, unknown>) =>
     fetchJson(`/admin/pricing/reports/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // PA-PVA-011 — canonical property resolution admin
+  getAdminCanonicalResolutionQueue: () => fetchJson('/admin/pricing/canonical'),
+  getAdminCanonicalResolution: (id: string) => fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}`),
+  postAdminCanonicalChangePrimary: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/change-primary`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalSplit: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/split`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalMerge: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/merge`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  postAdminCanonicalHold: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/admin/pricing/canonical/${encodeURIComponent(id)}/hold`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // WF-05 PA-PVA-008/008b — comparable-report queue + decisions (BE-28)
   listAdminComparableReports: (params?: Record<string, string>) => {

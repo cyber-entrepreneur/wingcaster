@@ -86,4 +86,34 @@ describe('runScheduledPublishOnce', () => {
     expect(summary).toMatchObject({ scanned: 0, published: 0, failed: 0 })
     expect(submit).not.toHaveBeenCalled()
   })
+
+  it('routes social platforms through consolidated publish instead of portal submit', async () => {
+    const updates = []
+    wireQuery(
+      [{
+        id: 's4',
+        property_id: 'p1',
+        agent_id: 'a1',
+        agency_id: null,
+        portals: ['instagram', 'facebook'],
+        message: 'Scheduled caption',
+        recurrence: 'none',
+        scheduled_at: '2026-01-01T00:00:00Z',
+        attempts: 0,
+      }],
+      updates,
+    )
+    const submit = vi.fn()
+    const publishSocial = vi.fn(async () => ({
+      results: [{ platform: 'instagram', status: 'published', execution_id: 'exec-1' }],
+    }))
+    const summary = await runScheduledPublishOnce({ submit, publishSocial })
+    expect(summary).toMatchObject({ scanned: 1, published: 1, failed: 0 })
+    expect(publishSocial).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'p1',
+      platforms: ['instagram', 'facebook'],
+      message: 'Scheduled caption',
+    }))
+    expect(submit).not.toHaveBeenCalled()
+  })
 })

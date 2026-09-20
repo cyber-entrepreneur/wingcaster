@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -190,7 +191,12 @@ export function PricingAdminPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <h1 className="text-2xl font-bold">REB Price Index Admin</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">REB Price Index Admin</h1>
+        <Link to="/admin/pricing/canonical" className="text-sm underline text-muted-foreground">
+          Canonical property resolution
+        </Link>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto">

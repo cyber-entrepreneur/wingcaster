@@ -17,7 +17,7 @@ import {
 } from './exception-items.js'
 import { exceptionNoteSchema, exceptionWontFixSchema } from './exception-schemas.js'
 import {
-  getApprovalAuditTrail, getBillingPeriod, getContract, getInvoice, getReconRun, getTenant,
+  getApprovalAuditTrail, getBillingPeriod, getBillingPeriodDetail, getContract, getInvoice, getReconRun, getTenant,
   listApprovals, listAudit, listConfiguration,
   listAccountingPeriods, getAccountingPeriod, listContracts, listDunningCases, getDunningCase, listFacilities, listHolds, listInvoices,
   getLot, listLots, listPayments, listReconRuns, listTenants, simulatePrice, usageDrill,
@@ -32,6 +32,7 @@ import { runReconciliation } from '../reconciliation/runner.js'
 import { advanceDunning } from '../dunning/steps.js'
 import { cureDunning } from '../dunning/cases.js'
 import { writeOffInvoice } from '../dunning/write-off-invoice.js'
+import { requestDunningWriteOff } from '../dunning/write-off-request.js'
 import { advanceBillingPeriodClose } from '../billing/period-close.js'
 import { reopenBillingPeriod } from '../billing/periods.js'
 import { voidIssuedInvoice } from '../billing/invoice-issuer.js'
@@ -641,12 +642,32 @@ export function registerFinOpsAdminRoutes(app, { authMiddleware, requirePlatform
     return res.status(200).json(result)
   }))
 
+  app.post('/api/admin/fin/dunning/cases/:id/write-off/request', writeGuards, wrap(async (req, res) => {
+    const body = commandBody(req)
+    const result = await requestDunningWriteOff(input(req, {
+      caseId: req.params.id,
+      amountMinor: pick(body, 'amountMinor', 'amount_minor'),
+      reasonCategory: pick(body, 'reasonCategory', 'reason_category'),
+      evidence: pick(body, 'evidence'),
+    }))
+    return res.status(200).json(result)
+  }))
+
   app.post('/api/admin/fin/dunning/cases/:id/write-off', writeGuards, wrap(async (req, res) => {
     const result = await writeOffInvoice(input(req, {
       caseId: req.params.id,
       invoiceId: pick(req.body, 'invoiceId', 'invoice_id'),
     }))
     return res.status(200).json(result)
+  }))
+
+  app.get('/api/admin/fin/billing/periods/:id', readGuards, wrap(async (req, res) => {
+    const period = await getBillingPeriodDetail({
+      environment: sessionEnvironment(req),
+      id: req.params.id,
+    })
+    if (!period) return res.status(404).json({ error: 'Billing period not found' })
+    return res.status(200).json({ period })
   }))
 
   app.post('/api/admin/fin/billing/periods/:id/close', writeGuards, wrap(async (req, res) => {

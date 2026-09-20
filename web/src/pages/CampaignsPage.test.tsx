@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { CampaignsPage } from './CampaignsPage'
 
 const apiMock = vi.hoisted(() => ({
-  getCampaigns: vi.fn(),
+  getJourneys: vi.fn(),
 }))
 const uiModeMock = vi.hoisted(() => ({
   effectiveMode: 'guided' as 'guided' | 'pro',
@@ -48,27 +48,27 @@ function renderPage() {
 
 beforeEach(() => {
   uiModeMock.effectiveMode = 'guided'
-  apiMock.getCampaigns.mockReset().mockResolvedValue([])
+  apiMock.getJourneys.mockReset().mockResolvedValue([])
 })
 
 afterEach(() => cleanup())
 
 describe('CampaignsPage (AGT-CMP-001)', () => {
-  it('shows guided goal picker instead of a New campaign button', async () => {
+  it('shows guided goal picker instead of a New journey button', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByTestId('campaign-goal-picker')).toBeInTheDocument())
-    expect(screen.queryByRole('link', { name: /New campaign/i })).not.toBeInTheDocument()
-    expect(screen.getByTestId('campaign-goal-price_drop')).toHaveAttribute('href', '/campaigns/new?goal=price_drop')
+    expect(screen.queryByRole('link', { name: /New journey/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('campaign-goal-price_drop')).toHaveAttribute('href', '/journeys/new?goal=price_drop')
   })
 
-  it('shows Pro new-campaign CTA when effective mode is pro', async () => {
+  it('shows Pro new-journey CTA when effective mode is pro', async () => {
     uiModeMock.effectiveMode = 'pro'
     renderPage()
-    await waitFor(() => expect(screen.getByRole('link', { name: /New campaign/i })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('link', { name: /New journey/i })).toBeInTheDocument())
     expect(screen.queryByTestId('campaign-goal-picker')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /New campaign/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /New journey/i })).toHaveAttribute(
       'href',
-      '/campaigns/new?mode=pro',
+      '/journeys/new?mode=pro',
     )
   })
 })

@@ -219,9 +219,9 @@ describe('BottomTabBar', () => {
     expect(dialog).toBeInTheDocument()
     expect(within(dialog).getByText('Business')).toBeInTheDocument()
     expect(within(dialog).getByText('Team')).toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: /Campaigns/i })).toHaveAttribute(
+    expect(within(dialog).getByRole('link', { name: /Journeys/i })).toHaveAttribute(
       'href',
-      '/campaigns',
+      '/journeys',
     )
   })
 

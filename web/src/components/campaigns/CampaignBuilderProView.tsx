@@ -27,7 +27,7 @@ import { campaignFormFromGoal } from './campaign-goals'
 export function CampaignBuilderProView() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  usePageTitle('New Campaign (Pro)')
+  usePageTitle('Edit Journey (Pro)')
 
   // AGT-CMP-001: seed from a goal preset (`?goal=`) on first render.
   const goalParam = searchParams.get('goal')
@@ -62,10 +62,10 @@ export function CampaignBuilderProView() {
   return (
     <CrmShell>
       <CmdPageHeader
-        title="New campaign"
-        subtitle="Pro builder — configure goal, audience, content, and schedule on one screen."
+        title="Journey builder"
+        subtitle="Pro editor — configure goal, audience, content, and schedule on one screen."
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate('/campaigns')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/journeys')}>
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
           </Button>
         }

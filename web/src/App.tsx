@@ -109,6 +109,8 @@ import { AdminScoringPage } from '@/pages/admin/scoring/AdminScoringPage'
 import { AiConfigsPage } from '@/pages/admin/scoring/AiConfigsPage'
 import { CommentClassifierPage } from '@/pages/admin/comment-classifier/CommentClassifierPage'
 import { PricingAdminPage } from '@/pages/admin/pricing/PricingAdminPage'
+import { CanonicalResolutionQueuePage } from '@/pages/admin/pricing/CanonicalResolutionQueuePage'
+import { CanonicalResolutionDetailPage } from '@/pages/admin/pricing/CanonicalResolutionDetailPage'
 import { PortalModerationQueuePage } from '@/pages/admin/PortalModerationQueuePage'
 import {
   PortalRegistryListPage,
@@ -130,14 +132,14 @@ import {
   PriceReportDetailPage,
 } from '@/pages/admin/valuation'
 import {
-  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
-  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AdvanceDunningStagePage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage, CreditLotsPage,
+  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditsPage, CureDunningCasePage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   ExceptionDetailPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
+  PaymentsPage, PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage,
   SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
+  SubscriptionsPage, TenantDetailPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from '@/pages/admin/fin'
 import { NotificationPreferencesPage } from '@/pages/NotificationPreferencesPage'
 import { NotificationsInboxPage } from '@/pages/agent/NotificationsInboxPage'
@@ -260,8 +262,12 @@ function AppRoutes() {
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
-      <Route path="/campaigns" element={<CampaignsPage />} />
-      <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+      <Route path="/journeys" element={<CampaignsPage />} />
+      <Route path="/journeys/new" element={<CampaignBuilderPage />} />
+      <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
+      <Route path="/campaigns" element={<Navigate to="/journeys" replace />} />
+      <Route path="/campaigns/new" element={<Navigate to="/journeys/new" replace />} />
+      <Route path="/campaigns/:id" element={<Navigate to="/journeys" replace />} />
       <Route path="/audiences" element={<AudiencesPage />} />
       <Route path="/audiences/new" element={<AudienceBuilderPage />} />
       <Route path="/audiences/:id" element={<AudienceBuilderPage />} />
@@ -346,6 +352,8 @@ function AppRoutes() {
       <Route path="/admin/scoring/ai-configs" element={<AiConfigsPage />} />
       <Route path="/admin/comment-classifier" element={<CommentClassifierPage />} />
       <Route path="/admin/pricing" element={<PricingAdminPage />} />
+      <Route path="/admin/pricing/canonical" element={<CanonicalResolutionQueuePage />} />
+      <Route path="/admin/pricing/canonical/:id" element={<CanonicalResolutionDetailPage />} />
       <Route path="/admin/support/account-recovery" element={<AccountRecoveryQueuePage />} />
       {/* PA-ACR-002 - account recovery detail (cast-vote only; BE-BLOCKER-22) */}
       <Route path="/admin/support/account-recovery/:caseId" element={<AccountRecoveryDetailPage />} />
@@ -379,6 +387,7 @@ function AppRoutes() {
       <Route path="/admin/fin" element={<Navigate to="/admin/fin/overview" replace />} />
       <Route path="/admin/fin/overview" element={<OverviewPage />} />
       <Route path="/admin/fin/tenants" element={<TenantsPage />} />
+      <Route path="/admin/fin/tenants/:id" element={<TenantDetailPage />} />
       <Route path="/admin/fin/usage" element={<UsagePage />} />
       <Route path="/admin/fin/credits" element={<CreditsPage />} />
       <Route path="/admin/fin/credits/lots" element={<CreditLotsPage />} />
@@ -400,6 +409,7 @@ function AppRoutes() {
       <Route path="/admin/fin/subscriptions/:id" element={<SubscriptionDetailPage />} />
       <Route path="/admin/fin/invoices" element={<InvoicesPage />} />
       <Route path="/admin/fin/dunning" element={<DunningCasesPage />} />
+      <Route path="/admin/fin/payments" element={<PaymentsPage />} />
       <Route path="/admin/fin/vendor-costs" element={<VendorCostsPage />} />
       <Route path="/admin/fin/vendors/:vendorId/statements/:month" element={<VendorStatementDetailPage />} />
       <Route path="/admin/fin/reconciliation" element={<ReconciliationPage />} />
@@ -411,7 +421,11 @@ function AppRoutes() {
       <Route path="/admin/fin/exceptions/:id" element={<ExceptionDetailPage />} />
       <Route path="/admin/fin/approvals" element={<ApprovalsPage />} />
       <Route path="/admin/fin/audit" element={<AuditPage />} />
+      <Route path="/admin/fin/dunning/:id/advance" element={<AdvanceDunningStagePage />} />
+      <Route path="/admin/fin/dunning/:id/cure" element={<CureDunningCasePage />} />
+      <Route path="/admin/fin/dunning/:id/write-off" element={<WriteOffDunningCasePage />} />
       <Route path="/admin/fin/configuration" element={<ConfigurationPage />} />
+      <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
       <Route path="/notifications" element={<NotificationsInboxPage />} />
       <Route path="/notification-preferences" element={<NotificationPreferencesPage />} />
       <Route path="/agency/whatsapp-listings" element={<AgencyWhatsAppListingsPage />} />

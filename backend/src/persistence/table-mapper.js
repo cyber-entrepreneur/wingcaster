@@ -313,7 +313,7 @@ const TABLE_MAP = {
   },
   webhook_delivery_log: { schema: 'public', table: 'webhook_delivery_log', columns: ['provider', 'external_id', 'received_at'] },
 
-  // Campaigns
+  // Campaigns (legacy) + Journeys (Wave 1A canonical)
   campaigns: {
     schema: 'public',
     table: 'campaigns',
@@ -321,6 +321,36 @@ const TABLE_MAP = {
   },
   campaign_enrollments: { schema: 'public', table: 'campaign_enrollments', columns: ['campaign_id', 'contact_id', 'status', 'current_step_index', 'last_sent_at', 'completed_at'] },
   campaign_messages: { schema: 'public', table: 'campaign_messages', columns: ['campaign_id', 'enrollment_id', 'contact_id', 'step_index', 'channel', 'status', 'sent_at', 'content', 'provider_message_id'] },
+  journeys: {
+    schema: 'public',
+    table: 'journeys',
+    columns: [
+      'agency_id', 'agent_id', 'name', 'description', 'status', 'trigger',
+      'entry_audience_id', 'goal_event', 'suppression', 'legacy_campaign_id',
+      'tags_filter', 'target_channel', 'audience_rules', 'created_by',
+    ],
+  },
+  journey_versions: {
+    schema: 'public',
+    table: 'journey_versions',
+    columns: ['journey_id', 'version', 'graph', 'published_at'],
+  },
+  journey_runs: {
+    schema: 'public',
+    table: 'journey_runs',
+    columns: [
+      'journey_version_id', 'contact_id', 'agency_id', 'agent_id',
+      'current_node_id', 'state', 'status', 'entered_at', 'exited_at',
+    ],
+  },
+  journey_node_runs: {
+    schema: 'public',
+    table: 'journey_node_runs',
+    columns: [
+      'journey_run_id', 'node_id', 'node_type', 'agency_id', 'agent_id',
+      'input', 'result', 'execution_id', 'creative_id', 'occurred_at',
+    ],
+  },
 
   // Distribution
   platform_accounts: { schema: 'public', table: 'platform_accounts', columns: ['agent_id', 'agency_id', 'platform', 'account_handle', 'access_token', 'refresh_token', 'expires_at', 'status'] },
@@ -421,6 +451,38 @@ const TABLE_MAP = {
     columns: [
       'audience_id', 'contact_id', 'state', 'qualified_at', 'expires_at', 'inclusion',
       'agency_id', 'agent_id',
+    ],
+  },
+  creatives: {
+    schema: 'public',
+    table: 'creatives',
+    columns: [
+      'agency_id', 'agent_id', 'subject_type', 'subject_id', 'source',
+      'approval_state', 'status', 'channel_keys',
+    ],
+  },
+  creative_variants: {
+    schema: 'public',
+    table: 'creative_variants',
+    columns: [
+      'agency_id', 'agent_id', 'creative_id', 'label', 'copy',
+      'experiment_id', 'sort_order',
+    ],
+  },
+  creative_renditions: {
+    schema: 'public',
+    table: 'creative_renditions',
+    columns: [
+      'agency_id', 'agent_id', 'creative_variant_id', 'channel_key',
+      'width', 'height', 'provider', 'asset_url', 'status',
+    ],
+  },
+  approval_requests: {
+    schema: 'public',
+    table: 'approval_requests',
+    columns: [
+      'agency_id', 'agent_id', 'subject_type', 'subject_id', 'subject_version',
+      'requested_by', 'state', 'reviewers', 'decision_history',
     ],
   },
   content_submissions: { schema: 'public', table: 'content_submissions', columns: ['property_id', 'agent_id', 'platform', 'status', 'payload', 'submitted_at'] },

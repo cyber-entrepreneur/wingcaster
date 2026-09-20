@@ -8,6 +8,11 @@ import { openDunningCase } from '../dunning/cases.js'
 import { insertControls } from '../funding/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
+const readHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  Accept: 'application/json',
+})
+
 finPostgresSuite('admin/routes-dunning', {}, ({ url, world, pool }) => {
   it('returns dunning case detail with step timeline', async () => {
     const { app } = await makeOpsApp(url())
@@ -27,6 +32,40 @@ finPostgresSuite('admin/routes-dunning', {}, ({ url, world, pool }) => {
     expect(detail.status).toBe(200)
     expect(detail.body.case.id).toBe(opened.caseId)
     expect(Array.isArray(detail.body.case.steps)).toBe(true)
+  })
+
+  it('queues a write-off approval request', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    await insertControls(pool(), {
+      subjectType: 'BILLING_ACCOUNT',
+      subjectId: world().tenantA.billingAccountId,
+    })
+    const issued = await seedIssuedInvoice(pool(), world(), { amountMinor: 2500 })
+    const opened = await openDunningCase({
+      ...commandEnv(world(), { reasonCode: 'AR_OVERDUE' }),
+      invoiceId: issued.invoiceId,
+      billingAccountId: world().tenantA.billingAccountId,
+      invoiceStatus: 'ISSUED',
+      dueAt: issued.dueAt,
+    })
+    const queued = await request(app)
+      .post(`/api/admin/fin/dunning/cases/${opened.caseId}/write-off/request`)
+      .set(writeHeaders(token, { idempotencyKey: `WOFF:REQ:${randomUUID()}` }))
+      .send({
+        reason_code: 'WRITE_OFF_REQUEST',
+        amount_minor: 2500,
+        reason_category: 'BAD_DEBT',
+        evidence: 'Customer insolvency documentation attached.',
+      })
+    expect(queued.status).toBe(200)
+    expect(queued.body.approvalRequestId).toBeTruthy()
+    const row = await pool().query(
+      `SELECT action_kind, status FROM fin.approval_requests WHERE id = $1`,
+      [queued.body.approvalRequestId],
+    )
+    expect(row.rows[0].action_kind).toBe('WRITE_OFF')
+    expect(row.rows[0].status).toBe('REQUESTED')
   })
 
   it('advances an open case; unknown case errors', async () => {

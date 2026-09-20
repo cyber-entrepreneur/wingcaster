@@ -38,6 +38,27 @@ export function normalizeCaptionsEnvelope(parsed) {
   return parsed
 }
 
+export function variantsCaptionsSchema(channels = DEFAULT_POST_CHANNELS, tones = ['warm', 'professional', 'concise', 'luxury']) {
+  const captionShape = {}
+  for (const channel of channels) {
+    captionShape[channel] = z.string().min(1)
+  }
+  const variantSchema = z.object({
+    tone: z.enum(tones),
+    label: z.string().min(1),
+    captions: z.object(captionShape).passthrough(),
+  })
+  return z.object({
+    variants: z.array(variantSchema).min(tones.length),
+  })
+}
+
+export function normalizeVariantsEnvelope(parsed) {
+  if (!parsed || typeof parsed !== 'object') return parsed
+  if (Array.isArray(parsed.variants)) return parsed
+  return parsed
+}
+
 export function parseWithSchema(schema, parsed, { normalize } = {}) {
   const input = typeof normalize === 'function' ? normalize(parsed) : parsed
   return schema.safeParse(input)

@@ -8,7 +8,7 @@
  * AGT-CMP-003: `?mode=pro` renders the single-page Pro builder.
  */
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -74,7 +74,7 @@ function WizardProgressBar({ current }: { current: number }) {
 function CampaignBuilderWizard() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  usePageTitle('New Campaign')
+  usePageTitle('New Journey')
 
   // AGT-CMP-001: seed the wizard from a goal preset (`?goal=`). The hook only
   // reads this on its first render, so it acts as a one-time seed.
@@ -112,9 +112,9 @@ function CampaignBuilderWizard() {
   return (
     <CrmShell>
       <CmdPageHeader
-        title="New campaign"
+        title="New journey"
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate('/campaigns')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/journeys')}>
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
           </Button>
         }
@@ -127,13 +127,13 @@ function CampaignBuilderWizard() {
           {wizardStep === 0 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Campaign basics</h2>
-                <p className="text-sm text-muted-foreground">Give your campaign a name and choose how it gets triggered.</p>
+                <h2 className="text-lg font-semibold">Journey basics</h2>
+                <p className="text-sm text-muted-foreground">Give your journey a name and choose how it gets triggered.</p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Campaign name <span className="text-red-500">*</span></Label>
+                  <Label>Journey name <span className="text-red-500">*</span></Label>
                   <Input
                     autoFocus
                     placeholder="e.g. New lead nurture — Beirut buyers"
@@ -147,7 +147,7 @@ function CampaignBuilderWizard() {
                   <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
                   <textarea
                     rows={2}
-                    placeholder="What is this campaign for?"
+                    placeholder="What is this journey for?"
                     value={form.description}
                     onChange={(e) => setField('description', e.target.value)}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
@@ -423,7 +423,7 @@ function CampaignBuilderWizard() {
                   onClick={() => handleSave('active')}
                 >
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Megaphone className="mr-2 h-4 w-4" />}
-                  Launch campaign
+                  Launch journey
                 </Button>
               </div>
             </div>
@@ -457,7 +457,9 @@ function CampaignBuilderWizard() {
 
 export function CampaignBuilderPage() {
   const [searchParams] = useSearchParams()
-  if (searchParams.get('mode') === 'pro') {
+  const { id: journeyId } = useParams()
+  // Wizard = create; Pro single-page = edit (or explicit ?mode=pro).
+  if (searchParams.get('mode') === 'pro' || journeyId) {
     return <CampaignBuilderProView />
   }
   return <CampaignBuilderWizard />

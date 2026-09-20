@@ -6,6 +6,23 @@ import { seedOpenEndedPeriod } from '../billing/test-support.js'
 import { makeOpsApp, writeHeaders } from './http-support.js'
 
 finPostgresSuite('admin/routes-billing', {}, ({ url, world }) => {
+  it('GET billing period detail includes lock and readiness flags', async () => {
+    const { app, elevate } = await makeOpsApp(url())
+    const token = elevate()
+    const opened = await seedOpenEndedPeriod(world(), {
+      periodKey: `admin-get-${randomUUID().slice(0, 8)}`,
+    })
+    const periodId = opened.periodId || opened.id
+    const detail = await request(app)
+      .get(`/api/admin/fin/billing/periods/${periodId}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(detail.status).toBe(200)
+    expect(detail.body.period?.id).toBe(periodId)
+    expect(detail.body.period?.lock).toMatchObject({ held: false })
+    expect(typeof detail.body.period?.ready_for_close).toBe('boolean')
+    expect(typeof detail.body.period?.ready_for_reopen).toBe('boolean')
+  })
+
   it('close walks an OPEN period; reopen of OPEN errors', async () => {
     const { app, elevate } = await makeOpsApp(url())
     const token = elevate()

@@ -6,7 +6,7 @@ import { PromoteDistributeModal } from './PromoteDistributeModal'
 
 const apiMock = vi.hoisted(() => ({
   getTenantCreditsBalance: vi.fn(),
-  distributeOwn: vi.fn(),
+  publishListingToSocial: vi.fn(),
   submitToFi: vi.fn(),
   createScheduledPublication: vi.fn(),
 }))
@@ -76,7 +76,9 @@ beforeEach(() => {
       },
     ],
   })
-  apiMock.distributeOwn.mockResolvedValue([{ platform: 'instagram', status: 'published' }])
+  apiMock.publishListingToSocial.mockResolvedValue({
+    results: [{ platform: 'instagram', status: 'published', external_id: 'ig-1', external_url: null, provider: 'instagram', simulated: false, error: null }],
+  })
   apiMock.createScheduledPublication.mockResolvedValue({ id: 'sched-1', status: 'pending' })
 })
 
@@ -102,7 +104,7 @@ describe('PromoteDistributeModal (AGT-PUB-002)', () => {
     expect(screen.getByText(/total:/i)).toBeInTheDocument()
   })
 
-  it('submits per-channel captions to distributeOwn', async () => {
+  it('submits per-channel captions to publishListingToSocial', async () => {
     const user = userEvent.setup()
     const { onDone } = renderModal()
 
@@ -113,11 +115,11 @@ describe('PromoteDistributeModal (AGT-PUB-002)', () => {
     await user.click(screen.getByRole('button', { name: /promote now/i }))
 
     await waitFor(() => {
-      expect(apiMock.distributeOwn).toHaveBeenCalledWith(
+      expect(apiMock.publishListingToSocial).toHaveBeenCalledWith(
         'prop_1',
-        ['instagram'],
         expect.objectContaining({
-          captions: { instagram: 'IG-specific copy' },
+          channels: [{ platform: 'instagram', caption: 'IG-specific copy' }],
+          caption: 'IG-specific copy',
         }),
       )
     })

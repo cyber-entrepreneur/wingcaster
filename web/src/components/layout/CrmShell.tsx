@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contacts', path: '/contacts', icon: Users },
   { label: 'Tasks', path: '/tasks', icon: CheckSquare },
   { label: 'Opportunities', path: '/opportunities', icon: TrendingUp },
-  { label: 'Campaigns', path: '/campaigns', icon: Megaphone },
+  { label: 'Journeys', path: '/journeys', icon: Megaphone },
   { label: 'Message Templates', path: '/message-templates', icon: MessageSquareText },
   { label: 'Analytics', path: '/analytics/crm', icon: BarChart3 },
   { label: 'Workflows', path: '/workflows', icon: Zap },

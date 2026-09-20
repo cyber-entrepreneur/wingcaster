@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
-  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AuditPage, ConfigurationPage, ContractDetailPage, ContractsPage,
-  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage,
+  ApprovalsPage, AccountingPeriodDetailPage, AccountingPeriodsPage, AdvanceDunningStagePage, AuditPage, BillingPeriodClosePage, ConfigurationPage, ContractDetailPage, ContractsPage,
+  ContractVersionEditorPage, CreditFinMirrorPage, CreditJanitorPage, CreditLotsPage, CreditsPage, CureDunningCasePage,
   DunningCaseDetailPage, DunningCasesPage, ExceptionDetailPage, ExceptionsPage, FacilitiesPage, FeatureRegistryPage, HoldsPage, InvoicesPage, OverviewPage,
   PackageApprovalPage, PackageDetailPage, PackagesPage, PackageVersionEditor,
-  PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
-  SubscriptionsPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage,
+  PaymentsPage, PriceDetailPage, PricingPage as FinPricingPage, ReconciliationPage, ReconciliationRunDetailPage, SubscriptionDetailPage,
+  SubscriptionsPage, TenantDetailPage, TenantsPage, UsagePage, VendorCostsPage, VendorStatementDetailPage, WriteOffDunningCasePage,
 } from './index'
 
 const apiMock = vi.hoisted(() => ({
@@ -156,7 +156,7 @@ const apiMock = vi.hoisted(() => ({
         dl: 'DL-165',
       }
     }
-    if (String(path).includes('/dunning/cases')) {
+    if (String(path).endsWith('/dunning/cases')) {
       return { cases: [{ id: 'case-1', tenant_id: 'tenant-1', invoice_id: 'inv-1', status: 'OPEN', created_at: '2026-09-19T00:00:00.000Z' }] }
     }
     if (String(path).includes('/credits/janitor/status')) {
@@ -210,6 +210,30 @@ const apiMock = vi.hoisted(() => ({
             ready_for_soft_close: true,
           },
         },
+      }
+    }
+    if (String(path).includes('/billing/periods/')) {
+      return {
+        period: {
+          id: 'bp1',
+          period_key: '2026-01',
+          status: 'OPEN',
+          tenant_id: 't1',
+          lock: { held: false },
+          ready_for_close: true,
+          ready_for_reopen: false,
+        },
+      }
+    }
+    if (String(path).includes('/payments')) {
+      return {
+        payments: [{
+          id: 'pay1',
+          tenant_id: 't1',
+          status: 'RECEIVED',
+          amount_minor: '5000',
+          currency: 'USD',
+        }],
       }
     }
     return {
@@ -274,6 +298,7 @@ describe('admin/fin pages', () => {
     ['Subscription', () => <SubscriptionDetailPage />],
     ['Invoices', () => <InvoicesPage />],
     ['Dunning cases', () => <DunningCasesPage />],
+    ['Payments', () => <PaymentsPage />],
     ['Vendor costs', () => <VendorCostsPage />],
     ['Vendor statement', () => (
       <Routes>
@@ -451,5 +476,68 @@ describe('admin/fin pages', () => {
     )
     expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Accounting period')
     expect(await screen.findByText('Close checklist')).toBeTruthy()
+  })
+
+  it('Billing period close renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/billing/periods/bp1/close']}>
+        <Routes>
+          <Route path="/admin/fin/billing/periods/:id/close" element={<BillingPeriodClosePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Billing period close')
+    expect(await screen.findByText('Advisory lock 1020')).toBeTruthy()
+  })
+
+  it('Advance dunning stage renders target stage and CTA', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/advance']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/advance" element={<AdvanceDunningStagePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Advance dunning stage')).toBeTruthy()
+    expect(await screen.findByText('Target stage:')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Advance stage' })).toBeTruthy()
+  })
+
+  it('Cure dunning case requires payment reference', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/cure']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/cure" element={<CureDunningCasePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Cure dunning case')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Cure case' })).toBeDisabled()
+    expect(screen.getByLabelText('Payment reference')).toBeTruthy()
+  })
+
+  it('Write off dunning case requires evidence before submit', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/dunning/d1/write-off']}>
+        <Routes>
+          <Route path="/admin/fin/dunning/:id/write-off" element={<WriteOffDunningCasePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Write off dunning case')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeDisabled()
+    expect(screen.getByLabelText('Evidence')).toBeTruthy()
+  })
+
+  it('Tenant detail renders for a platform admin', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/fin/tenants/t1']}>
+        <Routes>
+          <Route path="/admin/fin/tenants/:id" element={<TenantDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })?.textContent).toBe('Tenant detail')
+    expect(await screen.findByText('Credit & exposure')).toBeTruthy()
   })
 })

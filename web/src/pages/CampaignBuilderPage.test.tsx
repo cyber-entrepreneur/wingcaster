@@ -8,7 +8,7 @@ import { CampaignBuilderPage } from './CampaignBuilderPage'
 const addToast = vi.hoisted(() => vi.fn())
 const apiMocks = vi.hoisted(() => ({
   getMessageTemplates: vi.fn(),
-  createCampaign: vi.fn(),
+  createJourney: vi.fn(),
 }))
 
 vi.mock('@/components/ui/toast', () => ({
@@ -35,12 +35,13 @@ vi.mock('@/lib/usePageTitle', () => ({
   usePageTitle: () => undefined,
 }))
 
-function renderAt(path = '/campaigns/new') {
+function renderAt(path = '/journeys/new') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
-        <Route path="/campaigns" element={<div>Campaigns list</div>} />
+        <Route path="/journeys/new" element={<CampaignBuilderPage />} />
+        <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
+        <Route path="/journeys" element={<div>Journeys list</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -48,7 +49,7 @@ function renderAt(path = '/campaigns/new') {
 
 beforeEach(() => {
   apiMocks.getMessageTemplates.mockReset().mockResolvedValue([])
-  apiMocks.createCampaign.mockReset().mockResolvedValue({ id: 'cmp_1' })
+  apiMocks.createJourney.mockReset().mockResolvedValue({ id: 'jrn_1' })
   addToast.mockReset()
 })
 
@@ -56,13 +57,13 @@ afterEach(() => cleanup())
 
 describe('CampaignBuilderPage (AGT-CMP-003)', () => {
   it('renders guided wizard by default', () => {
-    renderAt('/campaigns/new')
-    expect(screen.getByText('Campaign basics')).toBeInTheDocument()
+    renderAt('/journeys/new')
+    expect(screen.getByText('Journey basics')).toBeInTheDocument()
     expect(screen.queryByTestId('campaign-builder-pro')).not.toBeInTheDocument()
   })
 
   it('renders Pro single-page layout when mode=pro', () => {
-    renderAt('/campaigns/new?mode=pro')
+    renderAt('/journeys/new?mode=pro')
     expect(screen.getByTestId('campaign-builder-pro')).toBeInTheDocument()
     expect(screen.getByText('Goal & audience')).toBeInTheDocument()
     expect(screen.getByText('Channels & schedule')).toBeInTheDocument()
@@ -71,9 +72,9 @@ describe('CampaignBuilderPage (AGT-CMP-003)', () => {
 
   it('saves draft from Pro builder', async () => {
     const user = userEvent.setup()
-    renderAt('/campaigns/new?mode=pro')
+    renderAt('/journeys/new?mode=pro')
 
-    await user.type(screen.getByPlaceholderText(/New lead nurture/), 'Pro nurture campaign')
+    await user.type(screen.getByPlaceholderText(/New lead nurture/), 'Pro nurture journey')
     await user.type(screen.getByPlaceholderText(/Write your message/), 'Hello {{client_name}}')
 
     const saveBtn = screen.getByTestId('campaign-pro-save-draft')
@@ -81,13 +82,13 @@ describe('CampaignBuilderPage (AGT-CMP-003)', () => {
     await user.click(saveBtn)
 
     await waitFor(() => {
-      expect(apiMocks.createCampaign).toHaveBeenCalledWith(
+      expect(apiMocks.createJourney).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'Pro nurture campaign',
+          name: 'Pro nurture journey',
           status: 'draft',
         }),
       )
     })
-    expect(await screen.findByText('Campaigns list')).toBeInTheDocument()
+    expect(await screen.findByText('Journeys list')).toBeInTheDocument()
   })
 })

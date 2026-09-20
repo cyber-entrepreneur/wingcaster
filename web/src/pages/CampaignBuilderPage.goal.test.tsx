@@ -7,7 +7,7 @@ import { CampaignBuilderPage } from './CampaignBuilderPage'
 vi.mock('@/api/client', () => ({
   api: {
     getMessageTemplates: vi.fn().mockResolvedValue([]),
-    createCampaign: vi.fn(),
+    createJourney: vi.fn(),
   },
 }))
 vi.mock('@/context/AuthContext', () => ({
@@ -29,9 +29,9 @@ afterEach(() => cleanup())
 describe('CampaignBuilderPage goal presets (AGT-CMP-001)', () => {
   it('prefills the wizard from ?goal=open_house', async () => {
     render(
-      <MemoryRouter initialEntries={['/campaigns/new?goal=open_house']}>
+      <MemoryRouter initialEntries={['/journeys/new?goal=open_house']}>
         <Routes>
-          <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+          <Route path="/journeys/new" element={<CampaignBuilderPage />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -45,9 +45,9 @@ describe('CampaignBuilderPage goal presets (AGT-CMP-001)', () => {
 
   it('starts blank when no goal is supplied', async () => {
     render(
-      <MemoryRouter initialEntries={['/campaigns/new']}>
+      <MemoryRouter initialEntries={['/journeys/new']}>
         <Routes>
-          <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+          <Route path="/journeys/new" element={<CampaignBuilderPage />} />
         </Routes>
       </MemoryRouter>,
     )
