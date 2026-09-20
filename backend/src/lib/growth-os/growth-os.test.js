@@ -223,9 +223,32 @@ describe('growth-os events', () => {
     expect(String(query.mock.calls[0][0])).toMatch(/ON CONFLICT \(idempotency_key\)/)
   })
 
+  it('accepts ad.delivered (Wave 2A paid delivery)', async () => {
+    findOne.mockResolvedValueOnce(null)
+    query.mockResolvedValueOnce([{
+      id: 'evt_ad_1',
+      event_name: 'ad.delivered',
+      event_category: 'delivery',
+      idempotency_key: 'paid_ads:execution:exec_1:ad.delivered:t',
+      provider_event_id: null,
+      context: {},
+      data: {},
+    }])
+    const result = await ingestEvent({
+      eventName: 'ad.delivered',
+      eventCategory: 'delivery',
+      source: 'paid_ads',
+      objectType: 'execution',
+      objectId: 'exec_1',
+      idempotencyKey: 'paid_ads:execution:exec_1:ad.delivered:t',
+    })
+    expect(result.inserted).toBe(true)
+    expect(result.event.event_name).toBe('ad.delivered')
+  })
+
   it('rejects unknown event_name', async () => {
     await expect(ingestEvent({
-      eventName: 'ad.delivered',
+      eventName: 'ad.fabricated',
       eventCategory: 'delivery',
       providerEventId: 'prov_ff',
     })).rejects.toMatchObject({ code: 'UNKNOWN_EVENT_NAME' })

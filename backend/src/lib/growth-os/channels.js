@@ -112,7 +112,8 @@ export async function createChannelConnection({
       rate_limits: rateLimits,
       health,
       tenant_capabilities: tenantCapabilities,
-      data,
+      // Non-column attrs must be top-level for toRow/fromRow round-trip.
+      ...(data && typeof data === 'object' && !Array.isArray(data) ? data : {}),
     })
   })
 }

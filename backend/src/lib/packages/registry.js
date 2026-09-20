@@ -60,6 +60,8 @@ export const SEEDED_FEATURE_CODES = [
   'publishing.social.x',
   'publishing.social.linkedin',
   'publishing.social.whatsapp',
+  'publishing.paid.meta_ads',
+  'publishing.paid.google_ads',
   'publishing.realestate.olx',
   'publishing.realestate.property_finder',
   'publishing.realestate.bayut',

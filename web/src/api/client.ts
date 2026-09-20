@@ -3209,6 +3209,64 @@ export const api = {
     fetchJson(`/social-channels/${platform}`, { method: 'DELETE' }),
   startSocialOAuth: (platform: string): Promise<{ auth_url: string; state: string; dev: boolean }> =>
     fetchJson(`/social-channels/oauth/${platform}/start`),
+
+  // Wave 2A — Paid ads (Meta + Google Demand Gen)
+  getPaidAdsChannels: (): Promise<{
+    channels: Array<{
+      platform: string
+      kind: string
+      capabilities: Record<string, unknown>
+      approval: { platform: string; approved: boolean; state: string; message: string }
+      connection: { id: string; health: string; provider_account_id?: string | null } | null
+      health: string
+      honest_state: string
+      message: string
+    }>
+  }> => fetchJson('/paid-ads/channels'),
+  connectPaidAdsChannel: (
+    platform: string,
+    payload: {
+      credentials_ref: string
+      provider_account_id?: string | null
+      integration_model?: 'tenant_oauth' | 'enterprise_env'
+      data?: Record<string, unknown>
+    },
+  ) =>
+    fetchJson(`/paid-ads/channels/${platform}/connect`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getPaidAdExecutions: (params?: Record<string, string>) => {
+    const qs = params && Object.keys(params).length
+      ? `?${new URLSearchParams(params).toString()}`
+      : ''
+    return fetchJson(`/paid-ads/executions${qs}`)
+  },
+  createPaidAdExecution: (payload: {
+    channel_connection_id: string
+    campaign_id?: string | null
+    creative_id?: string | null
+    audience_id?: string | null
+    objective: 'awareness' | 'traffic' | 'engagement' | 'leads' | 'conversions'
+    budget_micros: number
+    currency?: string
+    targeting?: Record<string, unknown>
+    schedule?: Record<string, unknown> | null
+    format?: string | null
+    name?: string | null
+    subject_type?: string | null
+    subject_id?: string | null
+    scheduled_at?: string | null
+    data?: Record<string, unknown>
+  }) =>
+    fetchJson('/paid-ads/executions', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getPaidAdExecution: (id: string) => fetchJson(`/paid-ads/executions/${id}`),
+  launchPaidAdExecution: (id: string) =>
+    fetchJson(`/paid-ads/executions/${id}/launch`, { method: 'POST', body: '{}' }),
+
   publishListingToSocial: (
     propertyId: string,
     payload: {
