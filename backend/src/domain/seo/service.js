@@ -180,13 +180,11 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
     agentId: effectiveAgentId,
   })
 
-  const occurredAt = new Date().toISOString()
   const idempotencyKey = buildIdempotencyKey({
     source: SEO_EVENT_SOURCE,
-    objectType: 'execution',
-    objectId: publishedExecution.id,
     eventName: SEO_EVENT_GENERATED,
-    occurredAt,
+    objectType: 'execution',
+    objectId: execution.id,
   })
 
   await ingestEvent({
@@ -197,12 +195,13 @@ export async function generateListingSeo(propertyId, { agencyId, agentId, force 
     actorType: 'agent',
     actorId: effectiveAgentId,
     objectType: 'execution',
-    objectId: publishedExecution.id,
-    executionId: publishedExecution.id,
-    occurredAt,
+    objectId: execution.id,
+    executionId: execution.id,
     idempotencyKey,
     data: {
       property_id: propertyId,
+      subject_type: 'property',
+      subject_id: propertyId,
       target_surface: target.target_surface,
       canonical_url: canonicalUrl,
       seo_page_id: seoPage.id,
