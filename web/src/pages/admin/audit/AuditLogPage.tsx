@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Loader2, Search } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Download, Loader2, Search, SlidersHorizontal } from 'lucide-react'
 import {
   api,
   getAuthToken,
@@ -36,6 +37,8 @@ const PAGE_SIZE = 25
 
 export function AuditLogPage() {
   const { addToast } = useToast()
+  const location = useLocation()
+  const isPlatformAudit = location.pathname.startsWith('/admin/audit')
   usePageTitle('Audit log')
 
   const [filters, setFilters] = useState<AuditLogSearchFilters>({})
@@ -146,17 +149,27 @@ export function AuditLogPage() {
 
   return (
     <div className="mx-auto max-w-[1100px] p-[var(--lc-space-lg)] pb-[var(--lc-space-3xl)]">
-      <header className="mb-[var(--lc-space-lg)]">
-        <h1
-          className="text-[var(--lc-text-heading)]"
-          style={{ font: 'var(--lc-type-heading-1)', letterSpacing: 'var(--lc-tracking-heading-1)' }}
-        >
-          Audit log
-        </h1>
-        <p className="mt-[var(--lc-space-xs)] text-[length:var(--lc-type-body)] text-[var(--lc-text-secondary)]">
-          Every security-sensitive action across the platform. Filter by type, entity, actor, date
-          range, or free-text. Export to CSV for auditor review.
-        </p>
+      <header className="mb-[var(--lc-space-lg)] flex flex-wrap items-start justify-between gap-[var(--lc-space-sm)]">
+        <div className="min-w-0">
+          <h1
+            className="text-[var(--lc-text-heading)]"
+            style={{ font: 'var(--lc-type-heading-1)', letterSpacing: 'var(--lc-tracking-heading-1)' }}
+          >
+            Audit log
+          </h1>
+          <p className="mt-[var(--lc-space-xs)] text-[length:var(--lc-type-body)] text-[var(--lc-text-secondary)]">
+            Every security-sensitive action across the platform. Filter by type, entity, actor, date
+            range, or free-text. Export to CSV for auditor review.
+          </p>
+        </div>
+        {isPlatformAudit && (
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <Link to="/admin/audit/retention" data-testid="audit-retention-link">
+              <SlidersHorizontal className="h-4 w-4" />
+              Retention policy
+            </Link>
+          </Button>
+        )}
       </header>
 
       <section
