@@ -188,23 +188,71 @@ export async function getExecution(id, { agencyId = null, agentId = null } = {})
   )
 }
 
+/**
+ * List executions under withTenant with calendar/control-plane filters.
+ * Date range filters on scheduled_at (inclusive). Multi-value status/kind
+ * accept a single string or an array.
+ */
 export async function listExecutions({
   agencyId = null,
   agentId = null,
   status = null,
   kind = null,
   channelConnectionId = null,
+  campaignId = null,
+  subjectType = null,
+  subjectId = null,
+  from = null,
+  to = null,
+  agentIds = null,
 } = {}) {
+  const statuses = normalizeFilterSet(status)
+  const kinds = normalizeFilterSet(kind)
+  const agentIdSet = normalizeFilterSet(agentIds ?? (agentId != null ? [agentId] : null))
+  const fromMs = from != null ? Date.parse(from) : NaN
+  const toMs = to != null ? Date.parse(to) : NaN
+
   return withTenant(agencyId, agentId, () =>
     findAll('executions', (row) => {
       if (agencyId != null && row.agency_id !== agencyId) return false
-      if (agentId != null && row.agent_id !== agentId) return false
-      if (status != null && row.status !== status) return false
-      if (kind != null && row.kind !== kind) return false
-      if (channelConnectionId != null && row.channel_connection_id !== channelConnectionId) return false
+      if (agentIdSet && !agentIdSet.has(row.agent_id)) return false
+      if (statuses && !statuses.has(row.status)) return false
+      if (kinds && !kinds.has(row.kind)) return false
+      if (channelConnectionId != null && row.channel_connection_id !== channelConnectionId) {
+        return false
+      }
+      if (campaignId != null && row.campaign_id !== campaignId) return false
+      if (subjectType != null && row.subject_type !== subjectType) return false
+      if (subjectId != null && row.subject_id !== subjectId) return false
+      if (Number.isFinite(fromMs) || Number.isFinite(toMs)) {
+        if (!row.scheduled_at) return false
+        const at = Date.parse(row.scheduled_at)
+        if (!Number.isFinite(at)) return false
+        if (Number.isFinite(fromMs) && at < fromMs) return false
+        if (Number.isFinite(toMs) && at > toMs) return false
+      }
       return true
     }),
   )
+}
+
+function normalizeFilterSet(value) {
+  if (value == null || value === '') return null
+  const list = Array.isArray(value) ? value : String(value).split(',')
+  const cleaned = list.map((v) => String(v).trim()).filter(Boolean)
+  if (cleaned.length === 0) {
+    // Distinguish "no filter" (null) from "explicit empty set" (match nothing).
+    if (Array.isArray(value)) return new Set()
+    return null
+  }
+  return new Set(cleaned)
+}
+
+/** Statuses that may have scheduled_at moved via scheduleExecution. */
+export const RESCHEDULABLE_STATUSES = new Set(['draft', 'scheduled'])
+
+export function isReschedulable(status) {
+  return RESCHEDULABLE_STATUSES.has(status)
 }
 
 export async function recordExecutionAttempt({
@@ -243,4 +291,10 @@ export async function recordExecutionAttempt({
   )
 }
 
-export { EXECUTION_KINDS, EXECUTION_STATUSES, TRANSITIONS }
+export {
+  EXECUTION_KINDS,
+  EXECUTION_STATUSES,
+  TRANSITIONS,
+  RESCHEDULABLE_STATUSES,
+  isReschedulable,
+}

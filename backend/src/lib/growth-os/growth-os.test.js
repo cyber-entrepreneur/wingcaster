@@ -31,6 +31,7 @@ import {
   createExecution,
   transitionExecution,
   scheduleExecution,
+  listExecutions,
   recordExecutionAttempt,
   ingestEvent,
   checkEligibility,
@@ -125,6 +126,53 @@ describe('growth-os executions', () => {
     const row = await scheduleExecution('exec_1', '2026-10-01T00:00:00.000Z')
     expect(row.status).toBe('scheduled')
     expect(row.scheduled_at).toBe('2026-10-01T00:00:00.000Z')
+  })
+
+  it('listExecutions filters by date range, campaign, and subject', async () => {
+    findAll.mockImplementationOnce(async (_table, predicate) => {
+      const rows = [
+        {
+          id: 'exec_in',
+          agency_id: 'agc_1',
+          agent_id: 'agt_1',
+          status: 'scheduled',
+          kind: 'social_post',
+          campaign_id: 'cmp_1',
+          subject_type: 'property',
+          subject_id: 'prop_1',
+          scheduled_at: '2026-10-05T00:00:00.000Z',
+          channel_connection_id: null,
+        },
+        {
+          id: 'exec_out',
+          agency_id: 'agc_1',
+          agent_id: 'agt_1',
+          status: 'draft',
+          kind: 'message',
+          campaign_id: 'cmp_2',
+          subject_type: 'property',
+          subject_id: 'prop_2',
+          scheduled_at: '2026-11-05T00:00:00.000Z',
+          channel_connection_id: null,
+        },
+      ]
+      return rows.filter(predicate)
+    })
+    const rows = await listExecutions({
+      agencyId: 'agc_1',
+      from: '2026-10-01T00:00:00.000Z',
+      to: '2026-10-31T23:59:59.000Z',
+      campaignId: 'cmp_1',
+      subjectId: 'prop_1',
+      status: 'scheduled',
+    })
+    expect(rows.map((r) => r.id)).toEqual(['exec_in'])
+  })
+
+  it('scheduleExecution rejects published status', async () => {
+    findOne.mockResolvedValueOnce({ id: 'exec_1', status: 'published' })
+    await expect(scheduleExecution('exec_1', '2026-10-01T00:00:00.000Z'))
+      .rejects.toMatchObject({ code: 'INVALID_EXECUTION_TRANSITION' })
   })
 
   it('recordExecutionAttempt requires parent', async () => {
