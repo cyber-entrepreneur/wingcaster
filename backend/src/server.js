@@ -449,6 +449,16 @@ import {
   autoEnrollContactsForCampaign,
 } from './campaigns.js'
 import {
+  createJourney,
+  getJourney,
+  listJourneys,
+  updateJourney,
+  enrollContact as enrollContactInJourney,
+  traverseRun,
+  getRunWithNodeRuns,
+  listJourneyRuns,
+} from './domain/journeys/index.js'
+import {
   createReminderPolicy,
   getReminderPolicies,
   getReminderPolicyById,
@@ -3293,6 +3303,162 @@ app.post('/api/campaigns/run-scheduler', authMiddleware, async (req, res) => {
     })
     await logActivity({ type: 'campaign_scheduler_manual_run', agent_id: req.user.id, meta: { processed: summary.processed } })
     res.json(summary)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ==================== JOURNEYS (Wave 1A canonical orchestration) ====================
+app.get('/api/journeys', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    res.json(await listJourneys({
+      status: req.query.status,
+      trigger: req.query.trigger,
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    }))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/journeys', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const result = await createJourney({
+      name: req.body.name,
+      description: req.body.description,
+      status: req.body.status || 'draft',
+      trigger: req.body.trigger || 'manual',
+      tagsFilter: req.body.tags_filter || [],
+      targetChannel: req.body.target_channel || 'email',
+      audienceRules: req.body.audience_rules || [],
+      steps: req.body.steps || [],
+      graph: req.body.graph || null,
+      entryAudienceId: req.body.entry_audience_id || null,
+      goalEvent: req.body.goal_event || null,
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+      createdBy: req.user.id,
+    })
+    await logActivity({ type: 'journey_created', agent_id: req.user.id, meta: { journey_id: result.id } })
+    res.status(201).json(result)
+  } catch (e) {
+    res.status(400).json({ error: e.message, code: e.code })
+  }
+})
+
+app.get('/api/journeys/:id', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const journey = await getJourney(req.params.id, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    if (!journey || journey.agent_id !== req.user.id) {
+      return res.status(404).json({ error: 'Journey not found' })
+    }
+    res.json(journey)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.patch('/api/journeys/:id', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const existing = await getJourney(req.params.id, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    if (!existing || existing.agent_id !== req.user.id) {
+      return res.status(404).json({ error: 'Journey not found' })
+    }
+    const updated = await updateJourney(req.params.id, req.body, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    await logActivity({ type: 'journey_updated', agent_id: req.user.id, meta: { journey_id: req.params.id } })
+    res.json(updated)
+  } catch (e) {
+    res.status(400).json({ error: e.message, code: e.code })
+  }
+})
+
+app.post('/api/journeys/:id/enroll', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    await assertOwnsContact(req.user.id, req.body.contact_id)
+    const existing = await getJourney(req.params.id, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    if (!existing || existing.agent_id !== req.user.id) {
+      return res.status(404).json({ error: 'Journey not found' })
+    }
+    const run = await enrollContactInJourney({
+      journeyId: req.params.id,
+      contactId: req.body.contact_id,
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    await logActivity({
+      type: 'journey_enrollment_created',
+      agent_id: req.user.id,
+      meta: { journey_id: req.params.id, journey_run_id: run.id, contact_id: run.contact_id },
+    })
+    res.status(201).json(run)
+  } catch (e) {
+    res.status(400).json({ error: e.message, code: e.code })
+  }
+})
+
+app.post('/api/journeys/:id/runs/:runId/advance', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const result = await traverseRun(req.params.runId, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    res.json(result)
+  } catch (e) {
+    res.status(400).json({ error: e.message, code: e.code })
+  }
+})
+
+app.get('/api/journeys/:id/runs', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const journey = await getJourney(req.params.id, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    if (!journey || journey.agent_id !== req.user.id) {
+      return res.status(404).json({ error: 'Journey not found' })
+    }
+    const versionIds = (journey.versions || []).map((v) => v.id)
+    const runs = await listJourneyRuns({
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    res.json(runs.filter((r) => versionIds.includes(r.journey_version_id)))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/api/journey-runs/:id', authMiddleware, async (req, res) => {
+  try {
+    const agent = await findOne('agents', (a) => a.id === req.user.id)
+    const run = await getRunWithNodeRuns(req.params.id, {
+      agencyId: agent?.agency_id || null,
+      agentId: req.user.id,
+    })
+    if (!run || run.agent_id !== req.user.id) {
+      return res.status(404).json({ error: 'Journey run not found' })
+    }
+    res.json(run)
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

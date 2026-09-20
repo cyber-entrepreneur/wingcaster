@@ -258,8 +258,12 @@ function AppRoutes() {
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
-      <Route path="/campaigns" element={<CampaignsPage />} />
-      <Route path="/campaigns/new" element={<CampaignBuilderPage />} />
+      <Route path="/journeys" element={<CampaignsPage />} />
+      <Route path="/journeys/new" element={<CampaignBuilderPage />} />
+      <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
+      <Route path="/campaigns" element={<Navigate to="/journeys" replace />} />
+      <Route path="/campaigns/new" element={<Navigate to="/journeys/new" replace />} />
+      <Route path="/campaigns/:id" element={<Navigate to="/journeys" replace />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
       <Route path="/message-templates/new" element={<MessageTemplateEditorPage />} />
       <Route path="/message-templates/:id" element={<MessageTemplateEditorPage />} />

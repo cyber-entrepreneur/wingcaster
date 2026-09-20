@@ -31,7 +31,7 @@ export function Navbar() {
     { path: '/dashboard/inbox', label: 'Inbox', icon: Inbox },
     { path: '/contacts', label: 'Contacts', icon: UsersIcon },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
-    { path: '/campaigns', label: 'Campaigns', icon: Megaphone },
+    { path: '/journeys', label: 'Journeys', icon: Megaphone },
     { path: '/tasks', label: 'Tasks', icon: ListTodo },
   ]
 

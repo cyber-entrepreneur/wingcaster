@@ -1,5 +1,5 @@
 /**
- * CampaignsPage — CRUD list of campaigns with enrollment status.
+ * CampaignsPage — Journeys list (renamed from campaigns; component name kept for compat).
  * AGT-CMP-001 — Guided mode uses template-first goal picker; Pro links to full builder.
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -63,7 +63,7 @@ export function CampaignsPage() {
   const { addToast } = useToast()
   const { effectiveMode } = useUiMode()
   const isPro = effectiveMode === 'pro'
-  usePageTitle('Campaigns')
+  usePageTitle('Journeys')
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
@@ -72,9 +72,9 @@ export function CampaignsPage() {
   useEffect(() => {
     if (!agent) return
     setLoading(true)
-    api.getCampaigns()
+    api.getJourneys()
       .then((data: Campaign[]) => setCampaigns(data || []))
-      .catch((e: any) => addToast({ title: 'Failed to load campaigns', description: e.message, variant: 'error' }))
+      .catch((e: any) => addToast({ title: 'Failed to load journeys', description: e.message, variant: 'error' }))
       .finally(() => setLoading(false))
   }, [agent])
 
@@ -82,23 +82,23 @@ export function CampaignsPage() {
     const next = c.status === 'active' ? 'paused' : 'active'
     setToggling(c.id)
     try {
-      await api.updateCampaign(c.id, { status: next })
+      await api.updateJourney(c.id, { status: next })
       setCampaigns((prev) => prev.map((x) => (x.id === c.id ? { ...x, status: next as Campaign['status'] } : x)))
     } catch (e: any) {
-      addToast({ title: 'Failed to update campaign', description: e.message, variant: 'error' })
+      addToast({ title: 'Failed to update journey', description: e.message, variant: 'error' })
     } finally {
       setToggling(null)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this campaign?')) return
+    if (!confirm('Archive this journey?')) return
     try {
-      await api.deleteCampaign(id)
+      await api.updateJourney(id, { status: 'archived' })
       setCampaigns((prev) => prev.filter((c) => c.id !== id))
-      addToast({ title: 'Campaign deleted', variant: 'success' })
+      addToast({ title: 'Journey archived', variant: 'success' })
     } catch (e: any) {
-      addToast({ title: 'Failed to delete campaign', description: e.message, variant: 'error' })
+      addToast({ title: 'Failed to archive journey', description: e.message, variant: 'error' })
     }
   }
 
@@ -118,8 +118,8 @@ export function CampaignsPage() {
   return (
     <CrmShell>
       <CmdPageHeader
-        title="Campaigns"
-        subtitle="Drip sequences and nurture journeys"
+        title="Journeys"
+        subtitle="Versioned drip sequences and nurture orchestration"
         actions={(
           <div className="flex flex-wrap gap-2">
             <Link to="/settings/saved-searches">
@@ -130,7 +130,7 @@ export function CampaignsPage() {
             {isPro ? (
               <Link to={newCampaignHref}>
                 <Button size="sm" className="gap-1.5">
-                  <Plus className="h-4 w-4" /> New campaign
+                  <Plus className="h-4 w-4" /> New journey
                 </Button>
               </Link>
             ) : null}
@@ -140,7 +140,7 @@ export function CampaignsPage() {
 
       <CmdKpiStrip
         items={[
-          { label: 'Total campaigns', value: counts.total, icon: <Megaphone className="h-4 w-4 text-muted-foreground" /> },
+          { label: 'Total journeys', value: counts.total, icon: <Megaphone className="h-4 w-4 text-muted-foreground" /> },
           {
             label: 'Active',
             value: counts.active,
@@ -264,7 +264,7 @@ export function CampaignsPage() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                   <Link
-                    to={`/campaigns/${c.id}`}
+                    to={`/journeys/${c.id}/edit?mode=pro`}
                     className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--lc-action-secondary)]"
                   >
                     <ChevronRight className="h-4 w-4" />

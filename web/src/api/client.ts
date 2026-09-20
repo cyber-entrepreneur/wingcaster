@@ -3401,7 +3401,24 @@ export const api = {
   trackPublicSiteEvent: (subdomain: string, data: Record<string, unknown>) =>
     fetchJson(`/public/sites/by-subdomain/${subdomain}/events`, { method: 'POST', body: JSON.stringify(data) }),
 
-  // Campaigns / Drip sequences
+  // Journeys (Wave 1A canonical) + legacy Campaigns aliases
+  getJourneys: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/journeys${qs}`)
+  },
+  getJourney: (id: string) => fetchJson(`/journeys/${id}`),
+  createJourney: (data: Record<string, unknown>) =>
+    fetchJson('/journeys', { method: 'POST', body: JSON.stringify(data) }),
+  updateJourney: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/journeys/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  enrollContactInJourney: (id: string, contactId: string) =>
+    fetchJson(`/journeys/${id}/enroll`, { method: 'POST', body: JSON.stringify({ contact_id: contactId }) }),
+  getJourneyRuns: (id: string) => fetchJson(`/journeys/${id}/runs`),
+  getJourneyRun: (runId: string) => fetchJson(`/journey-runs/${runId}`),
+  advanceJourneyRun: (journeyId: string, runId: string) =>
+    fetchJson(`/journeys/${journeyId}/runs/${runId}/advance`, { method: 'POST', body: '{}' }),
+
+  // Campaigns / Drip sequences (legacy — prefer journeys)
   getCampaigns: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return fetchJson(`/campaigns${qs}`)

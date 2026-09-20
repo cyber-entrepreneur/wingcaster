@@ -149,5 +149,8 @@ export function buildCampaignNewHref(goalId: CampaignGoalId, pro = false): strin
   if (goalId !== 'custom') params.set('goal', goalId)
   if (pro) params.set('mode', 'pro')
   const qs = params.toString()
-  return qs ? `/campaigns/new?${qs}` : '/campaigns/new'
+  return qs ? `/journeys/new?${qs}` : '/journeys/new'
 }
+
+/** @deprecated use buildCampaignNewHref — journeys renamed from campaigns */
+export const buildJourneyNewHref = buildCampaignNewHref
