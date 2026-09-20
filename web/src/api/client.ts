@@ -3499,6 +3499,20 @@ export const api = {
   trackPublicSiteEvent: (subdomain: string, data: Record<string, unknown>) =>
     fetchJson(`/public/sites/by-subdomain/${subdomain}/events`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // Audiences (Wave 1D)
+  getAudiences: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+    return fetchJson(`/audiences${qs}`)
+  },
+  getAudience: (id: string) => fetchJson(`/audiences/${id}`),
+  createAudience: (data: Record<string, unknown>) =>
+    fetchJson('/audiences', { method: 'POST', body: JSON.stringify(data) }),
+  updateAudience: (id: string, data: Record<string, unknown>) =>
+    fetchJson(`/audiences/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAudience: (id: string) => fetchJson(`/audiences/${id}`, { method: 'DELETE' }),
+  resolveAudience: (id: string, data?: Record<string, unknown>) =>
+    fetchJson(`/audiences/${id}/resolve`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
   // Journeys (Wave 1A canonical) + legacy Campaigns aliases
   getJourneys: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''

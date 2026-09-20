@@ -454,6 +454,7 @@ import {
   runCampaignScheduler,
   autoEnrollContactsForCampaign,
 } from './campaigns.js'
+import { registerAudienceRoutes } from './domain/audiences/routes.js'
 import {
   createJourney,
   getJourney,
@@ -3317,6 +3318,8 @@ app.post('/api/campaigns/run-scheduler', authMiddleware, async (req, res) => {
     res.status(500).json({ error: e.message })
   }
 })
+
+registerAudienceRoutes(app, { authMiddleware, logActivity })
 
 // ==================== JOURNEYS (Wave 1A canonical orchestration) ====================
 app.get('/api/journeys', authMiddleware, async (req, res) => {

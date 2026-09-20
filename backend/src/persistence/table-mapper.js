@@ -314,7 +314,11 @@ const TABLE_MAP = {
   webhook_delivery_log: { schema: 'public', table: 'webhook_delivery_log', columns: ['provider', 'external_id', 'received_at'] },
 
   // Campaigns (legacy) + Journeys (Wave 1A canonical)
-  campaigns: { schema: 'public', table: 'campaigns', columns: ['agent_id', 'agency_id', 'name', 'status', 'trigger', 'tags', 'steps'] },
+  campaigns: {
+    schema: 'public',
+    table: 'campaigns',
+    columns: ['agent_id', 'agency_id', 'name', 'status', 'trigger', 'tags', 'steps', 'audience_id'],
+  },
   campaign_enrollments: { schema: 'public', table: 'campaign_enrollments', columns: ['campaign_id', 'contact_id', 'status', 'current_step_index', 'last_sent_at', 'completed_at'] },
   campaign_messages: { schema: 'public', table: 'campaign_messages', columns: ['campaign_id', 'enrollment_id', 'contact_id', 'step_index', 'channel', 'status', 'sent_at', 'content', 'provider_message_id'] },
   journeys: {
@@ -432,6 +436,21 @@ const TABLE_MAP = {
     columns: [
       'contact_id', 'channel', 'purpose', 'status', 'legal_basis', 'source',
       'captured_at', 'expires_at', 'jurisdiction', 'proof_ref', 'agency_id', 'agent_id',
+    ],
+  },
+  audiences: {
+    schema: 'public',
+    table: 'audiences',
+    columns: [
+      'agency_id', 'agent_id', 'name', 'type', 'rules', 'member_source', 'estimated_size',
+    ],
+  },
+  audience_memberships: {
+    schema: 'public',
+    table: 'audience_memberships',
+    columns: [
+      'audience_id', 'contact_id', 'state', 'qualified_at', 'expires_at', 'inclusion',
+      'agency_id', 'agent_id',
     ],
   },
   creatives: {

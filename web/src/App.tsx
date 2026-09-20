@@ -45,6 +45,8 @@ import { AgentPublicProfileEditorPage } from '@/pages/agent/AgentPublicProfileEd
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
+import { AudiencesPage } from '@/pages/AudiencesPage'
+import { AudienceBuilderPage } from '@/pages/AudienceBuilderPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AccountRecoveryPage } from '@/pages/AccountRecoveryPage'
@@ -266,6 +268,9 @@ function AppRoutes() {
       <Route path="/campaigns" element={<Navigate to="/journeys" replace />} />
       <Route path="/campaigns/new" element={<Navigate to="/journeys/new" replace />} />
       <Route path="/campaigns/:id" element={<Navigate to="/journeys" replace />} />
+      <Route path="/audiences" element={<AudiencesPage />} />
+      <Route path="/audiences/new" element={<AudienceBuilderPage />} />
+      <Route path="/audiences/:id" element={<AudienceBuilderPage />} />
       <Route path="/message-templates" element={<MessageTemplatesPage />} />
       <Route path="/message-templates/new" element={<MessageTemplateEditorPage />} />
       <Route path="/message-templates/:id" element={<MessageTemplateEditorPage />} />
