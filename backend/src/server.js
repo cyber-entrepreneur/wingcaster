@@ -243,6 +243,7 @@ import { maskEmail, maskPhone } from './account-recovery/mask.js'
 import { registerRoutes as registerPublishingTrackerRoutes } from './lib/publishing/tracker-routes.js'
 import { registerRoutes as registerAgentOnboardingStateRoutes } from './lib/onboarding/agent-state.js'
 import { registerAgencyOnboardingStateRoutes } from './lib/onboarding/agency-state-routes.js'
+import { registerAgencySettingsOverviewRoutes } from './lib/agencies/settings-overview-routes.js'
 import { registerRoutes as registerActivationStateRoutes } from './lib/activation/routes.js'
 import { registerAgencyApplicationRoutes } from './lib/agencies/applications-routes.js'
 import { registerAuditSearchRoutes } from './lib/audit/audit-search-routes.js'
@@ -902,6 +903,7 @@ registerSettingsIndexRoutes(app, { authMiddleware })
 registerPublishingTrackerRoutes(app, { authMiddleware })
 registerAgentOnboardingStateRoutes(app)
 registerAgencyOnboardingStateRoutes(app)
+registerAgencySettingsOverviewRoutes(app, { auth: authMiddleware })
 registerActivationStateRoutes(app)
 registerAgencyInvitationRoutes(app)
 registerOwnershipTransferRoutes(app)
