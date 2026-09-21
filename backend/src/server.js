@@ -346,6 +346,7 @@ import {
   PLATFORM_CONNECTION_FIELDS,
   resolveConnectionCredentials,
 } from './lib/credentials.js'
+import { startConnect, handleCallback } from './lib/oauth/index.js'
 import {
   createModule as createWhatsAppListingsModule,
   createDefaultPlatformAdapter as createWhatsAppPlatformAdapter,
@@ -5422,32 +5423,15 @@ app.delete('/api/social-channels/:platform', authMiddleware, async (req, res) =>
 
 /* --- OAuth start/callback (per-agent — X, TikTok) --- */
 
-function getOAuthConfig(platform) {
-  if (platform === 'x') {
-    return {
-      auth_url: 'https://twitter.com/i/oauth2/authorize',
-      token_url: 'https://api.twitter.com/2/oauth2/token',
-      scope: 'tweet.read tweet.write users.read offline.access',
-      client_id: process.env.X_OAUTH_CLIENT_ID || '',
-      client_secret: process.env.X_OAUTH_CLIENT_SECRET || '',
-      dev: !process.env.X_OAUTH_CLIENT_ID,
-    }
-  }
-  if (platform === 'tiktok') {
-    return {
-      auth_url: 'https://www.tiktok.com/v2/auth/authorize/',
-      token_url: 'https://open.tiktokapis.com/v2/oauth/token/',
-      scope: 'user.info.basic,video.publish',
-      client_id: process.env.TIKTOK_CLIENT_KEY || '',
-      client_secret: process.env.TIKTOK_CLIENT_SECRET || '',
-      dev: !process.env.TIKTOK_CLIENT_KEY,
-    }
-  }
-  return null
-}
-
 function getOAuthRedirectBase(req) {
   return process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}/api`
+}
+
+async function resolveAgentAgencyId(agentId) {
+  const agent = await findOne('agents', (a) => a.id === agentId)
+  if (agent?.agency_id) return agent.agency_id
+  const affiliation = await getActiveAffiliation(agentId)
+  return affiliation?.agency_id || null
 }
 
 app.get('/api/social-channels/oauth/:platform/start', authMiddleware, async (req, res) => {
@@ -5455,44 +5439,20 @@ app.get('/api/social-channels/oauth/:platform/start', authMiddleware, async (req
   if (PLATFORM_INTEGRATION_MODEL[platform] !== 'oauth') {
     return res.status(400).json({ error: `${platform} is not an OAuth platform` })
   }
-  const cfg = getOAuthConfig(platform)
-  if (!cfg) return res.status(400).json({ error: 'Unsupported platform' })
-
-  const state = uuidv4()
-  const redirectUri = `${getOAuthRedirectBase(req)}/social-channels/oauth/${platform}/callback`
-
-  // Persist state → agent binding so we can validate on callback.
-  await insert('oauth_states', {
-    id: state,
-    agent_id: req.user.id,
-    platform,
-    created_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-  })
-
-  if (cfg.dev) {
-    // Dev mode: skip the platform entirely, redirect straight to our callback
-    // with a synthetic code so the flow completes end-to-end without live creds.
-    const devUrl = `${redirectUri}?code=dev_ok&state=${state}`
-    return res.json({ auth_url: devUrl, state, dev: true })
+  try {
+    const agencyId = await resolveAgentAgencyId(req.user.id)
+    const result = await startConnect({
+      agentId: req.user.id,
+      agencyId,
+      platform,
+      apiBase: getOAuthRedirectBase(req),
+      elevated: Boolean(req.elevation),
+    })
+    return res.json(result)
+  } catch (err) {
+    logger.error({ err: err.message, platform }, 'OAuth start failed')
+    return res.status(400).json({ error: err.message || 'OAuth start failed' })
   }
-
-  const authUrl = new URL(cfg.auth_url)
-  authUrl.searchParams.set('response_type', 'code')
-  authUrl.searchParams.set('client_id', cfg.client_id)
-  authUrl.searchParams.set('redirect_uri', redirectUri)
-  authUrl.searchParams.set('scope', cfg.scope)
-  authUrl.searchParams.set('state', state)
-  if (platform === 'x') {
-    // PKCE — we use plain challenge in dev; production must generate a real one.
-    authUrl.searchParams.set('code_challenge', state)
-    authUrl.searchParams.set('code_challenge_method', 'plain')
-  }
-  if (platform === 'tiktok') {
-    authUrl.searchParams.set('client_key', cfg.client_id)
-  }
-
-  res.json({ auth_url: authUrl.toString(), state, dev: false })
 })
 
 app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
@@ -5504,120 +5464,27 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
   if (error) return res.status(400).send(`OAuth error: ${error}`)
   if (!code || !state) return res.status(400).send('Missing code or state')
 
-  const stateRow = await findOne('oauth_states', s => s.id === state)
-  if (!stateRow || stateRow.platform !== platform) {
-    return res.status(400).send('Invalid or expired state')
-  }
-  if (new Date(stateRow.expires_at).getTime() < Date.now()) {
-    return res.status(400).send('State expired — restart the connect flow')
-  }
-
-  const cfg = getOAuthConfig(platform)
-  let tokenPayload = null
-  let userInfo = null
-
-  if (cfg.dev || code === 'dev_ok') {
-    return res.status(503).send(`${platform} OAuth requires production credentials to be configured`)
-  } else {
-    try {
-      const redirectUri = `${getOAuthRedirectBase(req)}/social-channels/oauth/${platform}/callback`
-      const body = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: String(code),
-        redirect_uri: redirectUri,
-        client_id: cfg.client_id,
-      })
-      if (platform === 'x') body.set('code_verifier', String(state))
-      if (platform === 'tiktok') {
-        body.set('client_key', cfg.client_id)
-        body.set('client_secret', cfg.client_secret)
-      }
-      const headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
-      if (platform === 'x' && cfg.client_secret) {
-        const basic = Buffer.from(`${cfg.client_id}:${cfg.client_secret}`).toString('base64')
-        headers.Authorization = `Basic ${basic}`
-      }
-      const tokenRes = await fetch(cfg.token_url, { method: 'POST', headers, body })
-      const parsed = await tokenRes.json().catch(() => ({}))
-      if (!tokenRes.ok) {
-        return res.status(502).send(`Token exchange failed: ${parsed?.error || tokenRes.status}`)
-      }
-      tokenPayload = {
-        access_token: parsed.access_token,
-        refresh_token: parsed.refresh_token || null,
-        expires_at: parsed.expires_in
-          ? new Date(Date.now() + Number(parsed.expires_in) * 1000).toISOString()
-          : null,
-        scope: parsed.scope || cfg.scope,
-      }
-      userInfo = { id: parsed.open_id || parsed.user_id || null, handle: null }
-    } catch (e) {
-      logger.error({ err: e.message, platform }, 'OAuth token exchange failed')
-      return res.status(502).send('OAuth token exchange failed')
-    }
-  }
-
-  // Persist encrypted tokens on the tenant's connection row.
-  const existing = await findOne(
-    'marketplace_connections',
-    c => c.agent_id === stateRow.agent_id && c.platform === platform,
-  )
-  const credentialsPatch = {
-    access_token_encrypted: encryptSecret(tokenPayload.access_token),
-    refresh_token_encrypted: tokenPayload.refresh_token ? encryptSecret(tokenPayload.refresh_token) : null,
-    expires_at: tokenPayload.expires_at || null,
-    scope: tokenPayload.scope || cfg.scope,
-    user_id: userInfo?.id || null,
-  }
-
-  if (existing) {
-    await update('marketplace_connections', c => c.id === existing.id, c => ({
-      ...c,
-      status: 'connected',
-      health: 'healthy',
-      capabilities: PLATFORM_CAPABILITIES[platform] || {},
-      settings: {
-        ...(c.settings || {}),
-        credentials: credentialsPatch,
-        handle: userInfo?.handle || c.settings?.handle || `${platform} account`,
-      },
-      updated_at: new Date().toISOString(),
-    }))
-  } else {
-    await insert('marketplace_connections', {
-      id: uuidv4(),
-      agent_id: stateRow.agent_id,
+  try {
+    const result = await handleCallback({
       platform,
-      account_name: userInfo?.handle || `${platform} account`,
-      status: 'connected',
-      health: 'healthy',
+      code: String(code),
+      state: String(state),
+      apiBase: getOAuthRedirectBase(req),
       capabilities: PLATFORM_CAPABILITIES[platform] || {},
-      settings: {
-        handle: userInfo?.handle || `${platform} account`,
-        enterprise_targets: {},
-        credentials: credentialsPatch,
-      },
-      terms_accepted_at: new Date().toISOString(),
-      terms_version: '2026-07-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     })
+    if (result.html) {
+      await logActivity({
+        type: 'social_oauth_completed',
+        agent_id: result.agentId,
+        meta: { platform },
+      })
+      return res.status(result.status).send(result.html)
+    }
+    return res.status(result.status).send(result.body)
+  } catch (err) {
+    logger.error({ err: err.message, platform }, 'OAuth callback failed')
+    return res.status(502).send('OAuth token exchange failed')
   }
-
-  await remove('oauth_states', s => s.id === state)
-  await logActivity({
-    type: 'social_oauth_completed',
-    agent_id: stateRow.agent_id,
-    meta: { platform, dev: cfg.dev },
-  })
-
-  // Return a small HTML page that closes the popup window and signals success.
-  res.send(`<!doctype html><html><body style="font-family:system-ui;padding:2rem;text-align:center;">
-<h2>Connected to ${platform}</h2>
-<p>You can close this window and return to Wingcaster.</p>
-<script>try { window.opener && window.opener.postMessage({ type: 'wingcaster:oauth:done', platform: '${platform}' }, '*'); } catch(e){}
-setTimeout(() => { window.close() }, 800)</script>
-</body></html>`)
 })
 
 function normalizeEnterpriseTargets(platform, input) {
