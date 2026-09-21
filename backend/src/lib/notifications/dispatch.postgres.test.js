@@ -5,6 +5,7 @@ import { finPostgresSuite } from '../../fin/testing/suite.js'
 
 const emailMock = vi.hoisted(() => ({
   isEmailEnabled: vi.fn(() => true),
+  isEmailAvailable: vi.fn(async () => true),
   sendEmail: vi.fn(async () => ({ ok: true, provider: 'resend', provider_message_id: 'em_1' })),
 }))
 const smsMock = vi.hoisted(() => ({
@@ -42,6 +43,7 @@ const CFG_ENV = [
 
 function resetTransportMocks() {
   emailMock.isEmailEnabled.mockReset().mockReturnValue(true)
+  emailMock.isEmailAvailable.mockReset().mockResolvedValue(true)
   emailMock.sendEmail.mockReset().mockResolvedValue({ ok: true, provider: 'resend', provider_message_id: 'em_1' })
   smsMock.isSMSEnabled.mockReset().mockReturnValue(true)
   smsMock.sendSMS.mockReset().mockResolvedValue({ ok: true, provider: 'twilio', provider_message_id: 'SM1' })
@@ -189,7 +191,7 @@ describe('dispatchConsumerNotification — validation and deferred channels', ()
   })
 
   it('unconfigured email returns skipped EMAIL_UNCONFIGURED and does not call sendEmail', async () => {
-    emailMock.isEmailEnabled.mockReturnValue(false)
+    emailMock.isEmailAvailable.mockResolvedValue(false)
     const result = await dispatchConsumerNotification({
       channel: 'email',
       recipient: 'buyer@example.com',
@@ -361,7 +363,7 @@ finPostgresSuite('consumer notification dispatch (postgres)', { seed: false }, (
   })
 
   it('unconfigured transport is skipped by the retry worker and is not retried', async () => {
-    emailMock.isEmailEnabled.mockReturnValue(false)
+    emailMock.isEmailAvailable.mockResolvedValue(false)
     const { retryId } = await seedRetry({})
     const result = await processPendingNotificationRetries({ limit: 10 })
     expect(result.results).toEqual(expect.arrayContaining([
