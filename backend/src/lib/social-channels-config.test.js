@@ -15,12 +15,16 @@ describe('PLATFORM_CONNECTION_FIELDS method model', () => {
     }
   })
 
-  it('uses oauth-primary for x and tiktok', () => {
+  it('uses oauth-primary for x, tiktok, and linkedin', () => {
     expect(PLATFORM_CONNECTION_FIELDS.x).toMatchObject({
       supported_methods: ['oauth', 'manual'],
       primary_method: 'oauth',
     })
     expect(PLATFORM_CONNECTION_FIELDS.tiktok).toMatchObject({
+      supported_methods: ['oauth', 'manual'],
+      primary_method: 'oauth',
+    })
+    expect(PLATFORM_CONNECTION_FIELDS.linkedin).toMatchObject({
       supported_methods: ['oauth', 'manual'],
       primary_method: 'oauth',
     })
@@ -37,13 +41,11 @@ describe('PLATFORM_CONNECTION_FIELDS method model', () => {
     })
   })
 
-  it('keeps manual-primary shape for linkedin and whatsapp', () => {
-    for (const platform of ['linkedin', 'whatsapp']) {
-      expect(PLATFORM_CONNECTION_FIELDS[platform]).toMatchObject({
-        supported_methods: ['manual', 'oauth'],
-        primary_method: 'manual',
-      })
-    }
+  it('keeps manual-primary shape for whatsapp', () => {
+    expect(PLATFORM_CONNECTION_FIELDS.whatsapp).toMatchObject({
+      supported_methods: ['manual', 'oauth'],
+      primary_method: 'manual',
+    })
   })
 })
 
@@ -52,9 +54,13 @@ describe('buildSocialChannelsConfig', () => {
     const cfg = buildSocialChannelsConfig({
       X_OAUTH_CLIENT_ID: 'x-client',
       X_OAUTH_CLIENT_SECRET: 'x-secret',
+      LINKEDIN_OAUTH_CLIENT_ID: 'li-client',
+      LINKEDIN_OAUTH_CLIENT_SECRET: 'li-secret',
+      WINGCASTER_LINKEDIN_OAUTH_ENABLED: 'true',
       PUBLIC_API_URL: 'https://api.test/api',
     })
     expect(cfg.connection_fields.x.oauth_configured).toBe(true)
+    expect(cfg.connection_fields.linkedin.oauth_configured).toBe(true)
     expect(cfg.connection_fields.tiktok.oauth_configured).toBe(false)
     expect(cfg.connection_fields.facebook.oauth_configured).toBe(false)
   })
@@ -68,6 +74,15 @@ describe('buildSocialChannelsConfig', () => {
     })
     expect(cfg.connection_fields.facebook.oauth_configured).toBe(true)
     expect(cfg.connection_fields.instagram.oauth_configured).toBe(true)
+  })
+
+  it('hides linkedin oauth when feature flag is off', () => {
+    const cfg = buildSocialChannelsConfig({
+      LINKEDIN_OAUTH_CLIENT_ID: 'li-client',
+      LINKEDIN_OAUTH_CLIENT_SECRET: 'li-secret',
+      PUBLIC_API_URL: 'https://api.test/api',
+    })
+    expect(cfg.connection_fields.linkedin.oauth_configured).toBe(false)
   })
 })
 

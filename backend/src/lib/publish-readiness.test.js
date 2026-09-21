@@ -77,6 +77,10 @@ describe('tenantHasPublishToken', () => {
     // adapter needs the shared env token to publish.
     expect(tenantHasPublishToken('facebook', { fb_page_id: '123' })).toBe(false)
     expect(tenantHasPublishToken('linkedin', { li_author_urn: 'urn:li:person:1' })).toBe(false)
+    expect(tenantHasPublishToken('linkedin', {
+      oauth_access_token: 'tok',
+      li_author_urn: 'urn:li:person:1',
+    })).toBe(true)
 
     // Wrong-platform overrides don't count.
     expect(tenantHasPublishToken('facebook', { ig_page_access_token_override: 'tok' })).toBe(false)

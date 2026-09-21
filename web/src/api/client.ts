@@ -3420,6 +3420,7 @@ export const api = {
     connect_method: 'oauth' | 'manual' | null
     handle: string | null
     enterprise_targets: Record<string, string>
+    pending_author_identities?: Array<{ urn: string; label: string; type: 'person' | 'organization' }> | null
     token_status: {
       connected: boolean
       method?: 'oauth' | 'manual' | null

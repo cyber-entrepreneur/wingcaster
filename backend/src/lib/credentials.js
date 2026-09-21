@@ -118,8 +118,8 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   linkedin: {
     model: 'enterprise',
-    supported_methods: ['manual', 'oauth'],
-    primary_method: 'manual',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
     target_fields: [
       { key: 'li_author_urn', label: 'LinkedIn Author URN (urn:li:organization:NNN or urn:li:person:NNN)', required: true, secret: false },
       { key: 'li_access_token_override', label: 'Access Token (optional override)', required: false, secret: true },

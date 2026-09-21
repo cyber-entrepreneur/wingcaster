@@ -3,21 +3,22 @@
  */
 import { getFreshAccessToken } from './token-store.js'
 
-const OAUTH_PUBLISH_PLATFORMS = new Set(['x', 'tiktok'])
+const OAUTH_PUBLISH_PLATFORMS = new Set(['x', 'tiktok', 'linkedin'])
 
 const REAUTH_MESSAGES = {
   x: 'X authorization has expired. Re-authorise in Settings → Channels.',
   tiktok: 'TikTok authorization has expired. Re-authorise in Settings → Channels.',
+  linkedin: 'LinkedIn authorization has expired. Re-authorise in Settings → Channels.',
 }
 
 /**
  * @param {object} connection marketplace_connections row
- * @param {'x'|'tiktok'} platform
+ * @param {'x'|'tiktok'|'linkedin'} platform
  * @param {object} [options] forwarded to getFreshAccessToken
  */
 export async function resolveOAuthPublishAccessToken(connection, platform, options = {}) {
   if (!OAUTH_PUBLISH_PLATFORMS.has(platform)) {
-    throw new Error(`resolveOAuthPublishAccessToken only supports x/tiktok, got ${platform}`)
+    throw new Error(`resolveOAuthPublishAccessToken only supports x/tiktok/linkedin, got ${platform}`)
   }
 
   try {

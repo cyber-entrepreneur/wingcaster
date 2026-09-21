@@ -150,10 +150,14 @@ export async function dispatchPlatformPublish({
             { code: 'MISSING_TENANT_TARGET' },
           )
         }
+        let accessToken = creds.li_access_token_override || undefined
+        if (!accessToken && creds.oauth_access_token) {
+          accessToken = await resolveOAuthPublishAccessToken(connection, 'linkedin')
+        }
         publishResult = await publishLinkedInPost({
           commentary: text,
           authorUrn: creds.li_author_urn,
-          accessToken: creds.li_access_token_override || undefined,
+          accessToken,
           creditContext,
         })
         break

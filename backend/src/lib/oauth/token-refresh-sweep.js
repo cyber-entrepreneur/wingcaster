@@ -1,12 +1,12 @@
 /**
- * Proactive OAuth token refresh sweep for x/tiktok connections nearing expiry.
+ * Proactive OAuth token refresh sweep for x/tiktok/linkedin connections nearing expiry.
  */
 import { findAll } from '../../persistence/index.js'
 import logger from '../logger.js'
 import { getProvider } from './provider-registry.js'
 import { getFreshAccessToken, REFRESH_SAFETY_WINDOW_MS } from './token-store.js'
 
-const OAUTH_REFRESH_PLATFORMS = new Set(['x', 'tiktok'])
+const OAUTH_REFRESH_PLATFORMS = new Set(['x', 'tiktok', 'linkedin'])
 
 function credentialsFromConnection(connection) {
   return connection?.settings?.credentials || {}
@@ -28,7 +28,9 @@ function connectionNeedsSweep(connection, safetyWindowMs) {
   if (!provider.supportsRefresh) return false
 
   const creds = credentialsFromConnection(connection)
-  if (!creds.refresh_token_encrypted) return false
+  if (!creds.refresh_token_encrypted) {
+    return connection.platform === 'linkedin' && isNearExpiry(creds.expires_at, safetyWindowMs)
+  }
 
   return isNearExpiry(creds.expires_at, safetyWindowMs)
 }

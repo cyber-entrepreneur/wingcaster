@@ -20,6 +20,7 @@ import {
   isMetaOAuthPlatform,
   isOAuthCapablePlatform,
 } from './meta-oauth.js'
+import { isLinkedInOAuthEnabled } from './feature-flags.js'
 import {
   consumePageSelection,
   createPageSelection,
@@ -32,6 +33,7 @@ export { getFreshAccessToken }
 export { resolveAppCredential }
 export { isOAuthProvider, getProvider, resolveOAuthProvider, isOAuthCapablePlatform }
 export { isMetaOAuthPlatform, isMetaOAuthConnectEnabled } from './meta-oauth.js'
+export { isLinkedInOAuthEnabled, isOAuthConnectEnabled } from './feature-flags.js'
 
 function buildRedirectUri(apiBase, redirectPath) {
   const base = String(apiBase || '').replace(/\/$/, '')
@@ -112,6 +114,10 @@ export async function startConnect({
 
   if (isMetaOAuthPlatform(platform)) {
     assertMetaOAuthEnabled(env)
+  }
+
+  if (platform === 'linkedin' && !isLinkedInOAuthEnabled(env)) {
+    throw new Error('LinkedIn OAuth connect is not enabled in this environment')
   }
 
   const oauthProvider = resolveOAuthProvider(platform)
@@ -332,11 +338,30 @@ export async function handleCallback({
     }
   }
 
-  let userInfo = { id: tokenSet.user_id || tokenSet.open_id || null, handle: null }
+  let userInfo = {
+    id: tokenSet.user_id || tokenSet.open_id || null,
+    handle: null,
+    authors: [],
+    li_author_urn: null,
+  }
   try {
     userInfo = await providerConfig.resolveIdentity(tokenSet, { fetch: fetchFn })
   } catch {
     // Identity lookup is best-effort; tokens are still persisted.
+  }
+
+  const enterpriseTargets = {}
+  const settingsExtras = {}
+  if (oauthProvider === 'linkedin') {
+    if (userInfo.li_author_urn) {
+      enterpriseTargets.li_author_urn = userInfo.li_author_urn
+    } else if (userInfo.authors?.length > 1) {
+      settingsExtras.pending_author_identities = userInfo.authors
+    } else if (userInfo.authors?.length === 1) {
+      enterpriseTargets.li_author_urn = userInfo.authors[0].urn
+    } else if (userInfo.id && String(userInfo.id).startsWith('urn:li:')) {
+      enterpriseTargets.li_author_urn = userInfo.id
+    }
   }
 
   const accountName = userInfo.handle || `${platform} account`
@@ -352,6 +377,8 @@ export async function handleCallback({
     handle: userInfo.handle || accountName,
     tokenSet: { ...tokenSet, user_id: userInfo.id || tokenSet.user_id },
     capabilities,
+    enterpriseTargets,
+    settingsExtras,
   })
 
   return {
