@@ -26,6 +26,7 @@ import {
   getWhatsAppConfig,
   sendListingToWhatsApp,
 } from '../../whatsapp.js'
+import { resolveOAuthPublishAccessToken } from '../oauth/publish-token.js'
 
 function pickMedia(mediaUrls = []) {
   const urls = Array.isArray(mediaUrls) ? mediaUrls : []
@@ -120,7 +121,8 @@ export async function dispatchPlatformPublish({
             { code: 'MISSING_OAUTH_TOKEN' },
           )
         }
-        publishResult = await publishXTweet({ text, bearerToken: creds.oauth_access_token, creditContext })
+        const bearerToken = await resolveOAuthPublishAccessToken(connection, 'x')
+        publishResult = await publishXTweet({ text, bearerToken, creditContext })
         break
       }
       case 'tiktok': {
@@ -130,7 +132,8 @@ export async function dispatchPlatformPublish({
             { code: 'MISSING_OAUTH_TOKEN' },
           )
         }
-        const ttArgs = { accessToken: creds.oauth_access_token, creditContext }
+        const accessToken = await resolveOAuthPublishAccessToken(connection, 'tiktok')
+        const ttArgs = { accessToken, creditContext }
         if (firstVideo) {
           publishResult = await publishTikTokVideo({ videoUrl: firstVideo, caption: text, ...ttArgs })
         } else if (urls.length > 0) {

@@ -20,7 +20,13 @@ describe('publish credential readiness', () => {
 
   it('throws a clear request-time error for an unconfigured channel', () => {
     expect(() => assertPublishChannelConfigured('facebook', {})).toThrow(
-      'facebook publishing requires META_APP_SECRET and META_PAGE_TOKEN to be set',
+      'facebook publishing requires FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID to be set',
+    )
+  })
+
+  it('checks instagram env names that match the adapter', () => {
+    expect(() => assertPublishChannelConfigured('instagram', {})).toThrow(
+      'instagram publishing requires INSTAGRAM_PAGE_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID to be set',
     )
   })
 

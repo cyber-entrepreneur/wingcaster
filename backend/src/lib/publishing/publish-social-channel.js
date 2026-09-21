@@ -21,6 +21,7 @@ import { publishXTweet } from '../notifications/x.js'
 import { publishTikTokVideo, publishTikTokPhoto } from '../notifications/tiktok.js'
 import { publishLinkedInPost } from '../notifications/linkedin.js'
 import { resolveConnectionCredentials, PLATFORM_INTEGRATION_MODEL } from '../credentials.js'
+import { resolveOAuthPublishAccessToken } from '../oauth/publish-token.js'
 
 export async function publishSocialChannel({
   agentId,
@@ -94,14 +95,16 @@ export async function publishSocialChannel({
       if (!creds.oauth_access_token) {
         throw Object.assign(new Error('X is not connected for this tenant'), { code: 'MISSING_OAUTH_TOKEN' })
       }
-      publishResult = await publishXTweet({ text, bearerToken: creds.oauth_access_token, creditContext })
+      const bearerToken = await resolveOAuthPublishAccessToken(conn, 'x')
+      publishResult = await publishXTweet({ text, bearerToken, creditContext })
       break
     }
     case 'tiktok': {
       if (!creds.oauth_access_token) {
         throw Object.assign(new Error('TikTok is not connected for this tenant'), { code: 'MISSING_OAUTH_TOKEN' })
       }
-      const ttArgs = { accessToken: creds.oauth_access_token }
+      const accessToken = await resolveOAuthPublishAccessToken(conn, 'tiktok')
+      const ttArgs = { accessToken }
       if (firstVideo) {
         publishResult = await publishTikTokVideo({ videoUrl: firstVideo, caption: text, ...ttArgs, creditContext })
       } else if (mediaUrls.length > 0) {
