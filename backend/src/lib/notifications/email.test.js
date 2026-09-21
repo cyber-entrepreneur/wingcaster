@@ -17,6 +17,17 @@ const graphMock = vi.hoisted(() => ({
 }))
 vi.mock('./transports/graph.js', () => graphMock)
 
+const mailboxMock = vi.hoisted(() => ({
+  findConnectedMailbox: vi.fn(),
+  sendViaDelegatedMailbox: vi.fn(),
+}))
+vi.mock('./mailbox-connection.js', () => ({
+  findConnectedMailbox: mailboxMock.findConnectedMailbox,
+}))
+vi.mock('./transports/delegated-mailbox.js', () => ({
+  sendViaDelegatedMailbox: mailboxMock.sendViaDelegatedMailbox,
+}))
+
 const ENV_KEYS = [
   'EMAIL_PROVIDER', 'EMAIL_FROM',
   'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'MAIL_FROM',
@@ -39,6 +50,8 @@ beforeEach(() => {
   clearEmailEnv()
   graphMock.isGraphConfigured.mockReset().mockReturnValue(false)
   graphMock.sendViaGraph.mockReset()
+  mailboxMock.findConnectedMailbox.mockReset().mockResolvedValue(null)
+  mailboxMock.sendViaDelegatedMailbox.mockReset()
   vi.stubGlobal('fetch', vi.fn())
 })
 
@@ -172,6 +185,37 @@ describe('sendEmail — dispatch and validation', () => {
 
     await expect(sendEmail({ to: 'a@example.com', subject: 's', body: 'x' }))
       .rejects.toMatchObject({ code: 'GRAPH_SEND_FAILED', status: 500 })
+  })
+
+  it('prefers connected tenant mailbox over env transport when tenant context is provided', async () => {
+    graphMock.isGraphConfigured.mockReturnValue(true)
+    process.env.MAIL_FROM = 'noreply@example.com'
+    mailboxMock.findConnectedMailbox.mockResolvedValue({
+      id: 'mc-google',
+      platform: 'google',
+      settings: { mailbox_email: 'agent@example.com' },
+    })
+    mailboxMock.sendViaDelegatedMailbox.mockResolvedValue({
+      ok: true,
+      provider: 'gmail',
+      provider_message_id: 'gmail-1',
+      to: 'a@example.com',
+      subject: 's',
+      status: 'accepted',
+    })
+    const { sendEmail } = await loadModule()
+
+    const result = await sendEmail({
+      to: 'a@example.com',
+      subject: 's',
+      body: 'hello',
+      agencyId: 'agy-1',
+      agentId: 'agt-1',
+    })
+
+    expect(mailboxMock.sendViaDelegatedMailbox).toHaveBeenCalled()
+    expect(graphMock.sendViaGraph).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ provider: 'gmail', provider_message_id: 'gmail-1' })
   })
 
   it('routes to Resend when the provider is resend', async () => {

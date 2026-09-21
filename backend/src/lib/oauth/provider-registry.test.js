@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { getProvider, isOAuthProvider, listProviders, resolveOAuthProvider } from './provider-registry.js'
 
 describe('provider-registry', () => {
-  it('lists x, tiktok, meta, and linkedin', () => {
-    expect(listProviders()).toEqual(['x', 'tiktok', 'meta', 'linkedin'])
+  it('lists x, tiktok, meta, linkedin, google, and microsoft', () => {
+    expect(listProviders()).toEqual(['x', 'tiktok', 'meta', 'linkedin', 'google', 'microsoft'])
     expect(isOAuthProvider('meta')).toBe(true)
     expect(isOAuthProvider('linkedin')).toBe(true)
     expect(resolveOAuthProvider('facebook')).toBe('meta')
@@ -13,8 +13,8 @@ describe('provider-registry', () => {
     expect(resolveOAuthProvider('whatsapp')).toBe('meta')
   })
 
-  it('exposes required provider shape for x and tiktok', () => {
-    for (const provider of ['x', 'tiktok']) {
+  it('exposes required provider shape for x, tiktok, google, and microsoft', () => {
+    for (const provider of ['x', 'tiktok', 'google', 'microsoft']) {
       const config = getProvider(provider)
       expect(config.authUrl).toMatch(/^https:\/\//)
       expect(config.tokenUrl).toMatch(/^https:\/\//)

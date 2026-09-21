@@ -7,6 +7,11 @@ import {
   isWhatsAppOAuthConnectEnabled,
   isWhatsAppOAuthPlatform,
 } from './meta-whatsapp.js'
+import {
+  isEmailOAuthCapablePlatform,
+  isEmailOAuthPlatform,
+  isEmailPlatformOAuthConfigured,
+} from './email-oauth.js'
 
 /** Dark-launch gate for Meta OAuth connect (facebook + instagram). */
 export function isMetaOAuthConnectEnabled(env = process.env) {
@@ -42,6 +47,9 @@ export function isOAuthCapablePlatform(platform, env = process.env) {
   if (isMetaOAuthPlatform(platform)) {
     return isMetaOAuthConnectEnabled(env) && isOAuthProvider('meta')
   }
+  if (isEmailOAuthPlatform(platform)) {
+    return isEmailOAuthCapablePlatform(platform, env)
+  }
   return isOAuthProvider(platform)
 }
 
@@ -49,6 +57,9 @@ export function isOAuthCapablePlatform(platform, env = process.env) {
  * True when OAuth app credentials are configured for this platform.
  */
 export function isPlatformOAuthConfigured(platform, env = process.env) {
+  if (isEmailOAuthPlatform(platform)) {
+    return isEmailPlatformOAuthConfigured(platform, env)
+  }
   if (isWhatsAppOAuthPlatform(platform)) {
     if (!isWhatsAppOAuthConnectEnabled(env) || !isOAuthProvider('meta')) return false
     try {

@@ -24,6 +24,23 @@ const META_SCOPES = [
   'read_insights',
 ]
 
+const GOOGLE_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/gmail.send',
+]
+
+const MICROSOFT_SCOPES = [
+  'offline_access',
+  'openid',
+  'email',
+  'profile',
+  'User.Read',
+  'Mail.Send',
+  'Mail.ReadWrite',
+]
+
 const LINKEDIN_API_VERSION = '202405'
 
 const LINKEDIN_ORG_SCOPES = new Set([
@@ -281,6 +298,67 @@ const PROVIDERS = {
         handle: primary?.label || personLabel,
         authors,
         li_author_urn: primary?.urn || null,
+      }
+    },
+  },
+  google: {
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    scopes: GOOGLE_SCOPES,
+    usesPKCE: true,
+    pkceMethod: 'S256',
+    supportsRefresh: true,
+    tokenStyle: 'bearer',
+    authExtraParams: {
+      access_type: 'offline',
+      prompt: 'consent',
+    },
+    redirectPath: '/social-channels/oauth/google/callback',
+    appCredentialKey: 'google',
+    async resolveIdentity(tokenSet, { fetch: fetchFn = fetch } = {}) {
+      const res = await fetchFn('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: `Bearer ${tokenSet.access_token}` },
+      })
+      const parsed = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = parsed?.error_description || parsed?.error || `HTTP ${res.status}`
+        throw new Error(`Google identity lookup failed: ${message}`)
+      }
+      const email = parsed?.email || null
+      const name = parsed?.name || email
+      return {
+        id: parsed?.sub || null,
+        handle: name,
+        email,
+      }
+    },
+  },
+  microsoft: {
+    authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    scopes: MICROSOFT_SCOPES,
+    usesPKCE: true,
+    pkceMethod: 'S256',
+    supportsRefresh: true,
+    tokenStyle: 'bearer',
+    authExtraParams: {},
+    redirectPath: '/social-channels/oauth/microsoft/callback',
+    appCredentialKey: 'microsoft',
+    async resolveIdentity(tokenSet, { fetch: fetchFn = fetch } = {}) {
+      const res = await fetchFn('https://graph.microsoft.com/v1.0/me', {
+        headers: { Authorization: `Bearer ${tokenSet.access_token}` },
+      })
+      const parsed = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = parsed?.error?.message || parsed?.error?.code || `HTTP ${res.status}`
+        throw new Error(`Microsoft identity lookup failed: ${message}`)
+      }
+      const email = parsed?.mail || parsed?.userPrincipalName || null
+      const name = parsed?.displayName || email
+      return {
+        id: parsed?.id || null,
+        handle: name,
+        email,
       }
     },
   },

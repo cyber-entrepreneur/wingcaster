@@ -91,6 +91,8 @@ export const PLATFORM_INTEGRATION_MODEL = {
   whatsapp: 'enterprise',
   x: 'oauth',
   tiktok: 'oauth',
+  google: 'oauth',
+  microsoft: 'oauth',
 }
 
 /**
@@ -150,6 +152,18 @@ export const PLATFORM_CONNECTION_FIELDS = {
     target_fields: [
       { key: 'tiktok_handle', label: 'TikTok handle', required: false, secret: false },
     ],
+  },
+  google: {
+    model: 'oauth',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
+    target_fields: [],
+  },
+  microsoft: {
+    model: 'oauth',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
+    target_fields: [],
   },
 }
 

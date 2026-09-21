@@ -6,6 +6,10 @@ const env = {
   X_OAUTH_CLIENT_SECRET: 'x-secret',
   TIKTOK_CLIENT_KEY: 'tt-key',
   TIKTOK_CLIENT_SECRET: 'tt-secret',
+  GOOGLE_OAUTH_CLIENT_ID: 'google-id',
+  GOOGLE_OAUTH_CLIENT_SECRET: 'google-secret',
+  MICROSOFT_OAUTH_CLIENT_ID: 'ms-id',
+  MICROSOFT_OAUTH_CLIENT_SECRET: 'ms-secret',
   PUBLIC_API_URL: 'https://api.test/api',
 }
 
@@ -109,6 +113,57 @@ describe('token-exchange', () => {
 
     expect(tokenSet.access_token).toBe('li-access')
     expect(tokenSet.refresh_token).toBe('li-refresh')
+  })
+
+  it('Google refresh uses client_id and client_secret in body', async () => {
+    const fetchFn = mockFetch(({ body }) => {
+      expect(body).toContain('grant_type=refresh_token')
+      expect(body).toContain('client_id=google-id')
+      expect(body).toContain('client_secret=google-secret')
+      return {
+        json: {
+          access_token: 'new-google-access',
+          expires_in: 3600,
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.send',
+        },
+      }
+    })
+
+    const tokenSet = await refreshToken({
+      provider: 'google',
+      refreshToken: 'google-refresh',
+      env,
+      fetch: fetchFn,
+    })
+
+    expect(tokenSet.access_token).toBe('new-google-access')
+    expect(tokenSet.refresh_token).toBe('google-refresh')
+  })
+
+  it('Microsoft refresh uses client_id and client_secret in body', async () => {
+    const fetchFn = mockFetch(({ url, body }) => {
+      expect(url).toContain('login.microsoftonline.com/common/oauth2/v2.0/token')
+      expect(body).toContain('grant_type=refresh_token')
+      expect(body).toContain('client_id=ms-id')
+      expect(body).toContain('client_secret=ms-secret')
+      return {
+        json: {
+          access_token: 'new-ms-access',
+          refresh_token: 'new-ms-refresh',
+          expires_in: 3600,
+        },
+      }
+    })
+
+    const tokenSet = await refreshToken({
+      provider: 'microsoft',
+      refreshToken: 'ms-refresh',
+      env,
+      fetch: fetchFn,
+    })
+
+    expect(tokenSet.access_token).toBe('new-ms-access')
+    expect(tokenSet.refresh_token).toBe('new-ms-refresh')
   })
 
   it('does not leak secrets in exchange errors', async () => {

@@ -5088,6 +5088,14 @@ const PLATFORM_CAPABILITIES = {
     catalogue_sync: false, posting: true, draft_creation: true, direct_publishing: true,
     messaging: false, analytics: true, paid_promotion: true, payments: false,
   },
+  google: {
+    catalogue_sync: false, posting: false, draft_creation: false, direct_publishing: false,
+    messaging: true, analytics: false, paid_promotion: false, payments: false,
+  },
+  microsoft: {
+    catalogue_sync: false, posting: false, draft_creation: false, direct_publishing: false,
+    messaging: true, analytics: false, paid_promotion: false, payments: false,
+  },
 }
 
 async function retryDistributionDelivery(row, { requestedBy, source = 'manual' } = {}) {

@@ -27,6 +27,10 @@ import {
   isWhatsAppOAuthPlatform,
 } from './meta-whatsapp.js'
 import {
+  assertEmailOAuthEnabled,
+  isEmailOAuthPlatform,
+} from './email-oauth.js'
+import {
   consumePageSelection,
   createPageSelection,
   MetaPageSelectionError,
@@ -46,6 +50,12 @@ export { isOAuthProvider, getProvider, resolveOAuthProvider, isOAuthCapablePlatf
 export { isMetaOAuthPlatform, isMetaOAuthConnectEnabled } from './meta-oauth.js'
 export { isLinkedInOAuthEnabled, isOAuthConnectEnabled } from './feature-flags.js'
 export { isWhatsAppOAuthPlatform, isWhatsAppOAuthConnectEnabled } from './meta-whatsapp.js'
+export {
+  isEmailOAuthPlatform,
+  isGoogleEmailOAuthConnectEnabled,
+  isMicrosoftEmailOAuthConnectEnabled,
+  isEmailOAuthConnectEnabled,
+} from './email-oauth.js'
 
 function buildRedirectUri(apiBase, redirectPath) {
   const base = String(apiBase || '').replace(/\/$/, '')
@@ -134,6 +144,10 @@ export async function startConnect({
 
   if (platform === 'linkedin' && !isLinkedInOAuthEnabled(env)) {
     throw new Error('LinkedIn OAuth connect is not enabled in this environment')
+  }
+
+  if (isEmailOAuthPlatform(platform)) {
+    assertEmailOAuthEnabled(platform, env)
   }
 
   const oauthProvider = resolveOAuthProvider(platform)
@@ -469,7 +483,8 @@ export async function handleCallback({
     }
   }
 
-  const accountName = userInfo.handle || `${platform} account`
+  const mailboxEmail = userInfo.email || null
+  const accountName = mailboxEmail || userInfo.handle || `${platform} account`
   if (!stateRow.agency_id) {
     return { status: 400, body: 'OAuth state missing tenant context' }
   }
@@ -479,7 +494,8 @@ export async function handleCallback({
     agencyId: stateRow.agency_id,
     platform,
     accountName,
-    handle: userInfo.handle || accountName,
+    handle: userInfo.handle || mailboxEmail || accountName,
+    mailboxEmail,
     tokenSet: { ...tokenSet, user_id: userInfo.id || tokenSet.user_id },
     capabilities,
     enterpriseTargets,

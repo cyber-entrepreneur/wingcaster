@@ -35,7 +35,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { findOne, insert, query, update } from '../../db.js'
 import logger from '../logger.js'
-import { isEmailEnabled, sendEmail } from './email.js'
+import { isEmailAvailable, sendEmail } from './email.js'
 import { isSMSEnabled, sendSMS } from './sms.js'
 import { isWhatsAppConfigured, sendWhatsAppText } from '../../whatsapp.js'
 import { isPushConfigured, sendPushNotification } from './push.js'
@@ -327,8 +327,13 @@ async function checkRateLimit(channel, recipient, metadata) {
   return null
 }
 
-async function dispatchEmail({ recipient, subject, body, html }) {
-  if (!isEmailEnabled()) {
+async function dispatchEmail({ recipient, subject, body, html, metadata }) {
+  const meta = metadataOf(metadata)
+  const agencyId = meta.agency_id || meta.tenant_id || null
+  const agentId = meta.agent_id || null
+  const emailCtx = { agencyId, agentId }
+
+  if (!await isEmailAvailable(emailCtx)) {
     return {
       ok: false,
       status: 'skipped',
@@ -337,7 +342,14 @@ async function dispatchEmail({ recipient, subject, body, html }) {
     }
   }
   try {
-    const result = await sendEmail({ to: recipient, subject, body, html })
+    const result = await sendEmail({
+      to: recipient,
+      subject,
+      body,
+      html,
+      agencyId,
+      agentId,
+    })
     return {
       ok: true,
       status: 'sent',
