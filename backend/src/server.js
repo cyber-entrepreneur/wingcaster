@@ -346,6 +346,7 @@ import {
   PLATFORM_CONNECTION_FIELDS,
   resolveConnectionCredentials,
 } from './lib/credentials.js'
+import { buildSocialChannelsConfig, sanitizeSocialConnection } from './lib/social-channels-config.js'
 import { startConnect, handleCallback } from './lib/oauth/index.js'
 import {
   createModule as createWhatsAppListingsModule,
@@ -5297,10 +5298,7 @@ app.get('/api/fi-accounts', async (req, res) => {
  * ========================================================================== */
 
 app.get('/api/social-channels/config', authMiddleware, (_req, res) => {
-  res.json({
-    integration_models: PLATFORM_INTEGRATION_MODEL,
-    connection_fields: PLATFORM_CONNECTION_FIELDS,
-  })
+  res.json(buildSocialChannelsConfig())
 })
 
 app.get('/api/social-channels', authMiddleware, async (req, res) => {
@@ -5351,6 +5349,7 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
       account_name: accountName,
       status: 'connected',
       health: 'healthy',
+      connect_method: 'manual',
       capabilities: PLATFORM_CAPABILITIES[platform] || {},
       settings: {
         ...(c.settings || {}),
@@ -5370,6 +5369,7 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
     account_name: accountName,
     status: 'connected',
     health: 'healthy',
+    connect_method: 'manual',
     capabilities: PLATFORM_CAPABILITIES[platform] || {},
     settings: settingsPatch,
     terms_accepted_at: new Date().toISOString(),
@@ -5502,38 +5502,6 @@ function normalizeEnterpriseTargets(platform, input) {
     }
   }
   return out
-}
-
-function sanitizeSocialConnection(row) {
-  if (!row) return null
-  const settings = row.settings || {}
-  const targets = { ...(settings.enterprise_targets || {}) }
-  // Redact anything encrypted before returning to the client — we never send
-  // ciphertext to the browser.
-  for (const key of Object.keys(targets)) {
-    if (key.endsWith('_encrypted')) {
-      targets[key.replace(/_encrypted$/, '')] = '••••••••'
-      delete targets[key]
-    }
-  }
-  const creds = settings.credentials || {}
-  const hasOAuth = Boolean(creds.access_token_encrypted)
-  return {
-    id: row.id,
-    platform: row.platform,
-    account_name: row.account_name,
-    status: row.status,
-    health: row.health,
-    handle: settings.handle || null,
-    enterprise_targets: targets,
-    oauth: hasOAuth ? {
-      connected: true,
-      scope: creds.scope || null,
-      expires_at: creds.expires_at || null,
-      user_id: creds.user_id || null,
-    } : { connected: false },
-    updated_at: row.updated_at || row.created_at || null,
-  }
 }
 
 app.get('/api/my-connections', authMiddleware, async (req, res) => {

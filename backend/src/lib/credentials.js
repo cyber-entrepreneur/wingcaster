@@ -100,6 +100,8 @@ export const PLATFORM_INTEGRATION_MODEL = {
 export const PLATFORM_CONNECTION_FIELDS = {
   facebook: {
     model: 'enterprise',
+    supported_methods: ['manual', 'oauth'],
+    primary_method: 'manual',
     target_fields: [
       { key: 'fb_page_id', label: 'Facebook Page ID', required: true, secret: false },
       { key: 'fb_page_access_token_override', label: 'Page Access Token (optional override)', required: false, secret: true },
@@ -107,6 +109,8 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   instagram: {
     model: 'enterprise',
+    supported_methods: ['manual', 'oauth'],
+    primary_method: 'manual',
     target_fields: [
       { key: 'ig_business_account_id', label: 'Instagram Business Account ID', required: true, secret: false },
       { key: 'ig_page_access_token_override', label: 'Page Access Token (optional override)', required: false, secret: true },
@@ -114,6 +118,8 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   linkedin: {
     model: 'enterprise',
+    supported_methods: ['manual', 'oauth'],
+    primary_method: 'manual',
     target_fields: [
       { key: 'li_author_urn', label: 'LinkedIn Author URN (urn:li:organization:NNN or urn:li:person:NNN)', required: true, secret: false },
       { key: 'li_access_token_override', label: 'Access Token (optional override)', required: false, secret: true },
@@ -121,6 +127,8 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   whatsapp: {
     model: 'enterprise',
+    supported_methods: ['manual', 'oauth'],
+    primary_method: 'manual',
     target_fields: [
       { key: 'wa_phone_number_id', label: 'WhatsApp Phone Number ID', required: true, secret: false },
       { key: 'wa_business_account_id', label: 'WhatsApp Business Account ID', required: true, secret: false },
@@ -129,12 +137,16 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   x: {
     model: 'oauth',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
     target_fields: [
       { key: 'x_handle', label: 'X handle', required: false, secret: false },
     ],
   },
   tiktok: {
     model: 'oauth',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
     target_fields: [
       { key: 'tiktok_handle', label: 'TikTok handle', required: false, secret: false },
     ],
