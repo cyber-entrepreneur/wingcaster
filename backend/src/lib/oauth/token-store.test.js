@@ -86,6 +86,34 @@ describe('getFreshAccessToken', () => {
     expect(db.update).toHaveBeenCalled()
   })
 
+  it('refreshes expired meta token when refresh_token is null (uses access token)', async () => {
+    const row = connection({
+      platform: 'facebook',
+      settings: {
+        credentials: {
+          access_token_encrypted: encryptSecret('meta-user-token'),
+          refresh_token_encrypted: null,
+          expires_at: new Date(Date.now() - 1000).toISOString(),
+        },
+      },
+    })
+    db.findOne.mockResolvedValue(row)
+    refreshTokenMock.mockResolvedValue({
+      access_token: 'meta-new-access',
+      refresh_token: null,
+      expires_at: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString(),
+    })
+
+    const token = await getFreshAccessToken(row)
+    expect(token).toBe('meta-new-access')
+    expect(refreshTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'meta',
+        refreshToken: 'meta-user-token',
+      }),
+    )
+  })
+
   it('flags reauth_required when linkedin token expires without refresh token', async () => {
     const row = connection({
       platform: 'linkedin',

@@ -152,7 +152,9 @@ export async function getFreshAccessToken(connection, options = {}) {
   const tenantAgencyId = connection.agency_id || null
   const tenantAgentId = connection.agent_id || null
 
-  if (!refreshTokenValue && provider === 'linkedin') {
+  // LinkedIn without refresh approval → re-auth. Must NOT use bare !refreshTokenValue here:
+  // Meta long-lived re-exchange uses access token when refresh_token is null.
+  if (!metaRefreshToken && provider === 'linkedin') {
     await withMarketplaceConnectionWrite(tenantAgencyId, tenantAgentId, connection.platform, () =>
       update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
         ...c,
@@ -165,7 +167,8 @@ export async function getFreshAccessToken(connection, options = {}) {
     throw error
   }
 
-  if (!metaRefreshToken) {
+  // Non-Meta providers without a refresh credential cannot proceed; Meta re-exchanges via access token.
+  if (!metaRefreshToken && provider !== 'meta') {
     return accessToken
   }
 
