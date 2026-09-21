@@ -127,8 +127,8 @@ export const PLATFORM_CONNECTION_FIELDS = {
   },
   whatsapp: {
     model: 'enterprise',
-    supported_methods: ['manual', 'oauth'],
-    primary_method: 'manual',
+    supported_methods: ['oauth', 'manual'],
+    primary_method: 'oauth',
     target_fields: [
       { key: 'wa_phone_number_id', label: 'WhatsApp Phone Number ID', required: true, secret: false },
       { key: 'wa_business_account_id', label: 'WhatsApp Business Account ID', required: true, secret: false },

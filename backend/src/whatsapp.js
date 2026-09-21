@@ -1,9 +1,11 @@
 /**
  * WhatsApp Cloud API client for REB.
  * Uses META_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID from env.
+ * Per-tenant OAuth connections override env when present.
  */
 import { FEATURES } from './lib/credits/features.js'
 import { meterFeature } from './lib/credits/meter.js'
+import { resolveConnectionCredentials } from './lib/credentials.js'
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0'
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`
@@ -26,13 +28,46 @@ export function isWhatsAppConfigured() {
   return Boolean(cfg.accessToken && cfg.phoneNumberId && cfg.wabaId)
 }
 
+/**
+ * Resolve WhatsApp API credentials for a tenant connection, preferring OAuth-stored
+ * tokens over the global env fallback.
+ */
+export function resolveWhatsAppCredentials(connection = null) {
+  const envCfg = getWhatsAppConfig()
+  if (connection) {
+    const creds = resolveConnectionCredentials(connection)
+    if (creds?.wa_access_token_override && creds?.wa_phone_number_id) {
+      return {
+        accessToken: creds.wa_access_token_override,
+        phoneNumberId: creds.wa_phone_number_id,
+        wabaId: creds.wa_business_account_id || envCfg.wabaId,
+        appId: envCfg.appId,
+        appSecret: envCfg.appSecret,
+        verifyToken: envCfg.verifyToken,
+        defaultRecipient: envCfg.defaultRecipient,
+        publicAppUrl: envCfg.publicAppUrl,
+        source: 'tenant',
+      }
+    }
+  }
+  return {
+    ...envCfg,
+    source: envCfg.accessToken && envCfg.phoneNumberId ? 'env' : 'none',
+  }
+}
+
+export function isTenantWhatsAppConfigured(connection) {
+  const cfg = resolveWhatsAppCredentials(connection)
+  return Boolean(cfg.accessToken && cfg.phoneNumberId && cfg.source === 'tenant')
+}
+
 function normalizePhone(phone) {
   if (!phone) return ''
   return String(phone).replace(/[^\d]/g, '')
 }
 
-async function graphRequest(path, { method = 'GET', body } = {}) {
-  const cfg = getWhatsAppConfig()
+async function graphRequest(path, { method = 'GET', body, config = null } = {}) {
+  const cfg = config || getWhatsAppConfig()
   if (!cfg.accessToken) {
     throw new Error('META_ACCESS_TOKEN is not configured')
   }
@@ -56,9 +91,9 @@ async function graphRequest(path, { method = 'GET', body } = {}) {
   return data
 }
 
-export async function getWhatsAppHealth() {
-  const cfg = getWhatsAppConfig()
-  if (!isWhatsAppConfigured()) {
+export async function getWhatsAppHealth(connection = null) {
+  const cfg = resolveWhatsAppCredentials(connection)
+  if (!cfg.accessToken || !cfg.phoneNumberId) {
     return {
       configured: false,
       healthy: false,
@@ -68,6 +103,7 @@ export async function getWhatsAppHealth() {
   try {
     const phone = await graphRequest(
       `/${cfg.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,code_verification_status`,
+      { config: cfg },
     )
     return {
       configured: true,
@@ -124,12 +160,12 @@ export function buildListingChatCard(property, { listingUrl } = {}) {
   }
 }
 
-export async function sendWhatsAppText(to, body, creditContext) {
+export async function sendWhatsAppText(to, body, creditContext, { config = null } = {}) {
   return meterFeature(
     FEATURES.COMMUNICATION_WHATSAPP_CONVERSATION_WINDOW_24H,
     { creditContext, relatedEntityId: to },
     async () => {
-  const cfg = getWhatsAppConfig()
+  const cfg = config || getWhatsAppConfig()
   const phone = normalizePhone(to)
   if (!phone) throw new Error('Recipient phone number is required (international format, digits only)')
   if (!body?.trim()) throw new Error('Message body is required')
@@ -142,13 +178,14 @@ export async function sendWhatsAppText(to, body, creditContext) {
       type: 'text',
       text: { preview_url: true, body: body.trim() },
     },
+    config: cfg,
   })
     },
   )
 }
 
-export async function sendWhatsAppImage(to, { link, caption }) {
-  const cfg = getWhatsAppConfig()
+export async function sendWhatsAppImage(to, { link, caption, config = null }) {
+  const cfg = config || getWhatsAppConfig()
   const phone = normalizePhone(to)
   if (!phone) throw new Error('Recipient phone number is required')
   if (!link) throw new Error('Image link is required')
@@ -164,11 +201,12 @@ export async function sendWhatsAppImage(to, { link, caption }) {
         caption: (caption || '').slice(0, 1024),
       },
     },
+    config: cfg,
   })
 }
 
-export async function sendWhatsAppInteractive(to, payload) {
-  const cfg = getWhatsAppConfig()
+export async function sendWhatsAppInteractive(to, payload, { config = null } = {}) {
+  const cfg = config || getWhatsAppConfig()
   const phone = normalizePhone(to)
   if (!phone) throw new Error('Recipient phone number is required')
 
@@ -180,16 +218,18 @@ export async function sendWhatsAppInteractive(to, payload) {
       type: 'interactive',
       interactive: payload,
     },
+    config: cfg,
   })
 }
 
-export async function sendListingToWhatsApp(property, to, creditContext) {
+export async function sendListingToWhatsApp(property, to, creditContext, { config = null } = {}) {
   return meterFeature(
     FEATURES.PUBLISHING_SOCIAL_WHATSAPP,
     { creditContext, listingId: property?.id, relatedEntityId: property?.id },
     async () => {
+  const cfg = config || getWhatsAppConfig()
   const card = buildListingChatCard(property)
-  const recipient = normalizePhone(to) || getWhatsAppConfig().defaultRecipient
+  const recipient = normalizePhone(to) || cfg.defaultRecipient
   if (!recipient) {
     const err = new Error('No WhatsApp recipient. Set connection notify number or WHATSAPP_DEFAULT_RECIPIENT.')
     err.code = 'MISSING_RECIPIENT'
@@ -200,12 +240,12 @@ export async function sendListingToWhatsApp(property, to, creditContext) {
   let response
   if (card.imageUrl && /^https?:\/\//i.test(card.imageUrl)) {
     try {
-      response = await sendWhatsAppImage(recipient, { link: card.imageUrl, caption: card.body })
+      response = await sendWhatsAppImage(recipient, { link: card.imageUrl, caption: card.body, config: cfg })
     } catch {
-      response = await sendWhatsAppText(recipient, card.body, inner)
+      response = await sendWhatsAppText(recipient, card.body, inner, { config: cfg })
     }
   } else {
-    response = await sendWhatsAppText(recipient, card.body, inner)
+    response = await sendWhatsAppText(recipient, card.body, inner, { config: cfg })
   }
 
   return {

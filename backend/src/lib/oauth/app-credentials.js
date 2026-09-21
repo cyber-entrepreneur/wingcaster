@@ -3,6 +3,7 @@
  * Signature carries agencyId + region for future BYO/regional overrides.
  */
 import { getProvider } from './provider-registry.js'
+import { getMetaScopesForPlatform } from './meta-whatsapp.js'
 
 const CREDENTIAL_ENV = {
   x: {
@@ -40,7 +41,7 @@ function buildRedirectUri(apiBase, redirectPath) {
 
 /**
  * @param {string} provider
- * @param {{ env?: Record<string, string|undefined>, region?: string|null, agencyId?: string|null, apiBase?: string }} ctx
+ * @param {{ env?: Record<string, string|undefined>, region?: string|null, agencyId?: string|null, apiBase?: string, platform?: string|null }} ctx
  * @returns {{ client_id: string, client_secret: string, redirect_uri: string, scopes: string[], dev: boolean, region: string|null, agencyId: string|null }}
  */
 export function resolveAppCredential(provider, {
@@ -48,6 +49,7 @@ export function resolveAppCredential(provider, {
   region = null,
   agencyId = null,
   apiBase = null,
+  platform = null,
 } = {}) {
   const config = getProvider(provider)
   const keys = CREDENTIAL_ENV[provider]
@@ -59,7 +61,9 @@ export function resolveAppCredential(provider, {
   const clientSecret = readEnv(env, keys.clientSecret)
   const redirectBase = apiBase || env.PUBLIC_API_URL || ''
   const redirectUri = buildRedirectUri(redirectBase, config.redirectPath)
-  const scopes = [...config.scopes]
+  const scopes = provider === 'meta' && platform
+    ? getMetaScopesForPlatform(platform)
+    : [...config.scopes]
 
   // Future: agencyId + region can select BYO or regional app shards.
   void region

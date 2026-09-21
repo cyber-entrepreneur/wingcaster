@@ -380,7 +380,7 @@ export async function upsertMetaOAuthConnection({
       },
       updated_at: new Date().toISOString(),
     }))
-    return existing.id
+    return { connectionId: existing.id, isNewConnection: false }
   }
 
   const id = uuidv4()
@@ -402,7 +402,92 @@ export async function upsertMetaOAuthConnection({
     terms_accepted_at: new Date().toISOString(),
     terms_version: '2026-07-1',
   })
-  return id
+  return { connectionId: id, isNewConnection: true }
+}
+
+/**
+ * Upsert a marketplace_connections row after WhatsApp Embedded Signup OAuth.
+ */
+export async function upsertWhatsAppOAuthConnection({
+  agentId,
+  agencyId,
+  account,
+  userToken,
+  userTokenExpiresAt,
+  scope = null,
+  capabilities = {},
+}) {
+  if (!agencyId) {
+    throw new Error('agency_id is required for WhatsApp OAuth connections')
+  }
+
+  return withMarketplaceConnectionWrite(agencyId, agentId, 'whatsapp', async () => {
+    const existing = await findOne(
+      'marketplace_connections',
+      (c) => c.agent_id === agentId && c.platform === 'whatsapp',
+    )
+
+    const accountName = account.verified_name
+      || account.display_phone_number
+      || 'WhatsApp Business'
+    const handle = account.display_phone_number || accountName
+
+    const enterpriseTargets = {
+      ...(existing?.settings?.enterprise_targets || {}),
+      wa_phone_number_id: account.phone_number_id,
+      wa_business_account_id: account.waba_id,
+      wa_access_token_override_encrypted: encryptSecret(userToken),
+    }
+
+    const credentialsPatch = {
+      access_token_encrypted: encryptSecret(userToken),
+      refresh_token_encrypted: encryptSecret(userToken),
+      expires_at: userTokenExpiresAt || null,
+      scope,
+      user_id: account.phone_number_id,
+    }
+
+    if (existing) {
+      await update('marketplace_connections', (c) => c.id === existing.id, (c) => ({
+        ...c,
+        agency_id: agencyId,
+        account_name: accountName,
+        status: 'connected',
+        health: 'healthy',
+        connect_method: 'oauth',
+        capabilities,
+        settings: {
+          ...(c.settings || {}),
+          handle,
+          enterprise_targets: enterpriseTargets,
+          credentials: credentialsPatch,
+        },
+        updated_at: new Date().toISOString(),
+      }))
+      return { connectionId: existing.id, isNewConnection: false }
+    }
+
+    const id = uuidv4()
+    await insert('marketplace_connections', {
+      id,
+      agent_id: agentId,
+      agency_id: agencyId,
+      platform: 'whatsapp',
+      account_name: accountName,
+      status: 'connected',
+      health: 'healthy',
+      connect_method: 'oauth',
+      capabilities,
+      settings: {
+        handle,
+        enterprise_targets: enterpriseTargets,
+        credentials: credentialsPatch,
+      },
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: '2026-07-1',
+    })
+    return { connectionId: id, isNewConnection: true }
+  })
 }
 
 /** Test-only: clear in-process refresh locks. */

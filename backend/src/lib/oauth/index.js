@@ -14,6 +14,7 @@ import {
   getFreshAccessToken,
   upsertOAuthConnection,
   upsertMetaOAuthConnection,
+  upsertWhatsAppOAuthConnection,
 } from './token-store.js'
 import {
   assertMetaOAuthEnabled,
@@ -22,18 +23,29 @@ import {
 } from './meta-oauth.js'
 import { isLinkedInOAuthEnabled } from './feature-flags.js'
 import {
+  assertWhatsAppOAuthEnabled,
+  isWhatsAppOAuthPlatform,
+} from './meta-whatsapp.js'
+import {
   consumePageSelection,
   createPageSelection,
   MetaPageSelectionError,
   sanitizePagesForPicker,
 } from './meta-page-selection.js'
+import {
+  consumeWhatsAppSelection,
+  createWhatsAppSelection,
+  MetaWhatsAppSelectionError,
+  sanitizeWhatsAppAccountsForPicker,
+} from './meta-whatsapp-signup.js'
 
-export { OAuthStateError, OAuthTokenError, MetaPageSelectionError }
+export { OAuthStateError, OAuthTokenError, MetaPageSelectionError, MetaWhatsAppSelectionError }
 export { getFreshAccessToken }
 export { resolveAppCredential }
 export { isOAuthProvider, getProvider, resolveOAuthProvider, isOAuthCapablePlatform }
 export { isMetaOAuthPlatform, isMetaOAuthConnectEnabled } from './meta-oauth.js'
 export { isLinkedInOAuthEnabled, isOAuthConnectEnabled } from './feature-flags.js'
+export { isWhatsAppOAuthPlatform, isWhatsAppOAuthConnectEnabled } from './meta-whatsapp.js'
 
 function buildRedirectUri(apiBase, redirectPath) {
   const base = String(apiBase || '').replace(/\/$/, '')
@@ -63,6 +75,7 @@ export function buildAuthorizeUrl({
   env = process.env,
   region = null,
   agencyId = null,
+  platform = null,
 }) {
   const providerConfig = getProvider(provider)
   const creds = resolveAppCredential(provider, {
@@ -70,6 +83,7 @@ export function buildAuthorizeUrl({
     region,
     agencyId,
     apiBase: apiBase || redirectUri.replace(providerConfig.redirectPath, ''),
+    platform,
   })
 
   const authUrl = new URL(providerConfig.authUrl)
@@ -112,7 +126,9 @@ export async function startConnect({
     throw new Error(`${platform} is not an OAuth platform`)
   }
 
-  if (isMetaOAuthPlatform(platform)) {
+  if (isWhatsAppOAuthPlatform(platform)) {
+    assertWhatsAppOAuthEnabled(env)
+  } else if (isMetaOAuthPlatform(platform)) {
     assertMetaOAuthEnabled(env)
   }
 
@@ -123,7 +139,7 @@ export async function startConnect({
   const oauthProvider = resolveOAuthProvider(platform)
   const providerConfig = getProvider(oauthProvider)
   const redirectUri = buildRedirectUri(apiBase, providerConfig.redirectPath)
-  const creds = resolveAppCredential(oauthProvider, { env, region, agencyId, apiBase })
+  const creds = resolveAppCredential(oauthProvider, { env, region, agencyId, apiBase, platform })
 
   let pkce = null
   if (providerConfig.usesPKCE) {
@@ -155,6 +171,7 @@ export async function startConnect({
     env,
     region,
     agencyId,
+    platform,
   })
 
   return { auth_url, state: stateRow.id, dev: false }
@@ -182,6 +199,17 @@ setTimeout(() => { window.close() }, 800)</script>
 </body></html>`
 }
 
+function renderWhatsAppPickerHtml(selectionId, accounts) {
+  const safeSelectionId = escapeHtml(selectionId)
+  const accountsJson = JSON.stringify(sanitizeWhatsAppAccountsForPicker(accounts))
+  return `<!doctype html><html><body style="font-family:system-ui;padding:2rem;text-align:center;">
+<h2>Select a WhatsApp Business number</h2>
+<p>Choose which phone number to connect.</p>
+<script>try { window.opener && window.opener.postMessage({ type: 'wingcaster:oauth:whatsapp', platform: 'whatsapp', selection_id: '${safeSelectionId}', accounts: ${accountsJson} }, '*'); } catch(e){}
+setTimeout(() => { window.close() }, 800)</script>
+</body></html>`
+}
+
 async function completeMetaConnection({
   platform,
   page,
@@ -191,7 +219,7 @@ async function completeMetaConnection({
   stateRow,
   capabilities,
 }) {
-  const connectionId = await upsertMetaOAuthConnection({
+  const { connectionId, isNewConnection } = await upsertMetaOAuthConnection({
     agentId: stateRow.agent_id,
     agencyId: stateRow.agency_id,
     platform,
@@ -208,6 +236,38 @@ async function completeMetaConnection({
     agentId: stateRow.agent_id,
     agencyId: stateRow.agency_id,
     connectionId,
+    isNewConnection,
+    elevated: stateRow.elevated,
+  }
+}
+
+async function completeWhatsAppConnection({
+  account,
+  userToken,
+  userTokenExpiresAt,
+  scope,
+  stateRow,
+  capabilities,
+}) {
+  const { connectionId, isNewConnection } = await upsertWhatsAppOAuthConnection({
+    agentId: stateRow.agent_id,
+    agencyId: stateRow.agency_id,
+    account,
+    userToken,
+    userTokenExpiresAt,
+    scope,
+    capabilities,
+  })
+
+  return {
+    status: 200,
+    html: renderCallbackHtml('whatsapp'),
+    agentId: stateRow.agent_id,
+    agencyId: stateRow.agency_id,
+    connectionId,
+    isNewConnection,
+    platform: 'whatsapp',
+    whatsappPhoneNumber: account.display_phone_number,
     elevated: stateRow.elevated,
   }
 }
@@ -233,13 +293,8 @@ export async function handleCallback({
     return { status: 400, body: 'Unsupported platform' }
   }
 
-  const creds = resolveAppCredential(oauthProvider, { env, region, agencyId: null, apiBase })
-  if (creds.dev || code === 'dev_ok') {
-    const label = isMetaCallback ? 'Meta' : platform
-    return { status: 503, body: `${label} OAuth requires production credentials to be configured` }
-  }
-
   let stateRow
+  let targetPlatform = platform
   try {
     if (isMetaCallback) {
       const { findOne } = await import('../../persistence/index.js')
@@ -247,8 +302,8 @@ export async function handleCallback({
       if (!pending || pending.consumed_at) {
         return { status: 400, body: 'Invalid or expired state' }
       }
-      const targetPlatform = pending.platform
-      if (!isMetaOAuthPlatform(targetPlatform)) {
+      targetPlatform = pending.platform
+      if (!isMetaOAuthPlatform(targetPlatform) && !isWhatsAppOAuthPlatform(targetPlatform)) {
         return { status: 400, body: 'Invalid or expired state' }
       }
       stateRow = await consumeOnce(state, { platform: targetPlatform, agencyId: null })
@@ -261,6 +316,18 @@ export async function handleCallback({
       return { status: 400, body: err.message }
     }
     throw err
+  }
+
+  const creds = resolveAppCredential(oauthProvider, {
+    env,
+    region,
+    agencyId: stateRow.agency_id,
+    apiBase,
+    platform: oauthProvider === 'meta' ? platform : null,
+  })
+  if (creds.dev || code === 'dev_ok') {
+    const label = isMetaCallback ? 'Meta' : platform
+    return { status: 503, body: `${label} OAuth requires production credentials to be configured` }
   }
 
   const providerConfig = getProvider(oauthProvider)
@@ -294,12 +361,50 @@ export async function handleCallback({
         platform,
       })
 
+      const platformCapabilities = capabilitiesByPlatform[platform] || capabilities
+      const scope = creds.scopes.join(' ')
+
+      if (platform === 'whatsapp') {
+        const { accounts, userToken, userTokenExpiresAt } = identity.meta
+        if (!accounts?.length) {
+          return { status: 400, body: 'No WhatsApp Business phone numbers were found for this account' }
+        }
+
+        if (accounts.length === 1) {
+          return completeWhatsAppConnection({
+            account: accounts[0],
+            userToken,
+            userTokenExpiresAt,
+            scope,
+            stateRow,
+            capabilities: platformCapabilities,
+          })
+        }
+
+        const selection = await createWhatsAppSelection({
+          agentId: stateRow.agent_id,
+          agencyId: stateRow.agency_id,
+          accounts,
+          userToken,
+          userTokenExpiresAt,
+        })
+
+        return {
+          status: 200,
+          html: renderWhatsAppPickerHtml(selection.id, accounts),
+          agentId: stateRow.agent_id,
+          agencyId: stateRow.agency_id,
+          pendingWhatsAppSelection: true,
+          selectionId: selection.id,
+          accounts: sanitizeWhatsAppAccountsForPicker(accounts),
+          elevated: stateRow.elevated,
+        }
+      }
+
       const { pages, userToken, userTokenExpiresAt } = identity.meta
       if (!pages?.length) {
         return { status: 400, body: 'No Facebook Pages were found for this account' }
       }
-
-      const platformCapabilities = capabilitiesByPlatform[platform] || capabilities
 
       if (pages.length === 1) {
         return completeMetaConnection({
@@ -307,7 +412,7 @@ export async function handleCallback({
           page: pages[0],
           userToken,
           userTokenExpiresAt,
-          scope: creds.scopes.join(' '),
+          scope,
           stateRow,
           capabilities: platformCapabilities,
         })
@@ -421,7 +526,7 @@ export async function completeMetaPageSelection({
 
   const creds = resolveAppCredential('meta', { env })
   const platformCapabilities = capabilitiesByPlatform[selection.platform] || capabilities
-  const connectionId = await upsertMetaOAuthConnection({
+  const { connectionId, isNewConnection } = await upsertMetaOAuthConnection({
     agentId: selection.agent_id,
     agencyId: selection.agency_id,
     platform: selection.platform,
@@ -435,6 +540,54 @@ export async function completeMetaPageSelection({
   return {
     status: 200,
     connectionId,
+    isNewConnection,
     platform: selection.platform,
+  }
+}
+
+/**
+ * Complete a WhatsApp Embedded Signup flow after the user picks a phone number.
+ */
+export async function completeWhatsAppAccountSelection({
+  selectionId,
+  phoneNumberId,
+  agentId,
+  agencyId = null,
+  capabilities = {},
+  env = process.env,
+}) {
+  assertWhatsAppOAuthEnabled(env)
+
+  let selection
+  try {
+    selection = await consumeWhatsAppSelection(selectionId, phoneNumberId, agentId)
+  } catch (err) {
+    if (err instanceof MetaWhatsAppSelectionError) {
+      return { status: 400, error: err.message }
+    }
+    throw err
+  }
+
+  if (agencyId && selection.agency_id && selection.agency_id !== agencyId) {
+    return { status: 403, error: 'Agency mismatch' }
+  }
+
+  const creds = resolveAppCredential('meta', { env, platform: 'whatsapp' })
+  const { connectionId, isNewConnection } = await upsertWhatsAppOAuthConnection({
+    agentId: selection.agent_id,
+    agencyId: selection.agency_id,
+    account: selection.account,
+    userToken: selection.userToken,
+    userTokenExpiresAt: selection.userTokenExpiresAt,
+    scope: creds.scopes.join(' '),
+    capabilities,
+  })
+
+  return {
+    status: 200,
+    connectionId,
+    isNewConnection,
+    platform: 'whatsapp',
+    whatsappPhoneNumber: selection.account.display_phone_number,
   }
 }
