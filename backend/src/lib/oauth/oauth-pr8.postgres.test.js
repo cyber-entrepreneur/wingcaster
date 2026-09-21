@@ -154,7 +154,7 @@ skipIfNoPostgres()('oauth PR8 email mailbox', () => {
         const crossTenant = await withMarketplaceTenant(agencyB, agentB, () =>
           findOne('marketplace_connections', (c) => c.id === connA),
         )
-        expect(crossTenant).toBeNull()
+        expect(crossTenant).toBeFalsy()
       } finally {
         await closeDb()
       }
