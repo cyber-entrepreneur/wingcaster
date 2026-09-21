@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { findAll, findOne, insert, update, remove } from '../db.js'
 import { sendWhatsAppText, sendWhatsAppImage, isWhatsAppConfigured } from '../whatsapp.js'
 import { sendSMS, isSMSEnabled } from '../lib/notifications/sms.js'
-import { sendEmail, isEmailEnabled } from '../lib/notifications/email.js'
+import { sendEmail, isEmailAvailable } from '../lib/notifications/email.js'
 import { sendInstagramDM, replyToInstagramComment, isInstagramEnabled } from '../lib/notifications/instagram.js'
 import { replyToTikTokComment, sendTikTokDM, isTikTokEnabled } from '../lib/notifications/tiktok.js'
 import { sendXDM, replyToXMention, isXEnabled } from '../lib/notifications/x.js'
@@ -450,7 +450,9 @@ export async function sendOutboundMessage({ conversationId, content, contentType
       }
     }
   } else if (channel === 'email') {
-    if (!isEmailEnabled()) {
+    const agencyId = conversation.agency_id || contact.agency_id || null
+    const agentId = sentByAgentId || conversation.assigned_agent_id || contact.assigned_agent_id || null
+    if (!await isEmailAvailable({ agencyId, agentId })) {
       dispatch = { ok: false, status: 'failed', provider: 'email', provider_message_id: null, error: 'Email is not configured' }
     } else if (!contact.email) {
       dispatch = { ok: false, status: 'failed', provider: 'email', provider_message_id: null, error: 'Contact email is missing' }
@@ -460,6 +462,8 @@ export async function sendOutboundMessage({ conversationId, content, contentType
           to: contact.email,
           subject: subject || conversation.subject || 'RE: Follow-up',
           body: content,
+          agencyId,
+          agentId,
         })
         dispatch = {
           ok: response.ok,

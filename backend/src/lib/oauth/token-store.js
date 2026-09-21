@@ -246,6 +246,7 @@ export async function upsertOAuthConnection({
   platform,
   accountName,
   handle,
+  mailboxEmail = null,
   tokenSet,
   capabilities = {},
   enterpriseTargets = {},
@@ -281,6 +282,7 @@ export async function upsertOAuthConnection({
         settings: {
           ...(c.settings || {}),
           handle: handle || c.settings?.handle || accountName,
+          mailbox_email: mailboxEmail || c.settings?.mailbox_email || null,
           enterprise_targets: {
             ...(c.settings?.enterprise_targets || {}),
             ...enterpriseTargets,
@@ -306,6 +308,7 @@ export async function upsertOAuthConnection({
       capabilities,
       settings: {
         handle: handle || accountName,
+        mailbox_email: mailboxEmail || null,
         enterprise_targets: enterpriseTargets,
         ...settingsExtras,
         credentials: credentialsPatch,

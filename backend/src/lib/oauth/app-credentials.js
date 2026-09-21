@@ -22,6 +22,14 @@ const CREDENTIAL_ENV = {
     clientId: 'LINKEDIN_OAUTH_CLIENT_ID',
     clientSecret: 'LINKEDIN_OAUTH_CLIENT_SECRET',
   },
+  google: {
+    clientId: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_EMAIL_OAUTH_CLIENT_ID'],
+    clientSecret: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_EMAIL_OAUTH_CLIENT_SECRET'],
+  },
+  microsoft: {
+    clientId: ['MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_EMAIL_OAUTH_CLIENT_ID'],
+    clientSecret: ['MICROSOFT_OAUTH_CLIENT_SECRET', 'MICROSOFT_EMAIL_OAUTH_CLIENT_SECRET'],
+  },
 }
 
 function readEnv(env, keys) {

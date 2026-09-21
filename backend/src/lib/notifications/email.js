@@ -27,6 +27,8 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { isGraphConfigured, sendViaGraph } from './transports/graph.js'
+import { findConnectedMailbox } from './mailbox-connection.js'
+import { sendViaDelegatedMailbox } from './transports/delegated-mailbox.js'
 
 function normalizeEmail(email) {
   if (!email) return ''
@@ -78,12 +80,33 @@ export function isEmailEnabled() {
   return false
 }
 
-export async function sendEmail({ to, subject, body, html, replyTo }) {
-  const cfg = getEmailConfig()
+/**
+ * True when env transport is configured or the tenant has a connected mailbox.
+ *
+ * @param {{ agencyId?: string|null, agentId?: string|null }} [ctx]
+ */
+export async function isEmailAvailable(ctx = {}) {
+  if (isEmailEnabled()) return true
+  if (ctx.agencyId || ctx.agentId) {
+    const mailbox = await findConnectedMailbox(ctx)
+    return Boolean(mailbox)
+  }
+  return false
+}
+
+export async function sendEmail({ to, subject, body, html, replyTo, agencyId = null, agentId = null }) {
   const recipient = normalizeEmail(to)
   if (!recipient) throw Object.assign(new Error('Recipient email is required'), { code: 'MISSING_RECIPIENT' })
   if (!body?.trim() && !html?.trim()) throw Object.assign(new Error('Message body or html is required'), { code: 'MISSING_BODY' })
 
+  if (agencyId || agentId) {
+    const mailbox = await findConnectedMailbox({ agencyId, agentId })
+    if (mailbox) {
+      return sendViaDelegatedMailbox(mailbox, { to: recipient, subject, body, html, replyTo })
+    }
+  }
+
+  const cfg = getEmailConfig()
   if (!isEmailEnabled()) {
     const err = new Error(
       'Email transport is not configured '
