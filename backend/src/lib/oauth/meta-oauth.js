@@ -3,13 +3,17 @@
  */
 import { getProvider, isOAuthProvider } from './provider-registry.js'
 import { resolveAppCredential } from './app-credentials.js'
+import {
+  isWhatsAppOAuthConnectEnabled,
+  isWhatsAppOAuthPlatform,
+} from './meta-whatsapp.js'
 
 /** Dark-launch gate for Meta OAuth connect (facebook + instagram). */
 export function isMetaOAuthConnectEnabled(env = process.env) {
   return env.WINGCASTER_META_OAUTH_CONNECT_ENABLED === 'true'
 }
 
-/** Platforms that connect via the Meta OAuth provider. */
+/** Platforms that connect via the Meta OAuth provider (facebook + instagram). */
 export const META_OAUTH_PLATFORMS = new Set(['facebook', 'instagram'])
 
 export function isMetaOAuthPlatform(platform) {
@@ -18,10 +22,10 @@ export function isMetaOAuthPlatform(platform) {
 
 /**
  * Map a social-channels platform to its OAuth provider key.
- * x/tiktok use themselves; facebook/instagram use meta.
+ * x/tiktok use themselves; facebook/instagram/whatsapp use meta.
  */
 export function resolveOAuthProvider(platform) {
-  if (isMetaOAuthPlatform(platform)) return 'meta'
+  if (isMetaOAuthPlatform(platform) || isWhatsAppOAuthPlatform(platform)) return 'meta'
   return platform
 }
 
@@ -31,6 +35,9 @@ export function resolveOAuthProvider(platform) {
 export function isOAuthCapablePlatform(platform, env = process.env) {
   if (platform === 'linkedin') {
     return env.WINGCASTER_LINKEDIN_OAUTH_ENABLED === 'true' && isOAuthProvider('linkedin')
+  }
+  if (isWhatsAppOAuthPlatform(platform)) {
+    return isWhatsAppOAuthConnectEnabled(env) && isOAuthProvider('meta')
   }
   if (isMetaOAuthPlatform(platform)) {
     return isMetaOAuthConnectEnabled(env) && isOAuthProvider('meta')
@@ -42,6 +49,15 @@ export function isOAuthCapablePlatform(platform, env = process.env) {
  * True when OAuth app credentials are configured for this platform.
  */
 export function isPlatformOAuthConfigured(platform, env = process.env) {
+  if (isWhatsAppOAuthPlatform(platform)) {
+    if (!isWhatsAppOAuthConnectEnabled(env) || !isOAuthProvider('meta')) return false
+    try {
+      const creds = resolveAppCredential('meta', { env })
+      return !creds.dev
+    } catch {
+      return false
+    }
+  }
   if (!isOAuthCapablePlatform(platform, env)) return false
   try {
     const provider = resolveOAuthProvider(platform)

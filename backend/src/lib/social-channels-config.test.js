@@ -41,10 +41,10 @@ describe('PLATFORM_CONNECTION_FIELDS method model', () => {
     })
   })
 
-  it('keeps manual-primary shape for whatsapp', () => {
+  it('uses oauth-primary for whatsapp', () => {
     expect(PLATFORM_CONNECTION_FIELDS.whatsapp).toMatchObject({
-      supported_methods: ['manual', 'oauth'],
-      primary_method: 'manual',
+      supported_methods: ['oauth', 'manual'],
+      primary_method: 'oauth',
     })
   })
 })
@@ -83,6 +83,17 @@ describe('buildSocialChannelsConfig', () => {
       PUBLIC_API_URL: 'https://api.test/api',
     })
     expect(cfg.connection_fields.linkedin.oauth_configured).toBe(false)
+  })
+
+  it('returns whatsapp oauth_configured when whatsapp feature flag and credentials are set', () => {
+    const cfg = buildSocialChannelsConfig({
+      WINGCASTER_WHATSAPP_OAUTH_CONNECT_ENABLED: 'true',
+      META_OAUTH_CLIENT_ID: 'meta-app',
+      META_OAUTH_CLIENT_SECRET: 'meta-secret',
+      PUBLIC_API_URL: 'https://api.test/api',
+    })
+    expect(cfg.connection_fields.whatsapp.oauth_configured).toBe(true)
+    expect(cfg.connection_fields.facebook.oauth_configured).toBe(false)
   })
 })
 

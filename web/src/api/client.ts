@@ -3460,6 +3460,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  completeWhatsAppOAuthSelection: (payload: {
+    selection_id: string
+    phone_number_id: string
+  }): Promise<{ ok: boolean; platform: string; connection_id: string }> =>
+    fetchJson('/social-channels/oauth/meta/select-whatsapp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Wave 2A — Paid ads (Meta + Google Demand Gen)
   getPaidAdsChannels: (): Promise<{

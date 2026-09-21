@@ -106,12 +106,23 @@ export function SocialChannelsPage() {
     selectionId: string
     pages: Array<{ id: string; name: string; has_instagram: boolean }>
   } | null>(null)
+  const [whatsappPicker, setWhatsappPicker] = useState<{
+    selectionId: string
+    accounts: Array<{
+      waba_id: string
+      waba_name: string
+      phone_number_id: string
+      display_phone_number: string
+      verified_name: string | null
+    }>
+  } | null>(null)
 
   useEffect(() => {
     function onMessage(evt: MessageEvent) {
       if (evt.data?.type === 'wingcaster:oauth:done') {
         addToast({ title: `Connected to ${evt.data.platform}`, variant: 'success' })
         setPagePicker(null)
+        setWhatsappPicker(null)
         load()
       }
       if (evt.data?.type === 'wingcaster:oauth:pages') {
@@ -119,6 +130,12 @@ export function SocialChannelsPage() {
           platform: evt.data.platform,
           selectionId: evt.data.selection_id,
           pages: evt.data.pages || [],
+        })
+      }
+      if (evt.data?.type === 'wingcaster:oauth:whatsapp') {
+        setWhatsappPicker({
+          selectionId: evt.data.selection_id,
+          accounts: evt.data.accounts || [],
         })
       }
     }
@@ -201,6 +218,17 @@ export function SocialChannelsPage() {
               onCancel={() => setPagePicker(null)}
             />
           ) : null}
+          {whatsappPicker ? (
+            <WhatsAppAccountPicker
+              selectionId={whatsappPicker.selectionId}
+              accounts={whatsappPicker.accounts}
+              onCompleted={() => {
+                setWhatsappPicker(null)
+                load()
+              }}
+              onCancel={() => setWhatsappPicker(null)}
+            />
+          ) : null}
           <div className="space-y-4">
             {PLATFORM_ORDER.map((platform) => {
               const spec = config?.[platform]
@@ -227,6 +255,82 @@ export function SocialChannelsPage() {
         ) : null}
       </Tabs>
     </div>
+  )
+}
+
+function WhatsAppAccountPicker({
+  selectionId,
+  accounts,
+  onCompleted,
+  onCancel,
+}: {
+  selectionId: string
+  accounts: Array<{
+    waba_id: string
+    waba_name: string
+    phone_number_id: string
+    display_phone_number: string
+    verified_name: string | null
+  }>
+  onCompleted: () => void
+  onCancel: () => void
+}) {
+  const { addToast } = useToast()
+  const [busy, setBusy] = useState(false)
+
+  async function selectAccount(phoneNumberId: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.completeWhatsAppOAuthSelection({
+        selection_id: selectionId,
+        phone_number_id: phoneNumberId,
+      })
+      addToast({ title: 'WhatsApp Business connected', variant: 'success' })
+      onCompleted()
+    } catch (err: any) {
+      addToast({ title: 'Could not connect WhatsApp', description: err?.message, variant: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="mb-4 border-[var(--lc-border)]">
+      <CardHeader>
+        <CardTitle className="text-base">Select a WhatsApp Business number</CardTitle>
+        <p className="text-sm text-[var(--lc-text-muted)]">
+          Your Meta account manages multiple WhatsApp numbers. Choose which one to connect.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {accounts.map((account) => (
+          <button
+            key={account.phone_number_id}
+            type="button"
+            disabled={busy}
+            className={cn(
+              'flex w-full min-h-[var(--lc-tap-target-min)] items-center justify-between gap-2',
+              'rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]',
+              'text-start hover:bg-[var(--lc-surface-raised)]',
+            )}
+            onClick={() => selectAccount(account.phone_number_id)}
+          >
+            <span>
+              <span className="block font-medium text-[var(--lc-text-primary)]">
+                {account.verified_name || account.display_phone_number}
+              </span>
+              <span className="text-xs text-[var(--lc-text-muted)]">
+                {account.display_phone_number} · {account.waba_name}
+              </span>
+            </span>
+          </button>
+        ))}
+        <div className="flex justify-end pt-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -568,7 +672,9 @@ function PlatformCard({
   const showOAuthButton = oauthAvailable && (!isConnected || connectMethodLabel === 'oauth' || needsReauth)
   const oauthButtonLabel = needsReauth || (isConnected && connectMethodLabel === 'oauth')
     ? 'Re-authorise'
-    : `Connect with ${meta.oauthLabel}`
+    : platform === 'whatsapp'
+      ? 'Connect WhatsApp Business'
+      : `Connect with ${meta.oauthLabel}`
 
   return (
     <Card>

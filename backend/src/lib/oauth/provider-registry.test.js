@@ -10,6 +10,7 @@ describe('provider-registry', () => {
     expect(resolveOAuthProvider('facebook')).toBe('meta')
     expect(resolveOAuthProvider('instagram')).toBe('meta')
     expect(resolveOAuthProvider('linkedin')).toBe('linkedin')
+    expect(resolveOAuthProvider('whatsapp')).toBe('meta')
   })
 
   it('exposes required provider shape for x and tiktok', () => {

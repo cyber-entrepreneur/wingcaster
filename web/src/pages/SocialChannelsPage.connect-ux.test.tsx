@@ -11,6 +11,7 @@ const apiMock = vi.hoisted(() => ({
   upsertSocialChannel: vi.fn(),
   startSocialOAuth: vi.fn(),
   completeMetaOAuthPageSelection: vi.fn(),
+  completeWhatsAppOAuthSelection: vi.fn(),
   disconnectSocialChannel: vi.fn(),
 }))
 
@@ -53,6 +54,17 @@ const instagramSpec = {
   target_fields: [{ key: 'ig_business_account_id', label: 'Instagram Business Account ID', required: true, secret: false }],
 }
 
+const whatsappSpec = {
+  model: 'enterprise',
+  supported_methods: ['oauth', 'manual'],
+  primary_method: 'oauth',
+  oauth_configured: true,
+  target_fields: [
+    { key: 'wa_phone_number_id', label: 'WhatsApp Phone Number ID', required: true, secret: false },
+    { key: 'wa_business_account_id', label: 'WhatsApp Business Account ID', required: true, secret: false },
+  ],
+}
+
 function renderPage() {
   return render(
     <ToastProvider>
@@ -70,12 +82,14 @@ beforeEach(() => {
       x: xSpec,
       facebook: facebookSpec,
       instagram: instagramSpec,
+      whatsapp: whatsappSpec,
     },
   })
   apiMock.getSocialChannels.mockResolvedValue([])
   apiMock.upsertSocialChannel.mockResolvedValue({})
   apiMock.startSocialOAuth.mockResolvedValue({ auth_url: 'https://oauth.test/start', state: 'st', dev: false })
   apiMock.completeMetaOAuthPageSelection.mockResolvedValue({ ok: true, platform: 'facebook', connection_id: 'conn-fb' })
+  apiMock.completeWhatsAppOAuthSelection.mockResolvedValue({ ok: true, platform: 'whatsapp', connection_id: 'conn-wa' })
 })
 
 afterEach(() => {
@@ -156,6 +170,66 @@ describe('SocialChannelsPage connect UX', () => {
         selection_id: 'sel-1',
         page_id: 'page-1',
         platform: 'facebook',
+      })
+    })
+  })
+
+  it('shows oauth-primary WhatsApp card with Connect WhatsApp Business label', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /Connect WhatsApp Business/i })).toBeInTheDocument()
+    expect(screen.getAllByText('OAuth recommended').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows WhatsApp picker when oauth popup posts wingcaster:oauth:whatsapp', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: /Connect WhatsApp Business/i })
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'wingcaster:oauth:whatsapp',
+        platform: 'whatsapp',
+        selection_id: 'sel-wa-1',
+        accounts: [{
+          waba_id: 'waba-1',
+          waba_name: 'Acme WABA',
+          phone_number_id: 'phone-1',
+          display_phone_number: '+1 555 0100',
+          verified_name: 'Acme Realty',
+        }],
+      },
+    }))
+
+    expect(await screen.findByText(/Select a WhatsApp Business number/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Acme Realty/i })).toBeInTheDocument()
+  })
+
+  it('completes WhatsApp selection via API', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('button', { name: /Connect WhatsApp Business/i })
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'wingcaster:oauth:whatsapp',
+        platform: 'whatsapp',
+        selection_id: 'sel-wa-1',
+        accounts: [{
+          waba_id: 'waba-1',
+          waba_name: 'Acme WABA',
+          phone_number_id: 'phone-1',
+          display_phone_number: '+1 555 0100',
+          verified_name: 'Acme Realty',
+        }],
+      },
+    }))
+
+    await user.click(await screen.findByRole('button', { name: /Acme Realty/i }))
+
+    await waitFor(() => {
+      expect(apiMock.completeWhatsAppOAuthSelection).toHaveBeenCalledWith({
+        selection_id: 'sel-wa-1',
+        phone_number_id: 'phone-1',
       })
     })
   })

@@ -352,6 +352,7 @@ import {
   startConnect,
   handleCallback,
   completeMetaPageSelection,
+  completeWhatsAppAccountSelection,
   isOAuthCapablePlatform,
   isOAuthConnectEnabled,
 } from './lib/oauth/index.js'
@@ -5485,6 +5486,26 @@ function isSocialOAuthPlatform(platform) {
   return isOAuthCapablePlatform(platform)
 }
 
+async function maybeSendWhatsAppWelcomeEmail({ agentId, phoneNumber, isNewConnection }) {
+  if (!isNewConnection) return
+  const agent = await findOne('agents', (a) => a.id === agentId)
+  const user = agent?.user_id
+    ? await findOne('users', (u) => u.id === agent.user_id)
+    : null
+  const email = user?.email || agent?.email
+  if (!email) return
+  const formattedPhone = phoneNumber
+    ? `+${String(phoneNumber).replace(/[^\d]/g, '')}`
+    : 'your registered number'
+  sendPlatformNotification({
+    code: 'whatsapp_welcome',
+    to: email,
+    variables: { name: user?.name || agent?.name || 'there', phone_number: formattedPhone },
+  }).catch((err) => {
+    logger.warn({ err: err.message, code: err.code, agent_id: agentId }, 'whatsapp_welcome email failed (non-blocking)')
+  })
+}
+
 app.get('/api/social-channels/oauth/:platform/start', authMiddleware, requireElevated(), async (req, res) => {
   const platform = req.params.platform
   if (!isSocialOAuthPlatform(platform)) {
@@ -5534,12 +5555,19 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
       capabilitiesByPlatform: PLATFORM_CAPABILITIES,
     })
     if (result.html) {
-      if (!result.pendingPageSelection) {
+      if (!result.pendingPageSelection && !result.pendingWhatsAppSelection) {
         await logActivity({
           type: 'social_oauth_completed',
           agent_id: result.agentId,
-          meta: { platform },
+          meta: { platform: result.platform || platform },
         })
+        if ((result.platform || platform) === 'whatsapp' && result.isNewConnection) {
+          await maybeSendWhatsAppWelcomeEmail({
+            agentId: result.agentId,
+            phoneNumber: result.whatsappPhoneNumber,
+            isNewConnection: true,
+          })
+        }
       }
       return res.status(result.status).send(result.html)
     }
@@ -5547,6 +5575,46 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message, platform }, 'OAuth callback failed')
     return res.status(502).send('OAuth token exchange failed')
+  }
+})
+
+app.post('/api/social-channels/oauth/meta/select-whatsapp', authMiddleware, async (req, res) => {
+  const { selection_id: selectionId, phone_number_id: phoneNumberId } = req.body || {}
+  if (!selectionId || !phoneNumberId) {
+    return res.status(400).json({ error: 'selection_id and phone_number_id are required' })
+  }
+  try {
+    const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
+    const result = await completeWhatsAppAccountSelection({
+      selectionId: String(selectionId),
+      phoneNumberId: String(phoneNumberId),
+      agentId: req.user.id,
+      agencyId,
+      capabilities: PLATFORM_CAPABILITIES.whatsapp || {},
+    })
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error })
+    }
+    await logActivity({
+      type: 'social_oauth_completed',
+      agent_id: req.user.id,
+      meta: { platform: 'whatsapp', phone_number_id: phoneNumberId },
+    })
+    if (result.isNewConnection) {
+      await maybeSendWhatsAppWelcomeEmail({
+        agentId: req.user.id,
+        phoneNumber: result.whatsappPhoneNumber,
+        isNewConnection: true,
+      })
+    }
+    return res.json({
+      ok: true,
+      platform: 'whatsapp',
+      connection_id: result.connectionId,
+    })
+  } catch (err) {
+    logger.error({ err: err.message }, 'WhatsApp account selection failed')
+    return res.status(400).json({ error: err.message || 'WhatsApp selection failed' })
   }
 })
 

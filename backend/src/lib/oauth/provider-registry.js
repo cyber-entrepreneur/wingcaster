@@ -8,8 +8,10 @@ import {
   exchangeLongLivedToken,
   fetchManagedPages,
   fetchInstagramBusinessAccount,
+  fetchWhatsAppBusinessAccounts,
 } from './meta-graph.js'
 import { isMetaOAuthPlatform } from './meta-oauth.js'
+import { isWhatsAppOAuthPlatform } from './meta-whatsapp.js'
 
 const META_SCOPES = [
   'pages_show_list',
@@ -160,6 +162,27 @@ const PROVIDERS = {
         fetch: fetchFn,
       })
 
+      if (platform === 'whatsapp' || isWhatsAppOAuthPlatform(platform)) {
+        const accounts = await fetchWhatsAppBusinessAccounts(
+          longLived.access_token,
+          clientSecret,
+          { fetch: fetchFn },
+        )
+        if (!accounts.length) {
+          throw new Error('No WhatsApp Business phone numbers were found for this account')
+        }
+        return {
+          id: null,
+          handle: null,
+          meta: {
+            accounts,
+            userToken: longLived.access_token,
+            userTokenExpiresAt: longLived.expires_at,
+            platform: 'whatsapp',
+          },
+        }
+      }
+
       const pages = await fetchManagedPages(longLived.access_token, clientSecret, { fetch: fetchFn })
 
       const enriched = []
@@ -265,7 +288,7 @@ const PROVIDERS = {
 
 /** Map social-channels platform → OAuth provider registry key. */
 export function resolveOAuthProvider(platform) {
-  if (isMetaOAuthPlatform(platform)) return 'meta'
+  if (isMetaOAuthPlatform(platform) || isWhatsAppOAuthPlatform(platform)) return 'meta'
   return platform
 }
 

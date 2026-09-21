@@ -23,7 +23,8 @@ import { publishLinkedInPost } from '../notifications/linkedin.js'
 import { publishTelegramChannelPost } from '../notifications/telegram.js'
 import {
   isWhatsAppConfigured,
-  getWhatsAppConfig,
+  resolveWhatsAppCredentials,
+  isTenantWhatsAppConfigured,
   sendListingToWhatsApp,
 } from '../../whatsapp.js'
 import { resolveOAuthPublishAccessToken } from '../oauth/publish-token.js'
@@ -172,14 +173,16 @@ export async function dispatchPlatformPublish({
         break
       }
       case 'whatsapp': {
-        if (!isWhatsAppConfigured()) {
+        const waConfig = resolveWhatsAppCredentials(connection)
+        const tenantReady = isTenantWhatsAppConfigured(connection)
+        if (!tenantReady && !isWhatsAppConfigured()) {
           throw Object.assign(new Error('WhatsApp Cloud API credentials are not configured on the server'), {
             code: 'WHATSAPP_UNCONFIGURED',
           })
         }
         const to = recipient
           || connection?.settings?.notify_number
-          || getWhatsAppConfig().defaultRecipient
+          || waConfig.defaultRecipient
         if (!to) {
           throw Object.assign(
             new Error('Add a WhatsApp recipient number in Channel Settings (or WHATSAPP_DEFAULT_RECIPIENT in .env)'),
@@ -187,7 +190,7 @@ export async function dispatchPlatformPublish({
           )
         }
         const listing = serializedProperty || property
-        publishResult = await sendListingToWhatsApp(listing, to, creditContext)
+        publishResult = await sendListingToWhatsApp(listing, to, creditContext, { config: waConfig })
         break
       }
       default:
