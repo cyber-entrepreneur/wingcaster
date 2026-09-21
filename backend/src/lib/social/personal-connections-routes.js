@@ -16,6 +16,11 @@ import {
   transaction,
   update,
 } from "../../db.js";
+import {
+  withAgentConnectionWrite,
+  withAgentTenant,
+  resolveAgentAgencyId,
+} from "./marketplace-tenant.js";
 
 const PLATFORMS = [
   "facebook",
@@ -111,13 +116,18 @@ async function clearPrimary(agentId, platform, exceptId = null) {
   );
 }
 
-export async function findAgentPrimaryConnection(agentId, platform) {
-  const connections = await findAll(
-    "marketplace_connections",
-    (connection) =>
-      connection.agent_id === agentId &&
-      connection.platform === platform &&
-      connection.status !== "disconnected",
+export async function findAgentPrimaryConnection(agentId, platform, getActiveAffiliation = null) {
+  const connections = await withAgentTenant(
+    agentId,
+    () =>
+      findAll(
+        "marketplace_connections",
+        (connection) =>
+          connection.agent_id === agentId &&
+          connection.platform === platform &&
+          connection.status !== "disconnected",
+      ),
+    getActiveAffiliation,
   );
   return (
     connections.find((connection) => connection.is_primary) ||
@@ -128,8 +138,9 @@ export async function findAgentPrimaryConnection(agentId, platform) {
   );
 }
 
-export function registerRoutes(app, { authMiddleware }) {
+export function registerRoutes(app, { authMiddleware, getActiveAffiliation = null }) {
   const elevated = requireElevated();
+  const tenantOpts = getActiveAffiliation || undefined;
 
   app.get(
     "/api/social-channels/my-connections",
@@ -144,11 +155,16 @@ export function registerRoutes(app, { authMiddleware }) {
             details: parsed.error.flatten(),
           });
       }
-      const connections = await findAll(
-        "marketplace_connections",
-        (connection) =>
-          connection.agent_id === req.user.id &&
-          connection.status !== "disconnected",
+      const connections = await withAgentTenant(
+        req.user.id,
+        () =>
+          findAll(
+            "marketplace_connections",
+            (connection) =>
+              connection.agent_id === req.user.id &&
+              connection.status !== "disconnected",
+          ),
+        tenantOpts,
       );
       connections.sort(compareConnections);
       res.json({ connections: connections.map(serializeConnection) });
@@ -169,12 +185,17 @@ export function registerRoutes(app, { authMiddleware }) {
             details: parsed.error.flatten(),
           });
       }
-      const existing = await findAll(
-        "marketplace_connections",
-        (connection) =>
-          connection.agent_id === req.user.id &&
-          connection.platform === parsed.data.platform &&
-          connection.status !== "disconnected",
+      const existing = await withAgentTenant(
+        req.user.id,
+        () =>
+          findAll(
+            "marketplace_connections",
+            (connection) =>
+              connection.agent_id === req.user.id &&
+              connection.platform === parsed.data.platform &&
+              connection.status !== "disconnected",
+          ),
+        tenantOpts,
       );
       if (
         existing.some((connection) =>
@@ -189,10 +210,12 @@ export function registerRoutes(app, { authMiddleware }) {
           .json({ error: "This account is already connected" });
       }
 
+      const agencyId = await resolveAgentAgencyId(req.user.id, tenantOpts);
       const now = new Date().toISOString();
       const row = {
         id: randomUUID(),
         agent_id: req.user.id,
+        agency_id: agencyId,
         platform: parsed.data.platform,
         account_name: parsed.data.account_name,
         handle: parsed.data.handle,
@@ -206,10 +229,13 @@ export function registerRoutes(app, { authMiddleware }) {
         created_at: now,
         updated_at: now,
       };
-      await transaction(async () => {
-        if (row.is_primary) await clearPrimary(req.user.id, row.platform);
-        await insert("marketplace_connections", row);
-      });
+      await withAgentConnectionWrite(req.user.id, row.platform, () =>
+        transaction(async () => {
+          if (row.is_primary) await clearPrimary(req.user.id, row.platform);
+          await insert("marketplace_connections", row);
+        }),
+        tenantOpts,
+      );
       res.status(201).json(serializeConnection(row));
     }),
   );
@@ -219,12 +245,17 @@ export function registerRoutes(app, { authMiddleware }) {
     authMiddleware,
     elevated,
     route(async (req, res) => {
-      const connection = await findOne(
-        "marketplace_connections",
-        (candidate) =>
-          candidate.id === req.params.id &&
-          candidate.agent_id === req.user.id &&
-          candidate.status !== "disconnected",
+      const connection = await withAgentTenant(
+        req.user.id,
+        () =>
+          findOne(
+            "marketplace_connections",
+            (candidate) =>
+              candidate.id === req.params.id &&
+              candidate.agent_id === req.user.id &&
+              candidate.status !== "disconnected",
+          ),
+        tenantOpts,
       );
       if (!connection)
         return res.status(404).json({ error: "Connection not found" });
@@ -244,13 +275,18 @@ export function registerRoutes(app, { authMiddleware }) {
           .json({ error: "Set another account as primary instead" });
       }
       if (parsed.data.handle) {
-        const siblings = await findAll(
-          "marketplace_connections",
-          (candidate) =>
-            candidate.agent_id === req.user.id &&
-            candidate.platform === connection.platform &&
-            candidate.id !== connection.id &&
-            candidate.status !== "disconnected",
+        const siblings = await withAgentTenant(
+          req.user.id,
+          () =>
+            findAll(
+              "marketplace_connections",
+              (candidate) =>
+                candidate.agent_id === req.user.id &&
+                candidate.platform === connection.platform &&
+                candidate.id !== connection.id &&
+                candidate.status !== "disconnected",
+            ),
+          tenantOpts,
         );
         if (
           siblings.some((candidate) =>
@@ -275,18 +311,21 @@ export function registerRoutes(app, { authMiddleware }) {
         },
         updated_at: new Date().toISOString(),
       };
-      await transaction(async () => {
-        if (parsed.data.is_primary) {
-          await clearPrimary(req.user.id, connection.platform, connection.id);
-        }
-        await update(
-          "marketplace_connections",
-          (candidate) =>
-            candidate.id === connection.id &&
-            candidate.agent_id === req.user.id,
-          () => updated,
-        );
-      });
+      await withAgentConnectionWrite(req.user.id, connection.platform, () =>
+        transaction(async () => {
+          if (parsed.data.is_primary) {
+            await clearPrimary(req.user.id, connection.platform, connection.id);
+          }
+          await update(
+            "marketplace_connections",
+            (candidate) =>
+              candidate.id === connection.id &&
+              candidate.agent_id === req.user.id,
+            () => updated,
+          );
+        }),
+        tenantOpts,
+      );
       res.json(serializeConnection(updated));
     }),
   );
@@ -296,52 +335,60 @@ export function registerRoutes(app, { authMiddleware }) {
     authMiddleware,
     elevated,
     route(async (req, res) => {
-      const connection = await findOne(
-        "marketplace_connections",
-        (candidate) =>
-          candidate.id === req.params.id &&
-          candidate.agent_id === req.user.id &&
-          candidate.status !== "disconnected",
+      const connection = await withAgentTenant(
+        req.user.id,
+        () =>
+          findOne(
+            "marketplace_connections",
+            (candidate) =>
+              candidate.id === req.params.id &&
+              candidate.agent_id === req.user.id &&
+              candidate.status !== "disconnected",
+          ),
+        tenantOpts,
       );
       if (!connection)
         return res.status(404).json({ error: "Connection not found" });
 
       let promoted = null;
-      await transaction(async () => {
-        await remove(
-          "marketplace_connections",
-          (candidate) =>
-            candidate.id === connection.id &&
-            candidate.agent_id === req.user.id,
-        );
-        if (connection.is_primary) {
-          const remaining = await findAll(
+      await withAgentConnectionWrite(req.user.id, connection.platform, () =>
+        transaction(async () => {
+          await remove(
             "marketplace_connections",
             (candidate) =>
-              candidate.agent_id === req.user.id &&
-              candidate.platform === connection.platform &&
-              candidate.id !== connection.id &&
-              candidate.status !== "disconnected",
+              candidate.id === connection.id &&
+              candidate.agent_id === req.user.id,
           );
-          remaining.sort((left, right) =>
-            String(left.created_at).localeCompare(String(right.created_at)),
-          );
-          promoted = remaining[0] || null;
-          if (promoted) {
-            await update(
+          if (connection.is_primary) {
+            const remaining = await findAll(
               "marketplace_connections",
               (candidate) =>
-                candidate.id === promoted.id &&
-                candidate.agent_id === req.user.id,
-              (candidate) => ({
-                ...candidate,
-                is_primary: true,
-                updated_at: new Date().toISOString(),
-              }),
+                candidate.agent_id === req.user.id &&
+                candidate.platform === connection.platform &&
+                candidate.id !== connection.id &&
+                candidate.status !== "disconnected",
             );
+            remaining.sort((left, right) =>
+              String(left.created_at).localeCompare(String(right.created_at)),
+            );
+            promoted = remaining[0] || null;
+            if (promoted) {
+              await update(
+                "marketplace_connections",
+                (candidate) =>
+                  candidate.id === promoted.id &&
+                  candidate.agent_id === req.user.id,
+                (candidate) => ({
+                  ...candidate,
+                  is_primary: true,
+                  updated_at: new Date().toISOString(),
+                }),
+              );
+            }
           }
-        }
-      });
+        }),
+        tenantOpts,
+      );
       res.json({ success: true, new_primary_id: promoted?.id || null });
     }),
   );

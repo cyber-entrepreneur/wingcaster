@@ -12,6 +12,11 @@ vi.mock('../../persistence/index.js', () => db)
 vi.mock('./token-exchange.js', () => ({
   refreshToken: refreshTokenMock,
 }))
+vi.mock('../social/marketplace-tenant.js', () => ({
+  withMarketplaceTenant: (_agencyId, _agentId, fn) => fn(),
+  withMarketplaceConnectionWrite: (_agencyId, _agentId, _platform, fn) => fn(),
+  ensureChannelDefinitionForPlatform: vi.fn(async () => {}),
+}))
 
 import { encryptSecret } from '../credentials.js'
 import {
@@ -27,6 +32,7 @@ function connection(overrides = {}) {
     id: 'conn-1',
     platform: 'x',
     agency_id: 'agy-1',
+    agent_id: 'agt-1',
     settings: {
       credentials: {
         access_token_encrypted: encryptSecret('stale-access'),

@@ -4,6 +4,9 @@
 import { randomUUID } from 'node:crypto'
 import { encryptSecret, decryptSecret } from '../credentials.js'
 import { insert, transaction } from '../../persistence/index.js'
+import { withMarketplaceTenant } from '../social/marketplace-tenant.js'
+
+const GROWTH_OS_ROLE = 'growth_os_app_role'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
@@ -37,21 +40,27 @@ export async function create({
   elevated = false,
   ttlMs = DEFAULT_TTL_MS,
 }) {
+  if (!agencyId) {
+    throw Object.assign(new Error('agency_id is required for oauth state'), { code: 'TENANT_REQUIRED' })
+  }
+
   const id = randomUUID()
   const nonce = randomUUID()
   const expiresAt = new Date(Date.now() + ttlMs).toISOString()
 
-  await insert('oauth_states', {
-    id,
-    agent_id: agentId,
-    agency_id: agencyId || null,
-    platform,
-    code_verifier_encrypted: codeVerifier ? encryptSecret(codeVerifier) : null,
-    redirect_uri: redirectUri,
-    return_to: returnTo,
-    elevated: Boolean(elevated),
-    nonce,
-    expires_at: expiresAt,
+  await withMarketplaceTenant(agencyId, agentId, async () => {
+    await insert('oauth_states', {
+      id,
+      agent_id: agentId,
+      agency_id: agencyId,
+      platform,
+      code_verifier_encrypted: codeVerifier ? encryptSecret(codeVerifier) : null,
+      redirect_uri: redirectUri,
+      return_to: returnTo,
+      elevated: Boolean(elevated),
+      nonce,
+      expires_at: expiresAt,
+    })
   })
 
   return { id, nonce, expiresAt }
@@ -65,6 +74,7 @@ export async function create({
  */
 export async function consumeOnce(stateId, { platform, agencyId = null }) {
   return transaction(async (client) => {
+    // Capability read (state id is the auth token); lock row before tenant-scoped update.
     const { rows } = await client.query(
       'SELECT * FROM public.oauth_states WHERE id = $1 FOR UPDATE',
       [stateId],
@@ -84,6 +94,17 @@ export async function consumeOnce(stateId, { platform, agencyId = null }) {
     }
     if (agencyId != null && row.agency_id != null && row.agency_id !== agencyId) {
       throw new OAuthStateError('agency_mismatch', 'Invalid or expired state')
+    }
+    if (!row.agency_id && !row.agent_id) {
+      throw new OAuthStateError('missing', 'Invalid or expired state')
+    }
+
+    await client.query(`SET LOCAL ROLE ${GROWTH_OS_ROLE}`)
+    if (row.agency_id) {
+      await client.query('SELECT set_config($1, $2, true)', ['app.agency_id', String(row.agency_id)])
+    }
+    if (row.agent_id) {
+      await client.query('SELECT set_config($1, $2, true)', ['app.agent_id', String(row.agent_id)])
     }
 
     await client.query(
