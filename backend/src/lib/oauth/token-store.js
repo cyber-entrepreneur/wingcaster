@@ -4,7 +4,10 @@
 import { v4 as uuidv4 } from 'uuid'
 import { encryptSecret, tryDecrypt } from '../credentials.js'
 import { findOne, insert, update } from '../../persistence/index.js'
-import { withMarketplaceTenant } from '../social/marketplace-tenant.js'
+import {
+  withMarketplaceConnectionWrite,
+  withMarketplaceTenant,
+} from '../social/marketplace-tenant.js'
 import { refreshToken } from './token-exchange.js'
 import { getProvider, resolveOAuthProvider } from './provider-registry.js'
 import { isMetaOAuthPlatform } from './meta-oauth.js'
@@ -68,7 +71,7 @@ export async function persistTokens(connection, tokenSet) {
 
   const agencyId = connection.agency_id || null
   const agentId = connection.agent_id || null
-  await withMarketplaceTenant(agencyId, agentId, async () => {
+  await withMarketplaceConnectionWrite(agencyId, agentId, connection.platform, async () => {
     await update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
       ...c,
       status: 'connected',
@@ -197,7 +200,7 @@ export async function getFreshAccessToken(connection, options = {}) {
 
       return tokenSet.access_token
     } catch (err) {
-      await withMarketplaceTenant(tenantAgencyId, tenantAgentId, () =>
+      await withMarketplaceConnectionWrite(tenantAgencyId, tenantAgentId, connection.platform, () =>
         update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
           ...c,
           health: 'reauth_required',
@@ -228,7 +231,7 @@ export async function upsertOAuthConnection({
     throw Object.assign(new Error('agency_id is required for oauth connection'), { code: 'TENANT_REQUIRED' })
   }
 
-  return withMarketplaceTenant(agencyId, agentId, async () => {
+  return withMarketplaceConnectionWrite(agencyId, agentId, platform, async () => {
     const existing = await findOne(
       'marketplace_connections',
       (c) => c.agent_id === agentId && c.platform === platform,

@@ -8,7 +8,11 @@ import { closeDb, configure, findOne, update } from '../../persistence/index.js'
 import { getPool } from '../../persistence/postgres-adapter.js'
 import { create } from './state-store.js'
 import { handleCallback } from './index.js'
-import { withMarketplaceTenant } from '../social/marketplace-tenant.js'
+import {
+  ensureChannelDefinitionForPlatform,
+  withMarketplaceConnectionWrite,
+  withMarketplaceTenant,
+} from '../social/marketplace-tenant.js'
 
 const TEST_KEY = randomBytes(32).toString('base64')
 
@@ -157,7 +161,8 @@ skipIfNoPostgres()('oauth PR6 RLS', () => {
         })
         expect(blockedUpdate).toBe(0)
 
-        const ownerUpdate = await withMarketplaceTenant(agencyA, agentA, async () => {
+        await ensureChannelDefinitionForPlatform('x')
+        const ownerUpdate = await withMarketplaceConnectionWrite(agencyA, agentA, 'x', async () => {
           await update('marketplace_connections', (c) => c.id === connA, (c) => ({
             ...c,
             health: 'healthy',

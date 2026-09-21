@@ -16,7 +16,11 @@ import {
   transaction,
   update,
 } from "../../db.js";
-import { withAgentTenant, resolveAgentAgencyId } from "./marketplace-tenant.js";
+import {
+  withAgentConnectionWrite,
+  withAgentTenant,
+  resolveAgentAgencyId,
+} from "./marketplace-tenant.js";
 
 const PLATFORMS = [
   "facebook",
@@ -225,7 +229,7 @@ export function registerRoutes(app, { authMiddleware, getActiveAffiliation = nul
         created_at: now,
         updated_at: now,
       };
-      await withAgentTenant(req.user.id, () =>
+      await withAgentConnectionWrite(req.user.id, row.platform, () =>
         transaction(async () => {
           if (row.is_primary) await clearPrimary(req.user.id, row.platform);
           await insert("marketplace_connections", row);
@@ -307,7 +311,7 @@ export function registerRoutes(app, { authMiddleware, getActiveAffiliation = nul
         },
         updated_at: new Date().toISOString(),
       };
-      await withAgentTenant(req.user.id, () =>
+      await withAgentConnectionWrite(req.user.id, connection.platform, () =>
         transaction(async () => {
           if (parsed.data.is_primary) {
             await clearPrimary(req.user.id, connection.platform, connection.id);
@@ -347,7 +351,7 @@ export function registerRoutes(app, { authMiddleware, getActiveAffiliation = nul
         return res.status(404).json({ error: "Connection not found" });
 
       let promoted = null;
-      await withAgentTenant(req.user.id, () =>
+      await withAgentConnectionWrite(req.user.id, connection.platform, () =>
         transaction(async () => {
           await remove(
             "marketplace_connections",

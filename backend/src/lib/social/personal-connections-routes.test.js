@@ -14,7 +14,9 @@ const db = vi.hoisted(() => ({
 vi.mock("../../db.js", () => db);
 vi.mock("./marketplace-tenant.js", () => ({
   withAgentTenant: (_agentId, fn) => fn(),
+  withAgentConnectionWrite: (_agentId, _platform, fn) => fn(),
   resolveAgentAgencyId: vi.fn(async () => "agency-1"),
+  ensureChannelDefinitionForPlatform: vi.fn(async () => {}),
 }));
 vi.mock("../../auth.js", () => ({
   requireElevated: () => (req, res, next) => {

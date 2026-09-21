@@ -14,6 +14,8 @@ vi.mock('./token-exchange.js', () => ({
 }))
 vi.mock('../social/marketplace-tenant.js', () => ({
   withMarketplaceTenant: (_agencyId, _agentId, fn) => fn(),
+  withMarketplaceConnectionWrite: (_agencyId, _agentId, _platform, fn) => fn(),
+  ensureChannelDefinitionForPlatform: vi.fn(async () => {}),
 }))
 
 import { encryptSecret } from '../credentials.js'
