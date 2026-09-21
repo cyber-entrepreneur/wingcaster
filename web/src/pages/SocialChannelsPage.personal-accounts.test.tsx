@@ -38,7 +38,13 @@ beforeEach(() => {
   uiMode.shouldRenderPro = true
   apiMock.getSocialChannelsConfig.mockResolvedValue({
     connection_fields: {
-      instagram: { model: 'oauth', target_fields: [] },
+      instagram: {
+        model: 'oauth',
+        supported_methods: ['oauth', 'manual'],
+        primary_method: 'oauth',
+        oauth_configured: true,
+        target_fields: [],
+      },
     },
   })
   apiMock.getSocialChannels.mockResolvedValue([])

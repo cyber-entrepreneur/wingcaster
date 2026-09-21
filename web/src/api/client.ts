@@ -3405,6 +3405,9 @@ export const api = {
     integration_models: Record<string, 'enterprise' | 'oauth'>
     connection_fields: Record<string, {
       model: 'enterprise' | 'oauth'
+      supported_methods: Array<'oauth' | 'manual'>
+      primary_method: 'oauth' | 'manual'
+      oauth_configured: boolean
       target_fields: Array<{ key: string; label: string; required: boolean; secret: boolean }>
     }>
   }> => fetchJson('/social-channels/config'),
@@ -3414,8 +3417,16 @@ export const api = {
     account_name: string
     status: string
     health: string
+    connect_method: 'oauth' | 'manual' | null
     handle: string | null
     enterprise_targets: Record<string, string>
+    token_status: {
+      connected: boolean
+      method?: 'oauth' | 'manual' | null
+      scope?: string | null
+      expires_at?: string | null
+      health?: string | null
+    }
     oauth: {
       connected: boolean
       scope?: string | null
