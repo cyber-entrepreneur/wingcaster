@@ -340,6 +340,10 @@ export async function handleCallback({
   }
 
   const accountName = userInfo.handle || `${platform} account`
+  if (!stateRow.agency_id) {
+    return { status: 400, body: 'OAuth state missing tenant context' }
+  }
+
   const connectionId = await upsertOAuthConnection({
     agentId: stateRow.agent_id,
     agencyId: stateRow.agency_id,
@@ -356,7 +360,7 @@ export async function handleCallback({
     agentId: stateRow.agent_id,
     agencyId: stateRow.agency_id,
     connectionId,
-    elevated: stateRow.elevated,
+    elevated: Boolean(stateRow.elevated),
   }
 }
 

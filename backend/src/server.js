@@ -354,6 +354,7 @@ import {
   completeMetaPageSelection,
   isOAuthCapablePlatform,
 } from './lib/oauth/index.js'
+import { withAgentTenant, resolveAgentAgencyId as resolveMarketplaceAgencyId } from './lib/social/marketplace-tenant.js'
 import {
   createModule as createWhatsAppListingsModule,
   createDefaultPlatformAdapter as createWhatsAppPlatformAdapter,
@@ -930,7 +931,7 @@ registerContactExportRoutes(app, { authMiddleware })
 registerScheduledPublishRoutes(app, { authMiddleware })
 registerAssignableAgentsRoutes(app, { authMiddleware })
 registerPropertyDispositionRoutes(app, { authMiddleware })
-registerPersonalConnectionRoutes(app, { authMiddleware })
+registerPersonalConnectionRoutes(app, { authMiddleware, getActiveAffiliation })
 registerCanonicalPropertyRoutes(app, { authMiddleware })
 registerAgentReviewRoutes(app, { authMiddleware })
 registerSavedSearchRoutes(app, {
@@ -5312,7 +5313,10 @@ app.get('/api/social-channels/config', authMiddleware, (_req, res) => {
 })
 
 app.get('/api/social-channels', authMiddleware, async (req, res) => {
-  const rows = await findAll('marketplace_connections', c => c.agent_id === req.user.id)
+  const rows = await withAgentTenant(req.user.id, () =>
+    findAll('marketplace_connections', c => c.agent_id === req.user.id),
+    getActiveAffiliation,
+  )
   res.json(rows.map(sanitizeSocialConnection))
 })
 
@@ -5338,9 +5342,10 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
     }
   }
 
-  const existing = await findOne(
-    'marketplace_connections',
-    c => c.agent_id === req.user.id && c.platform === platform,
+  const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
+  const existing = await withAgentTenant(req.user.id, () =>
+    findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform),
+    getActiveAffiliation,
   )
   const accountName = req.body?.account_name || existing?.account_name || `${platform} account`
 
@@ -5354,20 +5359,26 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
   }
 
   if (existing) {
-    await update('marketplace_connections', c => c.id === existing.id, c => ({
-      ...c,
-      account_name: accountName,
-      status: 'connected',
-      health: 'healthy',
-      connect_method: 'manual',
-      capabilities: PLATFORM_CAPABILITIES[platform] || {},
-      settings: {
-        ...(c.settings || {}),
-        ...settingsPatch,
-      },
-      updated_at: new Date().toISOString(),
-    }))
-    const updated = await findOne('marketplace_connections', c => c.id === existing.id)
+    await withAgentTenant(req.user.id, async () => {
+      await update('marketplace_connections', c => c.id === existing.id, c => ({
+        ...c,
+        agency_id: agencyId || c.agency_id || null,
+        account_name: accountName,
+        status: 'connected',
+        health: 'healthy',
+        connect_method: 'manual',
+        capabilities: PLATFORM_CAPABILITIES[platform] || {},
+        settings: {
+          ...(c.settings || {}),
+          ...settingsPatch,
+        },
+        updated_at: new Date().toISOString(),
+      }))
+    }, getActiveAffiliation)
+    const updated = await withAgentTenant(req.user.id, () =>
+      findOne('marketplace_connections', c => c.id === existing.id),
+      getActiveAffiliation,
+    )
     await logActivity({ type: 'social_connection_updated', agent_id: req.user.id, meta: { platform, connection_id: existing.id } })
     return res.json(sanitizeSocialConnection(updated))
   }
@@ -5375,6 +5386,7 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
   const created = {
     id: uuidv4(),
     agent_id: req.user.id,
+    agency_id: agencyId,
     platform,
     account_name: accountName,
     status: 'connected',
@@ -5387,7 +5399,7 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
-  await insert('marketplace_connections', created)
+  await withAgentTenant(req.user.id, () => insert('marketplace_connections', created), getActiveAffiliation)
   await logActivity({ type: 'social_connection_created', agent_id: req.user.id, meta: { platform, connection_id: created.id } })
 
   // Fire the WhatsApp welcome guide on first-connect only (this is the
@@ -5413,20 +5425,23 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
 
 app.delete('/api/social-channels/:platform', authMiddleware, async (req, res) => {
   const platform = req.params.platform
-  const existing = await findOne(
-    'marketplace_connections',
-    c => c.agent_id === req.user.id && c.platform === platform,
+  const existing = await withAgentTenant(req.user.id, () =>
+    findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform),
+    getActiveAffiliation,
   )
   if (!existing) return res.status(404).json({ error: 'Not connected' })
-  await update('marketplace_connections', c => c.id === existing.id, c => ({
-    ...c,
-    status: 'disconnected',
-    settings: {
-      ...(c.settings || {}),
-      credentials: {},
-    },
-    updated_at: new Date().toISOString(),
-  }))
+  await withAgentTenant(req.user.id, () =>
+    update('marketplace_connections', c => c.id === existing.id, c => ({
+      ...c,
+      status: 'disconnected',
+      settings: {
+        ...(c.settings || {}),
+        credentials: {},
+      },
+      updated_at: new Date().toISOString(),
+    })),
+    getActiveAffiliation,
+  )
   await logActivity({ type: 'social_connection_disconnected', agent_id: req.user.id, meta: { platform, connection_id: existing.id } })
   res.json({ ok: true })
 })
@@ -5437,6 +5452,7 @@ function getOAuthRedirectBase(req) {
   return process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}/api`
 }
 
+<<<<<<< HEAD
 async function resolveAgentAgencyId(agentId) {
   const agent = await findOne('agents', (a) => a.id === agentId)
   if (agent?.agency_id) return agent.agency_id
@@ -5450,12 +5466,18 @@ function isSocialOAuthPlatform(platform) {
 }
 
 app.get('/api/social-channels/oauth/:platform/start', authMiddleware, async (req, res) => {
+=======
+app.get('/api/social-channels/oauth/:platform/start', authMiddleware, requireElevated(), async (req, res) => {
+>>>>>>> 90ee288 (feat(oauth): RLS on marketplace_connections and oauth_states (PR6))
   const platform = req.params.platform
   if (!isSocialOAuthPlatform(platform)) {
     return res.status(400).json({ error: `${platform} is not an OAuth platform` })
   }
   try {
-    const agencyId = await resolveAgentAgencyId(req.user.id)
+    const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
+    if (!agencyId) {
+      return res.status(400).json({ error: 'Agent has no agency context for OAuth connect' })
+    }
     const result = await startConnect({
       agentId: req.user.id,
       agencyId,
@@ -5552,7 +5574,11 @@ function normalizeEnterpriseTargets(platform, input) {
 }
 
 app.get('/api/my-connections', authMiddleware, async (req, res) => {
-  res.json(await findAll('marketplace_connections', c => c.agent_id === req.user.id))
+  const rows = await withAgentTenant(req.user.id, () =>
+    findAll('marketplace_connections', c => c.agent_id === req.user.id),
+    getActiveAffiliation,
+  )
+  res.json(rows)
 })
 
 // Step-up (Phase 7f/3): marketplace connections store OAuth tokens that,
@@ -5586,32 +5612,44 @@ app.post('/api/my-connections', authMiddleware, requireElevated(), async (req, r
     accountName = accountName || handle
   }
 
-  const existing = await findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform)
+  const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
+  const existing = await withAgentTenant(req.user.id, () =>
+    findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform),
+    getActiveAffiliation,
+  )
   if (existing) {
-    await update('marketplace_connections', c => c.id === existing.id, c => ({
-      ...c,
-      account_name: accountName || c.account_name,
-      status: 'connected',
-      health,
-      health_error: healthError,
-      capabilities: PLATFORM_CAPABILITIES[platform] || {},
-      settings: {
-        ...(c.settings || {}),
-        ...(req.body.settings || {}),
-        handle: handle || c.settings?.handle || accountName,
-        channel_id: req.body.channel_id || req.body.settings?.channel_id || c.settings?.channel_id || '',
-      },
-      terms_accepted_at: new Date().toISOString(),
-      terms_version: '2026-07-1',
-      updated_at: new Date().toISOString(),
-    }))
-    const updated = await findOne('marketplace_connections', c => c.id === existing.id)
+    await withAgentTenant(req.user.id, () =>
+      update('marketplace_connections', c => c.id === existing.id, c => ({
+        ...c,
+        agency_id: agencyId || c.agency_id || null,
+        account_name: accountName || c.account_name,
+        status: 'connected',
+        health,
+        health_error: healthError,
+        capabilities: PLATFORM_CAPABILITIES[platform] || {},
+        settings: {
+          ...(c.settings || {}),
+          ...(req.body.settings || {}),
+          handle: handle || c.settings?.handle || accountName,
+          channel_id: req.body.channel_id || req.body.settings?.channel_id || c.settings?.channel_id || '',
+        },
+        terms_accepted_at: new Date().toISOString(),
+        terms_version: '2026-07-1',
+        updated_at: new Date().toISOString(),
+      })),
+      getActiveAffiliation,
+    )
+    const updated = await withAgentTenant(req.user.id, () =>
+      findOne('marketplace_connections', c => c.id === existing.id),
+      getActiveAffiliation,
+    )
     await logActivity({ type: 'connection_updated', agent_id: req.user.id, meta: { platform, connection_id: existing.id } })
     return res.json(updated)
   }
   const conn = {
     id: uuidv4(),
     agent_id: req.user.id,
+    agency_id: agencyId,
     platform,
     account_name: accountName,
     status: 'connected',
@@ -5632,24 +5670,30 @@ app.post('/api/my-connections', authMiddleware, requireElevated(), async (req, r
     terms_version: '2026-07-1',
     created_at: new Date().toISOString(),
   }
-  await insert('marketplace_connections', conn)
+  await withAgentTenant(req.user.id, () => insert('marketplace_connections', conn), getActiveAffiliation)
   await logActivity({ type: 'connection_created', agent_id: req.user.id, meta: { platform, connection_id: conn.id } })
   res.json(conn)
 })
 
 app.put('/api/my-connections/:id', authMiddleware, requireElevated(), async (req, res) => {
-  await update('marketplace_connections', c => c.id === req.params.id && c.agent_id === req.user.id, c => ({
-    ...c,
-    ...req.body,
-    settings: req.body.settings ? { ...(c.settings || {}), ...req.body.settings } : c.settings,
-    updated_at: new Date().toISOString(),
-  }))
+  await withAgentTenant(req.user.id, () =>
+    update('marketplace_connections', c => c.id === req.params.id && c.agent_id === req.user.id, c => ({
+      ...c,
+      ...req.body,
+      settings: req.body.settings ? { ...(c.settings || {}), ...req.body.settings } : c.settings,
+      updated_at: new Date().toISOString(),
+    })),
+    getActiveAffiliation,
+  )
   await logActivity({ type: 'connection_updated', agent_id: req.user.id, meta: { connection_id: req.params.id } })
   res.json({ success: true })
 })
 
 app.delete('/api/my-connections/:id', authMiddleware, requireElevated(), async (req, res) => {
-  await remove('marketplace_connections', c => c.id === req.params.id && c.agent_id === req.user.id)
+  await withAgentTenant(req.user.id, () =>
+    remove('marketplace_connections', c => c.id === req.params.id && c.agent_id === req.user.id),
+    getActiveAffiliation,
+  )
   await logActivity({ type: 'connection_disconnected', agent_id: req.user.id, meta: { connection_id: req.params.id } })
   res.json({ success: true })
 })
@@ -6927,9 +6971,9 @@ app.post('/api/distributions/:id/refresh-insights', authMiddleware, async (req, 
     return res.status(400).json({ error: 'Distribution has no published external id yet' })
   }
 
-  const conn = await findOne(
-    'marketplace_connections',
-    (c) => c.agent_id === req.user.id && c.platform === dist.platform,
+  const conn = await withAgentTenant(req.user.id, () =>
+    findOne('marketplace_connections', (c) => c.agent_id === req.user.id && c.platform === dist.platform),
+    getActiveAffiliation,
   )
   const creds = conn ? resolveConnectionCredentials(conn) : null
 

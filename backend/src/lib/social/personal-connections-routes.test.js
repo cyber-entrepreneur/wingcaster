@@ -12,6 +12,10 @@ const db = vi.hoisted(() => ({
 }));
 
 vi.mock("../../db.js", () => db);
+vi.mock("./marketplace-tenant.js", () => ({
+  withAgentTenant: (_agentId, fn) => fn(),
+  resolveAgentAgencyId: vi.fn(async () => "agency-1"),
+}));
 vi.mock("../../auth.js", () => ({
   requireElevated: () => (req, res, next) => {
     if (req.get("x-test-elevated") === "yes") return next();

@@ -4,6 +4,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { encryptSecret, tryDecrypt } from '../credentials.js'
 import { findOne, insert, update } from '../../persistence/index.js'
+import { withMarketplaceTenant } from '../social/marketplace-tenant.js'
 import { refreshToken } from './token-exchange.js'
 import { getProvider, resolveOAuthProvider } from './provider-registry.js'
 import { isMetaOAuthPlatform } from './meta-oauth.js'
@@ -65,17 +66,21 @@ export async function persistTokens(connection, tokenSet) {
     credentials: credentialsPatch,
   }
 
-  await update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
-    ...c,
-    status: 'connected',
-    health: 'healthy',
-    connect_method: 'oauth',
-    settings: {
-      ...settings,
-      handle: connection.settings?.handle || c.settings?.handle || connection.account_name,
-    },
-    updated_at: new Date().toISOString(),
-  }))
+  const agencyId = connection.agency_id || null
+  const agentId = connection.agent_id || null
+  await withMarketplaceTenant(agencyId, agentId, async () => {
+    await update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
+      ...c,
+      status: 'connected',
+      health: 'healthy',
+      connect_method: 'oauth',
+      settings: {
+        ...settings,
+        handle: connection.settings?.handle || c.settings?.handle || connection.account_name,
+      },
+      updated_at: new Date().toISOString(),
+    }))
+  })
 
   return credentialsPatch
 }
@@ -139,8 +144,13 @@ export async function getFreshAccessToken(connection, options = {}) {
     return accessToken
   }
 
+  const tenantAgencyId = connection.agency_id || null
+  const tenantAgentId = connection.agent_id || null
+
   return withRefreshLock(connection.id, async () => {
-    const latest = await findOne('marketplace_connections', (c) => c.id === connection.id)
+    const latest = await withMarketplaceTenant(tenantAgencyId, tenantAgentId, () =>
+      findOne('marketplace_connections', (c) => c.id === connection.id),
+    )
     const latestCreds = credentialsFromConnection(latest || connection)
     const latestAccess = tryDecrypt(latestCreds.access_token_encrypted)
     const latestRefresh = tryDecrypt(latestCreds.refresh_token_encrypted)
@@ -187,11 +197,13 @@ export async function getFreshAccessToken(connection, options = {}) {
 
       return tokenSet.access_token
     } catch (err) {
-      await update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
-        ...c,
-        health: 'reauth_required',
-        updated_at: new Date().toISOString(),
-      }))
+      await withMarketplaceTenant(tenantAgencyId, tenantAgentId, () =>
+        update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
+          ...c,
+          health: 'reauth_required',
+          updated_at: new Date().toISOString(),
+        })),
+      )
       const message = err instanceof Error ? err.message : 'Token refresh failed'
       const error = new Error(message)
       error.code = 'REAUTH_REQUIRED'
@@ -212,58 +224,64 @@ export async function upsertOAuthConnection({
   tokenSet,
   capabilities = {},
 }) {
-  const existing = await findOne(
-    'marketplace_connections',
-    (c) => c.agent_id === agentId && c.platform === platform,
-  )
-
-  const credentialsPatch = {
-    access_token_encrypted: encryptSecret(tokenSet.access_token),
-    refresh_token_encrypted: tokenSet.refresh_token ? encryptSecret(tokenSet.refresh_token) : null,
-    expires_at: tokenSet.expires_at || null,
-    scope: tokenSet.scope || null,
-    user_id: tokenSet.user_id || tokenSet.open_id || null,
+  if (!agencyId) {
+    throw Object.assign(new Error('agency_id is required for oauth connection'), { code: 'TENANT_REQUIRED' })
   }
 
-  if (existing) {
-    await update('marketplace_connections', (c) => c.id === existing.id, (c) => ({
-      ...c,
-      agency_id: agencyId || c.agency_id || null,
-      account_name: accountName || c.account_name,
+  return withMarketplaceTenant(agencyId, agentId, async () => {
+    const existing = await findOne(
+      'marketplace_connections',
+      (c) => c.agent_id === agentId && c.platform === platform,
+    )
+
+    const credentialsPatch = {
+      access_token_encrypted: encryptSecret(tokenSet.access_token),
+      refresh_token_encrypted: tokenSet.refresh_token ? encryptSecret(tokenSet.refresh_token) : null,
+      expires_at: tokenSet.expires_at || null,
+      scope: tokenSet.scope || null,
+      user_id: tokenSet.user_id || tokenSet.open_id || null,
+    }
+
+    if (existing) {
+      await update('marketplace_connections', (c) => c.id === existing.id, (c) => ({
+        ...c,
+        agency_id: agencyId || c.agency_id || null,
+        account_name: accountName || c.account_name,
+        status: 'connected',
+        health: 'healthy',
+        connect_method: 'oauth',
+        capabilities,
+        settings: {
+          ...(c.settings || {}),
+          handle: handle || c.settings?.handle || accountName,
+          credentials: credentialsPatch,
+        },
+        updated_at: new Date().toISOString(),
+      }))
+      return existing.id
+    }
+
+    const id = uuidv4()
+    await insert('marketplace_connections', {
+      id,
+      agent_id: agentId,
+      agency_id: agencyId,
+      platform,
+      account_name: accountName,
       status: 'connected',
       health: 'healthy',
       connect_method: 'oauth',
       capabilities,
       settings: {
-        ...(c.settings || {}),
-        handle: handle || c.settings?.handle || accountName,
+        handle: handle || accountName,
+        enterprise_targets: {},
         credentials: credentialsPatch,
       },
-      updated_at: new Date().toISOString(),
-    }))
-    return existing.id
-  }
-
-  const id = uuidv4()
-  await insert('marketplace_connections', {
-    id,
-    agent_id: agentId,
-    agency_id: agencyId,
-    platform,
-    account_name: accountName,
-    status: 'connected',
-    health: 'healthy',
-    connect_method: 'oauth',
-    capabilities,
-    settings: {
-      handle: handle || accountName,
-      enterprise_targets: {},
-      credentials: credentialsPatch,
-    },
-    terms_accepted_at: new Date().toISOString(),
-    terms_version: '2026-07-1',
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: '2026-07-1',
+    })
+    return id
   })
-  return id
 }
 
 /**

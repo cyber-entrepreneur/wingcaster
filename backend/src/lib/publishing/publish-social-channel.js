@@ -3,6 +3,7 @@
  */
 
 import { findOne } from '../../persistence/index.js'
+import { withAgentTenant } from '../social/marketplace-tenant.js'
 import {
   assertPublishChannelConfigured,
   tenantHasPublishToken,
@@ -32,9 +33,11 @@ export async function publishSocialChannel({
   linkUrl = null,
   creditContext = null,
 }) {
-  const conn = await findOne(
-    'marketplace_connections',
-    (c) => c.agent_id === agentId && c.platform === platform && c.status === 'connected',
+  const conn = await withAgentTenant(agentId, () =>
+    findOne(
+      'marketplace_connections',
+      (c) => c.agent_id === agentId && c.platform === platform && c.status === 'connected',
+    ),
   )
   if (!conn) {
     throw Object.assign(
