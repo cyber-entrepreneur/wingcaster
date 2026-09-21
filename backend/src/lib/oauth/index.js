@@ -3,20 +3,49 @@
  */
 import { resolveAppCredential } from './app-credentials.js'
 import { createPkcePair } from './pkce.js'
-import { getProvider, isOAuthProvider } from './provider-registry.js'
+import {
+  getProvider,
+  isOAuthProvider,
+  resolveOAuthProvider,
+} from './provider-registry.js'
 import { create as createOAuthState, consumeOnce, OAuthStateError } from './state-store.js'
 import { exchangeCode, OAuthTokenError } from './token-exchange.js'
-import { getFreshAccessToken, upsertOAuthConnection } from './token-store.js'
+import {
+  getFreshAccessToken,
+  upsertOAuthConnection,
+  upsertMetaOAuthConnection,
+} from './token-store.js'
+import {
+  assertMetaOAuthEnabled,
+  isMetaOAuthPlatform,
+  isOAuthCapablePlatform,
+} from './meta-oauth.js'
+import {
+  consumePageSelection,
+  createPageSelection,
+  MetaPageSelectionError,
+  sanitizePagesForPicker,
+} from './meta-page-selection.js'
 
-export { OAuthStateError, OAuthTokenError }
+export { OAuthStateError, OAuthTokenError, MetaPageSelectionError }
 export { getFreshAccessToken }
 export { resolveAppCredential }
-export { isOAuthProvider, getProvider }
+export { isOAuthProvider, getProvider, resolveOAuthProvider, isOAuthCapablePlatform }
+export { isMetaOAuthPlatform, isMetaOAuthConnectEnabled } from './meta-oauth.js'
 
 function buildRedirectUri(apiBase, redirectPath) {
   const base = String(apiBase || '').replace(/\/$/, '')
   const path = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`
   return `${base}${path}`
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 /**
@@ -77,13 +106,18 @@ export async function startConnect({
   env = process.env,
   region = null,
 }) {
-  if (!isOAuthProvider(platform)) {
+  if (!isOAuthCapablePlatform(platform, env)) {
     throw new Error(`${platform} is not an OAuth platform`)
   }
 
-  const providerConfig = getProvider(platform)
+  if (isMetaOAuthPlatform(platform)) {
+    assertMetaOAuthEnabled(env)
+  }
+
+  const oauthProvider = resolveOAuthProvider(platform)
+  const providerConfig = getProvider(oauthProvider)
   const redirectUri = buildRedirectUri(apiBase, providerConfig.redirectPath)
-  const creds = resolveAppCredential(platform, { env, region, agencyId, apiBase })
+  const creds = resolveAppCredential(oauthProvider, { env, region, agencyId, apiBase })
 
   let pkce = null
   if (providerConfig.usesPKCE) {
@@ -106,7 +140,7 @@ export async function startConnect({
   }
 
   const auth_url = buildAuthorizeUrl({
-    provider: platform,
+    provider: oauthProvider,
     state: stateRow.id,
     redirectUri,
     apiBase,
@@ -120,13 +154,56 @@ export async function startConnect({
   return { auth_url, state: stateRow.id, dev: false }
 }
 
-function renderCallbackHtml(platform) {
+function renderCallbackHtml(platform, extraScript = '') {
+  const safePlatform = escapeHtml(platform)
   return `<!doctype html><html><body style="font-family:system-ui;padding:2rem;text-align:center;">
-<h2>Connected to ${platform}</h2>
+<h2>Connected to ${safePlatform}</h2>
 <p>You can close this window and return to Wingcaster.</p>
-<script>try { window.opener && window.opener.postMessage({ type: 'wingcaster:oauth:done', platform: '${platform}' }, '*'); } catch(e){}
+<script>${extraScript}try { window.opener && window.opener.postMessage({ type: 'wingcaster:oauth:done', platform: '${safePlatform}' }, '*'); } catch(e){}
 setTimeout(() => { window.close() }, 800)</script>
 </body></html>`
+}
+
+function renderPagePickerHtml(platform, selectionId, pages) {
+  const safePlatform = escapeHtml(platform)
+  const safeSelectionId = escapeHtml(selectionId)
+  const pagesJson = JSON.stringify(sanitizePagesForPicker(pages))
+  return `<!doctype html><html><body style="font-family:system-ui;padding:2rem;text-align:center;">
+<h2>Select a Facebook Page</h2>
+<p>Choose which Page to connect for ${safePlatform}.</p>
+<script>try { window.opener && window.opener.postMessage({ type: 'wingcaster:oauth:pages', platform: '${safePlatform}', selection_id: '${safeSelectionId}', pages: ${pagesJson} }, '*'); } catch(e){}
+setTimeout(() => { window.close() }, 800)</script>
+</body></html>`
+}
+
+async function completeMetaConnection({
+  platform,
+  page,
+  userToken,
+  userTokenExpiresAt,
+  scope,
+  stateRow,
+  capabilities,
+}) {
+  const connectionId = await upsertMetaOAuthConnection({
+    agentId: stateRow.agent_id,
+    agencyId: stateRow.agency_id,
+    platform,
+    page,
+    userToken,
+    userTokenExpiresAt,
+    scope,
+    capabilities,
+  })
+
+  return {
+    status: 200,
+    html: renderCallbackHtml(platform),
+    agentId: stateRow.agent_id,
+    agencyId: stateRow.agency_id,
+    connectionId,
+    elevated: stateRow.elevated,
+  }
 }
 
 /**
@@ -140,20 +217,39 @@ export async function handleCallback({
   env = process.env,
   region = null,
   capabilities = {},
+  capabilitiesByPlatform = {},
   fetch: fetchFn = fetch,
 }) {
-  if (!isOAuthProvider(platform)) {
+  const isMetaCallback = platform === 'meta'
+  const oauthProvider = isMetaCallback ? 'meta' : resolveOAuthProvider(platform)
+
+  if (!isOAuthProvider(oauthProvider)) {
     return { status: 400, body: 'Unsupported platform' }
   }
 
-  const creds = resolveAppCredential(platform, { env, region, agencyId: null, apiBase })
+  const creds = resolveAppCredential(oauthProvider, { env, region, agencyId: null, apiBase })
   if (creds.dev || code === 'dev_ok') {
-    return { status: 503, body: `${platform} OAuth requires production credentials to be configured` }
+    const label = isMetaCallback ? 'Meta' : platform
+    return { status: 503, body: `${label} OAuth requires production credentials to be configured` }
   }
 
   let stateRow
   try {
-    stateRow = await consumeOnce(state, { platform, agencyId: null })
+    if (isMetaCallback) {
+      const { findOne } = await import('../../persistence/index.js')
+      const pending = await findOne('oauth_states', (s) => s.id === state)
+      if (!pending || pending.consumed_at) {
+        return { status: 400, body: 'Invalid or expired state' }
+      }
+      const targetPlatform = pending.platform
+      if (!isMetaOAuthPlatform(targetPlatform)) {
+        return { status: 400, body: 'Invalid or expired state' }
+      }
+      stateRow = await consumeOnce(state, { platform: targetPlatform, agencyId: null })
+      platform = targetPlatform
+    } else {
+      stateRow = await consumeOnce(state, { platform, agencyId: null })
+    }
   } catch (err) {
     if (err instanceof OAuthStateError) {
       return { status: 400, body: err.message }
@@ -161,13 +257,13 @@ export async function handleCallback({
     throw err
   }
 
-  const providerConfig = getProvider(platform)
+  const providerConfig = getProvider(oauthProvider)
   const redirectUri = stateRow.redirect_uri || buildRedirectUri(apiBase, providerConfig.redirectPath)
 
   let tokenSet
   try {
     tokenSet = await exchangeCode({
-      provider: platform,
+      provider: oauthProvider,
       code,
       codeVerifier: stateRow.code_verifier,
       redirectUri,
@@ -181,6 +277,59 @@ export async function handleCallback({
       return { status: err.status, body: `Token exchange failed: ${err.message}` }
     }
     return { status: 502, body: 'OAuth token exchange failed' }
+  }
+
+  if (oauthProvider === 'meta') {
+    try {
+      const identity = await providerConfig.resolveIdentity(tokenSet, {
+        fetch: fetchFn,
+        clientId: creds.client_id,
+        clientSecret: creds.client_secret,
+        platform,
+      })
+
+      const { pages, userToken, userTokenExpiresAt } = identity.meta
+      if (!pages?.length) {
+        return { status: 400, body: 'No Facebook Pages were found for this account' }
+      }
+
+      const platformCapabilities = capabilitiesByPlatform[platform] || capabilities
+
+      if (pages.length === 1) {
+        return completeMetaConnection({
+          platform,
+          page: pages[0],
+          userToken,
+          userTokenExpiresAt,
+          scope: creds.scopes.join(' '),
+          stateRow,
+          capabilities: platformCapabilities,
+        })
+      }
+
+      const selection = await createPageSelection({
+        agentId: stateRow.agent_id,
+        agencyId: stateRow.agency_id,
+        platform,
+        pages,
+        userToken,
+        userTokenExpiresAt,
+      })
+
+      return {
+        status: 200,
+        html: renderPagePickerHtml(platform, selection.id, pages),
+        agentId: stateRow.agent_id,
+        agencyId: stateRow.agency_id,
+        pendingPageSelection: true,
+        selectionId: selection.id,
+        pages: sanitizePagesForPicker(pages),
+        elevated: stateRow.elevated,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Meta identity resolution failed'
+      return { status: 502, body: message }
+    }
   }
 
   let userInfo = { id: tokenSet.user_id || tokenSet.open_id || null, handle: null }
@@ -208,5 +357,53 @@ export async function handleCallback({
     agencyId: stateRow.agency_id,
     connectionId,
     elevated: stateRow.elevated,
+  }
+}
+
+/**
+ * Complete a Meta OAuth flow after the user picks a Page from the candidate set.
+ */
+export async function completeMetaPageSelection({
+  selectionId,
+  pageId,
+  agentId,
+  agencyId = null,
+  capabilities = {},
+  capabilitiesByPlatform = {},
+  env = process.env,
+}) {
+  assertMetaOAuthEnabled(env)
+
+  let selection
+  try {
+    selection = await consumePageSelection(selectionId, pageId, agentId)
+  } catch (err) {
+    if (err instanceof MetaPageSelectionError) {
+      return { status: 400, error: err.message }
+    }
+    throw err
+  }
+
+  if (agencyId && selection.agency_id && selection.agency_id !== agencyId) {
+    return { status: 403, error: 'Agency mismatch' }
+  }
+
+  const creds = resolveAppCredential('meta', { env })
+  const platformCapabilities = capabilitiesByPlatform[selection.platform] || capabilities
+  const connectionId = await upsertMetaOAuthConnection({
+    agentId: selection.agent_id,
+    agencyId: selection.agency_id,
+    platform: selection.platform,
+    page: selection.page,
+    userToken: selection.userToken,
+    userTokenExpiresAt: selection.userTokenExpiresAt,
+    scope: creds.scopes.join(' '),
+    capabilities: platformCapabilities,
+  })
+
+  return {
+    status: 200,
+    connectionId,
+    platform: selection.platform,
   }
 }

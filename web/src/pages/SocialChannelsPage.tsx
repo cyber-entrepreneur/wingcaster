@@ -99,11 +99,25 @@ export function SocialChannelsPage() {
     if (!authLoading && agent) load()
   }, [authLoading, agent, load])
 
+  const [pagePicker, setPagePicker] = useState<{
+    platform: string
+    selectionId: string
+    pages: Array<{ id: string; name: string; has_instagram: boolean }>
+  } | null>(null)
+
   useEffect(() => {
     function onMessage(evt: MessageEvent) {
       if (evt.data?.type === 'wingcaster:oauth:done') {
         addToast({ title: `Connected to ${evt.data.platform}`, variant: 'success' })
+        setPagePicker(null)
         load()
+      }
+      if (evt.data?.type === 'wingcaster:oauth:pages') {
+        setPagePicker({
+          platform: evt.data.platform,
+          selectionId: evt.data.selection_id,
+          pages: evt.data.pages || [],
+        })
       }
     }
     window.addEventListener('message', onMessage)
@@ -173,6 +187,18 @@ export function SocialChannelsPage() {
           {shouldRenderPro ? <TabsTrigger value="accounts">My accounts</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="channels" className="mt-4">
+          {pagePicker ? (
+            <MetaPagePicker
+              platform={pagePicker.platform}
+              selectionId={pagePicker.selectionId}
+              pages={pagePicker.pages}
+              onCompleted={() => {
+                setPagePicker(null)
+                load()
+              }}
+              onCancel={() => setPagePicker(null)}
+            />
+          ) : null}
           <div className="space-y-4">
             {PLATFORM_ORDER.map((platform) => {
               const spec = config?.[platform]
@@ -199,6 +225,77 @@ export function SocialChannelsPage() {
         ) : null}
       </Tabs>
     </div>
+  )
+}
+
+function MetaPagePicker({
+  platform,
+  selectionId,
+  pages,
+  onCompleted,
+  onCancel,
+}: {
+  platform: string
+  selectionId: string
+  pages: Array<{ id: string; name: string; has_instagram: boolean }>
+  onCompleted: () => void
+  onCancel: () => void
+}) {
+  const { addToast } = useToast()
+  const [busy, setBusy] = useState(false)
+  const meta = PLATFORM_META[platform]
+  const label = meta?.name || platform
+
+  async function selectPage(pageId: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.completeMetaOAuthPageSelection({
+        selection_id: selectionId,
+        page_id: pageId,
+        platform,
+      })
+      addToast({ title: `${label} connected`, variant: 'success' })
+      onCompleted()
+    } catch (err: any) {
+      addToast({ title: 'Could not connect page', description: err?.message, variant: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="mb-4 border-[var(--lc-border)]">
+      <CardHeader>
+        <CardTitle className="text-base">Select a Facebook Page for {label}</CardTitle>
+        <p className="text-sm text-[var(--lc-text-muted)]">
+          Your Meta account manages multiple Pages. Choose which one to connect.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {pages.map((page) => (
+          <button
+            key={page.id}
+            type="button"
+            disabled={busy}
+            className={cn(
+              'flex w-full min-h-[var(--lc-tap-target-min)] items-center justify-between gap-2',
+              'rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] px-[var(--lc-space-md)] py-[var(--lc-space-sm)]',
+              'text-start hover:bg-[var(--lc-surface-raised)]',
+            )}
+            onClick={() => selectPage(page.id)}
+          >
+            <span className="font-medium text-[var(--lc-text-primary)]">{page.name}</span>
+            {platform === 'instagram' && page.has_instagram ? (
+              <Badge variant="outline" className="text-[10px]">Instagram linked</Badge>
+            ) : null}
+          </button>
+        ))}
+        <div className="flex justify-end pt-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

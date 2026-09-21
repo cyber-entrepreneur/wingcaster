@@ -10,6 +10,7 @@ const apiMock = vi.hoisted(() => ({
   getSocialChannels: vi.fn(),
   upsertSocialChannel: vi.fn(),
   startSocialOAuth: vi.fn(),
+  completeMetaOAuthPageSelection: vi.fn(),
   disconnectSocialChannel: vi.fn(),
 }))
 
@@ -38,10 +39,18 @@ const xSpec = {
 
 const facebookSpec = {
   model: 'enterprise',
-  supported_methods: ['manual', 'oauth'],
-  primary_method: 'manual',
-  oauth_configured: false,
+  supported_methods: ['oauth', 'manual'],
+  primary_method: 'oauth',
+  oauth_configured: true,
   target_fields: [{ key: 'fb_page_id', label: 'Facebook Page ID', required: true, secret: false }],
+}
+
+const instagramSpec = {
+  model: 'enterprise',
+  supported_methods: ['oauth', 'manual'],
+  primary_method: 'oauth',
+  oauth_configured: true,
+  target_fields: [{ key: 'ig_business_account_id', label: 'Instagram Business Account ID', required: true, secret: false }],
 }
 
 function renderPage() {
@@ -60,11 +69,13 @@ beforeEach(() => {
     connection_fields: {
       x: xSpec,
       facebook: facebookSpec,
+      instagram: instagramSpec,
     },
   })
   apiMock.getSocialChannels.mockResolvedValue([])
   apiMock.upsertSocialChannel.mockResolvedValue({})
   apiMock.startSocialOAuth.mockResolvedValue({ auth_url: 'https://oauth.test/start', state: 'st', dev: false })
+  apiMock.completeMetaOAuthPageSelection.mockResolvedValue({ ok: true, platform: 'facebook', connection_id: 'conn-fb' })
 })
 
 afterEach(() => {
@@ -76,16 +87,33 @@ describe('SocialChannelsPage connect UX', () => {
     renderPage()
 
     expect(await screen.findByRole('button', { name: /Connect with X/i })).toBeInTheDocument()
-    expect(screen.getByText('OAuth recommended')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Connect manually instead/i })).toBeInTheDocument()
+    expect(screen.getAllByText('OAuth recommended').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('button', { name: /Connect manually instead/i }).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows manual-primary card when oauth is unconfigured', async () => {
+  it('shows oauth-primary card for configured meta platforms', async () => {
     renderPage()
 
-    expect(await screen.findByText('Facebook Page')).toBeInTheDocument()
-    expect(screen.getByText('manual connection')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Connect with Facebook/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Connect with Facebook/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Connect with Instagram/i })).toBeInTheDocument()
+    expect(screen.getAllByText('OAuth recommended').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('shows page picker when oauth popup posts wingcaster:oauth:pages', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: /Connect with Facebook/i })
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'wingcaster:oauth:pages',
+        platform: 'facebook',
+        selection_id: 'sel-1',
+        pages: [{ id: 'page-1', name: 'My Page', has_instagram: true }],
+      },
+    }))
+
+    expect(await screen.findByText(/Select a Facebook Page/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'My Page' })).toBeInTheDocument()
   })
 
   it('reveals manual form from oauth-primary fallback and saves', async () => {
@@ -93,7 +121,8 @@ describe('SocialChannelsPage connect UX', () => {
     renderPage()
 
     await screen.findByRole('button', { name: /Connect with X/i })
-    await user.click(screen.getByRole('button', { name: /Connect manually instead/i }))
+    const manualButtons = screen.getAllByRole('button', { name: /Connect manually instead/i })
+    await user.click(manualButtons[manualButtons.length - 1])
 
     const input = screen.getByLabelText(/X handle/i)
     await user.type(input, '@agent')
@@ -102,6 +131,31 @@ describe('SocialChannelsPage connect UX', () => {
     await waitFor(() => {
       expect(apiMock.upsertSocialChannel).toHaveBeenCalledWith('x', {
         enterprise_targets: { x_handle: '@agent' },
+      })
+    })
+  })
+
+  it('completes page selection via API', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('button', { name: /Connect with Facebook/i })
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'wingcaster:oauth:pages',
+        platform: 'facebook',
+        selection_id: 'sel-1',
+        pages: [{ id: 'page-1', name: 'My Page', has_instagram: false }],
+      },
+    }))
+
+    await user.click(await screen.findByRole('button', { name: 'My Page' }))
+
+    await waitFor(() => {
+      expect(apiMock.completeMetaOAuthPageSelection).toHaveBeenCalledWith({
+        selection_id: 'sel-1',
+        page_id: 'page-1',
+        platform: 'facebook',
       })
     })
   })

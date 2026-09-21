@@ -5,19 +5,12 @@ import {
   PLATFORM_CONNECTION_FIELDS,
   PLATFORM_INTEGRATION_MODEL,
 } from './credentials.js'
-import { resolveAppCredential } from './oauth/app-credentials.js'
-import { isOAuthProvider } from './oauth/provider-registry.js'
+import { isPlatformOAuthConfigured } from './oauth/meta-oauth.js'
 
 function resolveOAuthConfigured(platform, env = process.env) {
   const spec = PLATFORM_CONNECTION_FIELDS[platform]
   if (!spec?.supported_methods?.includes('oauth')) return false
-  if (!isOAuthProvider(platform)) return false
-  try {
-    const creds = resolveAppCredential(platform, { env })
-    return !creds.dev
-  } catch {
-    return false
-  }
+  return isPlatformOAuthConfigured(platform, env)
 }
 
 /**

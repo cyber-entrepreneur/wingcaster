@@ -3,6 +3,7 @@
  */
 import { getProvider } from './provider-registry.js'
 import { resolveAppCredential } from './app-credentials.js'
+import { refreshLongLivedToken } from './meta-graph.js'
 
 export class OAuthTokenError extends Error {
   constructor(code, message, { status = 502 } = {}) {
@@ -124,6 +125,30 @@ export async function refreshToken({
   }
 
   const creds = resolveAppCredential(provider, { env, region, agencyId })
+
+  // Meta long-lived tokens are re-exchanged via fb_exchange_token (no refresh_token grant).
+  if (providerConfig.tokenStyle === 'meta_longlived') {
+    try {
+      const refreshed = await refreshLongLivedToken(refreshTokenValue, {
+        clientId: creds.client_id,
+        clientSecret: creds.client_secret,
+        fetch: fetchFn,
+      })
+      return {
+        access_token: refreshed.access_token,
+        refresh_token: refreshed.access_token,
+        expires_at: refreshed.expires_at,
+        scope: providerConfig.scopes.join(' '),
+        token_type: refreshed.token_type,
+      }
+    } catch (err) {
+      throw new OAuthTokenError(
+        'meta_refresh_failed',
+        err instanceof Error ? err.message : 'Meta token re-exchange failed',
+        { status: 502 },
+      )
+    }
+  }
 
   const body = new URLSearchParams({
     grant_type: 'refresh_token',

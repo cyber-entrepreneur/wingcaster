@@ -27,4 +27,19 @@ describe('resolveAppCredential', () => {
     expect(creds.dev).toBe(true)
     expect(creds.redirect_uri).toContain('/social-channels/oauth/tiktok/callback')
   })
+
+  it('resolves meta credentials from META_APP_ID/META_APP_SECRET fallbacks', () => {
+    const creds = resolveAppCredential('meta', {
+      env: {
+        META_APP_ID: 'meta-app',
+        META_APP_SECRET: 'meta-secret',
+        PUBLIC_API_URL: 'https://api.test/api',
+      },
+    })
+    expect(creds.client_id).toBe('meta-app')
+    expect(creds.client_secret).toBe('meta-secret')
+    expect(creds.redirect_uri).toBe('https://api.test/api/social-channels/oauth/meta/callback')
+    expect(creds.scopes).toContain('pages_manage_posts')
+    expect(creds.dev).toBe(false)
+  })
 })

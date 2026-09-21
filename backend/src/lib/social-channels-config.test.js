@@ -26,8 +26,19 @@ describe('PLATFORM_CONNECTION_FIELDS method model', () => {
     })
   })
 
-  it('keeps manual-primary shape for enterprise platforms', () => {
-    for (const platform of ['facebook', 'instagram', 'linkedin', 'whatsapp']) {
+  it('uses oauth-primary for facebook and instagram', () => {
+    expect(PLATFORM_CONNECTION_FIELDS.facebook).toMatchObject({
+      supported_methods: ['oauth', 'manual'],
+      primary_method: 'oauth',
+    })
+    expect(PLATFORM_CONNECTION_FIELDS.instagram).toMatchObject({
+      supported_methods: ['oauth', 'manual'],
+      primary_method: 'oauth',
+    })
+  })
+
+  it('keeps manual-primary shape for linkedin and whatsapp', () => {
+    for (const platform of ['linkedin', 'whatsapp']) {
       expect(PLATFORM_CONNECTION_FIELDS[platform]).toMatchObject({
         supported_methods: ['manual', 'oauth'],
         primary_method: 'manual',
@@ -46,6 +57,17 @@ describe('buildSocialChannelsConfig', () => {
     expect(cfg.connection_fields.x.oauth_configured).toBe(true)
     expect(cfg.connection_fields.tiktok.oauth_configured).toBe(false)
     expect(cfg.connection_fields.facebook.oauth_configured).toBe(false)
+  })
+
+  it('returns meta oauth_configured when feature flag and credentials are set', () => {
+    const cfg = buildSocialChannelsConfig({
+      WINGCASTER_META_OAUTH_CONNECT_ENABLED: 'true',
+      META_OAUTH_CLIENT_ID: 'meta-app',
+      META_OAUTH_CLIENT_SECRET: 'meta-secret',
+      PUBLIC_API_URL: 'https://api.test/api',
+    })
+    expect(cfg.connection_fields.facebook.oauth_configured).toBe(true)
+    expect(cfg.connection_fields.instagram.oauth_configured).toBe(true)
   })
 })
 

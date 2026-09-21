@@ -3450,6 +3450,15 @@ export const api = {
     fetchJson(`/social-channels/${platform}`, { method: 'DELETE' }),
   startSocialOAuth: (platform: string): Promise<{ auth_url: string; state: string; dev: boolean }> =>
     fetchJson(`/social-channels/oauth/${platform}/start`),
+  completeMetaOAuthPageSelection: (payload: {
+    selection_id: string
+    page_id: string
+    platform: string
+  }): Promise<{ ok: boolean; platform: string; connection_id: string }> =>
+    fetchJson('/social-channels/oauth/meta/select-page', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Wave 2A — Paid ads (Meta + Google Demand Gen)
   getPaidAdsChannels: (): Promise<{
