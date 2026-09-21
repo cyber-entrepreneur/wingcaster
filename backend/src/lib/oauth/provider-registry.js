@@ -1,7 +1,26 @@
 /**
  * Declarative OAuth provider configuration.
- * PR1: x + tiktok. Shape is ready for meta/linkedin/google/microsoft (PR4+).
+ * PR1: x + tiktok. PR4: meta (facebook + instagram).
  */
+import {
+  META_AUTH_URL,
+  META_TOKEN_URL,
+  exchangeLongLivedToken,
+  fetchManagedPages,
+  fetchInstagramBusinessAccount,
+} from './meta-graph.js'
+import { isMetaOAuthPlatform } from './meta-oauth.js'
+
+const META_SCOPES = [
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+  'pages_manage_metadata',
+  'business_management',
+  'instagram_basic',
+  'instagram_content_publish',
+  'read_insights',
+]
 
 const PROVIDERS = {
   x: {
@@ -60,6 +79,80 @@ const PROVIDERS = {
       return { id: openId, handle }
     },
   },
+  meta: {
+    authUrl: META_AUTH_URL,
+    tokenUrl: META_TOKEN_URL,
+    scopes: META_SCOPES,
+    usesPKCE: false,
+    pkceMethod: null,
+    supportsRefresh: true,
+    tokenStyle: 'meta_longlived',
+    authExtraParams: {},
+    redirectPath: '/social-channels/oauth/meta/callback',
+    appCredentialKey: 'meta',
+    /**
+     * Resolve Meta identity: short→long-lived user token, list Pages, enrich with IG business account.
+     * @param {{ access_token: string }} tokenSet short-lived user token from code exchange
+     * @param {{ fetch?: typeof fetch, clientId?: string, clientSecret?: string, platform?: string }} ctx
+     */
+    async resolveIdentity(tokenSet, {
+      fetch: fetchFn = fetch,
+      clientId,
+      clientSecret,
+      platform = 'facebook',
+    } = {}) {
+      if (!clientId || !clientSecret) {
+        throw new Error('Meta OAuth requires client_id and client_secret')
+      }
+
+      const longLived = await exchangeLongLivedToken(tokenSet.access_token, {
+        clientId,
+        clientSecret,
+        fetch: fetchFn,
+      })
+
+      const pages = await fetchManagedPages(longLived.access_token, clientSecret, { fetch: fetchFn })
+
+      const enriched = []
+      for (const page of pages) {
+        const igId = await fetchInstagramBusinessAccount(
+          page.id,
+          page.access_token,
+          clientSecret,
+          { fetch: fetchFn },
+        )
+        enriched.push({
+          ...page,
+          instagram_business_account_id: igId,
+        })
+      }
+
+      const filtered = platform === 'instagram'
+        ? enriched.filter((p) => p.instagram_business_account_id)
+        : enriched
+
+      if (platform === 'instagram' && pages.length > 0 && filtered.length === 0) {
+        throw new Error('No Facebook Pages with a linked Instagram Business account were found')
+      }
+
+      return {
+        id: null,
+        handle: null,
+        meta: {
+          pages: filtered,
+          userToken: longLived.access_token,
+          userTokenExpiresAt: longLived.expires_at,
+          platform,
+        },
+      }
+    },
+  },
+}
+
+/** Map social-channels platform → OAuth provider registry key. */
+export function resolveOAuthProvider(platform) {
+  if (isMetaOAuthPlatform(platform)) return 'meta'
+  return platform
 }
 
 export function listProviders() {

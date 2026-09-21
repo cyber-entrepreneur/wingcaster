@@ -13,6 +13,19 @@ const CREDENTIAL_ENV = {
     clientId: 'TIKTOK_CLIENT_KEY',
     clientSecret: 'TIKTOK_CLIENT_SECRET',
   },
+  meta: {
+    clientId: ['META_OAUTH_CLIENT_ID', 'META_APP_ID', 'FACEBOOK_APP_ID'],
+    clientSecret: ['META_OAUTH_CLIENT_SECRET', 'META_APP_SECRET', 'FACEBOOK_APP_SECRET'],
+  },
+}
+
+function readEnv(env, keys) {
+  const list = Array.isArray(keys) ? keys : [keys]
+  for (const key of list) {
+    const value = env[key]
+    if (value) return value
+  }
+  return ''
 }
 
 function buildRedirectUri(apiBase, redirectPath) {
@@ -38,8 +51,8 @@ export function resolveAppCredential(provider, {
     throw new Error(`No app credentials configured for provider: ${provider}`)
   }
 
-  const clientId = env[keys.clientId] || ''
-  const clientSecret = env[keys.clientSecret] || ''
+  const clientId = readEnv(env, keys.clientId)
+  const clientSecret = readEnv(env, keys.clientSecret)
   const redirectBase = apiBase || env.PUBLIC_API_URL || ''
   const redirectUri = buildRedirectUri(redirectBase, config.redirectPath)
   const scopes = [...config.scopes]

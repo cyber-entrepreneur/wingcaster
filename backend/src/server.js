@@ -348,7 +348,12 @@ import {
   resolveConnectionCredentials,
 } from './lib/credentials.js'
 import { buildSocialChannelsConfig, sanitizeSocialConnection } from './lib/social-channels-config.js'
-import { startConnect, handleCallback } from './lib/oauth/index.js'
+import {
+  startConnect,
+  handleCallback,
+  completeMetaPageSelection,
+  isOAuthCapablePlatform,
+} from './lib/oauth/index.js'
 import {
   createModule as createWhatsAppListingsModule,
   createDefaultPlatformAdapter as createWhatsAppPlatformAdapter,
@@ -5426,7 +5431,7 @@ app.delete('/api/social-channels/:platform', authMiddleware, async (req, res) =>
   res.json({ ok: true })
 })
 
-/* --- OAuth start/callback (per-agent — X, TikTok) --- */
+/* --- OAuth start/callback (per-agent — X, TikTok, Meta facebook/instagram) --- */
 
 function getOAuthRedirectBase(req) {
   return process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}/api`
@@ -5439,9 +5444,14 @@ async function resolveAgentAgencyId(agentId) {
   return affiliation?.agency_id || null
 }
 
+function isSocialOAuthPlatform(platform) {
+  if (platform === 'meta') return true
+  return isOAuthCapablePlatform(platform)
+}
+
 app.get('/api/social-channels/oauth/:platform/start', authMiddleware, async (req, res) => {
   const platform = req.params.platform
-  if (PLATFORM_INTEGRATION_MODEL[platform] !== 'oauth') {
+  if (!isSocialOAuthPlatform(platform)) {
     return res.status(400).json({ error: `${platform} is not an OAuth platform` })
   }
   try {
@@ -5462,7 +5472,7 @@ app.get('/api/social-channels/oauth/:platform/start', authMiddleware, async (req
 
 app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
   const platform = req.params.platform
-  if (PLATFORM_INTEGRATION_MODEL[platform] !== 'oauth') {
+  if (!isSocialOAuthPlatform(platform)) {
     return res.status(400).send('Unsupported platform')
   }
   const { code, state, error } = req.query
@@ -5476,19 +5486,51 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
       state: String(state),
       apiBase: getOAuthRedirectBase(req),
       capabilities: PLATFORM_CAPABILITIES[platform] || {},
+      capabilitiesByPlatform: PLATFORM_CAPABILITIES,
     })
     if (result.html) {
-      await logActivity({
-        type: 'social_oauth_completed',
-        agent_id: result.agentId,
-        meta: { platform },
-      })
+      if (!result.pendingPageSelection) {
+        await logActivity({
+          type: 'social_oauth_completed',
+          agent_id: result.agentId,
+          meta: { platform },
+        })
+      }
       return res.status(result.status).send(result.html)
     }
     return res.status(result.status).send(result.body)
   } catch (err) {
     logger.error({ err: err.message, platform }, 'OAuth callback failed')
     return res.status(502).send('OAuth token exchange failed')
+  }
+})
+
+app.post('/api/social-channels/oauth/meta/select-page', authMiddleware, async (req, res) => {
+  const { selection_id: selectionId, page_id: pageId } = req.body || {}
+  if (!selectionId || !pageId) {
+    return res.status(400).json({ error: 'selection_id and page_id are required' })
+  }
+  try {
+    const agencyId = await resolveAgentAgencyId(req.user.id)
+    const result = await completeMetaPageSelection({
+      selectionId: String(selectionId),
+      pageId: String(pageId),
+      agentId: req.user.id,
+      agencyId,
+      capabilitiesByPlatform: PLATFORM_CAPABILITIES,
+    })
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error })
+    }
+    await logActivity({
+      type: 'social_oauth_completed',
+      agent_id: req.user.id,
+      meta: { platform: result.platform, page_id: pageId },
+    })
+    return res.json({ ok: true, platform: result.platform, connection_id: result.connectionId })
+  } catch (err) {
+    logger.error({ err: err.message }, 'Meta page selection failed')
+    return res.status(400).json({ error: err.message || 'Page selection failed' })
   }
 })
 
