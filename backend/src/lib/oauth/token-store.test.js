@@ -86,6 +86,23 @@ describe('getFreshAccessToken', () => {
     expect(db.update).toHaveBeenCalled()
   })
 
+  it('flags reauth_required when linkedin token expires without refresh token', async () => {
+    const row = connection({
+      platform: 'linkedin',
+      settings: {
+        credentials: {
+          access_token_encrypted: encryptSecret('stale-access'),
+          refresh_token_encrypted: null,
+          expires_at: new Date(Date.now() - 1000).toISOString(),
+        },
+      },
+    })
+
+    await expect(getFreshAccessToken(row)).rejects.toMatchObject({ code: 'REAUTH_REQUIRED' })
+    expect(refreshTokenMock).not.toHaveBeenCalled()
+    expect(db.update).toHaveBeenCalled()
+  })
+
   it('flags reauth_required on refresh failure', async () => {
     const row = connection()
     db.findOne.mockResolvedValue(row)

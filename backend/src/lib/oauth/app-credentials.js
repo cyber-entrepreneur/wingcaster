@@ -17,6 +17,10 @@ const CREDENTIAL_ENV = {
     clientId: ['META_OAUTH_CLIENT_ID', 'META_APP_ID', 'FACEBOOK_APP_ID'],
     clientSecret: ['META_OAUTH_CLIENT_SECRET', 'META_APP_SECRET', 'FACEBOOK_APP_SECRET'],
   },
+  linkedin: {
+    clientId: 'LINKEDIN_OAUTH_CLIENT_ID',
+    clientSecret: 'LINKEDIN_OAUTH_CLIENT_SECRET',
+  },
 }
 
 function readEnv(env, keys) {

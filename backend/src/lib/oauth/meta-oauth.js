@@ -29,6 +29,9 @@ export function resolveOAuthProvider(platform) {
  * True when the platform can start an OAuth connect flow.
  */
 export function isOAuthCapablePlatform(platform, env = process.env) {
+  if (platform === 'linkedin') {
+    return env.WINGCASTER_LINKEDIN_OAUTH_ENABLED === 'true' && isOAuthProvider('linkedin')
+  }
   if (isMetaOAuthPlatform(platform)) {
     return isMetaOAuthConnectEnabled(env) && isOAuthProvider('meta')
   }

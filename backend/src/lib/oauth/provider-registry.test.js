@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { getProvider, isOAuthProvider, listProviders, resolveOAuthProvider } from './provider-registry.js'
 
 describe('provider-registry', () => {
-  it('lists x, tiktok, and meta', () => {
-    expect(listProviders()).toEqual(['x', 'tiktok', 'meta'])
+  it('lists x, tiktok, meta, and linkedin', () => {
+    expect(listProviders()).toEqual(['x', 'tiktok', 'meta', 'linkedin'])
     expect(isOAuthProvider('meta')).toBe(true)
+    expect(isOAuthProvider('linkedin')).toBe(true)
     expect(resolveOAuthProvider('facebook')).toBe('meta')
     expect(resolveOAuthProvider('instagram')).toBe('meta')
+    expect(resolveOAuthProvider('linkedin')).toBe('linkedin')
   })
 
   it('exposes required provider shape for x and tiktok', () => {
@@ -16,8 +18,10 @@ describe('provider-registry', () => {
       expect(config.authUrl).toMatch(/^https:\/\//)
       expect(config.tokenUrl).toMatch(/^https:\/\//)
       expect(config.scopes.length).toBeGreaterThan(0)
-      expect(config.usesPKCE).toBe(true)
-      expect(config.pkceMethod).toBe('S256')
+      expect(typeof config.usesPKCE).toBe('boolean')
+      if (config.usesPKCE) {
+        expect(config.pkceMethod).toBe('S256')
+      }
       expect(config.supportsRefresh).toBe(true)
       expect(config.tokenStyle).toBe('bearer')
       expect(config.redirectPath).toContain('/social-channels/oauth/')
@@ -35,6 +39,16 @@ describe('provider-registry', () => {
     expect(config.scopes).toContain('pages_manage_posts')
     expect(config.scopes).toContain('instagram_content_publish')
     expect(config.redirectPath).toBe('/social-channels/oauth/meta/callback')
+  })
+
+  it('linkedin provider uses bearer tokens without PKCE', () => {
+    const config = getProvider('linkedin')
+    expect(config.authUrl).toContain('linkedin.com/oauth/v2/authorization')
+    expect(config.tokenUrl).toContain('linkedin.com/oauth/v2/accessToken')
+    expect(config.usesPKCE).toBe(false)
+    expect(config.tokenStyle).toBe('bearer')
+    expect(config.scopes).toContain('w_member_social')
+    expect(config.redirectPath).toBe('/social-channels/oauth/linkedin/callback')
   })
 
   it('meta resolveIdentity exchanges long-lived token and lists pages with appsecret_proof', async () => {

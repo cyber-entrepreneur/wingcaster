@@ -1,6 +1,6 @@
 /**
  * Declarative OAuth provider configuration.
- * PR1: x + tiktok. PR4: meta (facebook + instagram).
+ * PR1: x + tiktok. PR4: meta. PR5: linkedin.
  */
 import {
   META_AUTH_URL,
@@ -21,6 +21,55 @@ const META_SCOPES = [
   'instagram_content_publish',
   'read_insights',
 ]
+
+const LINKEDIN_API_VERSION = '202405'
+
+const LINKEDIN_ORG_SCOPES = new Set([
+  'w_organization_social',
+  'r_organization_social',
+  'rw_organization_admin',
+])
+
+function linkedInHeaders(accessToken, extra = {}) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    'LinkedIn-Version': LINKEDIN_API_VERSION,
+    'X-Restli-Protocol-Version': '2.0.0',
+    ...extra,
+  }
+}
+
+function parseLinkedInScope(scope) {
+  if (!scope) return new Set()
+  return new Set(String(scope).split(/[\s,]+/).filter(Boolean))
+}
+
+async function fetchLinkedInOrganizations(accessToken, fetchFn) {
+  const url = new URL('https://api.linkedin.com/rest/organizationAcls')
+  url.searchParams.set('q', 'roleAssignee')
+  const res = await fetchFn(url.toString(), { headers: linkedInHeaders(accessToken) })
+  const parsed = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const message = parsed?.message || parsed?.error || `HTTP ${res.status}`
+    throw new Error(`LinkedIn organization lookup failed: ${message}`)
+  }
+
+  const elements = parsed?.elements || parsed?.data?.elements || []
+  const orgs = []
+  for (const entry of elements) {
+    const orgUrn = entry?.organization || entry?.organizationTarget || entry?.['organization~']?.id
+    if (!orgUrn) continue
+    const urn = String(orgUrn).startsWith('urn:')
+      ? String(orgUrn)
+      : `urn:li:organization:${orgUrn}`
+    const label = entry?.['organization~']?.localizedName
+      || entry?.organizationName
+      || entry?.role
+      || urn
+    orgs.push({ urn, label: String(label), type: 'organization' })
+  }
+  return orgs
+}
 
 const PROVIDERS = {
   x: {
@@ -144,6 +193,71 @@ const PROVIDERS = {
           userTokenExpiresAt: longLived.expires_at,
           platform,
         },
+      }
+    },
+  },
+  linkedin: {
+    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+    tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+    scopes: [
+      'openid',
+      'profile',
+      'email',
+      'w_member_social',
+      'w_organization_social',
+      'r_organization_social',
+      'rw_organization_admin',
+    ],
+    usesPKCE: false,
+    pkceMethod: 'S256',
+    supportsRefresh: true,
+    tokenStyle: 'bearer',
+    authExtraParams: {},
+    redirectPath: '/social-channels/oauth/linkedin/callback',
+    appCredentialKey: 'linkedin',
+    async resolveIdentity(tokenSet, { fetch: fetchFn = fetch } = {}) {
+      const accessToken = tokenSet.access_token
+      if (!accessToken) {
+        throw new Error('LinkedIn identity lookup requires an access token')
+      }
+
+      const res = await fetchFn('https://api.linkedin.com/v2/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const userinfo = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = userinfo?.message || userinfo?.error || `HTTP ${res.status}`
+        throw new Error(`LinkedIn userinfo lookup failed: ${message}`)
+      }
+
+      const sub = userinfo.sub ? String(userinfo.sub) : null
+      const personUrn = sub ? `urn:li:person:${sub}` : null
+      const personLabel = userinfo.name || userinfo.email || personUrn || 'Personal profile'
+
+      const authors = []
+      if (personUrn) {
+        authors.push({ urn: personUrn, label: personLabel, type: 'person' })
+      }
+
+      const grantedScopes = parseLinkedInScope(tokenSet.scope)
+      const hasOrgScope = [...LINKEDIN_ORG_SCOPES].some((scope) => grantedScopes.has(scope))
+      if (hasOrgScope) {
+        try {
+          const orgAuthors = await fetchLinkedInOrganizations(accessToken, fetchFn)
+          for (const org of orgAuthors) {
+            if (!authors.some((a) => a.urn === org.urn)) authors.push(org)
+          }
+        } catch {
+          // Org ACL lookup is best-effort when org scopes were granted.
+        }
+      }
+
+      const primary = authors.length === 1 ? authors[0] : null
+      return {
+        id: primary?.urn || personUrn,
+        handle: primary?.label || personLabel,
+        authors,
+        li_author_urn: primary?.urn || null,
       }
     },
   },

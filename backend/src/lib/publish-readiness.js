@@ -25,7 +25,10 @@ export function tenantHasPublishToken(platform, creds) {
   }
   if (platform === 'facebook') return Boolean(creds.fb_page_access_token_override)
   if (platform === 'instagram') return Boolean(creds.ig_page_access_token_override)
-  if (platform === 'linkedin') return Boolean(creds.li_access_token_override)
+  if (platform === 'linkedin') {
+    return Boolean(creds.li_access_token_override)
+      || (Boolean(creds.oauth_access_token) && Boolean(creds.li_author_urn))
+  }
   if (platform === 'whatsapp') return Boolean(creds.wa_access_token_override)
   return false
 }

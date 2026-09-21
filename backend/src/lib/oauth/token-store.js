@@ -131,9 +131,11 @@ export async function getFreshAccessToken(connection, options = {}) {
     ? (refreshTokenValue || accessToken)
     : refreshTokenValue
 
-  const needsRefresh = providerConfig.supportsRefresh
-    && metaRefreshToken
-    && isExpiredOrStale(expiresAt, safetyWindowMs)
+  const expired = isExpiredOrStale(expiresAt, safetyWindowMs)
+  const canAttemptRefresh = Boolean(metaRefreshToken)
+  const needsRefresh = providerConfig.supportsRefresh && expired && (
+    canAttemptRefresh || provider === 'linkedin'
+  )
 
   if (!needsRefresh) {
     if (providerConfig.tokenStyle === 'meta_longlived' && isMetaOAuthPlatform(connection.platform)) {
@@ -149,6 +151,23 @@ export async function getFreshAccessToken(connection, options = {}) {
 
   const tenantAgencyId = connection.agency_id || null
   const tenantAgentId = connection.agent_id || null
+
+  if (!refreshTokenValue && provider === 'linkedin') {
+    await withMarketplaceConnectionWrite(tenantAgencyId, tenantAgentId, connection.platform, () =>
+      update('marketplace_connections', (c) => c.id === connection.id, (c) => ({
+        ...c,
+        health: 'reauth_required',
+        updated_at: new Date().toISOString(),
+      })),
+    )
+    const error = new Error('LinkedIn token expired and no refresh token is available. Re-authorise to continue.')
+    error.code = 'REAUTH_REQUIRED'
+    throw error
+  }
+
+  if (!metaRefreshToken) {
+    return accessToken
+  }
 
   return withRefreshLock(connection.id, async () => {
     const latest = await withMarketplaceTenant(tenantAgencyId, tenantAgentId, () =>
@@ -226,6 +245,8 @@ export async function upsertOAuthConnection({
   handle,
   tokenSet,
   capabilities = {},
+  enterpriseTargets = {},
+  settingsExtras = {},
 }) {
   if (!agencyId) {
     throw Object.assign(new Error('agency_id is required for oauth connection'), { code: 'TENANT_REQUIRED' })
@@ -257,6 +278,11 @@ export async function upsertOAuthConnection({
         settings: {
           ...(c.settings || {}),
           handle: handle || c.settings?.handle || accountName,
+          enterprise_targets: {
+            ...(c.settings?.enterprise_targets || {}),
+            ...enterpriseTargets,
+          },
+          ...settingsExtras,
           credentials: credentialsPatch,
         },
         updated_at: new Date().toISOString(),
@@ -277,7 +303,8 @@ export async function upsertOAuthConnection({
       capabilities,
       settings: {
         handle: handle || accountName,
-        enterprise_targets: {},
+        enterprise_targets: enterpriseTargets,
+        ...settingsExtras,
         credentials: credentialsPatch,
       },
       terms_accepted_at: new Date().toISOString(),

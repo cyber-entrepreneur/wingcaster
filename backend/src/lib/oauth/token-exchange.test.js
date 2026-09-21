@@ -80,6 +80,37 @@ describe('token-exchange', () => {
     expect(tokenSet.open_id).toBe('open-1')
   })
 
+  it('LinkedIn exchange sends client_id and client_secret in body', async () => {
+    const fetchFn = mockFetch(({ body }) => {
+      expect(body).toContain('client_id=li-client')
+      expect(body).toContain('client_secret=li-secret')
+      expect(body).toContain('grant_type=authorization_code')
+      return {
+        json: {
+          access_token: 'li-access',
+          refresh_token: 'li-refresh',
+          expires_in: 5184000,
+          scope: 'openid profile email w_member_social',
+        },
+      }
+    })
+
+    const tokenSet = await exchangeCode({
+      provider: 'linkedin',
+      code: 'li-code',
+      redirectUri: 'https://api.test/api/social-channels/oauth/linkedin/callback',
+      env: {
+        ...env,
+        LINKEDIN_OAUTH_CLIENT_ID: 'li-client',
+        LINKEDIN_OAUTH_CLIENT_SECRET: 'li-secret',
+      },
+      fetch: fetchFn,
+    })
+
+    expect(tokenSet.access_token).toBe('li-access')
+    expect(tokenSet.refresh_token).toBe('li-refresh')
+  })
+
   it('does not leak secrets in exchange errors', async () => {
     const fetchFn = mockFetch(() => ({
       ok: false,

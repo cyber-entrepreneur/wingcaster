@@ -353,6 +353,7 @@ import {
   handleCallback,
   completeMetaPageSelection,
   isOAuthCapablePlatform,
+  isOAuthConnectEnabled,
 } from './lib/oauth/index.js'
 import {
   withAgentConnectionWrite,
@@ -5333,24 +5334,33 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
   const spec = PLATFORM_CONNECTION_FIELDS[platform]
 
   const enterpriseTargets = normalizeEnterpriseTargets(platform, req.body?.enterprise_targets || {})
-
-  // Validate required target fields for enterprise model.
-  if (model === 'enterprise') {
-    for (const field of spec.target_fields) {
-      if (field.required && !field.secret) {
-        const val = enterpriseTargets[field.key]
-        if (!val || String(val).trim() === '') {
-          return res.status(400).json({ error: `${field.label} is required for ${platform}` })
-        }
-      }
-    }
-  }
+  const selectedAuthorUrn = enterpriseTargets.li_author_urn || null
 
   const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
   const existing = await withAgentTenant(req.user.id, () =>
     findOne('marketplace_connections', c => c.agent_id === req.user.id && c.platform === platform),
     getActiveAffiliation,
   )
+
+  const isLinkedInAuthorSelection = platform === 'linkedin'
+    && existing?.connect_method === 'oauth'
+    && selectedAuthorUrn
+    && Array.isArray(existing?.settings?.pending_author_identities)
+    && existing.settings.pending_author_identities.some((entry) => entry?.urn === selectedAuthorUrn)
+
+  // Validate required target fields for enterprise model (manual path).
+  if (model === 'enterprise' && !isLinkedInAuthorSelection) {
+    for (const field of spec.target_fields) {
+      if (field.required && !field.secret) {
+        const val = enterpriseTargets[field.key]
+        const existingVal = existing?.settings?.enterprise_targets?.[field.key]
+        if ((!val || String(val).trim() === '') && (!existingVal || String(existingVal).trim() === '')) {
+          return res.status(400).json({ error: `${field.label} is required for ${platform}` })
+        }
+      }
+    }
+  }
+
   const accountName = req.body?.account_name || existing?.account_name || `${platform} account`
 
   const settingsPatch = {
@@ -5362,6 +5372,16 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
     credentials: existing?.settings?.credentials || {},
   }
 
+  if (isLinkedInAuthorSelection) {
+    const { pending_author_identities: _pending, ...restSettings } = existing?.settings || {}
+    settingsPatch.pending_author_identities = undefined
+    Object.assign(settingsPatch, {
+      handle: restSettings.handle || settingsPatch.handle,
+    })
+  }
+
+  const connectMethod = isLinkedInAuthorSelection ? 'oauth' : 'manual'
+
   if (existing) {
     await withAgentConnectionWrite(req.user.id, platform, async () => {
       await update('marketplace_connections', c => c.id === existing.id, c => ({
@@ -5370,12 +5390,16 @@ app.put('/api/social-channels/:platform', authMiddleware, async (req, res) => {
         account_name: accountName,
         status: 'connected',
         health: 'healthy',
-        connect_method: 'manual',
+        connect_method: connectMethod,
         capabilities: PLATFORM_CAPABILITIES[platform] || {},
-        settings: {
-          ...(c.settings || {}),
-          ...settingsPatch,
-        },
+        settings: (() => {
+          const next = {
+            ...(c.settings || {}),
+            ...settingsPatch,
+          }
+          if (isLinkedInAuthorSelection) delete next.pending_author_identities
+          return next
+        })(),
         updated_at: new Date().toISOString(),
       }))
     }, getActiveAffiliation)
@@ -5466,6 +5490,9 @@ app.get('/api/social-channels/oauth/:platform/start', authMiddleware, requireEle
   if (!isSocialOAuthPlatform(platform)) {
     return res.status(400).json({ error: `${platform} is not an OAuth platform` })
   }
+  if (!isOAuthConnectEnabled(platform)) {
+    return res.status(403).json({ error: `${platform} OAuth connect is not enabled` })
+  }
   try {
     const agencyId = await resolveMarketplaceAgencyId(req.user.id, getActiveAffiliation)
     if (!agencyId) {
@@ -5489,6 +5516,9 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
   const platform = req.params.platform
   if (!isSocialOAuthPlatform(platform)) {
     return res.status(400).send('Unsupported platform')
+  }
+  if (!isOAuthConnectEnabled(platform)) {
+    return res.status(403).send(`${platform} OAuth connect is not enabled`)
   }
   const { code, state, error } = req.query
   if (error) return res.status(400).send(`OAuth error: ${error}`)

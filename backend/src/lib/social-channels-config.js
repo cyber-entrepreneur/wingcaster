@@ -7,12 +7,6 @@ import {
 } from './credentials.js'
 import { isPlatformOAuthConfigured } from './oauth/meta-oauth.js'
 
-function resolveOAuthConfigured(platform, env = process.env) {
-  const spec = PLATFORM_CONNECTION_FIELDS[platform]
-  if (!spec?.supported_methods?.includes('oauth')) return false
-  return isPlatformOAuthConfigured(platform, env)
-}
-
 /**
  * Build the GET /api/social-channels/config payload.
  */
@@ -21,7 +15,7 @@ export function buildSocialChannelsConfig(env = process.env) {
   for (const [platform, spec] of Object.entries(PLATFORM_CONNECTION_FIELDS)) {
     connection_fields[platform] = {
       ...spec,
-      oauth_configured: resolveOAuthConfigured(platform, env),
+      oauth_configured: isPlatformOAuthConfigured(platform, env),
     }
   }
   return {
@@ -77,6 +71,7 @@ export function sanitizeSocialConnection(row) {
     connect_method: connectMethod,
     handle: settings.handle || null,
     enterprise_targets: targets,
+    pending_author_identities: settings.pending_author_identities || null,
     token_status: tokenStatus,
     // Back-compat for callers still reading oauth.*
     oauth: hasOAuthToken ? {

@@ -35,6 +35,7 @@ type TokenStatus = {
   expires_at?: string | null
   health?: string | null
 }
+type AuthorIdentity = { urn: string; label: string; type: 'person' | 'organization' }
 type Connection = {
   id: string
   platform: string
@@ -44,6 +45,7 @@ type Connection = {
   connect_method: ConnectMethod | null
   handle: string | null
   enterprise_targets: Record<string, string>
+  pending_author_identities?: AuthorIdentity[] | null
   token_status: TokenStatus
   updated_at: string | null
 }
@@ -299,6 +301,57 @@ function MetaPagePicker({
   )
 }
 
+function LinkedInAuthorPicker({
+  identities,
+  busy,
+  onSelect,
+}: {
+  identities: AuthorIdentity[]
+  busy: boolean
+  onSelect: (urn: string) => void
+}) {
+  const [selected, setSelected] = useState(identities[0]?.urn || '')
+  const groupId = useId()
+
+  return (
+    <div
+      role="group"
+      aria-labelledby={`${groupId}-label`}
+      className="rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] p-[var(--lc-space-md)]"
+    >
+      <p id={`${groupId}-label`} className="text-sm font-medium text-[var(--lc-text-primary)]">
+        Choose the LinkedIn identity to publish as
+      </p>
+      <div className="mt-3 space-y-2">
+        {identities.map((identity) => (
+          <label
+            key={identity.urn}
+            className="flex cursor-pointer items-start gap-2 rounded-[var(--lc-radius-sm)] border border-[var(--lc-border)] px-3 py-2"
+          >
+            <input
+              type="radio"
+              name="linkedin-author"
+              value={identity.urn}
+              checked={selected === identity.urn}
+              onChange={() => setSelected(identity.urn)}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm text-[var(--lc-text-primary)]">{identity.label}</span>
+              <span className="block text-xs text-[var(--lc-text-muted)]">{identity.urn}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" disabled={busy || !selected} onClick={() => onSelect(selected)}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Use this identity'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function ManualConnectionForm({
   spec,
   connection,
@@ -437,6 +490,22 @@ function PlatformCard({
   const manualPrimary = !oauthPrimary
   const expiryLabel = formatTokenExpiry(tokenStatus?.expires_at)
   const connectMethodLabel = connection?.connect_method || tokenStatus?.method
+  const pendingAuthors = platform === 'linkedin' ? (connection?.pending_author_identities || []) : []
+  const needsAuthorSelection = pendingAuthors.length > 1 && !connection?.enterprise_targets?.li_author_urn
+
+  async function selectLinkedInAuthor(urn: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.upsertSocialChannel('linkedin', { enterprise_targets: { li_author_urn: urn } })
+      addToast({ title: 'LinkedIn author selected', variant: 'success' })
+      onChanged()
+    } catch (err: any) {
+      addToast({ title: 'Could not save author', description: err?.message, variant: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function saveEnterprise() {
     if (busy) return
@@ -593,6 +662,13 @@ function PlatformCard({
 
       {oauthPrimary && (
         <CardContent className="space-y-3 pt-0">
+          {needsAuthorSelection && (
+            <LinkedInAuthorPicker
+              identities={pendingAuthors}
+              busy={busy}
+              onSelect={selectLinkedInAuthor}
+            />
+          )}
           <ManualFallbackCollapsible open={manualOpen} onOpenChange={setManualOpen} disabled={busy}>
             <ManualConnectionForm
               spec={spec}
