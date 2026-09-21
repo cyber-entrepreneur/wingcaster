@@ -1,5 +1,5 @@
 /**
- * Encrypted OAuth token persistence + refresh seam (not wired to publish until PR2).
+ * Encrypted OAuth token persistence + refresh seam for OAuth publish paths.
  */
 import { v4 as uuidv4 } from 'uuid'
 import { encryptSecret, tryDecrypt } from '../credentials.js'

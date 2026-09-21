@@ -52,6 +52,7 @@ import {
 import { registerTwoFactorRoutes, startSigninChallengeIfRequired } from './auth-2fa.js'
 import { registerWebauthnRoutes } from './lib/auth/webauthn-routes.js'
 import { startFidoMdsRefreshJob } from './lib/auth/webauthn-mds.js'
+import { startOAuthTokenRefreshJob } from './lib/oauth/token-refresh-sweep.js'
 import { registerScheduledDeletionRoutes } from './auth-scheduled-deletion.js'
 import { runScheduledDeletionReminderTick } from './workers/scheduled-deletion-reminders.js'
 import {
@@ -845,6 +846,10 @@ registerWebauthnRoutes(app, {
 })
 if (process.env.NODE_ENV !== 'test' && process.env.WINGCASTER_FIDO_MDS_ENABLED === 'true') {
   startFidoMdsRefreshJob()
+}
+
+if (process.env.NODE_ENV !== 'test' && process.env.WINGCASTER_OAUTH_TOKEN_REFRESH_ENABLED !== 'false') {
+  startOAuthTokenRefreshJob()
 }
 
 registerWave0NavRoutes(app, {
