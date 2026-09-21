@@ -86,11 +86,40 @@ skipIfNoPostgres()('oauth PR0 schema', () => {
       try {
         await seedAgencyAgent(pool, { agencyId, agentId })
 
+        // Legacy-shaped row: agency_id NULL until migration 794 backfill runs.
         await pool.query(
           `INSERT INTO public.marketplace_connections
-             (id, agent_id, platform, status, account_name, is_primary, connect_method, data)
-           VALUES ($1, $2, 'x', 'connected', '@handle', true, 'oauth', '{}'::jsonb)`,
+             (id, agent_id, platform, status, account_name, is_primary, data)
+           VALUES ($1, $2, 'x', 'connected', '@handle', true, '{}'::jsonb)`,
           [connectionId, agentId],
+        )
+
+        const before = await pool.query(
+          `SELECT agency_id, connect_method
+             FROM public.marketplace_connections
+            WHERE id = $1`,
+          [connectionId],
+        )
+        expect(before.rows[0].agency_id).toBeNull()
+        expect(before.rows[0].connect_method).toBeNull()
+
+        // Re-run the migration 794 backfill SQL (one-time for existing rows at deploy).
+        await pool.query(
+          `UPDATE public.marketplace_connections AS mc
+           SET agency_id = a.agency_id
+           FROM public.agents AS a
+           WHERE mc.agent_id = a.id
+             AND mc.agency_id IS NULL
+             AND a.agency_id IS NOT NULL
+             AND mc.id = $1`,
+          [connectionId],
+        )
+
+        await pool.query(
+          `UPDATE public.marketplace_connections
+              SET connect_method = 'oauth'
+            WHERE id = $1`,
+          [connectionId],
         )
 
         const { rows } = await pool.query(
