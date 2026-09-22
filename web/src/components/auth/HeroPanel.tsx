@@ -6,12 +6,24 @@ export type HeroPanelProps = {
   locale?: RegisterLocale
   /** `full` = desktop right column; `compact` = mobile top block. */
   variant?: 'full' | 'compact'
+  /** Which registration persona is active — swaps imagery + value props. */
+  persona?: 'agent' | 'agency'
   className?: string
   /** Optional illustration URL; on error falls back to gradient + wordmark. */
   illustrationSrc?: string
 }
 
-const VALUE_KEYS = ['value.1', 'value.2', 'value.3'] as const
+const VALUE_KEYS_BY_PERSONA = {
+  agent: ['value.1', 'value.2', 'value.3'],
+  agency: ['value.agency.1', 'value.agency.2', 'value.agency.3'],
+} as const
+
+/** Distinct default illustration per persona; each falls back to gradient + wordmark if missing. */
+const PERSONA_ILLUSTRATION = {
+  agent: '/illustrations/hero-agent.svg',
+  agency: '/illustrations/hero-agency.svg',
+} as const
+
 const ROTATE_MS = 4000
 
 /**
@@ -21,11 +33,20 @@ const ROTATE_MS = 4000
 export function HeroPanel({
   locale = 'en',
   variant = 'full',
+  persona = 'agent',
   className,
   illustrationSrc,
 }: HeroPanelProps) {
+  const valueKeys = VALUE_KEYS_BY_PERSONA[persona]
+  const resolvedSrc = illustrationSrc ?? PERSONA_ILLUSTRATION[persona]
   const [index, setIndex] = useState(0)
-  const [imgFailed, setImgFailed] = useState(!illustrationSrc)
+  const [imgFailed, setImgFailed] = useState(!resolvedSrc)
+
+  // Reset rotation + image state when the persona changes (agent ⇄ agency).
+  useEffect(() => {
+    setIndex(0)
+    setImgFailed(!resolvedSrc)
+  }, [resolvedSrc])
 
   useEffect(() => {
     const prefersReduced =
@@ -33,12 +54,13 @@ export function HeroPanel({
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (prefersReduced) return
     const id = window.setInterval(() => {
-      setIndex((i) => (i + 1) % VALUE_KEYS.length)
+      setIndex((i) => (i + 1) % valueKeys.length)
     }, ROTATE_MS)
     return () => window.clearInterval(id)
-  }, [])
+  }, [valueKeys.length])
 
-  const valueLine = rt(VALUE_KEYS[index], locale)
+  const valueLine = rt(valueKeys[index], locale)
+  const badgeLine = rt(persona === 'agency' ? 'hero.badge.agency' : 'hero.badge.agent', locale)
   const isCompact = variant === 'compact'
   // Distinct labels when both variants mount (mobile + desktop columns) — axe landmark-unique.
   const landmarkLabel = rt(isCompact ? 'hero.landmark.compact' : 'hero.landmark', locale)
@@ -74,6 +96,17 @@ export function HeroPanel({
           isCompact ? 'gap-[var(--lc-space-sm)]' : 'flex-1 gap-[var(--lc-space-xl)]',
         )}
       >
+        <span
+          className="inline-flex w-fit items-center rounded-[var(--lc-radius-pill,9999px)] px-3 py-1"
+          style={{
+            font: 'var(--lc-type-caption)',
+            background: 'color-mix(in srgb, var(--lc-text-inverse) 16%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--lc-text-inverse) 24%, transparent)',
+          }}
+          data-testid="hero-persona-badge"
+        >
+          {badgeLine}
+        </span>
         <div
           className={cn(
             'flex items-center justify-center rounded-[var(--lc-radius-lg)]',
@@ -84,9 +117,9 @@ export function HeroPanel({
             background: 'color-mix(in srgb, var(--lc-text-inverse) 10%, transparent)',
           }}
         >
-          {!imgFailed && illustrationSrc ? (
+          {!imgFailed && resolvedSrc ? (
             <img
-              src={illustrationSrc}
+              src={resolvedSrc}
               alt={rt('hero.illustration.alt', locale)}
               className={cn(
                 'max-h-full w-auto object-contain',

@@ -69,29 +69,29 @@ export function OAuthTrio({
 
   return (
     <div className={cn('flex flex-col gap-[var(--lc-space-sm)]', className)} data-testid="oauth-trio">
-      {buttons.map(({ provider, label, Mark, className: face }) => {
-        const loading = loadingProvider === provider
-        return (
-          <button
-            key={provider}
-            type="button"
-            className={cn(oauthButtonBase, face)}
-            aria-label={label}
-            disabled={disabled || busy}
-            onClick={() => onStart(provider)}
-            data-testid={`oauth-${provider}`}
-          >
-            <span className="absolute start-4 flex items-center">
+      <div className="grid grid-cols-3 gap-[var(--lc-space-sm)]">
+        {buttons.map(({ provider, label, Mark, className: face }) => {
+          const loading = loadingProvider === provider
+          return (
+            <button
+              key={provider}
+              type="button"
+              className={cn(oauthButtonBase, face)}
+              aria-label={label}
+              disabled={disabled || busy}
+              onClick={() => onStart(provider)}
+              data-testid={`oauth-${provider}`}
+            >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : (
                 <Mark />
               )}
-            </span>
-            {label}
-          </button>
-        )
-      })}
+              <span className="sr-only">{label}</span>
+            </button>
+          )
+        })}
+      </div>
 
       {showDivider ? (
         <div className="relative flex items-center gap-[var(--lc-space-sm)] py-1" role="presentation">
