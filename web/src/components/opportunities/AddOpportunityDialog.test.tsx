@@ -40,13 +40,15 @@ describe('AddOpportunityDialog (AGT-OPP-003)', () => {
     expect(await screen.findByTestId('add-opportunity-dialog')).toHaveAttribute('data-screen', 'AGT-OPP-003')
     expect(screen.getByLabelText('Contact')).toBeInTheDocument()
     expect(screen.getByLabelText('Listing (optional)')).toBeInTheDocument()
-    expect(await screen.findByText('Jane Buyer')).toBeInTheDocument()
+    // Longer timeout: the async contact load can exceed findByText's 1000ms
+    // default on a contended CI shard, which flaked intermittently.
+    expect(await screen.findByText('Jane Buyer', undefined, { timeout: 5000 })).toBeInTheDocument()
   })
 
   it('creates an opportunity and notifies parent with the new id', async () => {
     const user = userEvent.setup()
     const { onCreated, onOpenChange } = renderDialog()
-    await screen.findByText('Jane Buyer')
+    await screen.findByText('Jane Buyer', undefined, { timeout: 5000 })
 
     await user.click(screen.getByText('Jane Buyer'))
     await user.click(screen.getByText('Marina flat'))
@@ -73,7 +75,7 @@ describe('AddOpportunityDialog (AGT-OPP-003)', () => {
     apiMock.getContacts.mockResolvedValue([])
     const user = userEvent.setup()
     renderDialog()
-    await screen.findByText('No contacts match your search.')
+    await screen.findByText('No contacts match your search.', undefined, { timeout: 5000 })
 
     await user.click(screen.getByRole('button', { name: /Save opportunity/i }))
     expect(apiMock.createOpportunity).not.toHaveBeenCalled()
