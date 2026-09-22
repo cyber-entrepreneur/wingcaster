@@ -23,7 +23,7 @@ describe('shouldRenderOnboardingChecklist', () => {
     expect(shouldRenderOnboardingChecklist(makeState({ dismissed_forever: true }))).toBe(false)
   })
 
-  it('hides when the four main items are complete (optional paid ignored)', () => {
+  it('hides when the six required items are complete (optional paid ignored)', () => {
     expect(
       shouldRenderOnboardingChecklist(
         makeState({
@@ -33,6 +33,9 @@ describe('shouldRenderOnboardingChecklist', () => {
             first_listing_drafted: true,
             first_listing_published: true,
             channels_connected: true,
+            comms_connected: true,
+            first_post_designed: true,
+            markets_set: true,
             notifications_enabled: true,
             profile_completed: true,
             subscription_active: false,
