@@ -40,6 +40,7 @@ import { InboxPage, InboxConversationPage } from '@/pages/InboxPage'
 import { TasksPage } from '@/pages/TasksPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { ContactDetailPage } from '@/pages/ContactDetailPage'
+import { ContactFormPage } from '@/pages/ContactFormPage'
 import { RelationshipsEditorPage } from '@/pages/agent/contacts/RelationshipsEditorPage'
 import { RelationshipConsentPage } from '@/pages/public/RelationshipConsentPage'
 import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
@@ -277,7 +278,10 @@ function AppRoutes() {
       <Route path="/agency/applications/:appId/status" element={<ApplicationOutcomePage />} />
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
+      {/* Static /new/full and /:id/edit outrank /contacts/:id by specificity. */}
+      <Route path="/contacts/new/full" element={<ContactFormPage />} />
       <Route path="/contacts/:id" element={<ContactDetailPage />} />
+      <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
       <Route path="/contacts/:contactId/relationships" element={<RelationshipsEditorPage />} />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />

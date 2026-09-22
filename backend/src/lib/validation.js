@@ -452,6 +452,137 @@ export const contactNoteSchema = z.object({
   content: z.string().min(2).max(3000),
 })
 
+// ---- Full CRM contact form (AGT-CTC full form) --------------------------------
+// Enum-like sets are enforced here at the API layer (the columns are free TEXT in
+// Postgres so the sets can evolve without a migration).
+export const CONTACT_ROLES = Object.freeze([
+  'buyer', 'seller', 'landlord', 'tenant', 'renter',
+  'co_broker', 'agent', 'investor', 'attorney', 'referral_partner',
+])
+export const QUALIFICATION_STATUSES = Object.freeze([
+  'unverified', 'pre_qualified', 'pre_approved', 'cash_verified', 'institutional_fund',
+])
+export const SOURCE_OF_FUNDS = Object.freeze([
+  'cash', 'conventional_mortgage', 'fha_va_loan', 'institutional_capital', 'crypto_conversion',
+])
+export const PHONE_LABELS = Object.freeze(['mobile', 'business', 'home', 'assistant', 'pager', 'other'])
+export const EMAIL_LABELS = Object.freeze(['personal', 'business', 'assistant', 'other'])
+
+const labeledPhoneSchema = z.object({
+  label: z.enum(PHONE_LABELS).optional().default('mobile'),
+  number: z.string().max(40),
+})
+const labeledEmailSchema = z.object({
+  label: z.enum(EMAIL_LABELS).optional().default('personal'),
+  address: z.string().max(255),
+})
+const contactAddressSchema = z.object({
+  line1: z.string().max(300).optional().default(''),
+  line2: z.string().max(300).optional().default(''),
+  area: z.string().max(160).optional().default(''),
+  city: z.string().max(160).optional().default(''),
+  province: z.string().max(160).optional().default(''),
+  postal_code: z.string().max(40).optional().default(''),
+  country: z.string().max(120).optional().default(''),
+})
+const contactSocialsSchema = z.object({
+  whatsapp: z.string().max(120).optional().default(''),
+  telegram: z.string().max(120).optional().default(''),
+  discord: z.string().max(120).optional().default(''),
+  instagram: z.string().max(120).optional().default(''),
+  facebook: z.string().max(200).optional().default(''),
+  twitter: z.string().max(120).optional().default(''),
+  linkedin: z.string().max(200).optional().default(''),
+  tiktok: z.string().max(120).optional().default(''),
+  snapchat: z.string().max(120).optional().default(''),
+})
+const familyMemberSchema = z.object({
+  name: z.string().max(160).optional().default(''),
+  dob: z.string().max(40).optional().nullable(),
+})
+const propertyInterestsSchema = z.object({
+  preferred_area: z.string().max(200).optional().default(''),
+  preferred_property_type: z.string().max(120).optional().default(''),
+  preferred_sub_category: z.string().max(120).optional().default(''),
+  budget: z.string().max(120).optional().default(''),
+  required_features: z.array(z.string().max(120)).max(50).optional().default([]),
+})
+const financialInstitutionSchema = z.object({
+  name: z.string().max(200),
+  relationship: z.string().max(160).optional().default(''),
+})
+const dndHoursSchema = z.object({
+  start: z.string().max(10).optional().default(''),
+  end: z.string().max(10).optional().default(''),
+  timezone: z.string().max(60).optional().default(''),
+})
+
+// Fields that live in the `data` JSONB (not promoted to typed columns). Shared by
+// the create builder and the PATCH allow-list so the two paths never drift.
+const contactDataShape = {
+  title: z.string().max(160).optional(),
+  department: z.string().max(160).optional(),
+  reports_to_name: z.string().max(200).optional(),
+  assistant_name: z.string().max(160).optional(),
+  assistant_phone: z.string().max(40).optional(),
+  phones: z.array(labeledPhoneSchema).max(25).optional(),
+  emails: z.array(labeledEmailSchema).max(25).optional(),
+  address: contactAddressSchema.optional(),
+  socials: contactSocialsSchema.optional(),
+  date_of_birth: z.string().max(40).optional().nullable(),
+  spouse: familyMemberSchema.optional().nullable(),
+  children: z.array(familyMemberSchema).max(30).optional(),
+  dnd_hours: dndHoursSchema.optional().nullable(),
+  source_of_funds: z.enum(SOURCE_OF_FUNDS).optional().nullable(),
+  financial_institutions: z.array(financialInstitutionSchema).max(25).optional(),
+  property_interests: propertyInterestsSchema.optional(),
+}
+
+// Promoted typed columns (see migration 797).
+const contactTypedShape = {
+  first_name: z.string().max(160).optional(),
+  last_name: z.string().max(160).optional(),
+  name: z.string().max(240).optional(),
+  email: z.string().max(255).optional().nullable(),
+  phone: z.string().max(40).optional().nullable(),
+  contact_role: z.enum(CONTACT_ROLES).optional().nullable(),
+  organization_name: z.string().max(200).optional(),
+  reports_to_contact_id: z.string().max(80).optional().nullable(),
+  qualification_status: z.enum(QUALIFICATION_STATUSES).optional().nullable(),
+  budget_amount: z.coerce.number().nonnegative().max(1e15).optional().nullable(),
+  budget_currency: z.string().max(3).optional().nullable(),
+  status: z.enum(['lead', 'prospect', 'client', 'archived']).optional(),
+  source: z.string().max(200).optional(),
+  tags: z.array(z.string().max(60)).max(50).optional(),
+  email_opt_out: z.boolean().optional(),
+  do_not_call: z.boolean().optional(),
+  notify_owner: z.boolean().optional(),
+}
+
+export const contactCreateSchema = z.object({
+  ...contactTypedShape,
+  ...contactDataShape,
+}).superRefine((body, ctx) => {
+  const hasIdentity = [body.first_name, body.last_name, body.name, body.email, body.phone]
+    .some((v) => typeof v === 'string' && v.trim().length > 0)
+    || (Array.isArray(body.emails) && body.emails.some((e) => e.address?.trim()))
+    || (Array.isArray(body.phones) && body.phones.some((p) => p.number?.trim()))
+  if (!hasIdentity) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['name'],
+      message: 'A contact needs at least a name, email, or phone.',
+    })
+  }
+})
+
+// PATCH accepts the same field set; every field optional (partial merge).
+export const contactUpdateSchema = z.object({
+  ...contactTypedShape,
+  ...contactDataShape,
+  assigned_agent_id: z.string().max(80).optional(),
+})
+
 export const taskQuerySchema = z.object({
   status: z.enum(['pending', 'completed', 'cancelled', 'snoozed']).optional(),
   due_before: z.string().datetime().optional(),

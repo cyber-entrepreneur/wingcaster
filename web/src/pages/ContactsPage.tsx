@@ -16,6 +16,7 @@ import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
 import { ContactExportDialog } from '@/components/contacts/ContactExportDialog'
+import { AddContactDialog } from '@/components/contacts/AddContactDialog'
 
 interface Contact {
   id: string
@@ -71,6 +72,7 @@ export function ContactsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [mergeOpen, setMergeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
     if (!agent) return
@@ -111,19 +113,25 @@ export function ContactsPage() {
         title="Contacts"
         subtitle={`${counts.total} total`}
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => setExportOpen(true)}
-            disabled={counts.total === 0}
-          >
-            <Download className="h-4 w-4" /> Export
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setExportOpen(true)}
+              disabled={counts.total === 0}
+            >
+              <Download className="h-4 w-4" /> Export
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Add contact
+            </Button>
+          </>
         }
       />
 
       <ContactExportDialog open={exportOpen} onClose={() => setExportOpen(false)} contactCount={counts.total} />
+      <AddContactDialog open={addOpen} onOpenChange={setAddOpen} />
 
       <CmdKpiStrip
         items={[

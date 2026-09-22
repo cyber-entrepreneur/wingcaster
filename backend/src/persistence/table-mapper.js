@@ -263,6 +263,11 @@ const TABLE_MAP = {
     columns: [
       'email', 'phone', 'name', 'assigned_agent_id', 'agency_id', 'status', 'source',
       'first_touch_channel', 'first_touch_at', 'tags', 'last_activity_at', 'cross_tenant_visibility',
+      // Full-form promoted columns (797). Everything else on the full form lives
+      // in the `data` JSONB and round-trips without a typed column.
+      'first_name', 'last_name', 'contact_role', 'organization_name', 'reports_to_contact_id',
+      'qualification_status', 'budget_amount', 'budget_currency',
+      'email_opt_out', 'do_not_call', 'notify_owner',
     ],
   },
   contact_notes: { schema: 'public', table: 'contact_notes', columns: ['contact_id', 'agent_id', 'content'] },

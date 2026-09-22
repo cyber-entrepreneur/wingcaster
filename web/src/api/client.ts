@@ -3905,6 +3905,10 @@ export const api = {
     return fetchJson(`/contacts${qs}`)
   },
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
+  // Full CRM contact form create (POST). Accepts the full nested payload; the
+  // backend promotes typed columns and stores the rest in the `data` JSONB.
+  createContact: (data: Record<string, unknown>) =>
+    fetchJson('/contacts', { method: 'POST', body: JSON.stringify(data) }),
   // AGT-CTC-005 — bulk export download URL (fetched with the auth header, then
   // streamed to a Blob by the caller so the browser saves a real file).
   contactsExportPath: (params: { format?: ContactExportFormat; fields?: string[] } = {}): string => {
