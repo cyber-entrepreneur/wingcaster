@@ -17,6 +17,7 @@ import { requireApiTokenScope as defaultRequireScope } from '../auth/api-token-s
 import { assertOwnsContact as defaultAssertOwnsContact, NotFoundError } from '../authz.js'
 import {
   findOne as defaultFindOne,
+  findAll as defaultFindAll,
   insert as defaultInsert,
   update as defaultUpdate,
   remove as defaultRemove,
@@ -30,8 +31,10 @@ export const ATTACHMENT_ALLOWED_CONTENT_TYPES = [
   'image/jpeg', 'image/png', 'image/webp', 'image/heic',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // Voice notes.
+  'audio/webm', 'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/aac',
 ]
-export const ATTACHMENT_KINDS = ['pre_approval_letter', 'other']
+export const ATTACHMENT_KINDS = ['pre_approval_letter', 'voice_note', 'other']
 
 const EXT_BY_TYPE = {
   'application/pdf': '.pdf',
@@ -41,6 +44,13 @@ const EXT_BY_TYPE = {
   'image/heic': '.heic',
   'application/msword': '.doc',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'audio/webm': '.webm',
+  'audio/ogg': '.ogg',
+  'audio/mpeg': '.mp3',
+  'audio/mp4': '.m4a',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/aac': '.aac',
 }
 
 function normalizeMime(file) {
@@ -65,6 +75,7 @@ export function registerRoutes(app, deps = {}) {
   const requireApiTokenScope = deps.requireApiTokenScope || defaultRequireScope
   const assertOwnsContact = deps.assertOwnsContact || defaultAssertOwnsContact
   const findOne = deps.findOne || defaultFindOne
+  const findAll = deps.findAll || defaultFindAll
   const insert = deps.insert || defaultInsert
   const update = deps.update || defaultUpdate
   const remove = deps.remove || defaultRemove
@@ -164,6 +175,22 @@ export function registerRoutes(app, deps = {}) {
       }
     },
   )
+
+  app.get('/api/contacts/:id/attachments', auth, async (req, res, next) => {
+    try {
+      const { contact } = await ownedContactOr404(req, res)
+      if (!contact) return undefined
+      const kind = req.query?.kind ? String(req.query.kind) : null
+      const rows = await findAll('contact_attachments', (a) =>
+        a.contact_id === req.params.id && (!kind || a.kind === kind))
+      const sorted = [...rows].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      )
+      return res.json({ attachments: sorted.map(publicAttachment) })
+    } catch (err) {
+      return next(err)
+    }
+  })
 
   app.get('/api/contacts/:id/attachments/:attachmentId', auth, async (req, res, next) => {
     try {

@@ -42,6 +42,7 @@ function createApp(userId) {
       return c
     },
     findOne: async (coll, pred) => (coll === 'contact_attachments' ? attachments : contacts).find(pred),
+    findAll: async (coll, pred) => (coll === 'contact_attachments' ? attachments : contacts).filter(pred),
     insert: async (coll, row) => { if (coll === 'contact_attachments') attachments.push(row) },
     update: async (coll, pred, updater) => {
       const arr = coll === 'contacts' ? contacts : attachments
@@ -133,6 +134,34 @@ describe('GET /api/contacts/:id/attachments/:attachmentId', () => {
   it('returns 404 for an unknown attachment id', async () => {
     await seedUpload()
     const res = await request(createApp('agent-1')).get('/api/contacts/c-mine/attachments/nope')
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('GET /api/contacts/:id/attachments (list)', () => {
+  it('accepts an audio voice note and lists it for the owner, filtered by kind', async () => {
+    const app = createApp('agent-1')
+    await request(app)
+      .post('/api/contacts/c-mine/attachments')
+      .field('kind', 'voice_note')
+      .attach('file', Buffer.from('OggS voice'), { filename: 'note.webm', contentType: 'audio/webm' })
+    await request(app)
+      .post('/api/contacts/c-mine/attachments')
+      .field('kind', 'pre_approval_letter')
+      .attach('file', PDF, { filename: 'letter.pdf', contentType: 'application/pdf' })
+
+    const all = await request(createApp('agent-1')).get('/api/contacts/c-mine/attachments')
+    expect(all.status).toBe(200)
+    expect(all.body.attachments).toHaveLength(2)
+
+    const voice = await request(createApp('agent-1')).get('/api/contacts/c-mine/attachments?kind=voice_note')
+    expect(voice.body.attachments).toHaveLength(1)
+    expect(voice.body.attachments[0]).toMatchObject({ kind: 'voice_note', filename: 'note.webm' })
+    expect(voice.body.attachments[0].storage_key).toBeUndefined()
+  })
+
+  it('returns 404 when listing a contact the caller does not own', async () => {
+    const res = await request(createApp('agent-2')).get('/api/contacts/c-mine/attachments')
     expect(res.status).toBe(404)
   })
 })

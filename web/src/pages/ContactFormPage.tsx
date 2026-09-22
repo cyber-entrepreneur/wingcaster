@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Save, Trash2, X } from 'lucide-react'
 import { CrmShell } from '@/components/layout/CrmShell'
 import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,9 +12,10 @@ import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
-import { Field, FormSelect } from '@/components/contacts/form-controls'
+import { Field, FormSelect, FormTextarea } from '@/components/contacts/form-controls'
 import { ContactPicker } from '@/components/contacts/ContactPicker'
 import { ContactAttachmentField } from '@/components/contacts/ContactAttachmentField'
+import { VoiceNoteField } from '@/components/contacts/VoiceNoteField'
 import {
   CONTACT_ROLE_OPTIONS,
   STATUS_OPTIONS,
@@ -73,6 +74,8 @@ export function ContactFormPage() {
   const [form, setForm] = useState<ContactFormState>(() => seededState(seed))
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [featureInput, setFeatureInput] = useState('')
 
   // Gate on a stable primitive, not the `agent` object identity — a context (or
   // a test mock) that returns a fresh object each render would otherwise re-fire
@@ -182,6 +185,24 @@ export function ContactFormPage() {
   function setPreApproval(next: PreApprovalRef | null) {
     setForm((prev) => ({ ...prev, pre_approval_letter: next }))
   }
+  function setPI(key: keyof ContactFormState['property_interests'], value: string) {
+    setForm((prev) => ({ ...prev, property_interests: { ...prev.property_interests, [key]: value } }))
+  }
+  function addFeature() {
+    const v = featureInput.trim()
+    if (!v) return
+    setForm((prev) => ({
+      ...prev,
+      property_interests: { ...prev.property_interests, required_features: [...prev.property_interests.required_features, v] },
+    }))
+    setFeatureInput('')
+  }
+  function removeFeature(i: number) {
+    setForm((prev) => ({
+      ...prev,
+      property_interests: { ...prev.property_interests, required_features: prev.property_interests.required_features.filter((_, idx) => idx !== i) },
+    }))
+  }
 
   async function handleSave() {
     if (!hasIdentity) {
@@ -200,6 +221,15 @@ export function ContactFormPage() {
         : ((await api.createContact(payload)) as ContactRecord)
       addToast({ title: isEdit ? 'Contact updated' : 'Contact created', variant: 'success' })
       const savedId = (saved?.id as string) || id
+      // Optional initial note — a separate entity, added after the contact exists.
+      if (savedId && noteText.trim().length >= 2) {
+        try {
+          await api.createContactNote(savedId, noteText.trim())
+          setNoteText('')
+        } catch {
+          addToast({ title: 'Contact saved, but the note could not be added', variant: 'error' })
+        }
+      }
       navigate(savedId ? `/contacts/${savedId}` : '/contacts')
     } catch (e: unknown) {
       addToast({
@@ -647,6 +677,89 @@ export function ContactFormPage() {
 
               <Field label="Pre-approval letter">
                 <ContactAttachmentField contactId={id} value={form.pre_approval_letter} onChange={setPreApproval} />
+              </Field>
+            </CardContent>
+          </Card>
+
+          {/* Section: Property interests */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Property interests</CardTitle>
+              <CardDescription>What this contact is looking for.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="pi-area" label="Preferred area">
+                  <Input id="pi-area" value={form.property_interests.preferred_area} onChange={(e) => setPI('preferred_area', e.target.value)} />
+                </Field>
+                <Field id="pi-budget" label="Budget">
+                  <Input id="pi-budget" value={form.property_interests.budget} onChange={(e) => setPI('budget', e.target.value)} placeholder="e.g. 400k–600k" />
+                </Field>
+                <Field id="pi-type" label="Preferred property type">
+                  <Input id="pi-type" value={form.property_interests.preferred_property_type} onChange={(e) => setPI('preferred_property_type', e.target.value)} placeholder="Apartment, Villa…" />
+                </Field>
+                <Field id="pi-subtype" label="Preferred sub-category">
+                  <Input id="pi-subtype" value={form.property_interests.preferred_sub_category} onChange={(e) => setPI('preferred_sub_category', e.target.value)} placeholder="Penthouse, Duplex…" />
+                </Field>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pi-feature-input">Required features</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="pi-feature-input"
+                    value={featureInput}
+                    onChange={(e) => setFeatureInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addFeature()
+                      }
+                    }}
+                    placeholder="Add a feature and press Enter"
+                  />
+                  <Button type="button" variant="outline" className="gap-1.5 shrink-0" onClick={addFeature}>
+                    <Plus className="h-4 w-4" aria-hidden="true" /> Add
+                  </Button>
+                </div>
+                {form.property_interests.required_features.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {form.property_interests.required_features.map((f, i) => (
+                      <span key={`${f}-${i}`} className="inline-flex items-center gap-1 rounded-full border border-[var(--lc-border)] bg-[var(--lc-surface-sunken)] px-2.5 py-1 text-xs text-[var(--lc-text-primary)]">
+                        {f}
+                        <button
+                          type="button"
+                          aria-label={`Remove feature ${f}`}
+                          className="text-[var(--lc-text-muted)] hover:text-[var(--lc-text-primary)]"
+                          onClick={() => removeFeature(i)}
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section: Add note */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Add note</CardTitle>
+              <CardDescription>A text note is saved with the contact. Voice notes attach once the contact exists.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Field id="note-text" label="Note">
+                <FormTextarea
+                  id="note-text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Context, next steps, preferences…"
+                  rows={3}
+                />
+              </Field>
+              <Field label="Voice note">
+                <VoiceNoteField contactId={id} />
               </Field>
             </CardContent>
           </Card>
