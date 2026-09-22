@@ -3,6 +3,8 @@ import {
   emptyContactFormState,
   formStateFromContact,
   formStateToPayload,
+  numberedLabels,
+  PHONE_LABEL_OPTIONS,
 } from './contactForm'
 
 describe('contactForm model', () => {
@@ -64,6 +66,19 @@ describe('contactForm model', () => {
       }
       expect(payload.property_interests?.preferred_area).toBe('Downtown')
       expect(payload.property_interests?.required_features).toEqual(['pool', 'garden'])
+    })
+  })
+
+  describe('numberedLabels (duplicate auto-numbering)', () => {
+    it('leaves a unique label plain and numbers repeats in order', () => {
+      const out = numberedLabels(['mobile', 'business', 'business', 'home'], PHONE_LABEL_OPTIONS)
+      expect(out).toEqual(['Mobile', 'Business 1', 'Business 2', 'Home'])
+    })
+
+    it('numbers three of the same label', () => {
+      expect(numberedLabels(['other', 'other', 'other'], PHONE_LABEL_OPTIONS)).toEqual([
+        'Other 1', 'Other 2', 'Other 3',
+      ])
     })
   })
 
