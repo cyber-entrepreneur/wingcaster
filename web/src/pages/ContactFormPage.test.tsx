@@ -102,6 +102,19 @@ describe('ContactFormPage — create', () => {
       }),
     )
   })
+
+  it('captures address and social handles', async () => {
+    renderAt('/contacts/new/full')
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.change(screen.getByLabelText('Address line 1'), { target: { value: '1 Byron St' } })
+    fireEvent.change(screen.getByLabelText('City / Municipality / Town / Village'), { target: { value: 'Beirut' } })
+    fireEvent.change(screen.getByLabelText('Instagram'), { target: { value: '@ada' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
+    await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
+    const payload = apiMocks.createContact.mock.calls[0][0]
+    expect(payload.address).toMatchObject({ line1: '1 Byron St', city: 'Beirut' })
+    expect(payload.socials).toMatchObject({ instagram: '@ada' })
+  })
 })
 
 describe('ContactFormPage — edit', () => {

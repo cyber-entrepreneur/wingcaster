@@ -17,12 +17,15 @@ import {
   STATUS_OPTIONS,
   PHONE_LABEL_OPTIONS,
   EMAIL_LABEL_OPTIONS,
+  SOCIAL_FIELDS,
   emptyContactFormState,
   formStateFromContact,
   formStateToPayload,
   numberedLabels,
   type ContactFormState,
   type ContactRecord,
+  type ContactAddress,
+  type ContactSocials,
   type LabeledPhone,
   type LabeledEmail,
 } from '@/components/contacts/contactForm'
@@ -132,6 +135,12 @@ export function ContactFormPage() {
       const emails = prev.emails.filter((_, idx) => idx !== i)
       return { ...prev, emails: emails.length ? emails : [{ label: 'personal', address: '' }] }
     })
+  }
+  function setAddress(key: keyof ContactAddress, value: string) {
+    setForm((prev) => ({ ...prev, address: { ...prev.address, [key]: value } }))
+  }
+  function setSocial(key: keyof ContactSocials, value: string) {
+    setForm((prev) => ({ ...prev, socials: { ...prev.socials, [key]: value } }))
   }
 
   async function handleSave() {
@@ -354,6 +363,58 @@ export function ContactFormPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Section: Address */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Address</CardTitle>
+              <CardDescription>Mailing or primary address.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field id="addr-line1" label="Address line 1" className="sm:col-span-2">
+                <Input id="addr-line1" value={form.address.line1} onChange={(e) => setAddress('line1', e.target.value)} autoComplete="address-line1" />
+              </Field>
+              <Field id="addr-line2" label="Address line 2" className="sm:col-span-2">
+                <Input id="addr-line2" value={form.address.line2} onChange={(e) => setAddress('line2', e.target.value)} autoComplete="address-line2" />
+              </Field>
+              <Field id="addr-area" label="Area / District">
+                <Input id="addr-area" value={form.address.area} onChange={(e) => setAddress('area', e.target.value)} />
+              </Field>
+              <Field id="addr-city" label="City / Municipality / Town / Village">
+                <Input id="addr-city" value={form.address.city} onChange={(e) => setAddress('city', e.target.value)} autoComplete="address-level2" />
+              </Field>
+              <Field id="addr-province" label="Province / State">
+                <Input id="addr-province" value={form.address.province} onChange={(e) => setAddress('province', e.target.value)} autoComplete="address-level1" />
+              </Field>
+              <Field id="addr-postal" label="Postal / Zip code">
+                <Input id="addr-postal" value={form.address.postal_code} onChange={(e) => setAddress('postal_code', e.target.value)} autoComplete="postal-code" />
+              </Field>
+              <Field id="addr-country" label="Country" className="sm:col-span-2">
+                <Input id="addr-country" value={form.address.country} onChange={(e) => setAddress('country', e.target.value)} autoComplete="country-name" />
+              </Field>
+            </CardContent>
+          </Card>
+
+          {/* Section: Social handles */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Social handles</CardTitle>
+              <CardDescription>Only add a handle where it differs from the phone number above.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              {SOCIAL_FIELDS.map((f) => (
+                <Field key={f.key} id={`social-${f.key}`} label={f.label}>
+                  <Input
+                    id={`social-${f.key}`}
+                    value={form.socials[f.key]}
+                    onChange={(e) => setSocial(f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    autoComplete="off"
+                  />
+                </Field>
+              ))}
             </CardContent>
           </Card>
 
