@@ -6,6 +6,8 @@ import { CmdPageHeader } from '@/components/layout/CmdPageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/api/client'
@@ -141,6 +143,27 @@ export function ContactFormPage() {
   }
   function setSocial(key: keyof ContactSocials, value: string) {
     setForm((prev) => ({ ...prev, socials: { ...prev.socials, [key]: value } }))
+  }
+  function setSpouse(key: 'name' | 'dob', value: string) {
+    setForm((prev) => ({ ...prev, spouse: { ...prev.spouse, [key]: value } }))
+  }
+  // Children: entering a count grows/shrinks the rows, preserving filled entries.
+  function setChildCount(next: number) {
+    const count = Math.max(0, Math.min(20, Math.floor(Number.isFinite(next) ? next : 0)))
+    setForm((prev) => {
+      const children = prev.children.slice(0, count)
+      while (children.length < count) children.push({ name: '', dob: '' })
+      return { ...prev, children }
+    })
+  }
+  function updateChild(i: number, patch: Partial<{ name: string; dob: string }>) {
+    setForm((prev) => ({ ...prev, children: prev.children.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }))
+  }
+  function removeChild(i: number) {
+    setForm((prev) => ({ ...prev, children: prev.children.filter((_, idx) => idx !== i) }))
+  }
+  function setDnd(key: 'start' | 'end' | 'timezone', value: string) {
+    setForm((prev) => ({ ...prev, dnd_hours: { ...prev.dnd_hours, [key]: value } }))
   }
 
   async function handleSave() {
@@ -415,6 +438,119 @@ export function ContactFormPage() {
                   />
                 </Field>
               ))}
+            </CardContent>
+          </Card>
+
+          {/* Section: Personal */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Personal</CardTitle>
+              <CardDescription>Dates and family — useful for outreach and relationship building.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="dob" label="Date of birth">
+                  <Input id="dob" type="date" value={form.date_of_birth} onChange={(e) => set('date_of_birth', e.target.value)} />
+                </Field>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="spouse-name" label="Spouse name">
+                  <Input id="spouse-name" value={form.spouse.name} onChange={(e) => setSpouse('name', e.target.value)} />
+                </Field>
+                <Field id="spouse-dob" label="Spouse date of birth">
+                  <Input id="spouse-dob" type="date" value={form.spouse.dob} onChange={(e) => setSpouse('dob', e.target.value)} />
+                </Field>
+              </div>
+              <div className="space-y-3">
+                <Field id="child-count" label="Number of children" className="sm:max-w-[12rem]">
+                  <Input
+                    id="child-count"
+                    type="number"
+                    min="0"
+                    max="20"
+                    inputMode="numeric"
+                    value={String(form.children.length)}
+                    onChange={(e) => setChildCount(Number(e.target.value))}
+                  />
+                </Field>
+                {form.children.map((child, i) => (
+                  <div key={i} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <Field id={`child-${i}-name`} label={`Child ${i + 1} name`}>
+                      <Input id={`child-${i}-name`} value={child.name} onChange={(e) => updateChild(i, { name: e.target.value })} />
+                    </Field>
+                    <Field id={`child-${i}-dob`} label={`Child ${i + 1} date of birth`}>
+                      <Input id={`child-${i}-dob`} type="date" value={child.dob} onChange={(e) => updateChild(i, { dob: e.target.value })} />
+                    </Field>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remove child ${i + 1}`}
+                      onClick={() => removeChild(i)}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section: Contact preferences */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Contact preferences</CardTitle>
+              <CardDescription>Communication consent and quiet hours.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="email-opt-out"
+                  checked={form.email_opt_out}
+                  onCheckedChange={(v) => set('email_opt_out', v === true)}
+                />
+                <Label htmlFor="email-opt-out">Email opt out</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="do-not-call"
+                  checked={form.do_not_call}
+                  onCheckedChange={(v) => set('do_not_call', v === true)}
+                />
+                <Label htmlFor="do-not-call">Do not call</Label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field id="dnd-start" label="Do-not-disturb from">
+                  <Input id="dnd-start" type="time" value={form.dnd_hours.start} onChange={(e) => setDnd('start', e.target.value)} />
+                </Field>
+                <Field id="dnd-end" label="Do-not-disturb until">
+                  <Input id="dnd-end" type="time" value={form.dnd_hours.end} onChange={(e) => setDnd('end', e.target.value)} />
+                </Field>
+                <Field id="dnd-tz" label="Timezone">
+                  <Input id="dnd-tz" value={form.dnd_hours.timezone} onChange={(e) => setDnd('timezone', e.target.value)} placeholder="e.g. Asia/Beirut" />
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section: Internal agency policy */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Internal agency policy</CardTitle>
+              <CardDescription>Only visible to your agency — never shown to the contact.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="notify-owner"
+                  className="mt-0.5"
+                  checked={form.notify_owner}
+                  onCheckedChange={(v) => set('notify_owner', v === true)}
+                />
+                <Label htmlFor="notify-owner" className="font-normal">
+                  Notify owner — alert the assigned agency member if someone else contacts this record.
+                </Label>
+              </div>
             </CardContent>
           </Card>
 
