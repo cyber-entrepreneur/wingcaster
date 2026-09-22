@@ -56,7 +56,10 @@ export function registerAgencyOnboardingStateRoutes(app, { auth = authMiddleware
     requireAgencyOwnerOrAdmin,
     async (req, res) => {
       try {
-        const state = await getAgencyOnboardingState(req.agencyId)
+        // `?derive=1` (sent by the onboarding UI) OR-merges data-derived task
+        // completion; without it the endpoint returns the stored checklist as-is.
+        const derive = req.query.derive === '1' || req.query.derive === 'true'
+        const state = await getAgencyOnboardingState(req.agencyId, { derive })
         res.json(state)
       } catch (err) {
         logger.error({ err: err.message, agency_id: req.agencyId, user_id: req.user?.id }, 'get agency onboarding state failed')
