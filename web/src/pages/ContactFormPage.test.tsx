@@ -115,6 +115,25 @@ describe('ContactFormPage — create', () => {
     expect(payload.address).toMatchObject({ line1: '1 Byron St', city: 'Beirut' })
     expect(payload.socials).toMatchObject({ instagram: '@ada' })
   })
+
+  it('generates child rows from a count and captures preferences + notify-owner', async () => {
+    renderAt('/contacts/new/full')
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.change(screen.getByLabelText('Number of children'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Child 1 name'), { target: { value: 'Kid A' } })
+    fireEvent.change(screen.getByLabelText('Child 2 name'), { target: { value: 'Kid B' } })
+    fireEvent.click(screen.getByLabelText('Do not call'))
+    fireEvent.click(screen.getByLabelText(/Notify owner/))
+    fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
+    await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
+    const payload = apiMocks.createContact.mock.calls[0][0]
+    expect(payload.children).toEqual([
+      { name: 'Kid A', dob: '' },
+      { name: 'Kid B', dob: '' },
+    ])
+    expect(payload.do_not_call).toBe(true)
+    expect(payload.notify_owner).toBe(true)
+  })
 })
 
 describe('ContactFormPage — edit', () => {
