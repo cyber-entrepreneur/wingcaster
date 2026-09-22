@@ -7,8 +7,10 @@ const addToast = vi.hoisted(() => vi.fn())
 const apiMocks = vi.hoisted(() => ({
   getContact: vi.fn(),
   getContacts: vi.fn(),
+  getContactAttachments: vi.fn(),
   createContact: vi.fn(),
   updateContact: vi.fn(),
+  createContactNote: vi.fn(),
 }))
 
 vi.mock('@/components/ui/toast', () => ({
@@ -43,8 +45,10 @@ beforeEach(() => {
   addToast.mockReset()
   apiMocks.getContact.mockReset()
   apiMocks.getContacts.mockReset().mockResolvedValue([])
+  apiMocks.getContactAttachments.mockReset().mockResolvedValue({ attachments: [] })
   apiMocks.createContact.mockReset().mockResolvedValue({ id: 'c-new' })
   apiMocks.updateContact.mockReset().mockResolvedValue({ id: 'c1' })
+  apiMocks.createContactNote.mockReset().mockResolvedValue({ id: 'note-1' })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -146,7 +150,7 @@ describe('ContactFormPage — create', () => {
     fireEvent.change(screen.getByLabelText('Institution 1'), { target: { value: 'Chase' } })
     fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'Mortgage lender' } })
     // In create mode the letter can't be attached yet.
-    expect(screen.getByText(/Save the contact first/)).toBeInTheDocument()
+    expect(screen.getByText(/Save the contact first, then upload a Pre-Approval Letter/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
     await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
     const payload = apiMocks.createContact.mock.calls[0][0]
@@ -159,6 +163,29 @@ describe('ContactFormPage — create', () => {
     })
     // The attachment reference is never sent in the contact payload.
     expect(payload.pre_approval_letter).toBeUndefined()
+  })
+
+  it('captures property interests with required-feature chips and adds a note on save', async () => {
+    renderAt('/contacts/new/full')
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.change(screen.getByLabelText('Preferred area'), { target: { value: 'Downtown' } })
+    const featureInput = screen.getByLabelText('Required features')
+    fireEvent.change(featureInput, { target: { value: 'Sea view' } })
+    fireEvent.keyDown(featureInput, { key: 'Enter' })
+    fireEvent.change(featureInput, { target: { value: 'Parking' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/ }))
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'Prefers weekend viewings' } })
+    // Voice note defers to after save in create mode.
+    expect(screen.getByText(/Save the contact first, then record/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
+    await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
+    const payload = apiMocks.createContact.mock.calls[0][0]
+    expect(payload.property_interests).toMatchObject({
+      preferred_area: 'Downtown',
+      required_features: ['Sea view', 'Parking'],
+    })
+    await waitFor(() => expect(apiMocks.createContactNote).toHaveBeenCalledWith('c-new', 'Prefers weekend viewings'))
   })
 })
 

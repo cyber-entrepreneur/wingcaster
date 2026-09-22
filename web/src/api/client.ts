@@ -3914,7 +3914,7 @@ export const api = {
   uploadContactAttachment: async (
     contactId: string,
     file: File,
-    kind: 'pre_approval_letter' | 'other' = 'pre_approval_letter',
+    kind: 'pre_approval_letter' | 'voice_note' | 'other' = 'pre_approval_letter',
   ): Promise<{ attachment: { id: string; kind: string; filename: string | null; content_type: string | null; size_bytes: number | null } }> => {
     const form = new FormData()
     form.append('file', file)
@@ -3942,6 +3942,13 @@ export const api = {
     }
     if (!parsed) throw new Error('Attachment upload returned non-JSON')
     return parsed
+  },
+  getContactAttachments: (
+    contactId: string,
+    kind?: 'pre_approval_letter' | 'voice_note' | 'other',
+  ): Promise<{ attachments: Array<{ id: string; kind: string; filename: string | null; content_type: string | null; size_bytes: number | null; created_at?: string }> }> => {
+    const qs = kind ? `?kind=${encodeURIComponent(kind)}` : ''
+    return fetchJson(`/contacts/${encodeURIComponent(contactId)}/attachments${qs}`)
   },
   deleteContactAttachment: (contactId: string, attachmentId: string) =>
     fetchJson(
