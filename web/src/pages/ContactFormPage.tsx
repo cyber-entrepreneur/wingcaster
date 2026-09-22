@@ -14,12 +14,15 @@ import { api } from '@/api/client'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Field, FormSelect } from '@/components/contacts/form-controls'
 import { ContactPicker } from '@/components/contacts/ContactPicker'
+import { ContactAttachmentField } from '@/components/contacts/ContactAttachmentField'
 import {
   CONTACT_ROLE_OPTIONS,
   STATUS_OPTIONS,
   PHONE_LABEL_OPTIONS,
   EMAIL_LABEL_OPTIONS,
   SOCIAL_FIELDS,
+  QUALIFICATION_OPTIONS,
+  SOURCE_OF_FUNDS_OPTIONS,
   emptyContactFormState,
   formStateFromContact,
   formStateToPayload,
@@ -30,6 +33,8 @@ import {
   type ContactSocials,
   type LabeledPhone,
   type LabeledEmail,
+  type FinancialInstitution,
+  type PreApprovalRef,
 } from '@/components/contacts/contactForm'
 
 /** Seed passed from the quick-add dialog's "Go to Full Form" action. */
@@ -164,6 +169,18 @@ export function ContactFormPage() {
   }
   function setDnd(key: 'start' | 'end' | 'timezone', value: string) {
     setForm((prev) => ({ ...prev, dnd_hours: { ...prev.dnd_hours, [key]: value } }))
+  }
+  function addInstitution() {
+    setForm((prev) => ({ ...prev, financial_institutions: [...prev.financial_institutions, { name: '', relationship: '' }] }))
+  }
+  function updateInstitution(i: number, patch: Partial<FinancialInstitution>) {
+    setForm((prev) => ({ ...prev, financial_institutions: prev.financial_institutions.map((f, idx) => (idx === i ? { ...f, ...patch } : f)) }))
+  }
+  function removeInstitution(i: number) {
+    setForm((prev) => ({ ...prev, financial_institutions: prev.financial_institutions.filter((_, idx) => idx !== i) }))
+  }
+  function setPreApproval(next: PreApprovalRef | null) {
+    setForm((prev) => ({ ...prev, pre_approval_letter: next }))
   }
 
   async function handleSave() {
@@ -551,6 +568,86 @@ export function ContactFormPage() {
                   Notify owner — alert the assigned agency member if someone else contacts this record.
                 </Label>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Section: Qualification */}
+          <Card>
+            <CardHeader>
+              <CardTitle as="h2">Qualification</CardTitle>
+              <CardDescription>Buyer readiness, budget, and proof of funds.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="qual-status" label="Qualification status">
+                  <FormSelect
+                    id="qual-status"
+                    options={QUALIFICATION_OPTIONS}
+                    placeholder="Select status…"
+                    value={form.qualification_status}
+                    onChange={(e) => set('qualification_status', e.target.value)}
+                  />
+                </Field>
+                <Field id="qual-source-of-funds" label="Source of funds">
+                  <FormSelect
+                    id="qual-source-of-funds"
+                    options={SOURCE_OF_FUNDS_OPTIONS}
+                    placeholder="Select source…"
+                    value={form.source_of_funds}
+                    onChange={(e) => set('source_of_funds', e.target.value)}
+                  />
+                </Field>
+                <Field id="qual-budget" label="Max purchasing power / budget">
+                  <Input
+                    id="qual-budget"
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={form.budget_amount}
+                    onChange={(e) => set('budget_amount', e.target.value)}
+                    placeholder="e.g. 500000"
+                  />
+                </Field>
+                <Field id="qual-currency" label="Budget currency">
+                  <Input
+                    id="qual-currency"
+                    value={form.budget_currency}
+                    onChange={(e) => set('budget_currency', e.target.value.toUpperCase().slice(0, 3))}
+                    maxLength={3}
+                    placeholder="USD"
+                  />
+                </Field>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[var(--lc-text-primary)]">Associated financial institutions</span>
+                  <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addInstitution}>
+                    <Plus className="h-4 w-4" aria-hidden="true" /> Add institution
+                  </Button>
+                </div>
+                {form.financial_institutions.length === 0 ? (
+                  <p className="text-xs text-[var(--lc-text-muted)]">Link a lender or wealth-management relationship, e.g. “Chase — Mortgage lender”.</p>
+                ) : (
+                  form.financial_institutions.map((inst, i) => (
+                    <div key={i} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                      <Field id={`fin-inst-${i}-name`} label={`Institution ${i + 1}`}>
+                        <Input id={`fin-inst-${i}-name`} value={inst.name} onChange={(e) => updateInstitution(i, { name: e.target.value })} placeholder="Institution name" />
+                      </Field>
+                      <Field id={`fin-inst-${i}-rel`} label="Relationship">
+                        <Input id={`fin-inst-${i}-rel`} value={inst.relationship} onChange={(e) => updateInstitution(i, { relationship: e.target.value })} placeholder="Mortgage lender, wealth manager…" />
+                      </Field>
+                      <Button type="button" variant="ghost" size="icon" aria-label={`Remove institution ${i + 1}`} onClick={() => removeInstitution(i)}>
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <Field label="Pre-approval letter">
+                <ContactAttachmentField contactId={id} value={form.pre_approval_letter} onChange={setPreApproval} />
+              </Field>
             </CardContent>
           </Card>
 

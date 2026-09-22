@@ -3909,6 +3909,47 @@ export const api = {
   // backend promotes typed columns and stores the rest in the `data` JSONB.
   createContact: (data: Record<string, unknown>) =>
     fetchJson('/contacts', { method: 'POST', body: JSON.stringify(data) }),
+  // Private, tenant-gated contact attachment (e.g. Pre-Approval Letter). Multipart
+  // upload with the auth header; the backend returns metadata only (no URL/key).
+  uploadContactAttachment: async (
+    contactId: string,
+    file: File,
+    kind: 'pre_approval_letter' | 'other' = 'pre_approval_letter',
+  ): Promise<{ attachment: { id: string; kind: string; filename: string | null; content_type: string | null; size_bytes: number | null } }> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kind', kind)
+    const token = getToken()
+    const uploadHeaders: Record<string, string> = { 'X-Wingcaster-Env': readWingcasterEnvHeader() }
+    if (token) uploadHeaders.Authorization = `Bearer ${token}`
+    const res = await fetch(`${API_BASE}/contacts/${encodeURIComponent(contactId)}/attachments`, {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: form,
+    })
+    const bodyText = await res.text()
+    const parsed = (() => {
+      try {
+        return bodyText ? JSON.parse(bodyText) : null
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok) {
+      const error = new Error(parsed?.error || `Upload failed (${res.status})`) as Error & Record<string, unknown>
+      Object.assign(error, parsed || {}, { status: res.status })
+      throw error
+    }
+    if (!parsed) throw new Error('Attachment upload returned non-JSON')
+    return parsed
+  },
+  deleteContactAttachment: (contactId: string, attachmentId: string) =>
+    fetchJson(
+      `/contacts/${encodeURIComponent(contactId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      { method: 'DELETE' },
+    ),
+  contactAttachmentDownloadPath: (contactId: string, attachmentId: string): string =>
+    `${API_BASE}/contacts/${encodeURIComponent(contactId)}/attachments/${encodeURIComponent(attachmentId)}`,
   // AGT-CTC-005 — bulk export download URL (fetched with the auth header, then
   // streamed to a Blob by the caller so the browser saves a real file).
   contactsExportPath: (params: { format?: ContactExportFormat; fields?: string[] } = {}): string => {

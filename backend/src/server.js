@@ -296,6 +296,7 @@ import {
   serializePublicReview,
 } from './lib/reviews/agent-review-routes.js'
 import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
+import { registerRoutes as registerContactAttachmentRoutes } from './lib/contacts/attachment-routes.js'
 import { registerRoutes as registerSavedSearchRoutes } from './lib/campaigns/saved-search-routes.js'
 import { registerRoutes as registerClosedTransactionImportRoutes } from './lib/closed-transactions/import-routes.js'
 import { registerRoutes as registerReminderPolicyRoutes } from './lib/reminders/reminder-policy-routes.js'
@@ -7565,6 +7566,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
 // BE-BLOCKER-21 / [BE-ACR-03] + [BE-ACR-11] — evidence upload (public) + PA proxy.
 registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
 registerContactMergeRoutes(app, { authMiddleware, logActivity })
+registerContactAttachmentRoutes(app, { logActivity })
 registerReminderPolicyRoutes(app, { authMiddleware, logActivity })
 
 async function notifyAccountRecoveryApplicant({

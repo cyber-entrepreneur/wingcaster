@@ -104,6 +104,14 @@ export const SOCIAL_FIELDS: { key: keyof ContactSocials; label: string; placehol
 export type FamilyMember = { name: string; dob: string }
 export type FinancialInstitution = { name: string; relationship: string }
 export type DndHours = { start: string; end: string; timezone: string }
+/** Reference to the uploaded Pre-Approval Letter (managed by the attachment API). */
+export type PreApprovalRef = {
+  attachment_id: string
+  filename?: string
+  content_type?: string
+  size_bytes?: number
+  uploaded_at?: string
+}
 
 export type PropertyInterests = {
   preferred_area: string
@@ -150,6 +158,8 @@ export type ContactFormState = {
   budget_currency: string
   source_of_funds: string
   financial_institutions: FinancialInstitution[]
+  /** Uploaded via the attachment API, not sent in the contact payload. */
+  pre_approval_letter: PreApprovalRef | null
   // Property interests
   property_interests: PropertyInterests
 }
@@ -221,6 +231,7 @@ export function emptyContactFormState(): ContactFormState {
     budget_currency: '',
     source_of_funds: '',
     financial_institutions: [],
+    pre_approval_letter: null,
     property_interests: emptyPropertyInterests(),
   }
 }
@@ -285,6 +296,7 @@ export function formStateFromContact(contact: ContactRecord): ContactFormState {
           name: str(f.name), relationship: str(f.relationship),
         }))
       : [],
+    pre_approval_letter: (contact.pre_approval_letter as PreApprovalRef | undefined) || null,
     property_interests: { ...base.property_interests, ...pi } as PropertyInterests,
   }
 }

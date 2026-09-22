@@ -271,6 +271,14 @@ const TABLE_MAP = {
     ],
   },
   contact_notes: { schema: 'public', table: 'contact_notes', columns: ['contact_id', 'agent_id', 'content'] },
+  contact_attachments: {
+    schema: 'public',
+    table: 'contact_attachments',
+    columns: [
+      'contact_id', 'agency_id', 'assigned_agent_id', 'kind',
+      'storage_key', 'filename', 'content_type', 'size_bytes', 'sha256',
+    ],
+  },
   inquiries: {
     schema: 'public',
     table: 'inquiries',
