@@ -89,6 +89,18 @@ export type ContactSocials = {
   snapchat: string
 }
 
+export const SOCIAL_FIELDS: { key: keyof ContactSocials; label: string; placeholder: string }[] = [
+  { key: 'whatsapp', label: 'WhatsApp', placeholder: 'Number or link (only if different from phone)' },
+  { key: 'telegram', label: 'Telegram', placeholder: '@handle' },
+  { key: 'discord', label: 'Discord', placeholder: 'username' },
+  { key: 'instagram', label: 'Instagram', placeholder: '@handle' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'Profile URL or handle' },
+  { key: 'twitter', label: 'Twitter / X', placeholder: '@handle' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'Profile URL' },
+  { key: 'tiktok', label: 'TikTok', placeholder: '@handle' },
+  { key: 'snapchat', label: 'Snapchat', placeholder: 'username' },
+]
+
 export type FamilyMember = { name: string; dob: string }
 export type FinancialInstitution = { name: string; relationship: string }
 export type DndHours = { start: string; end: string; timezone: string }
