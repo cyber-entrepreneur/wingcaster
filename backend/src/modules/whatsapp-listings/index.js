@@ -47,7 +47,24 @@ export function createModule({ platformAdapter, config: configOverride }) {
   }
 
   if (!configOverride) {
-    getSharedNumbersSync()
+    // A missing/undersized shared-number pool must NOT crash the whole backend.
+    // Self-disable this module (like every other unconfigured module) so the
+    // platform boots; it comes back automatically once the numbers are set.
+    try {
+      getSharedNumbersSync()
+    } catch (err) {
+      logger.error(
+        { err: err.message },
+        'WhatsApp Listing module auto-disabled: WHATSAPP_INTAKE_SHARED_NUMBERS not configured (>=3 required at launch). Set it to enable.',
+      )
+      return {
+        enabled: false,
+        health: () => ({ enabled: false, reason: 'shared_numbers_unconfigured' }),
+        registerRoutes: () => {},
+        registerWorker: () => {},
+        handleWebhook: () => ({ handled: false }),
+      }
+    }
   }
 
   const adapter = platformAdapter || createDefaultPlatformAdapter()

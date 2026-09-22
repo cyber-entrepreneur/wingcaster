@@ -1,0 +1,3 @@
+# Shell scripts must keep LF endings so container shebangs work on Linux,
+# regardless of a contributor's core.autocrlf setting.
+*.sh text eol=lf
