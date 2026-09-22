@@ -201,6 +201,8 @@ import {
   opportunityCreateSchema,
   opportunityUpdateSchema,
   contactNoteSchema,
+  contactCreateSchema,
+  contactUpdateSchema,
   messageTemplateCreateSchema,
   messageTemplateUpdateSchema,
   messageTemplateRenderSchema,
@@ -4227,6 +4229,65 @@ app.get('/api/contacts', authMiddleware, async (req, res) => {
   res.json(mine)
 })
 
+// Full CRM contact form (AGT-CTC). Copy a validated create/update body onto a
+// persistable contact record: promoted fields become typed columns, every other
+// key rides in the `data` JSONB via the table-mapper. Never trust body for tenant
+// fields — assigned_agent_id / agency_id are set server-side by the caller.
+const CONTACT_FORM_TYPED_FIELDS = [
+  'first_name', 'last_name', 'contact_role', 'organization_name', 'reports_to_contact_id',
+  'qualification_status', 'budget_amount', 'budget_currency', 'status', 'source', 'tags',
+  'email_opt_out', 'do_not_call', 'notify_owner',
+]
+const CONTACT_FORM_DATA_FIELDS = [
+  'title', 'department', 'reports_to_name', 'assistant_name', 'assistant_phone',
+  'phones', 'emails', 'address', 'socials', 'date_of_birth', 'spouse', 'children',
+  'dnd_hours', 'source_of_funds', 'financial_institutions', 'property_interests',
+]
+function applyContactFormFields(target, body) {
+  for (const key of CONTACT_FORM_TYPED_FIELDS) {
+    if (body[key] !== undefined) target[key] = body[key]
+  }
+  for (const key of CONTACT_FORM_DATA_FIELDS) {
+    if (body[key] !== undefined) target[key] = body[key]
+  }
+  // Primary email/phone: prefer the explicit scalar, else the first array entry.
+  // Keep the typed columns in sync so list/search/dedup keep working.
+  const primaryEmail = body.email ?? body.emails?.find((e) => e && e.address && e.address.trim())?.address
+  const primaryPhone = body.phone ?? body.phones?.find((p) => p && p.number && p.number.trim())?.number
+  if (primaryEmail != null) target.email = normalizeEmail(primaryEmail)
+  if (primaryPhone != null) target.phone = normalizePhone(primaryPhone)
+  // Composed display name from first/last when a name is not given explicitly.
+  const composed = [body.first_name, body.last_name].filter((s) => s && s.trim()).join(' ').trim()
+  if (body.name !== undefined) target.name = body.name
+  else if (composed) target.name = composed
+  return target
+}
+
+app.post('/api/contacts', authMiddleware, requireApiTokenScope('contacts:write'), validate(contactCreateSchema), async (req, res) => {
+  const body = req.validated
+  const agent = await findOne('agents', (a) => a.id === req.user.id)
+  // A self-referential "reports to" must point at a contact this agent owns.
+  if (body.reports_to_contact_id) await assertOwnsContact(req.user.id, body.reports_to_contact_id)
+  const now = new Date().toISOString()
+  const contact = applyContactFormFields({
+    id: uuidv4(),
+    assigned_agent_id: req.user.id,
+    agency_id: agent?.agency_id || null,
+    status: 'lead',
+    source: body.source || 'manual',
+    first_touch_channel: 'manual',
+    first_touch_at: now,
+    tags: [],
+    last_activity_at: now,
+    created_at: now,
+    updated_at: now,
+  }, body)
+  await insert('contacts', contact)
+  await logActivity({ type: 'contact_created', agent_id: req.user.id, meta: { contact_id: contact.id, source: contact.source } })
+  const created = await findOne('contacts', (c) => c.id === contact.id)
+  res.status(201).json(created)
+})
+
 app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
   const inquiries = await findAll('inquiries', (i) => i.contact_id === contact.id)
@@ -4236,20 +4297,22 @@ app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   res.json({ ...contact, inquiries, viewings, conversations })
 })
 
-app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:write'), async (req, res) => {
+app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:write'), validate(contactUpdateSchema), async (req, res) => {
   const contact = await assertOwnsContact(req.user.id, req.params.id)
-  const allowed = ['name', 'email', 'phone', 'tags', 'status', 'assigned_agent_id']
-  const patch = {}
-  for (const key of allowed) {
-    if (req.body[key] !== undefined) patch[key] = req.body[key]
-  }
-  if (patch.assigned_agent_id && !await assertAssignableConversationAgent(req.user.id, {
+  const body = req.validated
+  if (body.assigned_agent_id && !await assertAssignableConversationAgent(req.user.id, {
     assigned_agent_id: contact.assigned_agent_id,
     agency_id: contact.agency_id,
-  }, patch.assigned_agent_id)) return res.status(403).json({ error: 'Forbidden' })
-  if (patch.email) patch.email = normalizeEmail(patch.email)
-  if (patch.phone) patch.phone = normalizePhone(patch.phone)
-  await update('contacts', (c) => c.id === contact.id, (c) => ({ ...c, ...patch, updated_at: new Date().toISOString() }))
+  }, body.assigned_agent_id)) return res.status(403).json({ error: 'Forbidden' })
+  if (body.reports_to_contact_id) await assertOwnsContact(req.user.id, body.reports_to_contact_id)
+  const now = new Date().toISOString()
+  await update('contacts', (c) => c.id === contact.id, (c) => {
+    const next = { ...c }
+    applyContactFormFields(next, body)
+    if (body.assigned_agent_id !== undefined) next.assigned_agent_id = body.assigned_agent_id
+    next.updated_at = now
+    return next
+  })
   res.json(await findOne('contacts', (c) => c.id === contact.id))
 })
 
