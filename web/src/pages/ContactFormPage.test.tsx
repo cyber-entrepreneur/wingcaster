@@ -134,6 +134,32 @@ describe('ContactFormPage — create', () => {
     expect(payload.do_not_call).toBe(true)
     expect(payload.notify_owner).toBe(true)
   })
+
+  it('captures qualification + financial institution, and defers the pre-approval upload until saved', async () => {
+    renderAt('/contacts/new/full')
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.change(screen.getByLabelText('Qualification status'), { target: { value: 'pre_approved' } })
+    fireEvent.change(screen.getByLabelText('Max purchasing power / budget'), { target: { value: '500000' } })
+    fireEvent.change(screen.getByLabelText('Budget currency'), { target: { value: 'usd' } })
+    fireEvent.change(screen.getByLabelText('Source of funds'), { target: { value: 'cash' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add institution' }))
+    fireEvent.change(screen.getByLabelText('Institution 1'), { target: { value: 'Chase' } })
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'Mortgage lender' } })
+    // In create mode the letter can't be attached yet.
+    expect(screen.getByText(/Save the contact first/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
+    await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
+    const payload = apiMocks.createContact.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      qualification_status: 'pre_approved',
+      budget_amount: 500000,
+      budget_currency: 'USD',
+      source_of_funds: 'cash',
+      financial_institutions: [{ name: 'Chase', relationship: 'Mortgage lender' }],
+    })
+    // The attachment reference is never sent in the contact payload.
+    expect(payload.pre_approval_letter).toBeUndefined()
+  })
 })
 
 describe('ContactFormPage — edit', () => {
