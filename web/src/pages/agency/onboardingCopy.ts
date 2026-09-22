@@ -10,8 +10,8 @@ export const AGENCY_ONBOARDING_COPY = {
   'hero.greeting': { en: 'Welcome to WingCaster, {agency}', ar: 'مرحبًا بك في وينغكاستر، {agency}' },
   'hero.greetingFallback': { en: 'Welcome to WingCaster', ar: 'مرحبًا بك في وينغكاستر' },
   'hero.sub': {
-    en: 'Let’s set your agency up for the whole team — 7 steps, most under 2 minutes each.',
-    ar: 'لنُجهّز وكالتك للفريق بأكمله — 7 خطوات، معظمها أقل من دقيقتين لكل خطوة.',
+    en: 'Let’s set your agency up for the whole team — 8 steps, most under 2 minutes each.',
+    ar: 'لنُجهّز وكالتك للفريق بأكمله — 8 خطوات، معظمها أقل من دقيقتين لكل خطوة.',
   },
   'progress.caption': { en: 'complete', ar: 'مكتملة' },
   'progress.aria': {
@@ -27,6 +27,14 @@ export const AGENCY_ONBOARDING_COPY = {
   },
   'task.branding.time': { en: '~5 min', ar: '~5 دقائق' },
   'task.branding.cta': { en: 'Start', ar: 'ابدأ' },
+
+  'task.markets.title': { en: 'Set your agency’s markets', ar: 'حدّد أسواق وكالتك' },
+  'task.markets.desc': {
+    en: 'The markets your agency is licensed in. Opens the right portals and captures each market’s licence details.',
+    ar: 'الأسواق المُرخّصة لوكالتك. تفتح البوابات المناسبة وتلتقط تفاصيل ترخيص كل سوق.',
+  },
+  'task.markets.time': { en: '~2 min', ar: '~دقيقتان' },
+  'task.markets.cta': { en: 'Set markets', ar: 'حدّد الأسواق' },
 
   'task.invites.title': { en: 'Invite team members', ar: 'ادعُ أعضاء الفريق' },
   'task.invites.desc': {
@@ -81,7 +89,7 @@ export const AGENCY_ONBOARDING_COPY = {
   'status.done': { en: 'done', ar: 'مكتملة' },
   'status.todo': { en: 'to do', ar: 'قيد الإنجاز' },
 
-  'placeholder.partial': { en: 'You’re on your way — {n} of 7 done.', ar: 'أنت في طريقك — {n} من 7 مكتملة.' },
+  'placeholder.partial': { en: 'You’re on your way — {n} of 8 done.', ar: 'أنت في طريقك — {n} من 8 مكتملة.' },
   'placeholder.done': { en: 'All set. Take me to my dashboard', ar: 'كل شيء جاهز. اذهب إلى لوحتي' },
   'celebration': {
     en: 'Your agency is set up. Welcome to the network.',
@@ -146,6 +154,14 @@ export const AGENCY_TASKS: AgencyTaskDef[] = [
     timeKey: 'task.branding.time',
     ctaKey: 'task.branding.cta',
     href: '/agency',
+  },
+  {
+    key: 'markets',
+    titleKey: 'task.markets.title',
+    descKey: 'task.markets.desc',
+    timeKey: 'task.markets.time',
+    ctaKey: 'task.markets.cta',
+    href: '/onboarding/markets?ctx=agency',
   },
   {
     key: 'invites',

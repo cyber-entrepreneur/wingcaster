@@ -1,6 +1,6 @@
 import { API_BASE, setAuthToken } from '@/api/client'
 import type { IdentityIdentifierType } from '@/components/forms/IdentityForm'
-import type { LegalEntity, PrimaryMarket, RegistrationPath } from './registerCopy'
+import type { LegalEntity, RegistrationPath } from './registerCopy'
 import type { OAuthProvider } from './loginApi'
 
 export type RegisterIdentityType = OAuthProvider | IdentityIdentifierType
@@ -26,7 +26,6 @@ export type RegisterRequestBody = {
     | {
         agency_name: string
         legal_entity: LegalEntity
-        primary_market: PrimaryMarket
         authorized_to_accept: boolean
       }
   locale: 'en' | 'ar'

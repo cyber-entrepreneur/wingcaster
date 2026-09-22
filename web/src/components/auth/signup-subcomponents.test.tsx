@@ -50,10 +50,8 @@ describe('PathCFields', () => {
     await user.type(screen.getByLabelText(/Agency name/i), 'Elite')
     expect(onChange).toHaveBeenCalled()
     expect(screen.getByLabelText(/Legal entity type/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/Primary market/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/authorized to accept these terms on behalf of the agency/i),
-    ).toBeInTheDocument()
+    // Markets moved out of signup to onboarding (Option B) — no market picker here.
+    expect(screen.queryByLabelText(/Primary market/i)).not.toBeInTheDocument()
   })
 })
 

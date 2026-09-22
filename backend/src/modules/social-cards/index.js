@@ -72,7 +72,16 @@ export function createModule() {
     config,
     logger,
     async prepare() {
-      await mkdir(config.storagePath, { recursive: true })
+      // A non-writable uploads volume must not crash-loop the platform. Log and
+      // continue; render endpoints surface the failure at request time instead.
+      try {
+        await mkdir(config.storagePath, { recursive: true })
+      } catch (err) {
+        logger.error(
+          { err: err.message, storage: config.storagePath },
+          'social-cards: could not create storage dir (uploads volume not writable?) — boot continues, rendering disabled until fixed',
+        )
+      }
       await seedSocialCardTemplates({ findOne, insert, update })
       if (isBannerbearEnabled()) {
         // Best-effort catalog sync at boot. Failure never blocks boot —

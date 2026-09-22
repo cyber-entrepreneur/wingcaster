@@ -1643,7 +1643,7 @@ app.get('/api/auth/tenant-context', authMiddleware, async (req, res) => {
 app.put('/api/auth/me', authMiddleware, async (req, res) => {
   const agent = await findOne('agents', a => a.id === req.user.id)
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
-  const allowed = ['name', 'phone', 'bio', 'specialization', 'languages', 'photo', 'response_time', 'agency_name', 'agency_license', 'slug', 'cta_config']
+  const allowed = ['name', 'phone', 'bio', 'specialization', 'languages', 'photo', 'response_time', 'agency_name', 'agency_license', 'slug', 'cta_config', 'based_markets', 'market_credentials']
   const patch = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) patch[key] = req.body[key]
@@ -4206,6 +4206,65 @@ app.get('/api/contacts', authMiddleware, async (req, res) => {
       new Date(a.last_activity_at || a.created_at).getTime(),
   )
   res.json(mine)
+})
+
+app.post('/api/contacts', authMiddleware, requireApiTokenScope('contacts:write'), async (req, res) => {
+  const firstName = String(req.body.first_name || '').trim()
+  const lastName = String(req.body.last_name || '').trim()
+  const name = String(req.body.name || `${firstName} ${lastName}`).trim()
+  const email = req.body.email ? normalizeEmail(String(req.body.email)) : ''
+  const phone = req.body.phone ? normalizePhone(String(req.body.phone)) : ''
+  const source = String(req.body.source || 'manual').trim() || 'manual'
+  if (!name && !email && !phone) {
+    return res
+      .status(400)
+      .json({ error: 'VALIDATION_FAILED', message: 'Provide at least a name, email, or phone.' })
+  }
+  // De-dupe against this agent's existing contacts by email/phone.
+  if (email || phone) {
+    const existing = await findOne(
+      'contacts',
+      (c) =>
+        c.assigned_agent_id === req.user.id &&
+        ((email && c.email === email) || (phone && c.phone === phone)),
+    )
+    if (existing) return res.status(200).json(existing)
+  }
+  const now = new Date().toISOString()
+  // Shallow "Add contact" enrichment fields (optional).
+  const dealProbabilityRaw = Number(req.body.deal_probability)
+  const dealProbability = Number.isFinite(dealProbabilityRaw)
+    ? Math.max(0, Math.min(100, Math.round(dealProbabilityRaw)))
+    : null
+  const priority = ['low', 'medium', 'high'].includes(String(req.body.priority))
+    ? String(req.body.priority)
+    : null
+  const contact = {
+    id: uuidv4(),
+    name,
+    first_name: firstName || null,
+    last_name: lastName || null,
+    email,
+    phone,
+    assigned_agent_id: req.user.id,
+    agency_id: req.user.agency_id || null,
+    source,
+    interested_listing_id: req.body.interested_listing_id
+      ? String(req.body.interested_listing_id)
+      : null,
+    priority,
+    deal_probability: dealProbability,
+    intro_note: req.body.note ? String(req.body.note).trim() : null,
+    first_touch_channel: 'manual',
+    first_touch_at: now,
+    tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+    status: 'lead',
+    last_activity_at: now,
+    created_at: now,
+    updated_at: now,
+  }
+  await insert('contacts', contact)
+  res.status(201).json(contact)
 })
 
 app.get('/api/contacts/:id', authMiddleware, async (req, res) => {

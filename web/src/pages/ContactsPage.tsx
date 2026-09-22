@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Download, GitMerge, Loader2, Mail, Phone, Search, Users, UserCheck, UserPlus, Activity } from 'lucide-react'
 import { MergeContactsDialog } from '@/components/contacts/MergeContactsDialog'
+import { AddContactDialog } from '@/components/contacts/AddContactDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -62,6 +63,8 @@ function relativeTime(iso: string | null) {
 export function ContactsPage() {
   const { agent } = useAuth()
   const { addToast } = useToast()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   usePageTitle('Contacts')
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,15 +74,32 @@ export function ContactsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [mergeOpen, setMergeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  // `?new=1` (e.g. from the dashboard) opens the create form on arrival.
+  const [addOpen, setAddOpen] = useState(searchParams.get('new') === '1')
 
-  useEffect(() => {
-    if (!agent) return
+  const loadContacts = useCallback(() => {
     setLoading(true)
-    api.getContacts()
+    return api
+      .getContacts()
       .then(setContacts)
       .catch((e: any) => addToast({ title: 'Failed to load contacts', description: e.message, variant: 'error' }))
       .finally(() => setLoading(false))
-  }, [agent])
+  }, [addToast])
+
+  useEffect(() => {
+    if (!agent) return
+    void loadContacts()
+  }, [agent, loadContacts])
+
+  const closeAdd = (open: boolean) => {
+    setAddOpen(open)
+    if (!open && searchParams.get('new')) {
+      // Drop the ?new=1 param so a refresh doesn't reopen the form.
+      const next = new URLSearchParams(searchParams)
+      next.delete('new')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -111,19 +131,33 @@ export function ContactsPage() {
         title="Contacts"
         subtitle={`${counts.total} total`}
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => setExportOpen(true)}
-            disabled={counts.total === 0}
-          >
-            <Download className="h-4 w-4" /> Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setExportOpen(true)}
+              disabled={counts.total === 0}
+            >
+              <Download className="h-4 w-4" /> Export
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+              <UserPlus className="h-4 w-4" /> New contact
+            </Button>
+          </div>
         }
       />
 
       <ContactExportDialog open={exportOpen} onClose={() => setExportOpen(false)} contactCount={counts.total} />
+
+      <AddContactDialog
+        open={addOpen}
+        onOpenChange={closeAdd}
+        onCreated={(c) => {
+          void loadContacts()
+          navigate(`/contacts/${c.id}`)
+        }}
+      />
 
       <CmdKpiStrip
         items={[

@@ -33,6 +33,7 @@ FROM node:20-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips42 \
       tini \
+      gosu \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 1001 wingcaster \
@@ -42,14 +43,17 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=wingcaster:wingcaster backend/ ./
 
-RUN mkdir -p uploads && chown -R wingcaster:wingcaster uploads
+RUN mkdir -p uploads && chown -R wingcaster:wingcaster uploads \
+ && chmod +x /app/docker-entrypoint.sh
 
-USER wingcaster
+# NOTE: intentionally NOT setting `USER wingcaster` — the container starts as
+# root so docker-entrypoint.sh can chown the runtime-mounted volume, then drops
+# privileges to `wingcaster` via gosu before exec'ing node.
 
 ENV NODE_ENV=production \
     NODE_OPTIONS="--enable-source-maps"
 
 EXPOSE 3001
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker-entrypoint.sh"]
 CMD ["node", "scripts/start.js"]

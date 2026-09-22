@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, type ComponentProps } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { AddContactDialog } from '@/components/contacts/AddContactDialog'
 import {
   Building2, TrendingUp, Eye, MessageSquare, Plus, Edit, Trash2, Star, Phone, Mail, Loader2,
   Share2, ExternalLink, Check, X, Globe, Send, BarChart3, Plug, PauseCircle, PlayCircle,
   AlertTriangle, Layers, Filter, DollarSign, Users, Settings, CheckCircle2, Clock, XCircle,
-  ChevronDown, ChevronUp, Inbox, RefreshCw, Bell
+  ChevronDown, ChevronUp, Inbox, RefreshCw, Bell, UserPlus
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -200,6 +201,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     }
   }, [addToast, isArabic])
 
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('listings')
   const [myListings, setMyListings] = useState<Property[]>([])
   const [inquiries, setInquiries] = useState<InquiryListItem[]>([])
@@ -230,6 +232,7 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
     mode: 'distribute',
   })
   const [listingModal, setListingModal] = useState<{ open: boolean; property: Property | null }>({ open: false, property: null })
+  const [addContactOpen, setAddContactOpen] = useState(false)
 
   // Settings state
   const [connecting, setConnecting] = useState<string | null>(null)
@@ -776,23 +779,14 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
                   isError={onboarding.isError}
                 />
               ) : null}
-              <Link to="/dashboard/inbox">
-                <Button variant="outline" className="gap-2">
-                  <Inbox className="h-4 w-4" />
-                  Inbox
-                  {inboxUnread > 0 && (
-                    <Badge variant="default" className="ms-1 h-5 min-w-[1.25rem] px-1 text-[10px]">{inboxUnread}</Badge>
-                  )}
-                </Button>
-              </Link>
-              <Link to="/tasks"><Button variant="outline" className="gap-2"><CheckCircle2 className="h-4 w-4" />Tasks</Button></Link>
-              <Link to="/contacts"><Button variant="outline" className="gap-2"><Users className="h-4 w-4" />Contacts</Button></Link>
-              <Link to="/opportunities"><Button variant="outline" className="gap-2"><DollarSign className="h-4 w-4" />Deals</Button></Link>
-              <Link to="/analytics/crm"><Button variant="outline" className="gap-2"><BarChart3 className="h-4 w-4" />Analytics</Button></Link>
+              {/* Navigation lives in the left nav; the top row keeps only actions
+                  + non-duplicated shortcuts (Price Health). */}
               <Link to="/agent/pricing"><Button variant="outline" className="gap-2"><TrendingUp className="h-4 w-4" />Price Health</Button></Link>
-              <Button variant="outline" className="gap-2"><Phone className="h-4 w-4" />{agent.phone}</Button>
               <Button className="gap-2" onClick={() => setListingModal({ open: true, property: null })}>
                 <Plus className="h-4 w-4" />Add Listing
+              </Button>
+              <Button className="gap-2" onClick={() => setAddContactOpen(true)}>
+                <UserPlus className="h-4 w-4" />Add Contact
               </Button>
             </div>
           </div>
@@ -839,29 +833,8 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
             ) : null}
           </div>
         ) : null}
-        {showOnboardingBanner && (
-          <Card className="mb-6 border-amber-200 bg-amber-50/60">
-            <CardHeader className="pb-3">
-              <CardTitle as="h2" className="text-base">Account activation in progress</CardTitle>
-              <CardDescription>
-                Current stage: <span className="font-medium">{onboardingStage.replace(/_/g, ' ')}</span> · Status: <span className="font-medium">{onboardingStatus.replace(/_/g, ' ')}</span>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(stepLabelMap).map(([key, label]) => {
-                  const done = Boolean(onboardingSteps[key])
-                  return (
-                    <div key={key} className="flex items-center gap-2 rounded-md border bg-[var(--lc-surface)] px-3 py-2 text-sm">
-                      {done ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
-                      <span>{label}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* "Account activation in progress" removed — "Finish setting up" above
+            is the single get-started tracker. */}
 
         <KpiAnalyticsPanel
           // structural cast — DashboardAnalytics matches panel Analytics shape
@@ -2006,6 +1979,12 @@ function GuidedAgentDashboard({ showMobileProChip }: { showMobileProChip: boolea
         property={listingModal.property}
         onClose={() => setListingModal({ open: false, property: null })}
         onSaved={() => refreshAll()}
+      />
+
+      <AddContactDialog
+        open={addContactOpen}
+        onOpenChange={setAddContactOpen}
+        onCreated={(c) => navigate(`/contacts/${c.id}`)}
       />
 
       <PromoteDistributeModal

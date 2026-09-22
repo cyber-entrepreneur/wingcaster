@@ -428,16 +428,80 @@ export const ONBOARDING_COPY = {
     ar: 'انشر إعلانك الأول',
   },
   'checklist.step.publish.sub': {
-    en: '2 min via WhatsApp',
-    ar: 'دقيقتان عبر واتساب',
+    en: 'Make it live on your public page',
+    ar: 'اجعله مباشرًا على صفحتك العامة',
+  },
+  'checklist.step.markets': {
+    en: 'Set the market(s) you’re based in',
+    ar: 'حدّد الأسواق التي تتمركز بها',
+  },
+  'checklist.step.markets.sub': {
+    en: 'Where you’re licensed — unlocks portals & licence details',
+    ar: 'حيث أنت مُرخّص — يفتح البوابات وتفاصيل الترخيص',
   },
   'checklist.step.channels': {
-    en: 'Connect a publishing channel',
-    ar: 'اربط قناة نشر',
+    en: 'Connect a social media channel',
+    ar: 'اربط قناة تواصل اجتماعي',
   },
   'checklist.step.channels.sub': {
-    en: 'Instagram, Facebook, Messenger, portals',
-    ar: 'إنستغرام، فيسبوك، ماسنجر، البوابات',
+    en: 'Instagram, Facebook, LinkedIn — cast your listings',
+    ar: 'إنستغرام، فيسبوك، لينكدإن — وزّع إعلاناتك',
+  },
+  'checklist.step.comms': {
+    en: 'Connect your comms channels',
+    ar: 'اربط قنوات المراسلة',
+  },
+  'checklist.step.comms.sub': {
+    en: 'WhatsApp, Telegram, email — reply where clients already are',
+    ar: 'واتساب، تيليجرام، البريد — تواصل حيث يوجد عملاؤك',
+  },
+  'checklist.step.listing': {
+    en: 'List your property',
+    ar: 'أضف عقارك',
+  },
+  'checklist.step.listing.sub': {
+    en: 'Enter manually, bulk upload, or integrate your CRM',
+    ar: 'أدخِل يدويًا، أو رفع جماعي، أو ربط نظام إدارة العملاء',
+  },
+  'checklist.step.designpost': {
+    en: 'Design your first post',
+    ar: 'صمّم منشورك الأول',
+  },
+  'checklist.step.designpost.sub': {
+    en: 'Turn a listing into a shareable social post',
+    ar: 'حوّل إعلانًا إلى منشور اجتماعي قابل للمشاركة',
+  },
+  'checklist.listing.chooser.title': {
+    en: 'How would you like to add your property?',
+    ar: 'كيف تريد إضافة عقارك؟',
+  },
+  'checklist.listing.chooser.sub': {
+    en: 'Pick the way that fits your inventory.',
+    ar: 'اختر الطريقة التي تناسب مخزونك.',
+  },
+  'checklist.listing.manual': {
+    en: 'Enter manually',
+    ar: 'إدخال يدوي',
+  },
+  'checklist.listing.manual.desc': {
+    en: 'Add one property with the step-by-step composer.',
+    ar: 'أضف عقارًا واحدًا عبر المُنشئ خطوة بخطوة.',
+  },
+  'checklist.listing.bulk': {
+    en: 'Bulk upload',
+    ar: 'رفع جماعي',
+  },
+  'checklist.listing.bulk.desc': {
+    en: 'Import many properties from a CSV or Excel file.',
+    ar: 'استورد عدة عقارات من ملف CSV أو Excel.',
+  },
+  'checklist.listing.integrate': {
+    en: 'Integrate',
+    ar: 'ربط',
+  },
+  'checklist.listing.integrate.desc': {
+    en: 'Sync from your own CRM, website, or system.',
+    ar: 'زامن من نظام إدارة العملاء أو موقعك أو نظامك.',
   },
   'checklist.step.notifications': {
     en: 'Turn on notifications',

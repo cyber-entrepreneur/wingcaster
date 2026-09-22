@@ -2675,7 +2675,7 @@ export const api = {
     }),
   /** AGN-DSH-002 — agency first-run onboarding checklist state. */
   getAgencyOnboardingState: (agencyId: string) =>
-    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state`),
+    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state?derive=1`),
   /** AGN-DSH-002 — patch onboarding state (checklist_delta / dismissed_forever). */
   patchAgencyOnboardingState: (
     agencyId: string,
@@ -3875,6 +3875,19 @@ export const api = {
     const qs = params?.q ? `?${new URLSearchParams({ q: params.q }).toString()}` : ''
     return fetchJson(`/contacts${qs}`)
   },
+  createContact: (data: {
+    name?: string
+    first_name?: string
+    last_name?: string
+    email?: string
+    phone?: string
+    source?: string
+    interested_listing_id?: string
+    priority?: 'low' | 'medium' | 'high'
+    deal_probability?: number
+    note?: string
+    tags?: string[]
+  }) => fetchJson(`/contacts`, { method: 'POST', body: JSON.stringify(data) }),
   getContact: (id: string) => fetchJson(`/contacts/${id}`),
   // AGT-CTC-005 — bulk export download URL (fetched with the auth header, then
   // streamed to a Blob by the caller so the browser saves a real file).
