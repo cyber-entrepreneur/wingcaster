@@ -6,6 +6,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 const addToast = vi.hoisted(() => vi.fn())
 const apiMocks = vi.hoisted(() => ({
   getContact: vi.fn(),
+  getContacts: vi.fn(),
   createContact: vi.fn(),
   updateContact: vi.fn(),
 }))
@@ -41,18 +42,23 @@ function renderAt(path: string) {
 beforeEach(() => {
   addToast.mockReset()
   apiMocks.getContact.mockReset()
+  apiMocks.getContacts.mockReset().mockResolvedValue([])
   apiMocks.createContact.mockReset().mockResolvedValue({ id: 'c-new' })
   apiMocks.updateContact.mockReset().mockResolvedValue({ id: 'c1' })
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('ContactFormPage — create', () => {
-  it('renders the identity sections', () => {
+  it('renders the identity, work, and channel sections', () => {
     renderAt('/contacts/new/full')
     expect(screen.getByRole('heading', { name: 'New contact' })).toBeInTheDocument()
     expect(screen.getByText('Role & source')).toBeInTheDocument()
+    expect(screen.getByText('Work')).toBeInTheDocument()
+    expect(screen.getByText('Phone & email')).toBeInTheDocument()
     expect(screen.getByLabelText('First name')).toBeInTheDocument()
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Organization name')).toBeInTheDocument()
+    expect(screen.getByLabelText('Personal email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mobile phone')).toBeInTheDocument()
   })
 
   it('blocks create with no identity', () => {
@@ -66,13 +72,35 @@ describe('ContactFormPage — create', () => {
   it('creates and navigates to the new detail page', async () => {
     renderAt('/contacts/new/full')
     fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@x.com' } })
+    fireEvent.change(screen.getByLabelText('Personal email'), { target: { value: 'ada@x.com' } })
     fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
     await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
     expect(apiMocks.createContact).toHaveBeenCalledWith(
       expect.objectContaining({ first_name: 'Ada', emails: [{ label: 'personal', address: 'ada@x.com' }] }),
     )
     await waitFor(() => expect(screen.getByTestId('loc').getAttribute('data-path')).toBe('/contacts/c-new'))
+  })
+
+  it('adds a second phone, auto-numbers duplicate labels, and saves both', async () => {
+    renderAt('/contacts/new/full')
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    // First phone → Business.
+    fireEvent.change(screen.getByLabelText('Phone 1 label'), { target: { value: 'business' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add phone' }))
+    // Second phone → Business as well; both should now be numbered.
+    fireEvent.change(screen.getByLabelText('Phone 2 label'), { target: { value: 'business' } })
+    fireEvent.change(screen.getByLabelText('Business 1 phone'), { target: { value: '+111' } })
+    fireEvent.change(screen.getByLabelText('Business 2 phone'), { target: { value: '+222' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /Create contact/ })[0])
+    await waitFor(() => expect(apiMocks.createContact).toHaveBeenCalledTimes(1))
+    expect(apiMocks.createContact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phones: [
+          { label: 'business', number: '+111' },
+          { label: 'business', number: '+222' },
+        ],
+      }),
+    )
   })
 })
 
@@ -89,7 +117,7 @@ describe('ContactFormPage — edit', () => {
     renderAt('/contacts/c1/edit')
     expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeInTheDocument()
     await waitFor(() => expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Bo'))
-    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('bo@x.com')
+    expect((screen.getByLabelText('Personal email') as HTMLInputElement).value).toBe('bo@x.com')
 
     fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Diaz-Smith' } })
     fireEvent.click(screen.getAllByRole('button', { name: /Save changes/ })[0])

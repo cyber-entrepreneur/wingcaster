@@ -160,6 +160,25 @@ export function emptyPropertyInterests(): PropertyInterests {
   }
 }
 
+/**
+ * Duplicate auto-numbering for labeled channels: when the same label repeats,
+ * suffix each occurrence in order — "Business" → "Business 1", "Business 2".
+ * A label used once keeps its plain text. Returns one display string per row.
+ */
+export function numberedLabels(values: string[], options: Option[]): string[] {
+  const text = (v: string) => options.find((o) => o.value === v)?.label || v || 'Other'
+  const totals: Record<string, number> = {}
+  for (const v of values) totals[v] = (totals[v] || 0) + 1
+  const seen: Record<string, number> = {}
+  return values.map((v) => {
+    if (totals[v] > 1) {
+      seen[v] = (seen[v] || 0) + 1
+      return `${text(v)} ${seen[v]}`
+    }
+    return text(v)
+  })
+}
+
 export function emptyContactFormState(): ContactFormState {
   return {
     contact_role: '',
