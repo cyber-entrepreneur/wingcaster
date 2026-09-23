@@ -44,11 +44,6 @@ export function HeroPanel({
 
   // Reset rotation + image state when the persona changes (agent ⇄ agency).
   useEffect(() => {
-    setIndex(0)
-    setImgFailed(!resolvedSrc)
-  }, [resolvedSrc])
-
-  useEffect(() => {
     const prefersReduced =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
