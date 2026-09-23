@@ -5,12 +5,13 @@ import userEvent from '@testing-library/user-event'
 import { PathSelector } from './PathSelector'
 
 describe('PathSelector', () => {
-  it('renders three path cards with brief copy', () => {
+  it('renders the two persona cards with brief copy', () => {
     render(<PathSelector value={null} onChange={() => undefined} />)
     expect(screen.getByText('Who is signing up?')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Solo agent/i })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Agent joining an agency/i })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Agency owner/i })).toBeInTheDocument()
+    // 'join' is no longer a signup persona (agents join via invite after signup).
+    expect(screen.queryByRole('radio', { name: /Agent joining an agency/i })).not.toBeInTheDocument()
   })
 
   it('selects a path on click and announces', async () => {
@@ -22,8 +23,8 @@ describe('PathSelector', () => {
   })
 
   it('marks selected card aria-checked', () => {
-    render(<PathSelector value="join" onChange={() => undefined} />)
-    expect(screen.getByTestId('path-card-join')).toHaveAttribute('aria-checked', 'true')
+    render(<PathSelector value="agency" onChange={() => undefined} />)
+    expect(screen.getByTestId('path-card-agency')).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByTestId('path-card-solo')).toHaveAttribute('aria-checked', 'false')
   })
 })

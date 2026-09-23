@@ -55,6 +55,9 @@ beforeEach(() => {
       first_listing_drafted: true,
       first_listing_published: true,
       channels_connected: false,
+      comms_connected: false,
+      first_post_designed: false,
+      markets_set: false,
       notifications_enabled: false,
       profile_completed: false,
       subscription_active: false,
@@ -66,15 +69,16 @@ beforeEach(() => {
 })
 
 describe('OnboardingChecklistWidget (AGT-ONB-005)', () => {
-  it('renders the full card with ring math 1/4 and hides completed by default', () => {
+  it('renders the full card with ring math 2/8 and hides completed by default', () => {
     renderWidget()
     expect(screen.getByRole('region', { name: /Onboarding progress/i })).toBeInTheDocument()
     expect(screen.getByText('Finish setting up')).toBeInTheDocument()
-    expect(screen.getByText(/You're 25% there — 3 steps left/i)).toBeInTheDocument()
-    expect(screen.getByText('Connect a publishing channel')).toBeInTheDocument()
+    expect(screen.getByText(/You're 25% there — 6 steps left/i)).toBeInTheDocument()
+    expect(screen.getByText('Connect a social media channel')).toBeInTheDocument()
     expect(screen.getByText('Upgrade to paid')).toBeInTheDocument()
     expect(screen.getByText('Optional')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Show completed \(1\)/i })).toBeInTheDocument()
+    // first_listing_drafted + first_listing_published are the two completed rows.
+    expect(screen.getByRole('button', { name: /Show completed \(2\)/i })).toBeInTheDocument()
     expect(screen.queryByText('Publish your first listing')).not.toBeInTheDocument()
     expect(document.querySelector('[data-signal-lamp]')).toBeNull()
   })
@@ -87,6 +91,9 @@ describe('OnboardingChecklistWidget (AGT-ONB-005)', () => {
         first_listing_drafted: true,
         first_listing_published: true,
         channels_connected: false,
+        comms_connected: false,
+        first_post_designed: false,
+        markets_set: false,
         notifications_enabled: false,
         profile_completed: false,
         subscription_active: false,

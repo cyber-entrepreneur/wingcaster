@@ -20,6 +20,12 @@ export interface OnboardingChecklistFlags {
   first_listing_drafted: boolean
   first_listing_published: boolean
   channels_connected: boolean
+  /** Comms channels — WhatsApp, Telegram, email (distinct from social `channels_connected`). */
+  comms_connected: boolean
+  /** Designed & saved a first social post from a listing. */
+  first_post_designed: boolean
+  /** Set the market(s) they operate in (drives required credentials + marketplaces). */
+  markets_set: boolean
   notifications_enabled: boolean
   profile_completed: boolean
   subscription_active: boolean
@@ -102,6 +108,9 @@ export const EMPTY_CHECKLIST: OnboardingChecklistFlags = {
   first_listing_drafted: false,
   first_listing_published: false,
   channels_connected: false,
+  comms_connected: false,
+  first_post_designed: false,
+  markets_set: false,
   notifications_enabled: false,
   profile_completed: false,
   subscription_active: false,
@@ -250,6 +259,9 @@ function normalizeChecklist(raw: unknown): OnboardingChecklistFlags {
     first_listing_drafted: asBool(src.first_listing_drafted),
     first_listing_published: asBool(src.first_listing_published),
     channels_connected: asBool(src.channels_connected),
+    comms_connected: asBool(src.comms_connected),
+    first_post_designed: asBool(src.first_post_designed),
+    markets_set: asBool(src.markets_set),
     notifications_enabled: asBool(src.notifications_enabled),
     profile_completed: asBool(src.profile_completed),
     subscription_active: asBool(src.subscription_active),

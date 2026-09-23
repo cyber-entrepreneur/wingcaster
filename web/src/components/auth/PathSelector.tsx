@@ -17,8 +17,9 @@ const PATHS: Array<{
   labelKey: 'path.solo.label' | 'path.join.label' | 'path.agency.label'
   descKey: 'path.solo.desc' | 'path.join.desc' | 'path.agency.desc'
 }> = [
+  // Two personas only: an agent joins an agency AFTER registering (via an
+  // agency invite or from account settings), not as a signup path.
   { id: 'solo', Icon: User, labelKey: 'path.solo.label', descKey: 'path.solo.desc' },
-  { id: 'join', Icon: Users, labelKey: 'path.join.label', descKey: 'path.join.desc' },
   { id: 'agency', Icon: Building2, labelKey: 'path.agency.label', descKey: 'path.agency.desc' },
 ]
 
@@ -62,7 +63,7 @@ export function PathSelector({
       <div
         role="radiogroup"
         aria-labelledby="path-selector-heading"
-        className="grid grid-cols-1 gap-[var(--lc-space-sm)] md:grid-cols-3"
+        className="grid grid-cols-1 gap-[var(--lc-space-sm)] md:grid-cols-2"
         onKeyDown={onKeyDown}
       >
         {PATHS.map(({ id, Icon, labelKey, descKey }) => {

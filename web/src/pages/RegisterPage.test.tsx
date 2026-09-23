@@ -110,28 +110,36 @@ describe('RegisterPage', () => {
     expect(screen.queryByTestId('oauth-trio')).not.toBeInTheDocument()
   })
 
-  it('pre-selects path from query and reveals identity', () => {
+  it('pre-selects path from query and reveals identity', async () => {
+    const user = userEvent.setup()
     renderAt('/register?path=solo')
     expect(screen.getByTestId('path-card-solo')).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('identity-form')).toBeInTheDocument()
+    // OAuth trio shows immediately; the credential form is behind "or use your account".
     expect(screen.getByTestId('oauth-trio')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /or use your account/i }))
+    expect(await screen.findByTestId('identity-form')).toBeInTheDocument()
   })
 
-  it('path=join reveals PathBFields and prefills agency slug', () => {
+  it('path=join reveals PathBFields and prefills agency slug', async () => {
+    const user = userEvent.setup()
     renderAt('/register?path=join&agency=elite-real-estate')
-    expect(screen.getByTestId('path-b-fields')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /or use your account/i }))
+    expect(await screen.findByTestId('path-b-fields')).toBeInTheDocument()
     expect(screen.getByLabelText(/Agency slug/i)).toHaveValue('elite-real-estate')
   })
 
-  it('path=agency reveals PathCFields', () => {
+  it('path=agency reveals PathCFields', async () => {
+    const user = userEvent.setup()
     renderAt('/register?path=agency')
-    expect(screen.getByTestId('path-c-fields')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /or use your account/i }))
+    expect(await screen.findByTestId('path-c-fields')).toBeInTheDocument()
   })
 
   it('posts register body for solo email path and redirects', async () => {
     const user = userEvent.setup()
     renderAt('/register?path=solo&plan=semsar')
 
+    await user.click(screen.getByRole('button', { name: /or use your account/i }))
     await user.type(screen.getByPlaceholderText('you@example.com'), 'sara@example.com')
     await user.type(screen.getByPlaceholderText('Choose a strong password'), 'Abcdefgh1!')
     await user.click(screen.getByRole('checkbox', { name: /Terms of Service/i }))
@@ -158,6 +166,7 @@ describe('RegisterPage', () => {
     )
     renderAt('/register?path=solo')
 
+    await user.click(screen.getByRole('button', { name: /or use your account/i }))
     await user.type(screen.getByPlaceholderText('you@example.com'), 'sara@example.com')
     await user.type(screen.getByPlaceholderText('Choose a strong password'), 'Abcdefgh1!')
     await user.click(screen.getByRole('checkbox', { name: /Terms of Service/i }))

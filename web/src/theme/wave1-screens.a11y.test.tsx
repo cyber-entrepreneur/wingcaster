@@ -385,6 +385,8 @@ describe('Wave 1 a11y — RegisterPage (SHR-AUT-006)', () => {
     expect(screen.getByText(/Skip to/i)).toHaveAttribute('href', '#register-content')
     const pathCard = screen.getByTestId('path-card-solo')
     assertTapFloor(pathCard, 'path card solo')
+    // The credential form is collapsed behind "or use your account" now.
+    await userEvent.setup().click(screen.getByRole('button', { name: /or use your account/i }))
     await waitFor(() => expect(screen.getByTestId('identity-form')).toBeInTheDocument())
     const continueBtn = screen.getAllByRole('button', { name: /Continue/i })[0]!
     assertTapFloor(continueBtn, 'Continue')
@@ -436,6 +438,7 @@ describe('Wave 1 a11y — RegisterPage (SHR-AUT-006)', () => {
     document.documentElement.dir = dir
     document.documentElement.lang = dir === 'rtl' ? 'ar' : 'en'
     const { container } = renderRegister('/register?path=solo')
+    await userEvent.setup().click(screen.getByRole('button', { name: /or use your account/i }))
     await waitFor(() => expect(screen.getByTestId('identity-form')).toBeInTheDocument())
     expect(
       await axe(container, {

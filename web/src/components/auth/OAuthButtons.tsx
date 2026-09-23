@@ -35,54 +35,50 @@ export function OAuthButtons({ locale, disabled, onStart }: Props) {
         <div className="h-px flex-1 bg-[var(--lc-border)]" />
       </div>
 
-      <button
-        type="button"
-        className={cn(
-          oauthButtonBase,
-          isDark
-            ? 'border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] text-[var(--lc-text-primary)]'
-            : 'border border-[color:rgb(218,220,224)] bg-[color:rgb(255,255,255)] text-[color:rgb(60,64,67)]',
-        )}
-        aria-label={t('aria.google', locale)}
-        disabled={disabled}
-        onClick={() => onStart('google')}
-      >
-        <span className="absolute start-4 flex items-center">
+      <div className="grid grid-cols-3 gap-[var(--lc-space-sm)]">
+        <button
+          type="button"
+          className={cn(
+            oauthButtonBase,
+            isDark
+              ? 'border border-[var(--lc-border-strong)] bg-[var(--lc-surface-raised)] text-[var(--lc-text-primary)]'
+              : 'border border-[color:rgb(218,220,224)] bg-[color:rgb(255,255,255)] text-[color:rgb(60,64,67)]',
+          )}
+          aria-label={t('aria.google', locale)}
+          disabled={disabled}
+          onClick={() => onStart('google')}
+        >
           <GoogleMark />
-        </span>
-        {t('federated.google', locale)}
-      </button>
+          <span className="sr-only">{t('federated.google', locale)}</span>
+        </button>
 
-      <button
-        type="button"
-        className={cn(
-          oauthButtonBase,
-          isDark
-            ? 'bg-[color:rgb(255,255,255)] text-[color:rgb(0,0,0)]'
-            : 'bg-[color:rgb(0,0,0)] text-[color:rgb(255,255,255)]',
-        )}
-        aria-label={t('aria.apple', locale)}
-        disabled={disabled}
-        onClick={() => onStart('apple')}
-      >
-        <span className="absolute start-4 flex items-center">
+        <button
+          type="button"
+          className={cn(
+            oauthButtonBase,
+            isDark
+              ? 'bg-[color:rgb(255,255,255)] text-[color:rgb(0,0,0)]'
+              : 'bg-[color:rgb(0,0,0)] text-[color:rgb(255,255,255)]',
+          )}
+          aria-label={t('aria.apple', locale)}
+          disabled={disabled}
+          onClick={() => onStart('apple')}
+        >
           <AppleMark />
-        </span>
-        {t('federated.apple', locale)}
-      </button>
+          <span className="sr-only">{t('federated.apple', locale)}</span>
+        </button>
 
-      <button
-        type="button"
-        className={cn(oauthButtonBase, 'bg-[color:rgb(24,119,242)] text-[color:rgb(255,255,255)]')}
-        aria-label={t('aria.facebook', locale)}
-        disabled={disabled}
-        onClick={() => onStart('facebook')}
-      >
-        <span className="absolute start-4 flex items-center">
+        <button
+          type="button"
+          className={cn(oauthButtonBase, 'bg-[color:rgb(24,119,242)] text-[color:rgb(255,255,255)]')}
+          aria-label={t('aria.facebook', locale)}
+          disabled={disabled}
+          onClick={() => onStart('facebook')}
+        >
           <FacebookMark />
-        </span>
-        {t('federated.facebook', locale)}
-      </button>
+          <span className="sr-only">{t('federated.facebook', locale)}</span>
+        </button>
+      </div>
     </div>
   )
 }

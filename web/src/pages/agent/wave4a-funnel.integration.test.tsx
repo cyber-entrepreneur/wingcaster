@@ -1144,7 +1144,7 @@ describe('Wave 4A auto-complete rule (hook + checklist UI)', () => {
 
     render(<OnboardingChecklistCard state={result.current.state} />)
     expect(screen.getByText('Finish setting up')).toBeInTheDocument()
-    expect(screen.getByText(/Publish your first listing/i)).toBeInTheDocument()
+    expect(screen.getByText(/List & publish your first property/i)).toBeInTheDocument()
     expect(document.querySelector('[data-onboarding-checklist]')).toBeTruthy()
   })
 
@@ -1180,7 +1180,10 @@ describe.skipIf(!familyReady('onb'))(
       mountFunnel('/register?path=solo')
 
       expect(await screen.findByTestId('register-page')).toBeInTheDocument()
-      expect(screen.getByTestId('identity-form')).toBeInTheDocument()
+      // Redesigned signup keeps the credential form behind a reveal control.
+      // Select by testid — this test runs in `ar`, so the label is localized.
+      await user.click(screen.getByTestId('reveal-credential-form'))
+      expect(await screen.findByTestId('identity-form')).toBeInTheDocument()
 
       await user.type(screen.getByPlaceholderText('you@example.com'), 'sara@wingcaster.test')
       await user.type(screen.getByPlaceholderText('Choose a strong password'), 'Abcdefgh1!')

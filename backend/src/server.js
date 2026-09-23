@@ -1665,7 +1665,7 @@ app.get('/api/auth/tenant-context', authMiddleware, async (req, res) => {
 app.put('/api/auth/me', authMiddleware, async (req, res) => {
   const agent = await findOne('agents', a => a.id === req.user.id)
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
-  const allowed = ['name', 'phone', 'bio', 'specialization', 'languages', 'photo', 'response_time', 'agency_name', 'agency_license', 'slug', 'cta_config']
+  const allowed = ['name', 'phone', 'bio', 'specialization', 'languages', 'photo', 'response_time', 'agency_name', 'agency_license', 'slug', 'cta_config', 'based_markets', 'market_credentials']
   const patch = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) patch[key] = req.body[key]

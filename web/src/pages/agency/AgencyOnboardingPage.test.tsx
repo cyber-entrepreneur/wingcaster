@@ -65,16 +65,17 @@ beforeEach(() => {
 })
 
 describe('AgencyOnboardingPage (AGN-DSH-002)', () => {
-  it('greets the agency and renders the 7-task checklist with a progress ring', async () => {
+  it('greets the agency and renders the 8-task checklist with a progress ring', async () => {
     renderPage()
     expect(
       await screen.findByRole('heading', { name: 'Welcome to WingCaster, Elite', level: 1 }),
     ).toBeTruthy()
     expect(screen.getByText('Complete your agency profile')).toBeTruthy()
+    expect(screen.getByText('Set your agency’s markets')).toBeTruthy()
     expect(screen.getByText('Set custom roles')).toBeTruthy()
     const ring = screen.getByRole('progressbar')
     expect(ring.getAttribute('aria-valuenow')).toBe('2')
-    expect(ring.getAttribute('aria-valuemax')).toBe('7')
+    expect(ring.getAttribute('aria-valuemax')).toBe('8')
     // Completed tasks keep a Review CTA
     expect(screen.getAllByRole('link', { name: 'Review' }).length).toBe(2)
   })
@@ -98,10 +99,11 @@ describe('AgencyOnboardingPage (AGN-DSH-002)', () => {
     )
   })
 
-  it('shows the celebration navigator card when all 7 tasks are done', async () => {
+  it('shows the celebration navigator card when all 8 tasks are done', async () => {
     apiMock.getAgencyOnboardingState.mockResolvedValue({
       checklist: {
         branding: true,
+        markets: true,
         invites: true,
         billing: true,
         portal: true,
