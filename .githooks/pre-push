@@ -1,0 +1,33 @@
+#!/usr/bin/env sh
+# WingCaster pre-push gate — runs the FAST preflight (tsc + theme suites +
+# build) so the scope CI most often catches (visual/a11y/RTL snapshot drift,
+# type/union errors) is caught before the push, not 10 minutes later in CI.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Bypass intentionally:    PREFLIGHT_SKIP=1 git push
+#
+# The full suite (app shards + backend) is NOT run here to keep pushes fast —
+# run `npm run preflight` in web/ before opening/updating a PR.
+
+if [ "${PREFLIGHT_SKIP:-}" = "1" ]; then
+  echo "pre-push: PREFLIGHT_SKIP=1 — skipping preflight."
+  exit 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+if [ ! -f "$repo_root/web/scripts/preflight.mjs" ]; then
+  echo "pre-push: preflight script not found; skipping."
+  exit 0
+fi
+
+echo "pre-push: running fast preflight (set PREFLIGHT_SKIP=1 to bypass)…"
+cd "$repo_root/web" || exit 1
+node scripts/preflight.mjs --fast
+status=$?
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "pre-push: preflight failed — push aborted. Fix the above, or"
+  echo "          PREFLIGHT_SKIP=1 git push to bypass intentionally."
+  exit "$status"
+fi
+exit 0

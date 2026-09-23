@@ -12,6 +12,8 @@
     "dev": "vite --port 7100",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
+    "preflight": "node scripts/preflight.mjs",
+    "preflight:fast": "node scripts/preflight.mjs --fast",
     "preview": "vite preview",
     "server": "node ../backend/src/server.js",
     "start:backend": "node ../backend/src/server.js",
