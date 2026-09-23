@@ -1144,7 +1144,7 @@ describe('Wave 4A auto-complete rule (hook + checklist UI)', () => {
 
     render(<OnboardingChecklistCard state={result.current.state} />)
     expect(screen.getByText('Finish setting up')).toBeInTheDocument()
-    expect(screen.getByText(/Publish your first listing/i)).toBeInTheDocument()
+    expect(screen.getByText(/List & publish your first property/i)).toBeInTheDocument()
     expect(document.querySelector('[data-onboarding-checklist]')).toBeTruthy()
   })
 
