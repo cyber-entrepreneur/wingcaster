@@ -116,15 +116,24 @@ export function AddOpportunityDialog({ open, onOpenChange, onCreated }: AddOppor
   useEffect(() => {
     if (!open) return
     reset()
-    void loadContacts('')
     void loadProperties()
-  }, [open, reset, loadContacts, loadProperties])
+  }, [open, reset, loadProperties])
 
+  // Load contacts once immediately when the dialog opens (and whenever the
+  // search is cleared), then debounce reloads for typed queries. Loading the
+  // empty query immediately — rather than also scheduling it on the debounce —
+  // avoids a redundant second fetch that would briefly flip the list back to
+  // its loading state right after the first results render.
   useEffect(() => {
     if (!open) return
     if (searchTimer.current) clearTimeout(searchTimer.current)
+    const query = contactQuery.trim()
+    if (!query) {
+      void loadContacts('')
+      return
+    }
     searchTimer.current = setTimeout(() => {
-      void loadContacts(contactQuery)
+      void loadContacts(query)
     }, 250)
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current)
