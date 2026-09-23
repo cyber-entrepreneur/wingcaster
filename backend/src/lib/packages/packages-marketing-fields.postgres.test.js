@@ -59,7 +59,8 @@ finPostgresSuite('packages marketing fields', {}, ({ pool, url }) => {
       [MARKETING_VERSION_IDS.semsar],
     )
     expect(Number(billing.rows[0].properties_covered)).toBe(0)
-    expect(Number(billing.rows[0].monthly_price_minor)).toBe(0)
+    // Migration 803 adopts each paid tier's marketing price as its billing price.
+    expect(Number(billing.rows[0].monthly_price_minor)).toBe(1500)
   })
 
   it('getActiveTierCatalog returns the 6 seeded tiers in sort_order', async () => {

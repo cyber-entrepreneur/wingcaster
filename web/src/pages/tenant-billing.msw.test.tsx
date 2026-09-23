@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Integration: tenant views balance → top-up stub.
+ * Integration: tenant views balance → opens the top-up payment flow.
  *
- * jsdom cannot run msw/node against relative `/api` fetches (requests hang),
- * and web CI typecheck has no msw package. Handler payloads match the MSW
- * shape used by the backend top-up stub (202 pending_provider).
+ * Top-up now goes through Paddle checkout (server-issued checkout-config +
+ * inline Paddle.js), not the old outbox stub. With no VITE_PADDLE_CLIENT_TOKEN
+ * in the test env the checkout is unavailable, so we assert the balance loads
+ * and the dialog surfaces the "Continue to payment" CTA.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { MyCreditsPage } from './MyCreditsPage'
@@ -27,7 +28,6 @@ const balancePayload = {
 
 const apiMock = vi.hoisted(() => ({
   getTenantCreditsBalance: vi.fn(),
-  requestTenantTopUp: vi.fn(),
 }))
 
 vi.mock('@/api/client', async () => {
@@ -48,23 +48,17 @@ vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }))
 
-describe('MyCreditsPage top-up stub', () => {
+describe('MyCreditsPage top-up', () => {
   beforeEach(() => {
     apiMock.getTenantCreditsBalance.mockResolvedValue(balancePayload)
-    apiMock.requestTenantTopUp.mockResolvedValue({
-      status: 'pending_provider',
-      amount_usd: 25,
-      idempotency_key: 'msw-1',
-    })
   })
 
-  it('loads balance and records a top-up request', async () => {
+  it('loads balance and opens the top-up payment flow', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><MyCreditsPage /></MemoryRouter>)
     expect(await screen.findByText('5.00')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Top up/i }))
     expect(await screen.findByText(/Top up credits/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Request top-up/i }))
-    await waitFor(() => expect(apiMock.requestTenantTopUp).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: /Continue to payment/i })).toBeInTheDocument()
   })
 })
