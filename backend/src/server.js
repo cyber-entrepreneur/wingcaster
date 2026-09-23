@@ -297,6 +297,7 @@ import {
 } from './lib/reviews/agent-review-routes.js'
 import { registerRoutes as registerContactMergeRoutes } from './lib/contacts/merge-routes.js'
 import { registerRoutes as registerContactAttachmentRoutes } from './lib/contacts/attachment-routes.js'
+import { registerRoutes as registerContactInsightsRoutes } from './lib/contacts/insights-routes.js'
 import { registerRoutes as registerSavedSearchRoutes } from './lib/campaigns/saved-search-routes.js'
 import { registerRoutes as registerClosedTransactionImportRoutes } from './lib/closed-transactions/import-routes.js'
 import { registerRoutes as registerReminderPolicyRoutes } from './lib/reminders/reminder-policy-routes.js'
@@ -4288,6 +4289,8 @@ app.post('/api/contacts', authMiddleware, requireApiTokenScope('contacts:write')
     last_activity_at: now,
     created_at: now,
     updated_at: now,
+    created_by: req.user.id,
+    updated_by: req.user.id,
   }, body)
   await insert('contacts', contact)
   await logActivity({ type: 'contact_created', agent_id: req.user.id, meta: { contact_id: contact.id, source: contact.source } })
@@ -4301,7 +4304,19 @@ app.get('/api/contacts/:id', authMiddleware, async (req, res) => {
   const viewings = await findAll('viewings', (v) => v.contact_id === contact.id)
   const conversations = (await findAll('conversations', (c) => c.contact_id === contact.id))
     .map(withChannelSource)
-  res.json({ ...contact, inquiries, viewings, conversations })
+  // Resolve authorship ids to agent names for display.
+  const [createdByAgent, updatedByAgent] = await Promise.all([
+    contact.created_by ? findOne('agents', (a) => a.id === contact.created_by) : null,
+    contact.updated_by ? findOne('agents', (a) => a.id === contact.updated_by) : null,
+  ])
+  res.json({
+    ...contact,
+    inquiries,
+    viewings,
+    conversations,
+    created_by_name: createdByAgent?.name || null,
+    updated_by_name: updatedByAgent?.name || null,
+  })
 })
 
 app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:write'), validate(contactUpdateSchema), async (req, res) => {
@@ -4318,6 +4333,7 @@ app.patch('/api/contacts/:id', authMiddleware, requireApiTokenScope('contacts:wr
     applyContactFormFields(next, body)
     if (body.assigned_agent_id !== undefined) next.assigned_agent_id = body.assigned_agent_id
     next.updated_at = now
+    next.updated_by = req.user.id
     return next
   })
   res.json(await findOne('contacts', (c) => c.id === contact.id))
@@ -7653,6 +7669,7 @@ app.post('/api/admin/account-recovery/:caseId/cast-vote', authMiddleware, valida
 registerAccountRecoveryEvidenceRoutes(app, { logActivity, auth: authMiddleware })
 registerContactMergeRoutes(app, { authMiddleware, logActivity })
 registerContactAttachmentRoutes(app, { logActivity })
+registerContactInsightsRoutes(app, {})
 registerReminderPolicyRoutes(app, { authMiddleware, logActivity })
 
 async function notifyAccountRecoveryApplicant({
