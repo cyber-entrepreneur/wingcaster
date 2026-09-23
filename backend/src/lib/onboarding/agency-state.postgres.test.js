@@ -87,7 +87,7 @@ finPostgresSuite('agency onboarding state', { seed: false }, ({ pool }) => {
     )
     expect(pk.rows.map((r) => r.attname)).toEqual(['agency_id'])
     expect(AGENCY_CHECKLIST_KEYS).toEqual([
-      'branding', 'invites', 'billing', 'portal', 'listing', 'roles', '2FA',
+      'branding', 'markets', 'invites', 'billing', 'portal', 'listing', 'roles', '2FA',
     ])
   })
 
