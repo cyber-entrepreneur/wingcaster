@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
@@ -20,6 +20,8 @@ const apiMocks = vi.hoisted(() => ({
   getTasks: vi.fn(),
   getOpportunities: vi.fn(),
   getContactAttachments: vi.fn(),
+  getContactInterestedListings: vi.fn(),
+  getContactEngagement: vi.fn(),
   getContacts: vi.fn(),
   completeTask: vi.fn(),
 }))
@@ -69,6 +71,19 @@ beforeEach(() => {
   apiMocks.getContactAttachments.mockReset().mockResolvedValue({ attachments: [
     { id: 'a1', kind: 'pre_approval_letter', filename: 'letter.pdf', content_type: 'application/pdf', size_bytes: 10 },
   ] })
+  apiMocks.getContactInterestedListings.mockReset().mockResolvedValue({ listings: [
+    {
+      property_id: 'p1', title: 'Marina flat', address_display: 'Dubai Marina', price: 1200000,
+      currency: 'AED', listing_status: 'live', inquiry_status: 'qualification', viewing_status: 'scheduled',
+      viewing_scheduled_at: FUTURE, last_activity_at: PAST,
+    },
+  ] })
+  apiMocks.getContactEngagement.mockReset().mockResolvedValue({
+    channels: ['whatsapp', 'email'],
+    last_by_channel: { whatsapp: PAST, email: PAST },
+    last_contact_at: PAST,
+    last_deal: { id: 'd-open', stage: 'negotiation', property_id: 'p1', deal_value: 500000, currency: 'USD', expected_close_date: null, updated_at: PAST },
+  })
   apiMocks.getContacts.mockReset().mockResolvedValue([])
 })
 afterEach(() => vi.restoreAllMocks())
@@ -123,6 +138,30 @@ describe('ContactDetailPage card', () => {
     await user.click(screen.getByRole('tab', { name: /Attachments/ }))
     expect(await screen.findByText('letter.pdf')).toBeInTheDocument()
     expect(screen.getByText('Pre-approval letter')).toBeInTheDocument()
+  })
+
+  it('shows the engagement summary on the overview tab', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: 'Ada Lovelace', level: 1 })
+    // Overview is the default tab — engagement renders without switching.
+    const channelLabel = await screen.findByText('Last contact by channel')
+    // Scope to the channel block so we don't collide with the quick-action bar's WhatsApp link.
+    const channelBlock = channelLabel.parentElement as HTMLElement
+    expect(within(channelBlock).getByText(/WhatsApp/)).toBeInTheDocument()
+    expect(screen.getByText('Latest deal')).toBeInTheDocument()
+  })
+
+  it('lists interested listings with inquiry and viewing state', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await screen.findByRole('heading', { name: 'Ada Lovelace', level: 1 })
+    await user.click(screen.getByRole('tab', { name: /Listings/ }))
+    expect(await screen.findByText('Marina flat')).toBeInTheDocument()
+    expect(screen.getByText('Dubai Marina')).toBeInTheDocument()
+    expect(screen.getByText(/Inquiry: qualification/)).toBeInTheDocument()
+    expect(screen.getByText(/Viewing: scheduled/)).toBeInTheDocument()
+    // Row links to the listing profile (loaded by property id).
+    expect(screen.getByRole('link', { name: /Marina flat/ })).toHaveAttribute('href', '/listings/p1')
   })
 
   it('opens the meeting and deal dialogs from the quick-action bar', async () => {
