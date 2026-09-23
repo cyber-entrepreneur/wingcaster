@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { UpgradeDialog } from '@/components/credits/UpgradeDialog'
+import { PaddleCheckoutDialog } from '@/components/billing/PaddleCheckoutDialog'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useToast } from '@/components/ui/toast'
@@ -15,6 +16,16 @@ export function PlansPage() {
   const [plans, setPlans] = useState<TenantPlan[]>([])
   const [subscription, setSubscription] = useState<TenantSubscription | null>(null)
   const [selected, setSelected] = useState<TenantPlan | null>(null)
+  const [checkoutPlan, setCheckoutPlan] = useState<TenantPlan | null>(null)
+
+  // No active Paddle subscription yet → subscribing is a NEW paid checkout.
+  // With one, switching tiers is an internal (proration-previewed) plan change.
+  const hasPaddleSubscription = Boolean(subscription?.paddle_subscription_id)
+
+  function onChoosePlan(plan: TenantPlan) {
+    if (hasPaddleSubscription) setSelected(plan)
+    else setCheckoutPlan(plan)
+  }
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +61,9 @@ export function PlansPage() {
                 <p className="text-2xl font-bold">${(plan.monthly_price_minor / 100).toFixed(0)}<span className="text-sm font-normal text-muted-foreground"> / month</span></p>
                 <p className="text-sm text-muted-foreground">{plan.properties_covered} properties covered</p>
                 {!current && (
-                  <Button onClick={() => setSelected(plan)}>Upgrade</Button>
+                  <Button onClick={() => onChoosePlan(plan)}>
+                    {hasPaddleSubscription ? 'Change plan' : 'Subscribe'}
+                  </Button>
                 )}
               </CardContent>
             </Card>
@@ -63,6 +76,14 @@ export function PlansPage() {
         subscription={subscription}
         plan={selected}
         onChanged={load}
+      />
+      <PaddleCheckoutDialog
+        open={Boolean(checkoutPlan)}
+        onOpenChange={(open) => { if (!open) setCheckoutPlan(null) }}
+        request={checkoutPlan ? { kind: 'subscription', package_version_id: checkoutPlan.version_id } : null}
+        title={checkoutPlan ? `Subscribe to ${checkoutPlan.display_name}` : 'Subscribe'}
+        description="Complete payment to activate your plan. Your subscription updates automatically once payment is confirmed."
+        onCompleted={load}
       />
     </div>
   )

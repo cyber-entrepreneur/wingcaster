@@ -40,6 +40,7 @@ function requireElevatedIfLargeTopUp(req, res, next) {
 export async function completeTopUpFromWebhook({
   tenantId,
   amount,
+  units: explicitUnits,
   webhookEventId,
   source = 'topup.paddle',
   currency = 'USD',
@@ -47,7 +48,11 @@ export async function completeTopUpFromWebhook({
   if (!webhookEventId) {
     throw new CreditEngineError(CREDIT_ERROR.INVALID_AMOUNT, 'webhook_event_id is required')
   }
-  const units = typeof amount === 'number' && amount < 1000 ? toCreditUnits(amount) : Number(amount)
+  // Prefer an explicit unit count (e.g. from Paddle custom_data) — unambiguous.
+  // Legacy callers pass `amount` in dollars; the < 1000 heuristic scales those.
+  const units = Number.isFinite(Number(explicitUnits)) && Number(explicitUnits) > 0
+    ? Math.round(Number(explicitUnits))
+    : (typeof amount === 'number' && amount < 1000 ? toCreditUnits(amount) : Number(amount))
   return grant({
     tenantId,
     source,

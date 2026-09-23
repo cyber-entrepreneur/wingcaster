@@ -82,6 +82,7 @@ import { registerAgencyFeatureQuotaRoutes } from './lib/credits/agency-feature-q
 import { registerAgencyWalletOverviewRoutes } from './lib/credits/wallet-overview-routes.js'
 import { registerCreditAdminRoutes } from './lib/credits/admin-routes.js'
 import { registerTenantBillingRoutes } from './lib/credits/tenant-routes.js'
+import { registerBillingRoutes } from './lib/billing/routes.js'
 import { registerFinPackagesAdminRoutes } from './lib/packages/admin-routes.js'
 import { registerPublicPricingRoutes } from './lib/packages/public-pricing-routes.js'
 import { registerPortalAdminRoutes } from './lib/portals/admin-routes.js'
@@ -98,7 +99,8 @@ import { recordCreditFinMirrorRun } from './fin/admin/credit-fin-mirror.js'
 import { runBillingCycleWorkerTick } from './lib/packages/billing-cycle-worker.js'
 import { syncListingPropertyTracker } from './lib/packages/property-tracker-hook.js'
 import { resolveRequestCreditTenant, creditContextFromRequest, creditTenantIdForScope } from './lib/credits/tenant-context.js'
-import { handleStripeWebhook, handlePaddleWebhook } from './fin/funding/http.js'
+import { handleStripeWebhook } from './fin/funding/http.js'
+import { handlePaddleWebhookEvent } from './lib/billing/paddle-webhook.js'
 import { sendPlatformNotification } from './notifications/platform-templates/index.js'
 import {
   createAgentAccount,
@@ -744,7 +746,11 @@ app.post('/webhooks/stripe', async (req, res, next) => {
 
 app.post('/webhooks/paddle', async (req, res, next) => {
   try {
-    return await handlePaddleWebhook(req, res)
+    const result = await handlePaddleWebhookEvent(req.rawBody || req.body, req.headers, {
+      secret: process.env.PADDLE_WEBHOOK_SECRET,
+    })
+    if (result.retryAfter) res.set('Retry-After', String(result.retryAfter))
+    return res.status(result.httpStatus).json(result.body)
   } catch (err) {
     next(err)
   }
@@ -926,6 +932,7 @@ registerAgencyFeatureQuotaRoutes(app)
 registerAgencyWalletOverviewRoutes(app)
 registerCreditAdminRoutes(app)
 registerTenantBillingRoutes(app)
+registerBillingRoutes(app)
 registerPushTokenRoutes(app)
 registerSessionRoutes(app)
 registerSettingsIndexRoutes(app, { authMiddleware })

@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_GIT_SHA?: string
   readonly VITE_APP_VERSION?: string
   readonly VITE_UNLAYER_PROJECT_ID?: string
+  readonly VITE_PADDLE_CLIENT_TOKEN?: string
+  readonly VITE_PADDLE_ENV?: 'sandbox' | 'production'
   readonly DEV: boolean
   readonly PROD: boolean
   readonly MODE: string

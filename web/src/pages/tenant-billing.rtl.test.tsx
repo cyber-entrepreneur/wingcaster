@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { PlansPage } from './PlansPage'
@@ -103,8 +103,8 @@ describe('tenant billing pages', () => {
     expect(screen.getByText(/soft warning/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Top up/i }))
     expect(await screen.findByText(/Top up credits/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Request top-up/i }))
-    await waitFor(() => expect(apiMock.requestTenantTopUp).toHaveBeenCalled())
+    // Top-up now opens the Paddle checkout flow, not the old requestTenantTopUp stub.
+    expect(screen.getByRole('button', { name: /Continue to payment/i })).toBeInTheDocument()
   })
 
   it('MyCreditNotesPage empty state', async () => {
