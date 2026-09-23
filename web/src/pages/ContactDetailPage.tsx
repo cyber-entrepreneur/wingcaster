@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Building2, Check, Clock, Download, FileText, Loader2, Mail,
-  Phone, Plus, Sparkles, Tag, User,
+  Activity, ArrowLeft, Building2, Check, Clock, Download, FileText, Home, Loader2, Mail,
+  MessageSquare, Phone, Plus, Sparkles, Tag, TrendingUp, User,
 } from 'lucide-react'
 import { MergeContactsDialog } from '@/components/contacts/MergeContactsDialog'
 import { Contact360Panel } from '@/components/contact-360/Contact360Panel'
@@ -39,6 +39,9 @@ interface Contact {
   last_activity_at: string | null
   created_at: string
   updated_at?: string
+  // Authorship — resolved to agent display names by GET /api/contacts/:id.
+  created_by_name?: string | null
+  updated_by_name?: string | null
   // Full-form fields (present via the data-JSONB merge).
   contact_role?: string
   organization_name?: string
@@ -62,6 +65,9 @@ interface ContactAttachment {
 }
 interface TasksListResponse { items?: ContactTask[] }
 interface TimelineResponse { events?: TimelineEvent[] }
+// Contact-card insight shapes — derived from the API client so they can't drift.
+type InterestedListing = Awaited<ReturnType<typeof api.getContactInterestedListings>>['listings'][number]
+type Engagement = Awaited<ReturnType<typeof api.getContactEngagement>>
 
 const TYPE_COLORS: Record<string, string> = {
   note: 'bg-purple-100 text-purple-700',
@@ -83,6 +89,17 @@ const ATTACHMENT_KIND_LABEL: Record<string, string> = {
   pre_approval_letter: 'Pre-approval letter',
   voice_note: 'Voice note',
   other: 'Attachment',
+}
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp', email: 'Email', sms: 'SMS', call: 'Call', phone: 'Phone',
+  instagram: 'Instagram', facebook: 'Facebook', web: 'Web', unknown: 'Other',
+}
+function channelLabel(value: string) {
+  return CHANNEL_LABEL[value] || value.replace(/_/g, ' ')
+}
+function money(value: number | null, currency: string | null) {
+  if (value == null) return null
+  return `${Number(value).toLocaleString()}${currency ? ` ${currency}` : ''}`
 }
 
 function roleLabel(value?: string) {
@@ -113,6 +130,8 @@ export function ContactDetailPage() {
   const [tasks, setTasks] = useState<ContactTask[]>([])
   const [opportunities, setOpportunities] = useState<ContactOpportunity[]>([])
   const [attachments, setAttachments] = useState<ContactAttachment[]>([])
+  const [interestedListings, setInterestedListings] = useState<InterestedListing[]>([])
+  const [engagement, setEngagement] = useState<Engagement | null>(null)
   const [loading, setLoading] = useState(true)
   const [noteContent, setNoteContent] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -127,13 +146,15 @@ export function ContactDetailPage() {
   const loadAll = async () => {
     if (!id) return
     try {
-      const [c, tl, nt, ts, opps, att] = await Promise.all([
+      const [c, tl, nt, ts, opps, att, listings, eng] = await Promise.all([
         api.getContact(id) as Promise<Contact>,
         api.getContactTimeline(id).catch(() => ({ events: [] })) as Promise<TimelineResponse>,
         api.getContactNotes(id).catch(() => []) as Promise<ContactNote[]>,
         api.getTasks({ contact_id: id, limit: '50' }).catch(() => ({ items: [] })) as Promise<TasksListResponse>,
         api.getOpportunities().catch(() => []) as Promise<ContactOpportunity[]>,
         api.getContactAttachments(id).catch(() => ({ attachments: [] })) as Promise<{ attachments: ContactAttachment[] }>,
+        api.getContactInterestedListings(id).catch(() => ({ listings: [] })),
+        api.getContactEngagement(id).catch(() => null),
       ])
       setContact(c)
       setTimeline(tl.events || [])
@@ -141,6 +162,8 @@ export function ContactDetailPage() {
       setTasks((ts.items || []).filter((t) => t.contact_id === id))
       setOpportunities((opps || []).filter((o) => o.contact_id === id))
       setAttachments(att.attachments || [])
+      setInterestedListings(listings.listings || [])
+      setEngagement(eng)
     } catch (e: unknown) {
       addToast({ title: 'Failed to load contact', description: e instanceof Error ? e.message : undefined, variant: 'error' })
     }
@@ -326,12 +349,30 @@ export function ContactDetailPage() {
                 )}
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <User className="h-4 w-4" />
-                  <span>Added {new Date(contact.created_at).toLocaleDateString()}</span>
+                  <span>
+                    Added {new Date(contact.created_at).toLocaleDateString()}
+                    {contact.created_by_name ? ` by ${contact.created_by_name}` : ''}
+                  </span>
                 </div>
-                {contact.last_activity_at && (
+                {contact.updated_at && (contact.updated_by_name || contact.updated_at !== contact.created_at) && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="h-4 w-4" />
+                    <span>
+                      Updated {new Date(contact.updated_at).toLocaleDateString()}
+                      {contact.updated_by_name ? ` by ${contact.updated_by_name}` : ''}
+                    </span>
+                  </div>
+                )}
+                {contact.last_activity_at && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Activity className="h-4 w-4" />
                     <span>Last activity {new Date(contact.last_activity_at).toLocaleString()}</span>
+                  </div>
+                )}
+                {engagement?.last_contact_at && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Last contact {new Date(engagement.last_contact_at).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>
@@ -364,12 +405,66 @@ export function ContactDetailPage() {
               </TabsTrigger>
               <TabsTrigger value="actions">Actions ({openTaskCount})</TabsTrigger>
               <TabsTrigger value="deals">Deals ({opportunities.length})</TabsTrigger>
+              <TabsTrigger value="listings">Listings ({interestedListings.length})</TabsTrigger>
               <TabsTrigger value="attachments">Attachments ({attachments.length})</TabsTrigger>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="contact360">
+              {engagement && ((engagement.channels?.length ?? 0) > 0 || engagement.last_deal) && (
+                <Card className="mb-4">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-1.5 text-base">
+                      <TrendingUp className="h-4 w-4 text-primary" /> Engagement
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">Last contact by channel</p>
+                      {(engagement.channels?.length ?? 0) === 0 ? (
+                        <p className="text-sm text-muted-foreground">No conversations yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(engagement.channels || [])
+                            .slice()
+                            .sort((a, b) =>
+                              new Date(engagement.last_by_channel[b] || 0).getTime() -
+                              new Date(engagement.last_by_channel[a] || 0).getTime())
+                            .map((ch) => (
+                              <Badge key={ch} variant="outline" className="gap-1 font-normal">
+                                <MessageSquare className="h-3 w-3" />
+                                {channelLabel(ch)}
+                                <span className="text-muted-foreground">
+                                  · {new Date(engagement.last_by_channel[ch]).toLocaleDateString()}
+                                </span>
+                              </Badge>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                    {engagement.last_deal && (
+                      <div>
+                        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Latest deal</p>
+                        <Link
+                          to={`/opportunities/${engagement.last_deal.id}`}
+                          className="flex items-center justify-between rounded-md border border-[var(--lc-border)] px-3 py-2 hover:bg-[var(--lc-bg-page)]"
+                        >
+                          <span className="text-sm font-medium capitalize">
+                            {(engagement.last_deal.stage || 'deal').replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {money(engagement.last_deal.deal_value, engagement.last_deal.currency) || 'No value'}
+                            {engagement.last_deal.updated_at
+                              ? ` · ${new Date(engagement.last_deal.updated_at).toLocaleDateString()}`
+                              : ''}
+                          </span>
+                        </Link>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
               <Contact360Panel contactId={contact.id} />
             </TabsContent>
 
@@ -451,6 +546,77 @@ export function ContactDetailPage() {
                   </Card>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="listings">
+              <Card>
+                <CardHeader><CardTitle className="text-base">Interested listings</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {interestedListings.length === 0 ? (
+                    <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      No inquiries or viewings tied to this contact yet.
+                    </p>
+                  ) : (
+                    <div className="divide-y">
+                      {interestedListings.map((l) => {
+                        const inner = (
+                          <>
+                            <div className="flex min-w-0 items-start gap-2">
+                              <Home className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{l.title || 'Untitled listing'}</p>
+                                {l.address_display && (
+                                  <p className="truncate text-xs text-muted-foreground">{l.address_display}</p>
+                                )}
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {l.listing_status && (
+                                    <Badge variant="outline" className="text-[10px] capitalize">
+                                      {l.listing_status.replace(/_/g, ' ')}
+                                    </Badge>
+                                  )}
+                                  {l.inquiry_status && (
+                                    <Badge variant="secondary" className="text-[10px] capitalize">
+                                      Inquiry: {l.inquiry_status.replace(/_/g, ' ')}
+                                    </Badge>
+                                  )}
+                                  {l.viewing_status && (
+                                    <Badge variant="secondary" className="text-[10px] capitalize">
+                                      Viewing: {l.viewing_status.replace(/_/g, ' ')}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {money(l.price, l.currency) && (
+                                <p className="text-sm font-medium">{money(l.price, l.currency)}</p>
+                              )}
+                              {l.last_activity_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(l.last_activity_at).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )
+                        return l.property_id ? (
+                          <Link
+                            key={l.property_id}
+                            to={`/listings/${l.property_id}`}
+                            className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-[var(--lc-bg-page)]"
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          <div key={l.title || 'listing'} className="flex items-start justify-between gap-3 px-4 py-3">
+                            {inner}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="attachments">
