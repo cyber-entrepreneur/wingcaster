@@ -47,6 +47,7 @@ import { OpportunitiesPage } from '@/pages/OpportunitiesPage'
 import { OpportunityDetailPage } from '@/pages/agent/OpportunityDetailPage'
 import { AgentPublicProfileEditorPage } from '@/pages/agent/AgentPublicProfileEditorPage'
 import { CrmAnalyticsPage } from '@/pages/CrmAnalyticsPage'
+import { MarketingDashboardPage } from '@/pages/MarketingDashboardPage'
 import { CampaignsPage } from '@/pages/CampaignsPage'
 import { CampaignBuilderPage } from '@/pages/CampaignBuilderPage'
 import { JourneyRunInspectorPage } from '@/pages/JourneyRunInspectorPage'
@@ -286,6 +287,7 @@ function AppRoutes() {
       <Route path="/opportunities" element={<OpportunitiesPage />} />
       <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
       <Route path="/analytics/crm" element={<CrmAnalyticsPage />} />
+      <Route path="/marketing" element={<MarketingDashboardPage />} />
       <Route path="/journeys" element={<CampaignsPage />} />
       <Route path="/journeys/new" element={<CampaignBuilderPage />} />
       <Route path="/journeys/:id/edit" element={<CampaignBuilderPage />} />
