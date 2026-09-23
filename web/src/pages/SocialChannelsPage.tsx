@@ -202,7 +202,7 @@ export function SocialChannelsPage() {
       >
         <TabsList className={`grid w-full sm:w-auto ${shouldRenderPro ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="channels">Channel setup</TabsTrigger>
-          <TabsTrigger value="paid">Paid ads</TabsTrigger>
+          <TabsTrigger value="paid">Social Ads</TabsTrigger>
           {shouldRenderPro ? <TabsTrigger value="accounts">My accounts</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="channels" className="mt-4">
