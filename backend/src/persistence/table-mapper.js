@@ -268,6 +268,7 @@ const TABLE_MAP = {
       'first_name', 'last_name', 'contact_role', 'organization_name', 'reports_to_contact_id',
       'qualification_status', 'budget_amount', 'budget_currency',
       'email_opt_out', 'do_not_call', 'notify_owner',
+      'created_by', 'updated_by',
     ],
   },
   contact_notes: { schema: 'public', table: 'contact_notes', columns: ['contact_id', 'agent_id', 'content'] },

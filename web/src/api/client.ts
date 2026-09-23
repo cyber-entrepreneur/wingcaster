@@ -3982,6 +3982,24 @@ export const api = {
   ) =>
     fetchJson(`/contacts/${sourceId}/merge`, { method: 'POST', body: JSON.stringify(payload) }),
   getContactTimeline: (id: string) => fetchJson(`/contacts/${id}/timeline`),
+  // Contact card: listings the contact is tied to (inquiries + viewings) with state.
+  getContactInterestedListings: (
+    id: string,
+  ): Promise<{ listings: Array<{
+    property_id: string; title: string | null; address_display: string | null
+    price: number | null; currency: string | null; listing_status: string | null
+    inquiry_status: string | null; viewing_status: string | null
+    viewing_scheduled_at: string | null; last_activity_at: string | null
+  }> }> => fetchJson(`/contacts/${encodeURIComponent(id)}/interested-listings`),
+  // Contact card: last contact per channel + last deal.
+  getContactEngagement: (
+    id: string,
+  ): Promise<{
+    channels: string[]
+    last_by_channel: Record<string, string>
+    last_contact_at: string | null
+    last_deal: { id: string; stage: string | null; property_id: string | null; deal_value: number | null; currency: string | null; expected_close_date: string | null; updated_at: string | null } | null
+  }> => fetchJson(`/contacts/${encodeURIComponent(id)}/engagement`),
   getContactNotes: (id: string) => fetchJson(`/contacts/${id}/notes`),
   createContactNote: (id: string, content: string) =>
     fetchJson(`/contacts/${id}/notes`, { method: 'POST', body: JSON.stringify({ content }) }),
