@@ -10,7 +10,9 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer h-4 w-4 shrink-0 rounded-[var(--lc-radius-sm)] border border-[var(--lc-border-strong)]',
+      // min-h-0 defeats the global tap-target min-height that otherwise
+      // stretches this <button>-based control into a tall rectangle.
+      'peer h-4 w-4 min-h-0 shrink-0 rounded-[var(--lc-radius-sm)] border border-[var(--lc-border-strong)]',
       'bg-[var(--lc-surface)] text-[var(--lc-action-primary-text)]',
       'focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
       'data-[state=checked]:border-[var(--lc-action-primary)] data-[state=checked]:bg-[var(--lc-action-primary)]',

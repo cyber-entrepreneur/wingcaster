@@ -116,11 +116,17 @@ export function resumeRouteForStep(
   }
 }
 
+// "Finish setting up" required steps (AGT-ONB-005). first_listing_drafted is
+// intentionally excluded (publishing implies it) and subscription_active is
+// optional, so neither is counted toward completion.
 const MAIN_CHECKLIST_KEYS: Array<keyof OnboardingChecklistFlags> = [
-  'first_listing_published',
-  'channels_connected',
-  'notifications_enabled',
   'profile_completed',
+  'markets_set',
+  'channels_connected',
+  'comms_connected',
+  'notifications_enabled',
+  'first_post_designed',
+  'first_listing_published',
 ]
 
 export function mainChecklistCounts(checklist: OnboardingChecklistFlags): {

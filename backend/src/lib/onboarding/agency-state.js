@@ -3,13 +3,14 @@
  * Persisted per agency; concurrent checklist_delta merges via JSONB ||.
  *
  * Checklist keys (clients write boolean or `{done: bool}`):
- * branding, invites, billing, portal, listing, roles, 2FA.
+ * branding, markets, invites, billing, portal, listing, roles, 2FA.
  */
 
-import { query } from '../../db.js'
+import { query, findOne, findAll } from '../../db.js'
 
 export const AGENCY_CHECKLIST_KEYS = Object.freeze([
   'branding',
+  'markets',
   'invites',
   'billing',
   'portal',
@@ -44,7 +45,66 @@ export function serializeAgencyOnboardingState(row) {
   }
 }
 
-export async function getAgencyOnboardingState(agencyId) {
+/**
+ * Derive which checklist tasks are complete from real data, so the card
+ * auto-reflects work done anywhere (not just via explicit checklist writes).
+ *
+ * Best-effort and fail-safe: any signal we can't read resolves to `false`
+ * (task shows "to do") — we never mark a task done we can't confirm. Only
+ * `true` results are merged over the stored checklist; explicit stored
+ * completions (and dismissals) are always preserved.
+ */
+export async function deriveAgencyChecklist(agencyId) {
+  const derived = {}
+  try {
+    const agency = await findOne('agencies', (a) => a.id === agencyId)
+    if (agency) {
+      derived.branding = Boolean(agency.logo)
+      if (agency.owner_id) {
+        const ownerAgent = await findOne('agents', (a) => a.id === agency.owner_id)
+        derived.markets =
+          Array.isArray(ownerAgent?.based_markets) && ownerAgent.based_markets.length > 0
+        const ownerUser =
+          (await findOne('users', (u) => u.id === agency.owner_id)) || ownerAgent
+        derived['2FA'] = Boolean(ownerUser?.totp_enabled)
+      }
+    }
+    const activeMembers = await findAll(
+      'agency_members',
+      (m) => m.agency_id === agencyId && m.status === 'active',
+    )
+    let pendingInvites = []
+    try {
+      pendingInvites = await findAll('agency_invitations', (i) => i.agency_id === agencyId)
+    } catch {
+      /* table optional */
+    }
+    // Owner is one active member; a second member (or any invite) means invites done.
+    derived.invites = (activeMembers?.length || 0) > 1 || (pendingInvites?.length || 0) > 0
+
+    const props = await findAll('properties', (p) => p.agency_id === agencyId)
+    derived.listing = (props?.length || 0) > 0
+
+    let connections = []
+    try {
+      connections = await findAll('marketplace_connections', (c) => c.agency_id === agencyId)
+    } catch {
+      /* table optional */
+    }
+    derived.portal = (connections?.length || 0) > 0
+  } catch {
+    /* derivation must never block the read */
+  }
+  return derived
+}
+
+/**
+ * @param {string} agencyId
+ * @param {{ derive?: boolean }} [opts] When `derive` is true, OR-merge
+ *   data-derived task completion over the stored checklist (used by the UI).
+ *   Default false keeps the stored-only contract for direct/programmatic callers.
+ */
+export async function getAgencyOnboardingState(agencyId, { derive = false } = {}) {
   if (!agencyId) throw new Error('agencyId is required')
   const rows = await query(
     `SELECT agency_id, step, path, checklist, dismissed_forever, updated_at
@@ -52,7 +112,15 @@ export async function getAgencyOnboardingState(agencyId) {
       WHERE agency_id = $1`,
     [agencyId],
   )
-  return serializeAgencyOnboardingState(rows[0] || null)
+  const stored = serializeAgencyOnboardingState(rows[0] || null)
+  if (!derive) return stored
+  const derivedFlags = await deriveAgencyChecklist(agencyId)
+  const checklist = { ...stored.checklist }
+  // OR-merge: a derived-true completes a task; stored completions never regress.
+  for (const [key, done] of Object.entries(derivedFlags)) {
+    if (done) checklist[key] = true
+  }
+  return { ...stored, checklist }
 }
 
 /**

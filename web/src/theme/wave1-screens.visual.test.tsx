@@ -384,6 +384,7 @@ const FIXTURES: Fixture[] = [
       return view.container
     },
     after: async () => {
+      await userEvent.setup().click(screen.getByRole('button', { name: /or use your account/i }))
       await waitFor(() => expect(screen.getByTestId('identity-form')).toBeInTheDocument())
     },
   },
@@ -405,6 +406,7 @@ const FIXTURES: Fixture[] = [
       return view.container
     },
     after: async () => {
+      await userEvent.setup().click(screen.getByRole('button', { name: /or use your account/i }))
       await waitFor(() => expect(screen.getByTestId('identity-form')).toBeInTheDocument())
     },
   },
@@ -426,6 +428,7 @@ const FIXTURES: Fixture[] = [
       return view.container
     },
     after: async () => {
+      await userEvent.setup().click(screen.getByRole('button', { name: /or use your account/i }))
       await waitFor(() => expect(screen.getByTestId('identity-form')).toBeInTheDocument())
     },
   },

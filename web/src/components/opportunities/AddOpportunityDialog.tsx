@@ -118,20 +118,30 @@ export function AddOpportunityDialog({ open, onOpenChange, onCreated, initialCon
   useEffect(() => {
     if (!open) return
     reset()
+    // Preselect a contact (e.g. opened from a contact row) so the picker shows
+    // it as selected. Contacts themselves are loaded by the effect below.
     if (initialContact) {
       setContactId(initialContact.id)
-      setContactQuery(initialContact.name || initialContact.email || initialContact.phone || '')
       setContacts((prev) => (prev.some((c) => c.id === initialContact.id) ? prev : [initialContact, ...prev]))
     }
-    void loadContacts('')
     void loadProperties()
-  }, [open, reset, loadContacts, loadProperties, initialContact])
+  }, [open, reset, loadProperties, initialContact])
 
+  // Load contacts once immediately when the dialog opens (and whenever the
+  // search is cleared), then debounce reloads for typed queries. Loading the
+  // empty query immediately — rather than also scheduling it on the debounce —
+  // avoids a redundant second fetch that would briefly flip the list back to
+  // its loading state right after the first results render.
   useEffect(() => {
     if (!open) return
     if (searchTimer.current) clearTimeout(searchTimer.current)
+    const query = contactQuery.trim()
+    if (!query) {
+      void loadContacts('')
+      return
+    }
     searchTimer.current = setTimeout(() => {
-      void loadContacts(contactQuery)
+      void loadContacts(query)
     }, 250)
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current)

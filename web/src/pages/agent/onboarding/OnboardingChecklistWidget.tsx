@@ -36,26 +36,44 @@ export { shouldRenderOnboardingChecklist } from './helpers'
 
 const STEP_HREFS: Record<keyof OnboardingChecklistFlags, string> = {
   welcome_seen: '/onboarding/welcome',
-  first_listing_drafted: '/onboarding/welcome',
+  first_listing_drafted: '/listings/new',
   first_listing_published: '/onboarding/welcome',
+  markets_set: '/onboarding/markets',
   channels_connected: '/settings/channels',
+  comms_connected: '/settings/channels',
+  // TODO: point at the dedicated post composer once the Creative surface is routed.
+  first_post_designed: '/marketing',
   notifications_enabled: '/notification-preferences',
   profile_completed: '/settings/profile',
   subscription_active: '/plans',
 }
 
 function defaultItems(locale: OnboardingLocale): OnboardingChecklistItem[] {
+  // Full flow: who you are → cast (social) → reply (comms) → notifications →
+  // list a property (manual / bulk / integrate) → design a post → publish → upgrade.
   return [
     {
-      key: 'first_listing_published',
-      label: t('checklist.step.publish', locale),
-      sub: t('checklist.step.publish.sub', locale),
-      href: '/onboarding/welcome',
+      key: 'profile_completed',
+      label: t('checklist.step.profile', locale),
+      sub: t('checklist.step.profile.sub', locale),
+      href: '/settings/profile',
+    },
+    {
+      key: 'markets_set',
+      label: t('checklist.step.markets', locale),
+      sub: t('checklist.step.markets.sub', locale),
+      href: '/onboarding/markets',
     },
     {
       key: 'channels_connected',
       label: t('checklist.step.channels', locale),
       sub: t('checklist.step.channels.sub', locale),
+      href: '/settings/channels',
+    },
+    {
+      key: 'comms_connected',
+      label: t('checklist.step.comms', locale),
+      sub: t('checklist.step.comms.sub', locale),
       href: '/settings/channels',
     },
     {
@@ -65,10 +83,22 @@ function defaultItems(locale: OnboardingLocale): OnboardingChecklistItem[] {
       href: '/notification-preferences',
     },
     {
-      key: 'profile_completed',
-      label: t('checklist.step.profile', locale),
-      sub: t('checklist.step.profile.sub', locale),
-      href: '/settings/profile',
+      key: 'first_listing_drafted',
+      label: t('checklist.step.listing', locale),
+      sub: t('checklist.step.listing.sub', locale),
+      href: '/listings/new',
+    },
+    {
+      key: 'first_post_designed',
+      label: t('checklist.step.designpost', locale),
+      sub: t('checklist.step.designpost.sub', locale),
+      href: '/marketing',
+    },
+    {
+      key: 'first_listing_published',
+      label: t('checklist.step.publish', locale),
+      sub: t('checklist.step.publish.sub', locale),
+      href: '/onboarding/welcome',
     },
     {
       key: 'subscription_active',
@@ -160,6 +190,7 @@ function OnboardingChecklistWidgetView({
 
   const [dismissOpen, setDismissOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [listingChooserOpen, setListingChooserOpen] = useState(false)
   const [fading, setFading] = useState(false)
 
   const { completed, total } = mainChecklistCounts(state.checklist)
@@ -200,7 +231,18 @@ function OnboardingChecklistWidgetView({
 
   const onStepTap = (key: keyof OnboardingChecklistFlags) => {
     trackOnboardingEvent('onboarding.checklist_step_tapped', { key })
+    // "List your property" opens a chooser: manual / bulk / integrate.
+    if (key === 'first_listing_drafted') {
+      setListingChooserOpen(true)
+      return
+    }
     navigate(hrefForStep(state, key))
+  }
+
+  const chooseListingMethod = (method: 'manual' | 'bulk' | 'integrate', href: string) => {
+    trackOnboardingEvent('onboarding.listing_method_chosen', { method })
+    setListingChooserOpen(false)
+    navigate(href)
   }
 
   const confirmDismiss = async () => {
@@ -271,6 +313,64 @@ function OnboardingChecklistWidgetView({
     </Dialog>
   )
 
+  const listingChooser = (
+    <Dialog open={listingChooserOpen} onOpenChange={setListingChooserOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('checklist.listing.chooser.title', onbLocale)}</DialogTitle>
+          <DialogDescription>{t('checklist.listing.chooser.sub', onbLocale)}</DialogDescription>
+        </DialogHeader>
+        <div className="mt-[var(--lc-space-md)] flex flex-col gap-[var(--lc-space-sm)]">
+          {(
+            [
+              {
+                method: 'manual',
+                href: '/listings/new',
+                label: t('checklist.listing.manual', onbLocale),
+                desc: t('checklist.listing.manual.desc', onbLocale),
+              },
+              {
+                method: 'bulk',
+                // TODO: dedicated bulk-import route; onboarding welcome hosts CSV/Excel import today.
+                href: '/onboarding/welcome',
+                label: t('checklist.listing.bulk', onbLocale),
+                desc: t('checklist.listing.bulk.desc', onbLocale),
+              },
+              {
+                method: 'integrate',
+                href: '/integrations',
+                label: t('checklist.listing.integrate', onbLocale),
+                desc: t('checklist.listing.integrate.desc', onbLocale),
+              },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.method}
+              type="button"
+              onClick={() => chooseListingMethod(opt.method, opt.href)}
+              className={cn(
+                'flex flex-col items-start gap-0.5 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] p-[var(--lc-space-md)] text-start',
+                'bg-[var(--lc-surface-raised)] transition-colors duration-[var(--lc-duration-fast)] ease-out',
+                'hover:border-[var(--lc-action-primary)] hover:bg-[color-mix(in_srgb,var(--lc-action-primary)_6%,var(--lc-surface-raised))]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lc-action-primary)]',
+              )}
+            >
+              <span
+                className="text-[var(--lc-text-heading)]"
+                style={{ font: 'var(--lc-type-body-lg)', fontWeight: 600 }}
+              >
+                {opt.label}
+              </span>
+              <span className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+                {opt.desc}
+              </span>
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+
   if (variant === 'pill') {
     return (
       <>
@@ -296,6 +396,7 @@ function OnboardingChecklistWidgetView({
           </Drawer.Portal>
         </Drawer.Root>
         {dialog}
+        {listingChooser}
       </>
     )
   }
@@ -309,6 +410,7 @@ function OnboardingChecklistWidgetView({
     >
       {card}
       {dialog}
+      {listingChooser}
     </div>
   )
 }
