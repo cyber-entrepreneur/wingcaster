@@ -2675,7 +2675,7 @@ export const api = {
     }),
   /** AGN-DSH-002 — agency first-run onboarding checklist state. */
   getAgencyOnboardingState: (agencyId: string) =>
-    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state`),
+    fetchJson(`/agency/${encodeURIComponent(agencyId)}/onboarding-state?derive=1`),
   /** AGN-DSH-002 — patch onboarding state (checklist_delta / dismissed_forever). */
   patchAgencyOnboardingState: (
     agencyId: string,
