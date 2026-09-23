@@ -39,16 +39,20 @@ export interface OnboardingChecklistCardProps {
   className?: string
 }
 
+// Ordered as the natural "get operating" flow: set up who you are and how
+// leads reach you, then list, then publish. (Two more steps — connect comms
+// channels, design your first post — land once their onboarding-state flags
+// exist; tracked as a follow-up.)
 const DEFAULT_ITEMS: OnboardingChecklistItem[] = [
   {
-    key: 'first_listing_published',
-    label: 'Publish your first listing',
-    sub: '2 min via WhatsApp',
+    key: 'profile_completed',
+    label: 'Complete your profile',
+    sub: 'Photo, bio, contact — your public identity',
   },
   {
     key: 'channels_connected',
-    label: 'Connect a publishing channel',
-    sub: 'Instagram, Facebook, Messenger, portals',
+    label: 'Connect your social & messaging channels',
+    sub: 'Instagram, Facebook, WhatsApp — so leads reach you',
   },
   {
     key: 'notifications_enabled',
@@ -56,9 +60,9 @@ const DEFAULT_ITEMS: OnboardingChecklistItem[] = [
     sub: 'Never miss a new lead',
   },
   {
-    key: 'profile_completed',
-    label: 'Complete your public profile',
-    sub: 'Photo, bio, contact — for your Bazaar profile',
+    key: 'first_listing_published',
+    label: 'List & publish your first property',
+    sub: '2 min via WhatsApp',
   },
   {
     key: 'subscription_active',
@@ -67,15 +71,6 @@ const DEFAULT_ITEMS: OnboardingChecklistItem[] = [
     optional: true,
   },
 ]
-
-function mainCompletedCount(checklist: OnboardingChecklistFlags): number {
-  return [
-    checklist.first_listing_published,
-    checklist.channels_connected,
-    checklist.notifications_enabled,
-    checklist.profile_completed,
-  ].filter(Boolean).length
-}
 
 /**
  * Persistent dashboard onboarding checklist widget.
@@ -103,9 +98,12 @@ export function OnboardingChecklistCard({
 
   if (state.dismissed_forever) return null
 
-  const completed = mainCompletedCount(state.checklist)
-  const total = 4
-  const remaining = total - completed
+  // Ring math derives from the required (non-optional) items actually shown,
+  // so it always matches the list — no hardcoded key set to drift from it.
+  const requiredItems = items.filter((item) => !item.optional)
+  const total = requiredItems.length || 1
+  const completed = requiredItems.filter((item) => state.checklist[item.key]).length
+  const remaining = Math.max(0, total - completed)
   const pct = Math.round((completed / total) * 100)
   const allDone = completed >= total
 
