@@ -1,0 +1,5 @@
+# Cloudflare Pages SPA fallback for the WingCaster portal.
+# Static assets (JS/CSS/images) and any real prerendered files are served
+# first; only unmatched paths fall through to the app shell, so deep links
+# and refreshes on client-side routes (e.g. /dashboard, /register) work.
+/*    /index.html   200

@@ -124,7 +124,7 @@ export function CampaignsPage() {
           <div className="flex flex-wrap gap-2">
             <Link to="/campaigns/paid/new">
               <Button size="sm" variant="outline" className="gap-1.5">
-                <Megaphone className="h-4 w-4" /> Paid ads
+                <Megaphone className="h-4 w-4" /> Social Ads
               </Button>
             </Link>
             <Link to="/settings/saved-searches">

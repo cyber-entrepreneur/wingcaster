@@ -42,8 +42,10 @@ close to launch.
 - ☐ **App display name, icon/logo** (square, high-res), support email.
 - ☐ **Verified business entity** (legal name, address, domain — used by Meta/Google/Microsoft verification).
 - ☐ **Production OAuth redirect URIs** registered (per environment: preview + production Railway domains).
-- ☐ **Data-deletion / de-authorization endpoint** (Meta requires a data-deletion callback; good practice
-  for all). Tracked as a follow-up PR in the architecture doc §7.
+- ✅ **Data-deletion / de-authorization endpoint** — **SHIPPED 2026-09-23 (PR #397).** Endpoints:
+  `POST /api/oauth/meta/data-deletion` (signed_request-verified; scrubs tokens + returns a status URL),
+  `GET /api/oauth/meta/data-deletion/status?code=`, and `POST /api/oauth/meta/deauthorize`. Remaining
+  action: register these URLs in the Meta app dashboard (see the Meta section).
 - ☐ **Demo/test tenant + screencast** showing each requested permission actually in use (reviewers require
   this for Meta, TikTok, Google, LinkedIn). Record once the connect UI (PR3/PR4) is demoable.
 - ☐ **Scope-justification text** per permission (why WingCaster needs it) — reused across submissions.
@@ -84,7 +86,9 @@ Checklist:
 - ☐ **Business Verification** in Business Settings (legal docs, domain, phone) — start immediately, it's
   independent of app review and often the longest step.
 - ☐ Add Facebook Login + Instagram Graph products; register redirect URIs.
-- ☐ Set privacy policy URL, **data deletion callback URL**, app icon, category.
+- ☐ Set privacy policy URL, app icon, category, and register the **Data Deletion Request URL**
+  `https://<domain>/api/oauth/meta/data-deletion` + **Deauthorize Callback URL**
+  `https://<domain>/api/oauth/meta/deauthorize` (endpoints ✅ SHIPPED — PR #397; just needs registering).
 - ☐ Verify the app domain(s).
 - ☐ Request Advanced Access for each permission with use-case notes + screencast (a reviewer must see
   publishing to a Page and to an IG business account).
@@ -198,6 +202,6 @@ Checklist:
   (architecture doc §5.9). Enable each channel's OAuth as its approval lands.
 - **Rejections are normal** (especially Meta) — budget one or two iteration rounds per submission.
 - **Annual obligations:** Google CASA re-assessment and any Microsoft certification recur — set reminders.
-- **De-authorization / data-deletion callbacks** (Meta-required) should ship before Meta approval — track
-  as the follow-up PR noted in the architecture doc §7.
+- **De-authorization / data-deletion callbacks** (Meta-required) — ✅ **SHIPPED 2026-09-23 (PR #397).**
+  Remaining: register the callback URLs in the Meta app dashboard before submitting for review.
 ```

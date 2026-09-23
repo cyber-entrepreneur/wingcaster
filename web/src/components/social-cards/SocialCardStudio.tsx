@@ -53,7 +53,7 @@ export function SocialCardStudio({ property }: Props) {
       // Sensible default: pre-check Instagram feed + story if nothing chosen yet.
       setSelectedPlatforms((prev) => prev.size ? prev : new Set(['instagram_feed', 'instagram_story']))
     } catch (err: any) {
-      addToast({ title: 'Failed to load Social Card Studio', description: err?.message, variant: 'error' })
+      addToast({ title: 'Failed to load Social Post Studio', description: err?.message, variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -172,7 +172,7 @@ export function SocialCardStudio({ property }: Props) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div>
-            <CardTitle className="text-lg">Social Card Studio</CardTitle>
+            <CardTitle className="text-lg">Social Post Studio</CardTitle>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Render branded per-platform post creatives. Pick up to 3 templates, then choose the
               platforms — each combo becomes a ready-to-publish PNG.
