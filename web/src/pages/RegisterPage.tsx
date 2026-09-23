@@ -387,6 +387,7 @@ export function RegisterPage() {
                     className="w-full"
                     disabled={formLocked || !path}
                     onClick={() => setShowForm(true)}
+                    data-testid="reveal-credential-form"
                   >
                     {rt('oauth.divider', locale)}
                   </Button>
