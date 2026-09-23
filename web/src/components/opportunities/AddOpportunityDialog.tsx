@@ -118,8 +118,8 @@ export function AddOpportunityDialog({ open, onOpenChange, onCreated, initialCon
   useEffect(() => {
     if (!open) return
     reset()
-    // Preselect a contact (e.g. opened from a contact row) so the picker shows
-    // it as selected. Contacts themselves are loaded by the effect below.
+    // Preselect a contact (e.g. opened from a contact row or card) so the picker
+    // shows it as selected. Contacts themselves are loaded by the effect below.
     if (initialContact) {
       setContactId(initialContact.id)
       setContacts((prev) => (prev.some((c) => c.id === initialContact.id) ? prev : [initialContact, ...prev]))
