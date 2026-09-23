@@ -359,6 +359,12 @@ import {
   isOAuthCapablePlatform,
   isOAuthConnectEnabled,
 } from './lib/oauth/index.js'
+import { resolveAppCredential } from './lib/oauth/app-credentials.js'
+import {
+  handleMetaDataDeletion,
+  handleMetaDeauthorize,
+  getDeletionStatus,
+} from './lib/oauth/meta-data-deletion.js'
 import {
   withAgentConnectionWrite,
   withAgentTenant,
@@ -5647,6 +5653,86 @@ app.get('/api/social-channels/oauth/:platform/callback', async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message, platform }, 'OAuth callback failed')
     return res.status(502).send('OAuth token exchange failed')
+  }
+})
+
+/* --- Meta data-deletion + deauthorize callbacks (required for Meta app review) ---
+ * Meta POSTs a `signed_request` (HMAC-SHA256 over the payload with the app secret).
+ * Deletion scrubs the Meta-connected tenant connections for the app-scoped user id
+ * and returns a status URL the user can check. Public (no auth) — secured by the
+ * signed_request signature, not a session. */
+const metaCallbackParsers = [
+  express.urlencoded({ extended: false, limit: '256kb' }),
+  express.json({ limit: '256kb' }),
+]
+
+function metaAppSecret() {
+  try {
+    return resolveAppCredential('meta', { env: process.env }).client_secret || ''
+  } catch {
+    return ''
+  }
+}
+
+function metaStatusBaseUrl(req) {
+  const rawBase = process.env.APP_PUBLIC_URL || process.env.PUBLIC_API_URL
+    || `${req.protocol}://${req.get('host')}`
+  return String(rawBase).replace(/\/api\/?$/, '')
+}
+
+app.post('/api/oauth/meta/data-deletion', webhookLimiter, ...metaCallbackParsers, async (req, res) => {
+  const signedRequest = req.body?.signed_request
+  if (!signedRequest) return res.status(400).json({ error: 'Missing signed_request' })
+  const appSecret = metaAppSecret()
+  if (!appSecret) return res.status(503).json({ error: 'Meta app is not configured' })
+  try {
+    const result = await handleMetaDataDeletion({
+      signedRequest: String(signedRequest),
+      appSecret,
+      statusBaseUrl: metaStatusBaseUrl(req),
+    })
+    logger.info({ scrubbed: result.scrubbed, confirmation_code: result.confirmation_code }, 'Meta data-deletion processed')
+    return res.json({ url: result.url, confirmation_code: result.confirmation_code })
+  } catch (err) {
+    if (err?.code && String(err.code).startsWith('BAD')) {
+      logger.warn({ err: err.message, code: err.code }, 'Rejected Meta data-deletion signed_request')
+      return res.status(400).json({ error: 'Invalid signed_request' })
+    }
+    logger.error({ err: err.message }, 'Meta data-deletion handler failed')
+    return res.status(500).json({ error: 'Data deletion failed' })
+  }
+})
+
+app.get('/api/oauth/meta/data-deletion/status', async (req, res) => {
+  const code = req.query.code
+  if (!code) return res.status(400).json({ error: 'Missing code' })
+  const record = await getDeletionStatus(String(code))
+  if (!record) return res.status(404).json({ error: 'Unknown confirmation code' })
+  return res.json({
+    confirmation_code: record.confirmation_code,
+    status: record.status,
+    connections_scrubbed: record.connections_scrubbed ?? 0,
+    requested_at: record.requested_at,
+    completed_at: record.completed_at || null,
+  })
+})
+
+app.post('/api/oauth/meta/deauthorize', webhookLimiter, ...metaCallbackParsers, async (req, res) => {
+  const signedRequest = req.body?.signed_request
+  if (!signedRequest) return res.status(400).json({ error: 'Missing signed_request' })
+  const appSecret = metaAppSecret()
+  if (!appSecret) return res.status(503).json({ error: 'Meta app is not configured' })
+  try {
+    const result = await handleMetaDeauthorize({ signedRequest: String(signedRequest), appSecret })
+    logger.info({ scrubbed: result.scrubbed }, 'Meta deauthorize processed')
+    return res.json({ ok: true, scrubbed: result.scrubbed })
+  } catch (err) {
+    if (err?.code && String(err.code).startsWith('BAD')) {
+      logger.warn({ err: err.message, code: err.code }, 'Rejected Meta deauthorize signed_request')
+      return res.status(400).json({ error: 'Invalid signed_request' })
+    }
+    logger.error({ err: err.message }, 'Meta deauthorize handler failed')
+    return res.status(500).json({ error: 'Deauthorize failed' })
   }
 })
 

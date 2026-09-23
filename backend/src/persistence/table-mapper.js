@@ -429,6 +429,14 @@ const TABLE_MAP = {
       'return_to', 'elevated', 'nonce', 'consumed_at', 'expires_at',
     ],
   },
+  oauth_data_deletion_requests: {
+    schema: 'public',
+    table: 'oauth_data_deletion_requests',
+    columns: [
+      'provider', 'provider_user_id', 'confirmation_code', 'status',
+      'connections_scrubbed', 'requested_at', 'completed_at',
+    ],
+  },
   marketplace_connections: {
     schema: 'public',
     table: 'marketplace_connections',
