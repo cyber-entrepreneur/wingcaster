@@ -5633,6 +5633,12 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ amount_usd: amountUsd, idempotency_key: idempotencyKey }),
   }),
+  getCheckoutConfig: (
+    body: { kind: 'subscription'; package_version_id: string } | { kind: 'topup'; amount_usd: number },
+  ): Promise<CheckoutConfig> => fetchJson('/billing/checkout-config', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
   previewTenantPlanChange: (subscriptionId: string, newPackageVersionId: string): Promise<TenantPlanPreview> =>
     fetchJson('/tenant/subscription/preview-change', {
       method: 'POST',
@@ -5861,6 +5867,16 @@ export interface TenantSubscription {
   billing_cycle_start: string
   billing_cycle_end: string
   auto_renew: boolean
+  paddle_subscription_id?: string | null
+  paddle_customer_id?: string | null
+}
+
+export interface CheckoutConfig {
+  price_id: string
+  quantity: number
+  custom_data: Record<string, unknown>
+  customer_email: string | null
+  environment: 'sandbox' | 'production'
 }
 
 export interface TenantPlan {
