@@ -49,9 +49,11 @@ export type AddOpportunityDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated?: (opportunityId: string) => void
+  /** Preselect a contact (e.g. opened from a contact row) to skip the picker. */
+  initialContact?: ContactOption | null
 }
 
-export function AddOpportunityDialog({ open, onOpenChange, onCreated }: AddOpportunityDialogProps) {
+export function AddOpportunityDialog({ open, onOpenChange, onCreated, initialContact }: AddOpportunityDialogProps) {
   const { addToast } = useToast()
   const [contacts, setContacts] = useState<ContactOption[]>([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
@@ -116,8 +118,14 @@ export function AddOpportunityDialog({ open, onOpenChange, onCreated }: AddOppor
   useEffect(() => {
     if (!open) return
     reset()
+    // Preselect a contact (e.g. opened from a contact row) so the picker shows
+    // it as selected. Contacts themselves are loaded by the effect below.
+    if (initialContact) {
+      setContactId(initialContact.id)
+      setContacts((prev) => (prev.some((c) => c.id === initialContact.id) ? prev : [initialContact, ...prev]))
+    }
     void loadProperties()
-  }, [open, reset, loadProperties])
+  }, [open, reset, loadProperties, initialContact])
 
   // Load contacts once immediately when the dialog opens (and whenever the
   // search is cleared), then debounce reloads for typed queries. Loading the

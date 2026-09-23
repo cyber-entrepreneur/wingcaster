@@ -17,6 +17,17 @@ import { CmdKpiStrip } from '@/components/layout/CmdKpiStrip'
 import { CmdEmptyState } from '@/components/layout/CmdEmptyState'
 import { ContactExportDialog } from '@/components/contacts/ContactExportDialog'
 import { AddContactDialog } from '@/components/contacts/AddContactDialog'
+import { ContactRowActions } from '@/components/contacts/ContactRowActions'
+import { QuickTaskDialog } from '@/components/contacts/QuickTaskDialog'
+import { AddOpportunityDialog } from '@/components/opportunities/AddOpportunityDialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Contact {
   id: string
@@ -28,6 +39,10 @@ interface Contact {
   tags: string[]
   assigned_agent_id: string | null
   last_activity_at: string | null
+  // Present via the data-JSONB merge; used by the row quick-actions deep links.
+  emails?: Array<{ label?: string; address?: string }>
+  phones?: Array<{ label?: string; number?: string }>
+  socials?: Record<string, string>
   created_at: string
 }
 
@@ -73,6 +88,34 @@ export function ContactsPage() {
   const [mergeOpen, setMergeOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  // Row quick-actions (⋯): the active contact + which dialog is open.
+  const [actionContact, setActionContact] = useState<Contact | null>(null)
+  const [taskOpen, setTaskOpen] = useState(false)
+  const [taskType, setTaskType] = useState<'meeting' | 'follow_up'>('meeting')
+  const [dealOpen, setDealOpen] = useState(false)
+  const [rowMergeOpen, setRowMergeOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const refresh = () =>
+    api.getContacts()
+      .then((rows) => setContacts(rows as Contact[]))
+      .catch((e: any) => addToast({ title: 'Failed to refresh contacts', description: e.message, variant: 'error' }))
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await api.deleteContact(deleteTarget.id)
+      addToast({ title: 'Contact deleted', variant: 'success' })
+      setDeleteTarget(null)
+      await refresh()
+    } catch (e: any) {
+      addToast({ title: 'Could not delete contact', description: e.message, variant: 'error' })
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     if (!agent) return
@@ -132,6 +175,52 @@ export function ContactsPage() {
 
       <ContactExportDialog open={exportOpen} onClose={() => setExportOpen(false)} contactCount={counts.total} />
       <AddContactDialog open={addOpen} onOpenChange={setAddOpen} />
+
+      {/* Row quick-actions dialogs (single instance, driven by the active contact). */}
+      <QuickTaskDialog
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+        contact={actionContact}
+        defaultType={taskType}
+      />
+      <AddOpportunityDialog
+        open={dealOpen}
+        onOpenChange={setDealOpen}
+        initialContact={
+          actionContact
+            ? { id: actionContact.id, name: actionContact.name, email: actionContact.email, phone: actionContact.phone }
+            : null
+        }
+      />
+      {actionContact && (
+        <MergeContactsDialog
+          open={rowMergeOpen}
+          onOpenChange={setRowMergeOpen}
+          sourceContact={actionContact}
+          contacts={contacts}
+          onMerged={() => {
+            setRowMergeOpen(false)
+            setActionContact(null)
+            void refresh()
+          }}
+        />
+      )}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-sm" data-testid="delete-contact-dialog">
+          <DialogHeader>
+            <DialogTitle>Delete contact?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.name || 'This contact'} and their notes, tasks, deals, and conversations will be permanently removed. This can't be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CmdKpiStrip
         items={[
@@ -276,6 +365,13 @@ export function ContactsPage() {
                   {relativeTime(c.last_activity_at || c.created_at)}
                 </span>
                 </Link>
+                <ContactRowActions
+                  contact={c}
+                  onNewDeal={() => { setActionContact(c); setDealOpen(true) }}
+                  onSchedule={(type) => { setActionContact(c); setTaskType(type); setTaskOpen(true) }}
+                  onMerge={() => { setActionContact(c); setRowMergeOpen(true) }}
+                  onDelete={() => setDeleteTarget(c)}
+                />
               </div>
             ))}
           </div>
