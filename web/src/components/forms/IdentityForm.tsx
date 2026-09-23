@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
+import type { ChangeEvent, FormEvent, ReactNode } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { rt, type RegisterLocale } from '@/components/auth/registerCopy'
 import { Button } from '@/components/ui/button'
@@ -84,6 +84,12 @@ export type IdentityFormProps = {
   embedded?: boolean
   /** Auto-focus the first field (compact: “Your name”). */
   autoFocusFirst?: boolean
+  /** Optional heading above the identifier tabs (e.g. “Agency admin account”). */
+  heading?: string
+  /** Optional sub-line under the heading. */
+  subheading?: string
+  /** Extra consent rows injected into the consent group (e.g. authorized-on-behalf). */
+  extraConsents?: ReactNode
   /** SHR-AUT-006 copy locale; defaults to English when used outside RegisterPage. */
   locale?: RegisterLocale
   className?: string
@@ -257,6 +263,9 @@ export function IdentityForm({
   hideSubmit = false,
   embedded = false,
   autoFocusFirst = false,
+  heading,
+  subheading,
+  extraConsents,
   locale = 'en',
   className,
 }: IdentityFormProps) {
@@ -394,6 +403,25 @@ export function IdentityForm({
       data-variant={variant}
       {...rootProps}
     >
+      {heading ? (
+        <div className="flex flex-col gap-1">
+          <h2
+            className="text-[var(--lc-text-heading)]"
+            style={{
+              font: 'var(--lc-type-heading-3)',
+              letterSpacing: 'var(--lc-tracking-heading-3)',
+            }}
+          >
+            {heading}
+          </h2>
+          {subheading ? (
+            <p className="text-[var(--lc-text-muted)]" style={{ font: 'var(--lc-type-body-sm)' }}>
+              {subheading}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {variant === 'compact' ? (
         <div className="flex flex-col gap-[var(--lc-space-sm)]">
           <div className="flex flex-col gap-1.5">
@@ -616,7 +644,7 @@ export function IdentityForm({
         <div className="flex min-h-tap items-start gap-2 text-sm text-[var(--lc-text-primary)]">
           <Checkbox
             id={termsCheckboxId}
-            className="mt-1"
+            className="mt-0.5 size-5 shrink-0 aspect-square"
             checked={values.consent_terms}
             disabled={locked}
             required
@@ -653,7 +681,7 @@ export function IdentityForm({
           <div className="flex min-h-tap items-start gap-2 text-sm text-[var(--lc-text-primary)]">
             <Checkbox
               id={marketingCheckboxId}
-              className="mt-1"
+              className="mt-0.5 size-5 shrink-0 aspect-square"
               checked={values.consent_marketing}
               disabled={locked}
               onCheckedChange={(checked) => patch({ consent_marketing: checked === true })}
@@ -667,6 +695,7 @@ export function IdentityForm({
             </Label>
           </div>
         ) : null}
+        {extraConsents}
       </fieldset>
 
       {!hideSubmit ? (

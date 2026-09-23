@@ -28,6 +28,9 @@ import { rt, type RegistrationPath } from '@/components/auth/registerCopy'
 import { LanguageSelector } from '@/components/nav/LanguageSelector'
 import { useLocale } from '@/hooks/useLocale'
 import { useToast } from '@/components/ui/toast'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/AuthContext'
 
 function parsePathParam(raw: string | null, agency: string | null): RegistrationPath | null {
@@ -69,8 +72,10 @@ export function RegisterPage() {
   })
   const [joinSlug, setJoinSlug] = useState(agencyParam ?? '')
   const [agencyFields, setAgencyFields] = useState<PathCValues>({ ...EMPTY_PATH_C_VALUES })
+  const [authorizedToAccept, setAuthorizedToAccept] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [oauthProvider, setOauthProvider] = useState<OAuthProvider | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [dupOpen, setDupOpen] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<IdentityFormFieldErrors>({})
   const [pathBError, setPathBError] = useState<string | undefined>()
@@ -113,10 +118,9 @@ export function RegisterPage() {
     return (
       agencyFields.agency_name.trim().length > 0 &&
       Boolean(agencyFields.legal_entity) &&
-      Boolean(agencyFields.primary_market) &&
-      agencyFields.authorized_to_accept
+      authorizedToAccept
     )
-  }, [path, joinSlug, agencyFields])
+  }, [path, joinSlug, agencyFields, authorizedToAccept])
 
   const identityValid = isIdentityFormValid(identity, {
     variant: 'full',
@@ -143,11 +147,7 @@ export function RegisterPage() {
                   typeof agencyFields.legal_entity,
                   ''
                 >,
-                primary_market: agencyFields.primary_market as Exclude<
-                  typeof agencyFields.primary_market,
-                  ''
-                >,
-                authorized_to_accept: agencyFields.authorized_to_accept,
+                authorized_to_accept: authorizedToAccept,
               }
             : {}
 
@@ -188,7 +188,7 @@ export function RegisterPage() {
 
       return body
     },
-    [path, identifierType, joinSlug, agencyFields, locale, planParam],
+    [path, identifierType, joinSlug, agencyFields, authorizedToAccept, locale, planParam],
   )
 
   const handleSubmit = async (values: IdentityFormValues) => {
@@ -255,8 +255,20 @@ export function RegisterPage() {
   }
 
   const onPathChange = (next: RegistrationPath) => {
+    // Switching persona re-aligns the whole page to that onboarding flow:
+    // reset every field, collapse the credential form, clear errors, scroll up.
     setPath(next)
+    setIdentity({ ...EMPTY_IDENTITY_FORM_VALUES })
+    setIdentifierType('email')
+    setAgencyFields({ ...EMPTY_PATH_C_VALUES })
+    setAuthorizedToAccept(false)
+    if (!agencyParam) setJoinSlug('')
+    setShowForm(false)
+    setFieldErrors({})
     setPathBError(undefined)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   if (authLoading) {
@@ -305,7 +317,11 @@ export function RegisterPage() {
 
             {/* Mobile compact hero */}
             <div className="lg:hidden">
-              <HeroPanel locale={locale} variant="compact" />
+              <HeroPanel
+                locale={locale}
+                variant="compact"
+                persona={path === 'agency' ? 'agency' : 'agent'}
+              />
             </div>
 
             {!online ? (
@@ -361,41 +377,89 @@ export function RegisterPage() {
                   disabled={formLocked || !path}
                   loadingProvider={oauthProvider}
                   onStart={handleOAuth}
+                  showDivider={false}
                 />
 
-                <IdentityForm
-                  variant="full"
-                  values={identity}
-                  identifier_type={identifierType}
-                  onChange={setIdentity}
-                  onIdentifierTypeChange={setIdentifierType}
-                  onSubmit={handleSubmit}
-                  disabled={formLocked}
-                  submitting={submitting}
-                  submitting_label={rt('submit.creating', locale)}
-                  submitDisabled={!pathSpecificValid || !online}
-                  fieldErrors={fieldErrors}
-                  locale={locale}
-                />
+                {!showForm ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={formLocked || !path}
+                    onClick={() => setShowForm(true)}
+                    data-testid="reveal-credential-form"
+                  >
+                    {rt('oauth.divider', locale)}
+                  </Button>
+                ) : (
+                  <>
+                    {/* Agency: collect agency details BEFORE the admin login. */}
+                    {path === 'agency' ? (
+                      <PathCFields
+                        values={agencyFields}
+                        onChange={setAgencyFields}
+                        locale={locale}
+                        disabled={formLocked}
+                      />
+                    ) : null}
 
-                {path === 'join' ? (
-                  <PathBFields
-                    value={joinSlug}
-                    onChange={setJoinSlug}
-                    locale={locale}
-                    disabled={formLocked}
-                    error={pathBError}
-                  />
-                ) : null}
+                    <IdentityForm
+                      variant="full"
+                      values={identity}
+                      identifier_type={identifierType}
+                      onChange={setIdentity}
+                      onIdentifierTypeChange={setIdentifierType}
+                      onSubmit={handleSubmit}
+                      disabled={formLocked}
+                      submitting={submitting}
+                      submitting_label={rt('submit.creating', locale)}
+                      submitDisabled={!pathSpecificValid || !online}
+                      fieldErrors={fieldErrors}
+                      locale={locale}
+                      heading={path === 'agency' ? rt('pathC.admin.heading', locale) : undefined}
+                      subheading={path === 'agency' ? rt('pathC.admin.sub', locale) : undefined}
+                      extraConsents={
+                        path === 'agency' ? (
+                          <div className="flex min-h-tap items-start gap-2 text-sm text-[var(--lc-text-primary)]">
+                            <Checkbox
+                              id="agency-authorized-consent"
+                              className="mt-0.5 size-5 shrink-0 aspect-square"
+                              checked={authorizedToAccept}
+                              disabled={formLocked}
+                              required
+                              aria-invalid={!authorizedToAccept}
+                              aria-label={rt('pathC.consent', locale)}
+                              onCheckedChange={(checked) =>
+                                setAuthorizedToAccept(checked === true)
+                              }
+                            />
+                            <Label
+                              htmlFor="agency-authorized-consent"
+                              className="cursor-pointer font-normal leading-snug"
+                            >
+                              {rt('pathC.consent', locale)}
+                              {!authorizedToAccept ? (
+                                <span className="ms-1 text-[var(--lc-status-unpublished-fg)]">
+                                  {rt('consent.required', locale)}
+                                </span>
+                              ) : null}
+                            </Label>
+                          </div>
+                        ) : null
+                      }
+                    />
 
-                {path === 'agency' ? (
-                  <PathCFields
-                    values={agencyFields}
-                    onChange={setAgencyFields}
-                    locale={locale}
-                    disabled={formLocked}
-                  />
-                ) : null}
+                    {path === 'join' ? (
+                      <PathBFields
+                        value={joinSlug}
+                        onChange={setJoinSlug}
+                        locale={locale}
+                        disabled={formLocked}
+                        error={pathBError}
+                      />
+                    ) : null}
+                  </>
+                )}
               </section>
             ) : null}
 
@@ -419,7 +483,12 @@ export function RegisterPage() {
 
         {/* Desktop hero */}
         <div className="hidden lg:block">
-          <HeroPanel locale={locale} variant="full" className="min-h-screen" />
+          <HeroPanel
+            locale={locale}
+            variant="full"
+            persona={path === 'agency' ? 'agency' : 'agent'}
+            className="min-h-screen"
+          />
         </div>
       </div>
 
