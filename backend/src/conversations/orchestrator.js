@@ -184,6 +184,8 @@ export async function getOrCreateContact({ email, phone, name, assignedAgentId, 
     last_activity_at: now,
     created_at: now,
     updated_at: now,
+    created_by: assignedAgentId || null,
+    updated_by: assignedAgentId || null,
   }
   await insert('contacts', contact)
   return { contact, created: true }
