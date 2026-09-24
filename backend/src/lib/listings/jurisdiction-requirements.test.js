@@ -89,6 +89,25 @@ describe('isPublishedState', () => {
   })
 })
 
+describe('PA market on/off gating (enabledMarkets)', () => {
+  it('a DISABLED hard market never blocks or gates', () => {
+    const off = { enabledMarkets: ['LB'] } // AE not enabled
+    expect(hardGateBlockers({ country_code: 'AE' }, off).missing).toHaveLength(0)
+    expect(gatePolicyForProperty({ country_code: 'AE' }, off)).toBe('none')
+    expect(deriveVerificationStatus({ country_code: 'AE', trakheesi_permit: 'x' }, off)).toBe('unverified')
+  })
+  it('an ENABLED hard market still blocks without its permit', () => {
+    const on = { enabledMarkets: ['LB', 'AE'] }
+    expect(hardGateBlockers({ country_code: 'AE' }, on).missing).toHaveLength(1)
+    expect(gatePolicyForProperty({ country_code: 'AE' }, on)).toBe('hard')
+    expect(hardGateBlockers({ country_code: 'AE', trakheesi_permit: '71-1' }, on).missing).toHaveLength(0)
+  })
+  it('no enabledMarkets arg → every market enabled (back-compat)', () => {
+    expect(hardGateBlockers({ country_code: 'AE' }).missing).toHaveLength(1)
+    expect(gatePolicyForProperty({ country_code: 'AE' })).toBe('hard')
+  })
+})
+
 describe('parity with per-portal validators', () => {
   it('AE hard-gate permit name matches the Bayut trakheesi requirement', () => {
     // Bayut (UAE) requires trakheesi_number — the gate must key on the same field.

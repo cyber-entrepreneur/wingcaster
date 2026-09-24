@@ -23,6 +23,7 @@ import {
   type RepresentsType,
 } from '@/lib/listingVerification'
 import { VerificationBadge } from '@/components/listings/VerificationBadge'
+import { useEnabledMarkets } from '@/hooks/useEnabledMarkets'
 
 const PROPERTY_TYPES = ['apartment', 'villa', 'townhouse', 'studio', 'penthouse', 'office', 'shop']
 
@@ -205,6 +206,10 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
   const [amenityQuery, setAmenityQuery] = useState('')
   const [aiOpen, setAiOpen] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
+  const enabledMarkets = useEnabledMarkets()
+  const markets = enabledMarkets
+    ? SUPPORTED_MARKETS.filter((m) => enabledMarkets.includes(m.code) || m.code === form.country_code)
+    : SUPPORTED_MARKETS
 
   const aiPhotoUrls = form.media
     .filter((m) => (m.media_type || 'image') === 'image' && !!m.url?.trim())
@@ -896,7 +901,7 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
                   onChange={(e) => set('country_code', e.target.value)}
                 >
                   <option value="">Select…</option>
-                  {SUPPORTED_MARKETS.map((m) => (
+                  {markets.map((m) => (
                     <option key={m.code} value={m.code}>{m.label}</option>
                   ))}
                 </select>

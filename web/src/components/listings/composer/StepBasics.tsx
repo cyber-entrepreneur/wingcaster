@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
 import { SUPPORTED_MARKETS, normalizeCountryToIso2 } from '@/lib/listingVerification'
+import { useEnabledMarkets } from '@/hooks/useEnabledMarkets'
 import { PropertyVerificationSection } from './PropertyVerificationSection'
 import { CURRENCIES, type ComposerFormState } from './types'
 
@@ -21,7 +22,13 @@ export function StepBasics({
   showWhatsAppNudge,
   onWhatsAppNudge,
 }: StepBasicsProps) {
+  const enabledMarkets = useEnabledMarkets()
   const normalizedCode = form.country_code || normalizeCountryToIso2(form.country)
+  // Only offer markets the PA has turned ON (null = not loaded → show all). Keep
+  // the already-selected market visible even if it's since been disabled.
+  const markets = enabledMarkets
+    ? SUPPORTED_MARKETS.filter((m) => enabledMarkets.includes(m.code) || m.code === normalizedCode)
+    : SUPPORTED_MARKETS
   const countrySelectValue = normalizedCode || (form.country ? 'other' : '')
   const isOther = countrySelectValue === 'other'
 
@@ -102,7 +109,7 @@ export function StepBasics({
         </p>
         <select id="composer-country" className={selectClass} value={countrySelectValue} onChange={handleCountry}>
           <option value="">Select…</option>
-          {SUPPORTED_MARKETS.map((m) => (
+          {markets.map((m) => (
             <option key={m.code} value={m.code}>
               {m.label}
             </option>

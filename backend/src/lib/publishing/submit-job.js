@@ -11,6 +11,7 @@ import { query, transaction } from '../../db.js'
 import logger from '../logger.js'
 import { listPortalRegistry, getPortalByCode } from '../portals/store.js'
 import { hardGateBlockers } from '../listings/jurisdiction-requirements.js'
+import { getEnabledMarketCodes } from '../listings/market-settings.js'
 import { getPublishingJob } from './jobs.js'
 
 /**
@@ -23,7 +24,8 @@ async function assertListingVerifiedForBroadcast(propertyId) {
   const rows = await query('SELECT * FROM public.properties WHERE id = $1 LIMIT 1', [propertyId])
   const property = rows[0]
   if (!property) return
-  const gate = hardGateBlockers(property)
+  const enabledMarkets = await getEnabledMarketCodes()
+  const gate = hardGateBlockers(property, { enabledMarkets })
   if (gate.missing.length) {
     const err = new Error(
       `This listing can't be published in ${gate.country} without ${gate.missing

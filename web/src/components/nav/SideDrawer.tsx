@@ -33,6 +33,7 @@ import {
   Truck,
   Users,
   Zap,
+  MapPin,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Numeric } from '@/components/ui/numeric'
@@ -226,6 +227,7 @@ const PA_NAV: DrawerNavGroup[] = [
       { id: 'scoring', label: 'Area scoring', href: '/admin/scoring', icon: BarChart3 },
       { id: 'ai-configs', label: 'AI configs', href: '/admin/scoring/ai-configs', icon: Zap },
       { id: 'portals', label: 'Portal registry', href: '/admin/portals', icon: Globe },
+      { id: 'markets', label: 'Markets', href: '/admin/markets', icon: MapPin },
       { id: 'admin-templates', label: 'Templates', href: '/admin/tpl', icon: LayoutTemplate },
       { id: 'admin-notifications', label: 'Notifications', href: '/admin/notifications', icon: Bell },
       { id: 'comment-classifier', label: 'Comment classifier', href: '/admin/comment-classifier', icon: MessageSquare },

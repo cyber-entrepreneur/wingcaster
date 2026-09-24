@@ -88,21 +88,37 @@ export function resolvePropertyCountry(property) {
   )
 }
 
-/** Publish-time filter tier for the property's jurisdiction. */
-export function gatePolicyForProperty(property) {
-  return GATE_POLICY[resolvePropertyCountry(property)] || 'none'
+/**
+ * Whether a market is currently ON. `enabledMarkets` is the PA-controlled set of
+ * enabled ISO2 codes (migration 804). When omitted, every market is treated as
+ * enabled (back-compat for callers that don't consult market settings).
+ */
+function marketEnabled(country, enabledMarkets) {
+  if (enabledMarkets == null) return true
+  const set = enabledMarkets instanceof Set ? enabledMarkets : new Set(enabledMarkets)
+  return set.has(country)
+}
+
+/**
+ * Publish-time filter tier for the property's jurisdiction. A market that the PA
+ * has turned OFF resolves to 'none' (no trigger), regardless of its policy.
+ */
+export function gatePolicyForProperty(property, { enabledMarkets } = {}) {
+  const country = resolvePropertyCountry(property)
+  if (!marketEnabled(country, enabledMarkets)) return 'none'
+  return GATE_POLICY[country] || 'none'
 }
 
 /**
  * Hard-gate blockers for a PUBLISHED listing: the required, sourced permit
  * fields that are missing. Empty ⇒ allowed. Only HARD markets return blockers;
- * soft/none never block.
+ * soft/none never block. A PA-disabled market never blocks (policy 'none').
  *
  * @returns {{ country: string, policy: string, missing: {key:string,label:string}[] }}
  */
-export function hardGateBlockers(property) {
+export function hardGateBlockers(property, { enabledMarkets } = {}) {
   const country = resolvePropertyCountry(property)
-  const policy = GATE_POLICY[country] || 'none'
+  const policy = marketEnabled(country, enabledMarkets) ? (GATE_POLICY[country] || 'none') : 'none'
   if (policy !== 'hard') return { country, policy, missing: [] }
   const permit = GATE_ELIGIBLE_PERMITS[country]
   if (!permit) return { country, policy, missing: [] }
@@ -122,9 +138,9 @@ export function hardGateBlockers(property) {
  *  - none → 'unverified'.
  *  - 'registry_verified' requires a regulator API cross-check (future PR).
  */
-export function deriveVerificationStatus(property) {
+export function deriveVerificationStatus(property, { enabledMarkets } = {}) {
   const country = resolvePropertyCountry(property)
-  const policy = GATE_POLICY[country] || 'none'
+  const policy = marketEnabled(country, enabledMarkets) ? (GATE_POLICY[country] || 'none') : 'none'
   if (policy === 'hard') {
     const permit = GATE_ELIGIBLE_PERMITS[country]
     if (!permit) return 'unverified'
