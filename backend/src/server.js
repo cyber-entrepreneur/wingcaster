@@ -141,6 +141,12 @@ import {
   warnUnavailablePublishChannels,
 } from './lib/publish-readiness.js'
 import { createPropertyWithCanonical } from './lib/property-write.js'
+import {
+  resolvePropertyCountry,
+  hardGateBlockers,
+  deriveVerificationStatus,
+  isPublishedState,
+} from './lib/listings/jurisdiction-requirements.js'
 import { escapeXml } from './lib/xml.js'
 import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
@@ -2259,6 +2265,36 @@ app.post('/api/properties', authMiddleware, requireApiTokenScope('listings:write
   prop.developed_by = prop.developed_by || ''
   prop.interior_design_by = prop.interior_design_by || ''
 
+  // Listing authorization + anti-fraud verification (Layers B/C/D).
+  // Flatten the verification value bag to top-level (rides in properties.data
+  // JSONB) so portal-validators + the gate can read permit/reference fields.
+  const verificationValues =
+    body.verification && typeof body.verification === 'object' ? body.verification : {}
+  delete prop.verification
+  for (const [key, value] of Object.entries(verificationValues)) {
+    if (key && typeof key === 'string' && !(key in prop)) prop[key] = value
+  }
+  const publishIntent = prop.publish === true
+  delete prop.publish
+  const resolvedCountry = resolvePropertyCountry(prop)
+  if (resolvedCountry) prop.country_code = resolvedCountry
+  prop.verification_status = deriveVerificationStatus(prop)
+  // Hard gate: an explicit publish of a listing in a hard jurisdiction needs its
+  // sourced permit. Autosave/draft persistence (no publish intent) is never gated.
+  if (publishIntent && isPublishedState({ status: prop.status, visibility: prop.visibility })) {
+    const gate = hardGateBlockers(prop)
+    if (gate.missing.length) {
+      return res.status(400).json({
+        error: `This listing can't be published in ${gate.country} without ${gate.missing
+          .map((m) => m.label)
+          .join(', ')}. Save it as a draft, or add the permit to publish.`,
+        code: 'LISTING_UNVERIFIED',
+        country: gate.country,
+        missing: gate.missing,
+      })
+    }
+  }
+
   const propertyRecord = await createPropertyWithCanonical({
     transaction: (work) => transaction(work),
     createProperty: async () => {
@@ -2285,6 +2321,23 @@ app.post('/api/properties', authMiddleware, requireApiTokenScope('listings:write
   })
 
   await invalidatePricingForPropertyChange(propertyRecord)
+
+  // Append-only verification audit trail (tenant-scoped by agency_id + tenant_id).
+  try {
+    await insert('listing_verifications', {
+      id: uuidv4(),
+      property_id: propertyRecord.id,
+      agency_id: affiliation.agency_id || null,
+      tenant_id: affiliation.agency_id || `personal:${req.user.id}`,
+      from_status: null,
+      to_status: propertyRecord.verification_status || 'unverified',
+      control_key: resolvePropertyCountry(propertyRecord) || null,
+      source: 'listing_create',
+      actor_user_id: req.user.id,
+    })
+  } catch (err) {
+    logger.warn({ err: err.message, listingId: propertyRecord.id }, 'listing verification audit failed')
+  }
 
   try {
     await transaction(async (client) => {
@@ -2330,11 +2383,63 @@ app.put('/api/properties/:id', authMiddleware, requireApiTokenScope('listings:wr
   if (updates.ungroup_override !== undefined && prop.canonical_id) {
     await update('canonical_properties', c => c.id === prop.canonical_id, c => ({ ...c, ungroup_override: !!updates.ungroup_override }))
   }
-  await update('properties', p => p.id === req.params.id, p => ({ ...p, ...updates }))
-  if (Object.keys(updates).some((field) => PRICING_RELEVANT_PROPERTY_FIELDS.has(field))) {
-    await invalidatePricingForPropertyChange({ ...prop, ...updates })
+
+  // Listing authorization + anti-fraud verification (Layers B/C/D).
+  const publishIntent = updates.publish === true
+  delete updates.publish
+  const verificationValues =
+    updates.verification && typeof updates.verification === 'object' ? updates.verification : {}
+  delete updates.verification
+  for (const [key, value] of Object.entries(verificationValues)) {
+    if (key && typeof key === 'string') updates[key] = value
   }
-  res.json(serializeProperty({ ...prop, ...updates }))
+  const merged = { ...prop, ...updates }
+  const resolvedCountry = resolvePropertyCountry(merged)
+  if (resolvedCountry) {
+    merged.country_code = resolvedCountry
+    updates.country_code = resolvedCountry
+  }
+  const nextStatus = deriveVerificationStatus(merged)
+  merged.verification_status = nextStatus
+  updates.verification_status = nextStatus
+  if (publishIntent && isPublishedState({ status: merged.status, visibility: merged.visibility })) {
+    const gate = hardGateBlockers(merged)
+    if (gate.missing.length) {
+      return res.status(400).json({
+        error: `This listing can't be published in ${gate.country} without ${gate.missing
+          .map((m) => m.label)
+          .join(', ')}. Save it as a draft, or add the permit to publish.`,
+        code: 'LISTING_UNVERIFIED',
+        country: gate.country,
+        missing: gate.missing,
+      })
+    }
+  }
+
+  await update('properties', p => p.id === req.params.id, p => ({ ...p, ...updates }))
+
+  if ((prop.verification_status || 'unverified') !== nextStatus) {
+    try {
+      await insert('listing_verifications', {
+        id: uuidv4(),
+        property_id: prop.id,
+        agency_id: prop.agency_id || null,
+        tenant_id: prop.agency_id || `personal:${req.user.id}`,
+        from_status: prop.verification_status || 'unverified',
+        to_status: nextStatus,
+        control_key: resolvedCountry || null,
+        source: 'listing_update',
+        actor_user_id: req.user.id,
+      })
+    } catch (err) {
+      logger.warn({ err: err.message, listingId: prop.id }, 'listing verification audit failed')
+    }
+  }
+
+  if (Object.keys(updates).some((field) => PRICING_RELEVANT_PROPERTY_FIELDS.has(field))) {
+    await invalidatePricingForPropertyChange(merged)
+  }
+  res.json(serializeProperty(merged))
 })
 
 /** Decision 3: attach another agency/agent offer to an existing canonical property */

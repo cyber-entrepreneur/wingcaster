@@ -1,3 +1,10 @@
+import {
+  normalizeCountryToIso2,
+  propertyVerificationFor,
+  gatePolicyFor,
+} from '@/lib/listingVerification'
+import type { ListingRole, RepresentsType } from '@/lib/listingVerification'
+
 export const COMPOSER_STEPS = 5 as const
 
 export type ComposerStep = 1 | 2 | 3 | 4 | 5
@@ -48,6 +55,13 @@ export interface ComposerFormState {
   visibility: VisibilityChoice
   marketplace_syndicated: boolean
   agency_tied: boolean
+  // Listing authorization + anti-fraud verification (Layers B/C/D)
+  country_code: string
+  listing_role: ListingRole
+  represents_type: RepresentsType | ''
+  represents_name: string
+  /** permit numbers + authorization/ownership references, keyed by field key. */
+  verification: Record<string, string>
 }
 
 export const FEATURE_CHIPS = [
@@ -149,6 +163,11 @@ export function emptyComposerForm(): ComposerFormState {
     visibility: 'public',
     marketplace_syndicated: true,
     agency_tied: false,
+    country_code: '',
+    listing_role: 'principal',
+    represents_type: '',
+    represents_name: '',
+    verification: {},
   }
 }
 
@@ -196,6 +215,13 @@ export function composerToPayload(form: ComposerFormState): Record<string, unkno
     year_built: form.year_built ? Number(form.year_built) : undefined,
     floor: form.floor ? Number(form.floor) : undefined,
     currency: form.currency,
+    // Listing authorization + anti-fraud verification (Layers B/C/D)
+    country_code: form.country_code || normalizeCountryToIso2(form.country) || undefined,
+    listing_role: form.listing_role,
+    represents_type:
+      form.listing_role === 'referral' ? form.represents_type || undefined : undefined,
+    represents_name: form.listing_role === 'referral' ? form.represents_name : '',
+    verification: form.verification,
   }
 }
 
@@ -235,14 +261,20 @@ export type PortalValidatorIssue = {
 /** Client-side portal checks (BE-BLOCKER-17 modules land later). */
 export function runPortalValidators(form: ComposerFormState): PortalValidatorIssue[] {
   const issues: PortalValidatorIssue[] = []
-  const country = form.country.toLowerCase()
-  if ((country.includes('uae') || country.includes('dubai') || country === 'ae') && !form.territory_id) {
-    issues.push({
-      portal: 'Bayut',
-      severity: 'warn',
-      message: 'Add Trakheesi number to publish on Bayut UAE.',
-      fixStep: 1,
-    })
+  // Anti-fraud hard gate: a property in a hard jurisdiction (UAE, KSA) needs its
+  // sourced advertising permit before it can be published. Mirrors the backend gate.
+  const code = form.country_code || normalizeCountryToIso2(form.country)
+  if (gatePolicyFor(code) === 'hard') {
+    for (const field of propertyVerificationFor(code)) {
+      if (!String(form.verification[field.key] || '').trim()) {
+        issues.push({
+          portal: 'Property verification',
+          severity: 'block',
+          message: `${field.label} is required to publish in this market.`,
+          fixStep: 1,
+        })
+      }
+    }
   }
   if (form.photos.filter((p) => p.url).length < 3) {
     issues.push({

@@ -10,7 +10,32 @@ import { randomUUID } from 'node:crypto'
 import { query, transaction } from '../../db.js'
 import logger from '../logger.js'
 import { listPortalRegistry, getPortalByCode } from '../portals/store.js'
+import { hardGateBlockers } from '../listings/jurisdiction-requirements.js'
 import { getPublishingJob } from './jobs.js'
+
+/**
+ * Anti-fraud hard gate: a property in a hard jurisdiction (UAE, KSA) cannot be
+ * broadcast to portals without its sourced advertising permit. Driven by WHERE
+ * THE PROPERTY IS (country_code), independent of destination portal/country.
+ * @param {string} propertyId
+ */
+async function assertListingVerifiedForBroadcast(propertyId) {
+  const rows = await query('SELECT * FROM public.properties WHERE id = $1 LIMIT 1', [propertyId])
+  const property = rows[0]
+  if (!property) return
+  const gate = hardGateBlockers(property)
+  if (gate.missing.length) {
+    const err = new Error(
+      `This listing can't be published in ${gate.country} without ${gate.missing
+        .map((m) => m.label)
+        .join(', ')}.`,
+    )
+    err.status = 400
+    err.code = 'LISTING_UNVERIFIED'
+    err.details = { country: gate.country, missing: gate.missing }
+    throw err
+  }
+}
 
 /**
  * Serialize a portal_registry row for the agent picker.
@@ -176,6 +201,8 @@ export async function submitPortalPublishingJob({
     err.status = 401
     throw err
   }
+
+  await assertListingVerifiedForBroadcast(propertyId)
 
   const selections = normalizePortalSelections(portals)
   const resolved = []

@@ -2,6 +2,8 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
+import { SUPPORTED_MARKETS, normalizeCountryToIso2 } from '@/lib/listingVerification'
+import { PropertyVerificationSection } from './PropertyVerificationSection'
 import { CURRENCIES, type ComposerFormState } from './types'
 
 export interface StepBasicsProps {
@@ -19,6 +21,26 @@ export function StepBasics({
   showWhatsAppNudge,
   onWhatsAppNudge,
 }: StepBasicsProps) {
+  const normalizedCode = form.country_code || normalizeCountryToIso2(form.country)
+  const countrySelectValue = normalizedCode || (form.country ? 'other' : '')
+  const isOther = countrySelectValue === 'other'
+
+  function handleCountry(e: React.ChangeEvent<HTMLSelectElement>) {
+    const v = e.target.value
+    if (v === 'other') {
+      onChange('country_code', '')
+      return
+    }
+    if (!v) {
+      onChange('country_code', '')
+      onChange('country', '')
+      return
+    }
+    onChange('country_code', v)
+    const label = SUPPORTED_MARKETS.find((m) => m.code === v)?.label || v
+    onChange('country', label)
+  }
+
   return (
     <div className="space-y-[var(--lc-space-xl)]">
       {showWhatsAppNudge && (
@@ -75,15 +97,27 @@ export function StepBasics({
           Country <span className="text-[var(--lc-status-danger-fg)]">*</span>
         </Label>
         <p className="mb-1 text-[length:var(--lc-type-caption)] text-[var(--lc-text-muted)]">
-          This governs which disclosures are required (Trakheesi in UAE, Fal in KSA, none in Lebanon,
-          etc.)
+          Where the property is located. This drives the verification required to publish
+          (Trakheesi in UAE, Fal in KSA, none in Lebanon, etc.)
         </p>
-        <Input
-          id="composer-country"
-          value={form.country}
-          onChange={(e) => onChange('country', e.target.value)}
-          placeholder="e.g. UAE, Lebanon, Egypt"
-        />
+        <select id="composer-country" className={selectClass} value={countrySelectValue} onChange={handleCountry}>
+          <option value="">Select…</option>
+          {SUPPORTED_MARKETS.map((m) => (
+            <option key={m.code} value={m.code}>
+              {m.label}
+            </option>
+          ))}
+          <option value="other">Other</option>
+        </select>
+        {isOther && (
+          <Input
+            id="composer-country-other"
+            className="mt-2"
+            value={form.country}
+            onChange={(e) => onChange('country', e.target.value)}
+            placeholder="e.g. Turkey, Cyprus, United Kingdom"
+          />
+        )}
       </div>
 
       <div>
@@ -184,6 +218,8 @@ export function StepBasics({
           </p>
         )}
       </div>
+
+      <PropertyVerificationSection form={form} errors={errors} onChange={onChange} />
     </div>
   )
 }

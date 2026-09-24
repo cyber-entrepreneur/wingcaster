@@ -227,6 +227,19 @@ export const propertyCreateSchema = z.object({
   permit_number: z.string().max(80).optional().default(''),
   reference: z.string().max(80).optional().default(''),
   featured: z.boolean().optional().default(false),
+  // Listing authorization + anti-fraud verification (Layers B/C/D, migration 799)
+  country_code: z.string().max(8).optional(),
+  visibility: z.enum(['public', 'private', 'white-label', 'pocket']).optional(),
+  // Transient publish intent — true only on an explicit publish/broadcast action
+  // (composer "Publish", dashboard "Create/Save"), never on autosave. Not persisted.
+  publish: z.boolean().optional(),
+  listing_role: z.enum(['principal', 'referral']).optional(),
+  represents_type: z.enum(['developer', 'brokerage']).optional(),
+  represents_name: z.string().max(160).optional().default(''),
+  // Jurisdiction verification values (permit numbers + authorization/ownership
+  // references), keyed by field key. Ride in properties.data JSONB; flattened to
+  // top-level server-side so portal-validators can read them.
+  verification: z.record(z.string().max(200)).optional(),
 })
 
 export const propertyUpdateSchema = propertyCreateSchema.partial()

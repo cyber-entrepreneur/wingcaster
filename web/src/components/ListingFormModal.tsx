@@ -13,6 +13,16 @@ import {
   MAX_LISTING_MEDIA,
   type ListingMediaItem,
 } from '@/lib/listingAmenities'
+import {
+  SUPPORTED_MARKETS,
+  normalizeCountryToIso2,
+  verificationCaptureFor,
+  gatePolicyFor,
+  deriveVerificationStatus,
+  type ListingRole,
+  type RepresentsType,
+} from '@/lib/listingVerification'
+import { VerificationBadge } from '@/components/listings/VerificationBadge'
 
 const PROPERTY_TYPES = ['apartment', 'villa', 'townhouse', 'studio', 'penthouse', 'office', 'shop']
 
@@ -46,6 +56,12 @@ export type ListingFormValues = {
   permissible_buildup_area: string
   developed_by: string
   interior_design_by: string
+  // Listing authorization + anti-fraud verification (Layers B/C/D)
+  country_code: string
+  listing_role: ListingRole
+  represents_type: RepresentsType | ''
+  represents_name: string
+  verification: Record<string, string>
 }
 
 function newMediaId() {
@@ -102,6 +118,11 @@ const emptyForm = (): ListingFormValues => ({
   permissible_buildup_area: '',
   developed_by: '',
   interior_design_by: '',
+  country_code: '',
+  listing_role: 'principal',
+  represents_type: '',
+  represents_name: '',
+  verification: {},
 })
 
 function fromProperty(p: Property): ListingFormValues {
@@ -135,6 +156,31 @@ function fromProperty(p: Property): ListingFormValues {
     permissible_buildup_area: String((p as any).permissible_buildup_area ?? p.area ?? ''),
     developed_by: (p as any).developed_by || '',
     interior_design_by: (p as any).interior_design_by || '',
+    ...verificationFromProperty(p),
+  }
+}
+
+function verificationFromProperty(p: Property): Pick<
+  ListingFormValues,
+  'country_code' | 'listing_role' | 'represents_type' | 'represents_name' | 'verification'
+> {
+  const anyP = p as unknown as Record<string, unknown>
+  const code =
+    (typeof anyP.country_code === 'string' && anyP.country_code) ||
+    normalizeCountryToIso2(p.city || '') ||
+    ''
+  const cap = verificationCaptureFor(code)
+  const verification: Record<string, string> = {}
+  for (const f of [...cap.permit, ...cap.authorization, ...cap.ownership]) {
+    const v = anyP[f.key]
+    if (v != null && v !== '') verification[f.key] = String(v)
+  }
+  return {
+    country_code: code,
+    listing_role: (anyP.listing_role as ListingRole) || 'principal',
+    represents_type: (anyP.represents_type as RepresentsType | '') || '',
+    represents_name: (anyP.represents_name as string) || '',
+    verification,
   }
 }
 
@@ -199,6 +245,10 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
 
   const set = (key: keyof ListingFormValues, value: string | boolean | string[] | ListingMediaItem[]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const setVerification = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, verification: { ...prev.verification, [key]: value } }))
   }
 
   const toggleAmenity = (a: string) => {
@@ -318,6 +368,16 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
       setError(`Maximum ${MAX_LISTING_MEDIA} media items.`)
       return
     }
+    // Anti-fraud hard gate: publishing in a hard jurisdiction needs its permit.
+    if (gatePolicyFor(form.country_code) === 'hard') {
+      const missing = verificationCaptureFor(form.country_code).permit.filter(
+        (f) => !String(form.verification[f.key] || '').trim(),
+      )
+      if (missing.length) {
+        setError(`${missing.map((m) => m.label).join(', ')} is required to publish in this market.`)
+        return
+      }
+    }
     const media = form.media.filter((m) => m.url.trim())
     const photoList = media.map((m) => m.url)
 
@@ -356,6 +416,13 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
       territory_id: 'territory-lb',
       developed_by: form.developed_by.trim(),
       interior_design_by: form.interior_design_by.trim(),
+      // Listing authorization + anti-fraud verification (Layers B/C/D)
+      country_code: form.country_code || undefined,
+      listing_role: form.listing_role,
+      represents_type: form.listing_role === 'referral' ? form.represents_type || undefined : undefined,
+      represents_name: form.listing_role === 'referral' ? form.represents_name.trim() : '',
+      verification: form.verification,
+      publish: true,
     }
 
     setSaving(true)
@@ -802,6 +869,91 @@ export function ListingFormModal({ open, property, onClose, onSaved }: ListingFo
                     {a} ×
                   </Badge>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Listing authorization + anti-fraud verification */}
+          <div className="rounded-lg border p-4 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Authorization &amp; verification</p>
+                <p className="text-xs text-muted-foreground">
+                  Publishing in some markets (e.g. UAE, KSA) requires an advertising permit.
+                  Drafts in your database are never gated.
+                </p>
+              </div>
+              {gatePolicyFor(form.country_code) !== 'none' && (
+                <VerificationBadge status={deriveVerificationStatus(form.country_code, form.verification)} />
+              )}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Country (property location)</Label>
+                <select
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.country_code}
+                  onChange={(e) => set('country_code', e.target.value)}
+                >
+                  <option value="">Select…</option>
+                  {SUPPORTED_MARKETS.map((m) => (
+                    <option key={m.code} value={m.code}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Your role on this property</Label>
+                <select
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.listing_role}
+                  onChange={(e) => set('listing_role', e.target.value)}
+                >
+                  <option value="principal">Principal — I hold the mandate</option>
+                  <option value="referral">Referral — on behalf of a principal</option>
+                </select>
+              </div>
+            </div>
+            {form.listing_role === 'referral' && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Who you represent</Label>
+                  <select
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.represents_type}
+                    onChange={(e) => set('represents_type', e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    <option value="developer">Developer</option>
+                    <option value="brokerage">Licensed brokerage</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Their name</Label>
+                  <Input className="mt-1" value={form.represents_name} onChange={(e) => set('represents_name', e.target.value)} placeholder="e.g. Aldar Properties" />
+                </div>
+              </div>
+            )}
+            {form.country_code && (
+              <div className="space-y-3">
+                {(() => {
+                  const cap = verificationCaptureFor(form.country_code)
+                  const hard = gatePolicyFor(form.country_code) === 'hard'
+                  return [...cap.permit, ...cap.authorization, ...cap.ownership].map((field) => (
+                    <div key={field.key}>
+                      <Label>
+                        {field.label}
+                        {hard && field.required ? ' *' : ''}
+                      </Label>
+                      {field.help && <p className="text-xs text-muted-foreground">{field.help}</p>}
+                      <Input
+                        className="mt-1"
+                        value={form.verification[field.key] || ''}
+                        onChange={(e) => setVerification(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                      />
+                    </div>
+                  ))
+                })()}
               </div>
             )}
           </div>
