@@ -94,6 +94,8 @@ finPostgresSuite('listing verification gate (migration 799)', { seed: false }, (
   })
 
   it('portal broadcast is BLOCKED for a UAE property with no permit', async () => {
+    // UAE ships OFF (migration 804, launch = LB only); enable it so the gate applies.
+    await pool().query("UPDATE public.market_settings SET enabled = TRUE WHERE country_code = 'AE'")
     const propertyId = randomUUID()
     const agentId = randomUUID()
     await insert('properties', {
@@ -106,6 +108,7 @@ finPostgresSuite('listing verification gate (migration 799)', { seed: false }, (
   })
 
   it('portal broadcast passes the gate once the permit is present', async () => {
+    await pool().query("UPDATE public.market_settings SET enabled = TRUE WHERE country_code = 'AE'")
     const propertyId = randomUUID()
     const agentId = randomUUID()
     await insert('properties', {

@@ -135,6 +135,7 @@ import {
   PortalDetailPage,
   PortalActivationHistoryPage,
 } from '@/pages/admin/portals'
+import { MarketsAdminPage } from '@/pages/admin/markets/MarketsAdminPage'
 import {
   PackageListPage,
   PackageEditPage,
@@ -418,6 +419,8 @@ function AppRoutes() {
       <Route path="/admin/portals/:code/edit" element={<PortalDetailPage mode="edit" />} />
       <Route path="/admin/portals/:code/history" element={<PortalActivationHistoryPage />} />
       <Route path="/admin/portals/:code" element={<PortalDetailPage mode="view" />} />
+      {/* Market on/off registry (migration 804) */}
+      <Route path="/admin/markets" element={<MarketsAdminPage />} />
       {/* PA-PKG-001..004 — package admin (list / edit / approval queue+detail / version history) */}
       <Route path="/admin/packages" element={<PackageListPage />} />
       <Route path="/admin/packages/approvals" element={<PackageApprovalQueuePage />} />

@@ -2402,6 +2402,15 @@ export const api = {
   getAdminAccountRecoveryCases: () => fetchJson('/admin/account-recovery'),
   getAdminAccountRecoveryCase: (caseId: string) =>
     fetchJson(`/admin/account-recovery/${encodeURIComponent(caseId)}`),
+  // Market on/off registry (migration 804)
+  getEnabledMarkets: (): Promise<{ codes: string[] }> => fetchJson('/markets/enabled'),
+  getAdminMarkets: (): Promise<{ markets: { code: string; label: string; enabled: boolean }[] }> =>
+    fetchJson('/admin/markets'),
+  setAdminMarket: (code: string, enabled: boolean): Promise<{ code: string; enabled: boolean }> =>
+    fetchJson(`/admin/markets/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
   /**
    * BE-BLOCKER-22 — only cast-vote. Legacy /approve and /reject return 410 Gone.
    * Do NOT reintroduce approve/reject call sites.

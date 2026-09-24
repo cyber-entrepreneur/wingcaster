@@ -147,6 +147,13 @@ import {
   deriveVerificationStatus,
   isPublishedState,
 } from './lib/listings/jurisdiction-requirements.js'
+import {
+  MARKET_LABELS,
+  isKnownMarket,
+  getEnabledMarketCodes,
+  listMarketSettings,
+  setMarketEnabled,
+} from './lib/listings/market-settings.js'
 import { escapeXml } from './lib/xml.js'
 import { sendOtp } from './lib/otp.js'
 import { resolveServerPort } from './lib/port.js'
@@ -2278,11 +2285,13 @@ app.post('/api/properties', authMiddleware, requireApiTokenScope('listings:write
   delete prop.publish
   const resolvedCountry = resolvePropertyCountry(prop)
   if (resolvedCountry) prop.country_code = resolvedCountry
-  prop.verification_status = deriveVerificationStatus(prop)
+  const enabledMarkets = await getEnabledMarketCodes()
+  prop.verification_status = deriveVerificationStatus(prop, { enabledMarkets })
   // Hard gate: an explicit publish of a listing in a hard jurisdiction needs its
-  // sourced permit. Autosave/draft persistence (no publish intent) is never gated.
+  // sourced permit. Autosave/draft persistence (no publish intent) is never gated,
+  // and a PA-disabled market never triggers the gate.
   if (publishIntent && isPublishedState({ status: prop.status, visibility: prop.visibility })) {
-    const gate = hardGateBlockers(prop)
+    const gate = hardGateBlockers(prop, { enabledMarkets })
     if (gate.missing.length) {
       return res.status(400).json({
         error: `This listing can't be published in ${gate.country} without ${gate.missing
@@ -2399,11 +2408,12 @@ app.put('/api/properties/:id', authMiddleware, requireApiTokenScope('listings:wr
     merged.country_code = resolvedCountry
     updates.country_code = resolvedCountry
   }
-  const nextStatus = deriveVerificationStatus(merged)
+  const enabledMarkets = await getEnabledMarketCodes()
+  const nextStatus = deriveVerificationStatus(merged, { enabledMarkets })
   merged.verification_status = nextStatus
   updates.verification_status = nextStatus
   if (publishIntent && isPublishedState({ status: merged.status, visibility: merged.visibility })) {
-    const gate = hardGateBlockers(merged)
+    const gate = hardGateBlockers(merged, { enabledMarkets })
     if (gate.missing.length) {
       return res.status(400).json({
         error: `This listing can't be published in ${gate.country} without ${gate.missing
@@ -2440,6 +2450,40 @@ app.put('/api/properties/:id', authMiddleware, requireApiTokenScope('listings:wr
     await invalidatePricingForPropertyChange(merged)
   }
   res.json(serializeProperty(merged))
+})
+
+/**
+ * Market on/off registry (migration 804). Enabled markets are the only ones
+ * offered to agents; a disabled market never triggers listing verification.
+ */
+app.get('/api/markets/enabled', authMiddleware, async (req, res) => {
+  res.json({ codes: await getEnabledMarketCodes() })
+})
+
+app.get('/api/admin/markets', authMiddleware, requireAdmin, async (req, res) => {
+  res.json({ markets: await listMarketSettings() })
+})
+
+app.put('/api/admin/markets/:code', authMiddleware, requireAdmin, async (req, res) => {
+  const code = String(req.params.code || '').toUpperCase()
+  if (!isKnownMarket(code)) return res.status(404).json({ error: 'Unknown market' })
+  const enabled = Boolean(req.body?.enabled)
+  const result = await setMarketEnabled(code, enabled, req.user.id)
+  try {
+    await insert('audit_log', {
+      id: uuidv4(),
+      agent_id: req.user.id,
+      tenant_id: `platform:${req.user.id}`,
+      type: 'market_settings',
+      action: enabled ? 'market_enabled' : 'market_disabled',
+      entity_type: 'market',
+      entity_id: code,
+      metadata: { code, enabled, label: MARKET_LABELS[code] },
+    })
+  } catch (err) {
+    logger.warn({ err: err.message, code }, 'market settings audit failed')
+  }
+  res.json(result)
 })
 
 /** Decision 3: attach another agency/agent offer to an existing canonical property */
