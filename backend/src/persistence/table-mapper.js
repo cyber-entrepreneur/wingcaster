@@ -228,9 +228,19 @@ const TABLE_MAP = {
       'latitude', 'longitude', 'territory_id', 'marketplace_syndicated', 'asset_version', 'last_asset_generated_at',
       'tenant_id', 'ownership_type', 'custody_tenant_id', 'source_user_id', 'exit_disposition',
       'ai_ratings',
+      // Listing authorization + anti-fraud verification (migration 799)
+      'country_code', 'listing_role', 'represents_type', 'represents_name', 'verification_status',
     ],
   },
   property_media: { schema: 'public', table: 'property_media', columns: ['property_id', 'type', 'url', 'order_index', 'is_hero', 'caption'] },
+  listing_verifications: {
+    schema: 'public',
+    table: 'listing_verifications',
+    columns: [
+      'property_id', 'agency_id', 'tenant_id', 'from_status', 'to_status',
+      'control_key', 'source', 'evidence_ref', 'actor_user_id',
+    ],
+  },
   canonical_properties: { schema: 'public', table: 'canonical_properties', columns: ['primary_listing_id', 'location', 'latitude', 'longitude', 'city', 'neighborhood'] },
   canonical_primary_disputes: {
     schema: 'public',
