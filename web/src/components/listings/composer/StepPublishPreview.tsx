@@ -4,6 +4,12 @@ import { ListingPreviewCard } from '@/components/onboarding/whatsapp/ListingPrev
 import { Numeric } from '@/components/ui/numeric'
 import { portalLabelToChannel } from '@/theme/channel'
 import { cn } from '@/lib/utils'
+import { VerificationBadge } from '@/components/listings/VerificationBadge'
+import {
+  deriveVerificationStatus,
+  gatePolicyFor,
+  normalizeCountryToIso2,
+} from '@/lib/listingVerification'
 import {
   runPortalValidators,
   type ComposerFormState,
@@ -49,6 +55,13 @@ export function StepPublishPreview({
     byPortal.set(issue.portal, list)
   }
 
+  const code = form.country_code || normalizeCountryToIso2(form.country)
+  const policy = gatePolicyFor(code)
+  const verificationStatus = deriveVerificationStatus(code, form.verification)
+  const portalRows = byPortal.has('Property verification')
+    ? ['Property verification', 'Bayut', 'Property Finder', 'Dubizzle', 'OLX', 'Aqar']
+    : ['Bayut', 'Property Finder', 'Dubizzle', 'OLX', 'Aqar']
+
   const price = Number(form.price) || 0
 
   return (
@@ -69,6 +82,17 @@ export function StepPublishPreview({
         >
           This will publish with <Numeric>{warnings.length}</Numeric> warning
           {warnings.length === 1 ? '' : 's'}. Buyers on some portals may not see it.
+        </div>
+      )}
+
+      {policy !== 'none' && (
+        <div className="flex items-center justify-between gap-2 rounded-[var(--lc-radius-md)] border border-[var(--lc-border)] bg-[var(--lc-surface-raised)] px-3 py-2">
+          <span className="text-[length:var(--lc-type-body-sm)] text-[var(--lc-text-secondary)]">
+            {policy === 'hard'
+              ? 'This market requires an advertising permit to publish.'
+              : 'Add verification references to earn a trust badge.'}
+          </span>
+          <VerificationBadge status={verificationStatus} />
         </div>
       )}
 
@@ -123,7 +147,7 @@ export function StepPublishPreview({
       <div>
         <h3 className="mb-3 font-semibold text-[var(--lc-text-heading)]">Portal checks</h3>
         <ul className="space-y-2">
-          {['Bayut', 'Property Finder', 'Dubizzle', 'OLX', 'Aqar'].map((portal) => {
+          {portalRows.map((portal) => {
             const portalIssues = byPortal.get(portal) || []
             const resolved = portalLabelToChannel(portal)
             const ok = portalIssues.length === 0

@@ -18,6 +18,7 @@ import {
 import { ListingPreviewCard } from '@/components/onboarding/whatsapp/ListingPreviewCard'
 import { Numeric } from '@/components/ui/numeric'
 import { cn } from '@/lib/utils'
+import { normalizeCountryToIso2, verificationCaptureFor, type ListingRole, type RepresentsType } from '@/lib/listingVerification'
 import type { Property } from '@/types'
 import { AutosaveIndicator } from '@/components/listings/composer/AutosaveIndicator'
 import { StickyStepNav } from '@/components/listings/composer/StickyStepNav'
@@ -51,10 +52,26 @@ function hydrateFromProperty(p: Property): ComposerFormState {
     alt_text: '',
     isHero: i === 0,
   }))
+  const anyP = p as unknown as Record<string, unknown>
+  const code =
+    (typeof anyP.country_code === 'string' && anyP.country_code) ||
+    normalizeCountryToIso2(p.city || '') ||
+    ''
+  const cap = verificationCaptureFor(code)
+  const verification: Record<string, string> = {}
+  for (const f of [...cap.permit, ...cap.authorization, ...cap.ownership]) {
+    const v = anyP[f.key]
+    if (v != null && v !== '') verification[f.key] = String(v)
+  }
   return {
     ...base,
     type: p.type || 'sale',
     title: p.title || '',
+    country_code: code,
+    listing_role: (anyP.listing_role as ListingRole) || 'principal',
+    represents_type: (anyP.represents_type as RepresentsType | '') || '',
+    represents_name: (anyP.represents_name as string) || '',
+    verification,
     description: p.description || '',
     property_type: p.property_type || 'apartment',
     price: String(p.price ?? ''),
@@ -221,7 +238,7 @@ export function ManualListingComposerPage() {
     setPublishing(true)
     try {
       let id = propertyId || autosave.propertyId
-      const body = { ...composerToPayload(form), status: 'active' }
+      const body = { ...composerToPayload(form), status: 'active', publish: true }
       if (!id) {
         const created = (await api.createProperty(body)) as { id: string }
         id = created.id
