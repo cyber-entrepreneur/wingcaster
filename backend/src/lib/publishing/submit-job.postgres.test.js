@@ -46,9 +46,13 @@ async function agentSession(suffix = '') {
 
 async function seedProperty(pool, { agentId, title = 'Submit Listing' }) {
   const id = randomUUID()
+  // Dubai (AE) is a hard-gate jurisdiction: broadcasting to portals now requires
+  // the property's Trakheesi permit (listing verification, migration 799). A real
+  // Dubai portal submission carries one, so seed it — these tests exercise portal
+  // RESOLUTION, not the verification gate.
   await pool.query(
     `INSERT INTO public.properties (id, agent_id, title, city, status, data)
-     VALUES ($1, $2, $3, 'Dubai', 'active', '{}'::jsonb)`,
+     VALUES ($1, $2, $3, 'Dubai', 'active', '{"trakheesi_permit":"71-TEST0000"}'::jsonb)`,
     [id, agentId, title],
   )
   return id
