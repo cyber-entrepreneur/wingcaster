@@ -9,10 +9,13 @@
  * can grant it: the agency owner for agency scope, every platform admin for
  * platform scope. Notification failure never fails the request, and the
  * receipt never reveals whether the target resource actually exists.
+ *
+ * Reads are owner-scoped in SQL (not findAll + filter) because this module
+ * uses the legacy app-role DAL rather than growth_os_app_role / withTenant.
  */
 import { z } from 'zod'
 import { v4 as uuidv4 } from 'uuid'
-import { findAll, findOne, insert } from '../db.js'
+import { findOne, insert, query } from '../db.js'
 
 const scopeEnum = z.enum(['platform', 'agency', 'resource'])
 
@@ -26,6 +29,12 @@ const createSchema = z
     reason: z.string().trim().max(1000).nullish(),
   })
   .strict()
+
+function requireUserId(req) {
+  const id = req.user?.id
+  if (!id) throw new Error('Authenticated user id is required')
+  return id
+}
 
 function serialize(row) {
   return {
@@ -44,20 +53,56 @@ function serialize(row) {
   }
 }
 
-/** Two open requests collide when they target the same thing for the same user. */
-function sameTarget(row, { scope, agencyId, resourceId }) {
-  return (
-    row.status === 'open' &&
-    row.scope === scope &&
-    (row.agency_id ?? null) === (agencyId ?? null) &&
-    (row.resource_id ?? null) === (resourceId ?? null)
+async function findRequestsByRequester(requesterId) {
+  return query(
+    `SELECT *
+       FROM public.access_requests
+      WHERE requester_id = $1
+      ORDER BY created_at DESC`,
+    [requesterId],
   )
+}
+
+async function findOpenRequestForTarget(requesterId, { scope, agencyId, resourceId }) {
+  const rows = await query(
+    `SELECT *
+       FROM public.access_requests
+      WHERE requester_id = $1
+        AND status = 'open'
+        AND scope = $2
+        AND agency_id IS NOT DISTINCT FROM $3
+        AND resource_id IS NOT DISTINCT FROM $4
+      LIMIT 1`,
+    [requesterId, scope, agencyId, resourceId],
+  )
+  return rows[0]
+}
+
+async function findRequestByIdForOwner(id, requesterId) {
+  const rows = await query(
+    `SELECT *
+       FROM public.access_requests
+      WHERE id = $1
+        AND requester_id = $2
+      LIMIT 1`,
+    [id, requesterId],
+  )
+  return rows[0]
+}
+
+async function findPlatformAdminIds() {
+  const rows = await query(
+    `SELECT id
+       FROM public.users
+      WHERE platform_role = $1`,
+    ['platform_admin'],
+  )
+  return rows.map((r) => r.id).filter(Boolean)
 }
 
 async function resolveRecipientIds({ scope, agencyId }) {
   if (scope === 'platform') {
-    const admins = await findAll('users', (u) => u.platform_role === 'platform_admin')
-    return admins.map((u) => u.id).filter(Boolean)
+    return findPlatformAdminIds()
   }
   if (agencyId) {
     const agency = await findOne('agencies', (a) => a.id === agencyId)
@@ -106,14 +151,15 @@ export function registerRoutes(app, { authMiddleware } = {}) {
       return res.status(400).json({ error: 'Invalid access request', details: parsed.error.flatten() })
     }
     const body = parsed.data
-    const requesterId = req.user.id
+    const requesterId = requireUserId(req)
 
     // Idempotent: re-filing the same open request returns the existing one so
     // the UI can show "already requested" instead of stacking duplicates.
-    const mine = await findAll('access_requests', (r) => r.requester_id === requesterId)
-    const existing = mine.find((r) =>
-      sameTarget(r, { scope: body.scope, agencyId: body.agency_id ?? null, resourceId: body.resource_id ?? null }),
-    )
+    const existing = await findOpenRequestForTarget(requesterId, {
+      scope: body.scope,
+      agencyId: body.agency_id ?? null,
+      resourceId: body.resource_id ?? null,
+    })
     if (existing) {
       return res.status(200).json({ request: serialize(existing), already_requested: true })
     }
@@ -142,16 +188,13 @@ export function registerRoutes(app, { authMiddleware } = {}) {
   })
 
   app.get('/api/access-requests/mine', authMiddleware, async (req, res) => {
-    const rows = await findAll('access_requests', (r) => r.requester_id === req.user.id)
-    rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    const rows = await findRequestsByRequester(requireUserId(req))
     res.json({ requests: rows.map(serialize) })
   })
 
   app.get('/api/access-requests/:id', authMiddleware, async (req, res) => {
-    const row = await findOne('access_requests', (r) => r.id === req.params.id)
-    // Leak-safe: a request the caller does not own is indistinguishable from
-    // one that does not exist.
-    if (!row || row.requester_id !== req.user.id) {
+    const row = await findRequestByIdForOwner(req.params.id, requireUserId(req))
+    if (!row) {
       return res.status(404).json({ error: 'Access request not found' })
     }
     res.json({ request: serialize(row) })

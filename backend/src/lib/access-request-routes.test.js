@@ -15,10 +15,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const store = vi.hoisted(() => ({ data: {} }))
 
+function matchOpenTarget(row, requesterId, scope, agencyId, resourceId) {
+  return (
+    row.requester_id === requesterId &&
+    row.status === 'open' &&
+    row.scope === scope &&
+    (row.agency_id ?? null) === (agencyId ?? null) &&
+    (row.resource_id ?? null) === (resourceId ?? null)
+  )
+}
+
 const db = vi.hoisted(() => ({
-  findAll: vi.fn((collection, pred) => {
-    const rows = store.data[collection] || []
-    return Promise.resolve(pred ? rows.filter(pred) : [...rows])
+  query: vi.fn(async (sql, params = []) => {
+    const normalized = sql.replace(/\s+/g, ' ').trim()
+    if (normalized.includes('FROM public.access_requests') && normalized.includes('requester_id = $1') && normalized.includes("status = 'open'")) {
+      const [requesterId, scope, agencyId, resourceId] = params
+      const row = (store.data.access_requests || []).find((r) => matchOpenTarget(r, requesterId, scope, agencyId, resourceId))
+      return row ? [row] : []
+    }
+    if (normalized.includes('FROM public.access_requests') && normalized.includes('id = $1') && normalized.includes('requester_id = $2')) {
+      const [id, requesterId] = params
+      const row = (store.data.access_requests || []).find((r) => r.id === id && r.requester_id === requesterId)
+      return row ? [row] : []
+    }
+    if (normalized.includes('FROM public.access_requests') && normalized.includes('requester_id = $1') && normalized.includes('ORDER BY created_at DESC')) {
+      const [requesterId] = params
+      const rows = (store.data.access_requests || [])
+        .filter((r) => r.requester_id === requesterId)
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      return rows
+    }
+    if (normalized.includes('FROM public.users') && normalized.includes('platform_role = $1')) {
+      const [role] = params
+      return (store.data.users || []).filter((u) => u.platform_role === role).map((u) => ({ id: u.id }))
+    }
+    throw new Error(`unexpected query in test: ${normalized}`)
   }),
   findOne: vi.fn((collection, pred) => {
     const rows = store.data[collection] || []
@@ -50,7 +81,7 @@ function createApp(user = { id: 'req-1', name: 'Req One' }) {
 
 beforeEach(async () => {
   store.data = { access_requests: [], users: [], agencies: [], notifications: [] }
-  db.findAll.mockClear()
+  db.query.mockClear()
   db.findOne.mockClear()
   db.insert.mockClear()
   ;({ registerRoutes } = await import('./access-request-routes.js'))
